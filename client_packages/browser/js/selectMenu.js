@@ -7081,6 +7081,29 @@ var selectMenu = new Vue({
                     selectMenu.show = false;
                 }
             },
+            "autoRobberJob": {
+                name: "autoRobberJob",
+                header: "Автоугон",
+                items: [
+                    { text: "Взять заказ" },
+                    { text: "Отказаться" },
+                    { text: "Закрыть" },
+                ],
+                i: 0,
+                j: 0,
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    if (eventName == 'onItemSelected') {
+                        if (item.text == 'Взять заказ') {
+                            mp.events.call('autoroober.menu.accept');
+                        } else if (item.text == 'Отказаться' || item.text == 'Закрыть') {
+                            mp.events.call('autoroober.menu.close');
+                        }
+                    } else if (eventName == 'onBackspacePressed' || eventName == 'onEscapePressed') {
+                        mp.events.call('autoroober.menu.close');
+                    }
+                }
+            },
             "farmsMain": {
                 name: "farmsMain",
                 header: "Фермерское хозяйство",
@@ -7396,6 +7419,83 @@ var selectMenu = new Vue({
                             selectMenu.show = false;
                         }
                     } else if (eventName == 'onBackspacePressed') {
+                        selectMenu.show = false;
+                    }
+                }
+            },
+            "pawnshop": {
+                name: "pawnshop",
+                header: "Скупщик",
+                items: [
+                    { text: "Всего предметов", values: ["0"] },
+                    { text: "Общая стоимость", values: ["$0"] },
+                    { text: "Цена лучшего предмета", values: ["$0"] },
+                    { text: "Продать 1 предмет" },
+                    { text: "Продать всё" },
+                    { text: "Закрыть" },
+                ],
+                baseItems: null,
+                data: null,
+                i: 0,
+                j: 0,
+                init(data) {
+                    if (typeof data === 'string') data = JSON.parse(data);
+                    if (!this.baseItems) this.baseItems = cloneObj(this.items);
+                    this.update(data);
+                },
+                update(data) {
+                    if (typeof data === 'string') data = JSON.parse(data);
+                    this.data = data || {};
+                    this.applyData();
+                },
+                applyData() {
+                    if (!this.baseItems) this.baseItems = cloneObj(this.items);
+                    var summary = cloneObj(this.baseItems);
+                    var info = this.data || {};
+                    var totalCount = info.totalCount || 0;
+                    var totalValue = info.totalValue || 0;
+                    var nextPrice = info.nextPrice || 0;
+                    summary[0].values = [`${totalCount}`];
+                    summary[1].values = [`$${totalValue}`];
+                    summary[2].values = [`$${nextPrice}`];
+                    this.header = info.title || 'Скупщик';
+                    var dynamic = [];
+                    if (Array.isArray(info.items) && info.items.length) {
+                        info.items.forEach(item => {
+                            dynamic.push({
+                                text: item.name || 'Предмет',
+                                values: [`${item.count || 0} шт. • $${item.price || 0}`],
+                                disabled: true,
+                            });
+                        });
+                    } else {
+                        dynamic.push({
+                            text: 'Нечего продавать',
+                            values: [''],
+                            disabled: true,
+                        });
+                    }
+                    this.items = summary.concat(dynamic);
+                    if (this.i >= this.items.length) this.i = this.items.length - 1;
+                    if (this.i < 0) this.i = 0;
+                    if (this.j > this.i) this.j = this.i;
+                    selectMenu.loader = false;
+                },
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    if (eventName == 'onItemSelected') {
+                        if (item.text == 'Продать 1 предмет') {
+                            if (!this.data || !this.data.id) return;
+                            selectMenu.loader = true;
+                            mp.events.callRemote('pawnshops.sell.one', this.data.id);
+                        } else if (item.text == 'Продать всё') {
+                            if (!this.data || !this.data.id) return;
+                            selectMenu.loader = true;
+                            mp.events.callRemote('pawnshops.sell.all', this.data.id);
+                        } else if (item.text == 'Закрыть') {
+                            selectMenu.show = false;
+                        }
+                    } else if (eventName == 'onBackspacePressed' || eventName == 'onEscapePressed') {
                         selectMenu.show = false;
                     }
                 }
