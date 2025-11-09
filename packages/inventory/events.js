@@ -2,6 +2,7 @@ let bands = call('bands');
 let bizes = call('bizes');
 let clubs = call('clubs');
 let craft = call('craft');
+let moonshine = call('moonshine');
 let death = call('death');
 let factions = call('factions');
 let fuelstations = call('fuelstations');
@@ -656,6 +657,9 @@ module.exports = {
                     craft.createBonfire(data.pos, new mp.Vector3(0, 0, player.heading));
                     notifs.success(player, `Вы развели костер`, header);
                 }
+                break;
+            case 303: // самогон
+                moonshine.consumeMoonshine(player, item);
                 break;
         }
     },
