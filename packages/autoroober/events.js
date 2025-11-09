@@ -54,6 +54,12 @@ module.exports = {
     'death.spawn': (player) => {
         getAutoRobber().cleanupPlayer(player);
     },
+    'player.job.changed': (player) => {
+        getAutoRobber().onJobChanged(player);
+    },
+    'player.jobSkill.changed': (player, skill) => {
+        getAutoRobber().onJobSkillChanged(player, skill);
+    },
     playerStartEnterVehicle: (player, vehicle, seat) => {
         if (seat !== 0) return;
         getAutoRobber().onVehicleStartEnter(player, vehicle);

@@ -309,10 +309,16 @@ module.exports = {
 
     sellItems(player, broker, unitsToSell, preferExpensive) {
         const { operations, totalPrice, soldCount } = this.collectSaleOperations(player, broker, unitsToSell, preferExpensive);
-        if (!soldCount || !operations.length || !totalPrice) return notifs.error(player, 'Нечего продавать', broker.title);
+        if (!soldCount || !operations.length || !totalPrice) {
+            player.call('selectMenu.loader', [false]);
+            return notifs.error(player, 'Нечего продавать', broker.title);
+        }
 
         money.addCash(player, totalPrice, (res) => {
-            if (!res) return notifs.error(player, 'Ошибка начисления наличных', broker.title);
+            if (!res) {
+                player.call('selectMenu.loader', [false]);
+                return notifs.error(player, 'Ошибка начисления наличных', broker.title);
+            }
             this.applyOperations(player, operations);
             notifs.success(player, `Продано ${soldCount} шт. на $${totalPrice}`, broker.title);
             this.refreshMenu(player, broker);

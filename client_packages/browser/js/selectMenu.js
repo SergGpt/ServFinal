@@ -7085,18 +7085,107 @@ var selectMenu = new Vue({
                 name: "autoRobberJob",
                 header: "Автоугон",
                 items: [
-                    { text: "Взять заказ" },
-                    { text: "Отказаться" },
+                    { text: "Статус", values: ["Не работаю"] },
+                    { text: "Текущий заказ", values: ["Нет"] },
+                    { text: "Класс заказов", values: ["Эконом"] },
+                    { text: "Навык", values: ["0 ед."] },
+                    { text: "Прогресс навыка", values: ["0%"] },
+                    { text: "Базовая награда", values: ["$0"] },
+                    { text: "Получить заказ" },
+                    { text: "Закончить работу" },
                     { text: "Закрыть" },
                 ],
+                baseItems: null,
+                data: null,
                 i: 0,
                 j: 0,
+                init(data) {
+                    if (typeof data === 'string') data = JSON.parse(data);
+                    if (!this.baseItems) this.baseItems = cloneObj(this.items);
+                    this.update(data);
+                },
+                update(data) {
+                    if (typeof data === 'string') data = JSON.parse(data);
+                    this.data = data || {};
+                    this.applyData();
+                },
+                applyData() {
+                    if (!this.baseItems) this.baseItems = cloneObj(this.items);
+                    var summary = cloneObj(this.baseItems);
+                    var info = this.data || {};
+
+                    var statusItem = summary[0];
+                    statusItem.values = [info.isOnJob ? 'На работе' : 'Не работаю'];
+
+                    var orderItem = summary[1];
+                    if (info.hasOrder) {
+                        var timerLabel = info.timeLabel ? ` • ${info.timeLabel}` : '';
+                        var rewardLabel = info.currentReward != null ? `$${info.currentReward}` : (info.orderReward != null ? `$${info.orderReward}` : '');
+                        var rewardText = rewardLabel ? ` • ${rewardLabel}` : '';
+                        orderItem.values = [`Да${rewardText}${timerLabel}`];
+                    } else {
+                        orderItem.values = ['Нет'];
+                    }
+
+                    var tierItem = summary[2];
+                    tierItem.values = [info.tierName || 'Эконом'];
+
+                    var skillItem = summary[3];
+                    var skillExp = info.skillExp != null ? info.skillExp : 0;
+                    var skillCap = info.nextStageExp != null ? info.nextStageExp : null;
+                    var skillLabel = skillCap != null ? `${skillExp} / ${skillCap}` : `${skillExp}`;
+                    skillItem.values = [skillLabel];
+
+                    var progressItem = summary[4];
+                    var progress = info.skillProgress != null ? info.skillProgress : 0;
+                    progressItem.values = [`${progress}%`];
+
+                    var rewardItem = summary[5];
+                    var estimatedReward = info.estimatedReward != null ? info.estimatedReward : 0;
+                    var multiplier = info.bonusMultiplier != null ? info.bonusMultiplier : 1;
+                    if (info.hasOrder && info.currentReward != null) estimatedReward = info.currentReward;
+                    rewardItem.values = [`$${estimatedReward}` + (multiplier !== 1 ? ` (x${multiplier.toFixed(2)})` : '')];
+
+                    var takeItem = summary[6];
+                    if (info.hasOrder) {
+                        takeItem.values = ['Завершите текущий заказ'];
+                    } else if (!info.isOnJob) {
+                        takeItem.values = ['Устроиться и получить заказ'];
+                    } else {
+                        takeItem.values = [''];
+                    }
+
+                    var stopItem = summary[7];
+                    if (info.isOnJob) {
+                        stopItem.values = [''];
+                    } else {
+                        stopItem.values = ['Вы не на работе'];
+                    }
+
+                    this.items = summary;
+                    if (this.i >= this.items.length) this.i = this.items.length - 1;
+                    if (this.i < 0) this.i = 0;
+                    if (this.j > this.i) this.j = this.i;
+                    selectMenu.loader = false;
+                },
                 handler(eventName) {
                     var item = this.items[this.i];
+                    var info = this.data || {};
                     if (eventName == 'onItemSelected') {
-                        if (item.text == 'Взять заказ') {
+                        if (item.text == 'Получить заказ') {
+                            if (info.hasOrder) {
+                                selectMenu.notification = 'Сначала завершите текущий заказ';
+                                return;
+                            }
                             mp.events.call('autoroober.menu.accept');
-                        } else if (item.text == 'Отказаться' || item.text == 'Закрыть') {
+                        } else if (item.text == 'Закончить работу') {
+                            if (!info.isOnJob) {
+                                selectMenu.notification = 'Вы ещё не начали работу';
+                                return;
+                            }
+                            mp.events.call('autoroober.menu.close');
+                            mp.trigger('callRemote', 'jobs.leave');
+                        } else if (item.text == 'Закрыть') {
                             mp.events.call('autoroober.menu.close');
                         }
                     } else if (eventName == 'onBackspacePressed' || eventName == 'onEscapePressed') {
