@@ -7081,6 +7081,118 @@ var selectMenu = new Vue({
                     selectMenu.show = false;
                 }
             },
+            "autoRobberJob": {
+                name: "autoRobberJob",
+                header: "Автоугон",
+                items: [
+                    { text: "Статус", values: ["Не работаю"] },
+                    { text: "Текущий заказ", values: ["Нет"] },
+                    { text: "Класс заказов", values: ["Эконом"] },
+                    { text: "Навык", values: ["0 ед."] },
+                    { text: "Прогресс навыка", values: ["0%"] },
+                    { text: "Базовая награда", values: ["$0"] },
+                    { text: "Получить заказ" },
+                    { text: "Закончить работу" },
+                    { text: "Закрыть" },
+                ],
+                baseItems: null,
+                data: null,
+                i: 0,
+                j: 0,
+                init(data) {
+                    if (typeof data === 'string') data = JSON.parse(data);
+                    if (!this.baseItems) this.baseItems = cloneObj(this.items);
+                    this.update(data);
+                },
+                update(data) {
+                    if (typeof data === 'string') data = JSON.parse(data);
+                    this.data = data || {};
+                    this.applyData();
+                },
+                applyData() {
+                    if (!this.baseItems) this.baseItems = cloneObj(this.items);
+                    var summary = cloneObj(this.baseItems);
+                    var info = this.data || {};
+
+                    var statusItem = summary[0];
+                    statusItem.values = [info.isOnJob ? 'На работе' : 'Не работаю'];
+
+                    var orderItem = summary[1];
+                    if (info.hasOrder) {
+                        var timerLabel = info.timeLabel ? ` • ${info.timeLabel}` : '';
+                        var rewardLabel = info.currentReward != null ? `$${info.currentReward}` : (info.orderReward != null ? `$${info.orderReward}` : '');
+                        var rewardText = rewardLabel ? ` • ${rewardLabel}` : '';
+                        orderItem.values = [`Да${rewardText}${timerLabel}`];
+                    } else {
+                        orderItem.values = ['Нет'];
+                    }
+
+                    var tierItem = summary[2];
+                    tierItem.values = [info.tierName || 'Эконом'];
+
+                    var skillItem = summary[3];
+                    var skillExp = info.skillExp != null ? info.skillExp : 0;
+                    var skillCap = info.nextStageExp != null ? info.nextStageExp : null;
+                    var skillLabel = skillCap != null ? `${skillExp} / ${skillCap}` : `${skillExp}`;
+                    skillItem.values = [skillLabel];
+
+                    var progressItem = summary[4];
+                    var progress = info.skillProgress != null ? info.skillProgress : 0;
+                    progressItem.values = [`${progress}%`];
+
+                    var rewardItem = summary[5];
+                    var estimatedReward = info.estimatedReward != null ? info.estimatedReward : 0;
+                    var multiplier = info.bonusMultiplier != null ? info.bonusMultiplier : 1;
+                    if (info.hasOrder && info.currentReward != null) estimatedReward = info.currentReward;
+                    rewardItem.values = [`$${estimatedReward}` + (multiplier !== 1 ? ` (x${multiplier.toFixed(2)})` : '')];
+
+                    var takeItem = summary[6];
+                    if (info.hasOrder) {
+                        takeItem.values = ['Завершите текущий заказ'];
+                    } else if (!info.isOnJob) {
+                        takeItem.values = ['Устроиться и получить заказ'];
+                    } else {
+                        takeItem.values = [''];
+                    }
+
+                    var stopItem = summary[7];
+                    if (info.isOnJob) {
+                        stopItem.values = [''];
+                    } else {
+                        stopItem.values = ['Вы не на работе'];
+                    }
+
+                    this.items = summary;
+                    if (this.i >= this.items.length) this.i = this.items.length - 1;
+                    if (this.i < 0) this.i = 0;
+                    if (this.j > this.i) this.j = this.i;
+                    selectMenu.loader = false;
+                },
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    var info = this.data || {};
+                    if (eventName == 'onItemSelected') {
+                        if (item.text == 'Получить заказ') {
+                            if (info.hasOrder) {
+                                selectMenu.notification = 'Сначала завершите текущий заказ';
+                                return;
+                            }
+                            mp.events.call('autoroober.menu.accept');
+                        } else if (item.text == 'Закончить работу') {
+                            if (!info.isOnJob) {
+                                selectMenu.notification = 'Вы ещё не начали работу';
+                                return;
+                            }
+                            mp.events.call('autoroober.menu.close');
+                            mp.trigger('callRemote', 'jobs.leave');
+                        } else if (item.text == 'Закрыть') {
+                            mp.events.call('autoroober.menu.close');
+                        }
+                    } else if (eventName == 'onBackspacePressed' || eventName == 'onEscapePressed') {
+                        mp.events.call('autoroober.menu.close');
+                    }
+                }
+            },
             "farmsMain": {
                 name: "farmsMain",
                 header: "Фермерское хозяйство",
@@ -7396,6 +7508,83 @@ var selectMenu = new Vue({
                             selectMenu.show = false;
                         }
                     } else if (eventName == 'onBackspacePressed') {
+                        selectMenu.show = false;
+                    }
+                }
+            },
+            "pawnshop": {
+                name: "pawnshop",
+                header: "Скупщик",
+                items: [
+                    { text: "Всего предметов", values: ["0"] },
+                    { text: "Общая стоимость", values: ["$0"] },
+                    { text: "Цена лучшего предмета", values: ["$0"] },
+                    { text: "Продать 1 предмет" },
+                    { text: "Продать всё" },
+                    { text: "Закрыть" },
+                ],
+                baseItems: null,
+                data: null,
+                i: 0,
+                j: 0,
+                init(data) {
+                    if (typeof data === 'string') data = JSON.parse(data);
+                    if (!this.baseItems) this.baseItems = cloneObj(this.items);
+                    this.update(data);
+                },
+                update(data) {
+                    if (typeof data === 'string') data = JSON.parse(data);
+                    this.data = data || {};
+                    this.applyData();
+                },
+                applyData() {
+                    if (!this.baseItems) this.baseItems = cloneObj(this.items);
+                    var summary = cloneObj(this.baseItems);
+                    var info = this.data || {};
+                    var totalCount = info.totalCount || 0;
+                    var totalValue = info.totalValue || 0;
+                    var nextPrice = info.nextPrice || 0;
+                    summary[0].values = [`${totalCount}`];
+                    summary[1].values = [`$${totalValue}`];
+                    summary[2].values = [`$${nextPrice}`];
+                    this.header = info.title || 'Скупщик';
+                    var dynamic = [];
+                    if (Array.isArray(info.items) && info.items.length) {
+                        info.items.forEach(item => {
+                            dynamic.push({
+                                text: item.name || 'Предмет',
+                                values: [`${item.count || 0} шт. • $${item.price || 0}`],
+                                disabled: true,
+                            });
+                        });
+                    } else {
+                        dynamic.push({
+                            text: 'Нечего продавать',
+                            values: [''],
+                            disabled: true,
+                        });
+                    }
+                    this.items = summary.concat(dynamic);
+                    if (this.i >= this.items.length) this.i = this.items.length - 1;
+                    if (this.i < 0) this.i = 0;
+                    if (this.j > this.i) this.j = this.i;
+                    selectMenu.loader = false;
+                },
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    if (eventName == 'onItemSelected') {
+                        if (item.text == 'Продать 1 предмет') {
+                            if (!this.data || !this.data.id) return;
+                            selectMenu.loader = true;
+                            mp.events.callRemote('pawnshops.sell.one', this.data.id);
+                        } else if (item.text == 'Продать всё') {
+                            if (!this.data || !this.data.id) return;
+                            selectMenu.loader = true;
+                            mp.events.callRemote('pawnshops.sell.all', this.data.id);
+                        } else if (item.text == 'Закрыть') {
+                            selectMenu.show = false;
+                        }
+                    } else if (eventName == 'onBackspacePressed' || eventName == 'onEscapePressed') {
                         selectMenu.show = false;
                     }
                 }
