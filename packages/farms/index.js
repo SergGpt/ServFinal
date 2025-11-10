@@ -300,33 +300,71 @@ module.exports = {
     },
 
     buySeeds(player, amount) {
-        if (!this.isFarmer(player)) return;
+        if (!this.isFarmer(player)) {
+            if (player && player.call) player.call('selectMenu.loader', [false]);
+            return;
+        }
         amount = parseInt(amount);
-        if (isNaN(amount) || amount <= 0) return notifs.error(player, 'Некорректное количество семян', 'Ферма');
+        if (isNaN(amount) || amount <= 0) {
+            if (player && player.call) player.call('selectMenu.loader', [false]);
+            return notifs.error(player, 'Некорректное количество семян', 'Ферма');
+        }
         amount = Math.clamp(amount, 1, 100);
         const price = amount * this.seedsPrice;
-        money.removeCash(player, price, (res) => {
-            if (!res) return notifs.error(player, 'Недостаточно наличных', 'Ферма');
-            const data = this.ensureJobData(player);
-            data.seeds = (data.seeds || 0) + amount;
-            this.sendMenuUpdate(player);
-            this.refreshPlayerPlots(player);
-            notifs.success(player, `Куплено ${amount} семян`, 'Ферма');
-        }, 'Покупка семян');
+        try {
+            money.removeCash(player, price, (res) => {
+                try {
+                    if (!res) {
+                        notifs.error(player, 'Недостаточно наличных', 'Ферма');
+                        return;
+                    }
+                    const data = this.ensureJobData(player);
+                    data.seeds = (data.seeds || 0) + amount;
+                    this.sendMenuUpdate(player);
+                    this.refreshPlayerPlots(player);
+                    notifs.success(player, `Куплено ${amount} семян`, 'Ферма');
+                } finally {
+                    if (player && player.call) player.call('selectMenu.loader', [false]);
+                }
+            }, 'Покупка семян');
+        } catch (err) {
+            if (player && player.call) player.call('selectMenu.loader', [false]);
+            console.error('[FARMS] buySeeds error:', err);
+            notifs.error(player, 'Ошибка покупки семян. Сообщите администрации.', 'Ферма');
+        }
     },
 
     sellHarvest(player) {
-        if (!this.isFarmer(player)) return;
+        if (!this.isFarmer(player)) {
+            if (player && player.call) player.call('selectMenu.loader', [false]);
+            return;
+        }
         const data = this.ensureJobData(player);
-        if (!data.harvest || data.harvest <= 0) return notifs.warning(player, 'У вас нет урожая для продажи', 'Ферма');
+        if (!data.harvest || data.harvest <= 0) {
+            if (player && player.call) player.call('selectMenu.loader', [false]);
+            return notifs.warning(player, 'У вас нет урожая для продажи', 'Ферма');
+        }
         const amount = data.harvest;
         const payout = amount * this.exchangeRate;
-        money.addCash(player, payout, (res) => {
-            if (!res) return notifs.error(player, 'Не удалось выдать деньги', 'Ферма');
-            data.harvest = 0;
-            this.sendMenuUpdate(player);
-            notifs.success(player, `Вы продали ${amount} ед. урожая за $${payout}`, 'Ферма');
-        }, 'Продажа урожая');
+        try {
+            money.addCash(player, payout, (res) => {
+                try {
+                    if (!res) {
+                        notifs.error(player, 'Не удалось выдать деньги', 'Ферма');
+                        return;
+                    }
+                    data.harvest = 0;
+                    this.sendMenuUpdate(player);
+                    notifs.success(player, `Вы продали ${amount} ед. урожая за $${payout}`, 'Ферма');
+                } finally {
+                    if (player && player.call) player.call('selectMenu.loader', [false]);
+                }
+            }, 'Продажа урожая');
+        } catch (err) {
+            if (player && player.call) player.call('selectMenu.loader', [false]);
+            console.error('[FARMS] sellHarvest error:', err);
+            notifs.error(player, 'Ошибка продажи урожая. Сообщите администрации.', 'Ферма');
+        }
     },
 
     showMainMenu(player) {

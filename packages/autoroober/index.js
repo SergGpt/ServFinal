@@ -72,6 +72,8 @@ const SKILL_STAGES = [
     { min: 76, max: 100 },
 ];
 
+const TIER_NAMES = ['Эконом', 'Средний', 'Бизнес', 'Премиум'];
+
 const SKILL_EXP_REWARD = [0.5, 0.25, 0.125, 0.0625];
 
 const ORDER_TIME_SETTINGS = [
@@ -158,6 +160,85 @@ function getFreePositionIndex() {
         if (!occupiedPositions.has(i)) return i;
     }
     return -1;
+}
+
+function formatTimeLabel(totalSeconds) {
+    if (totalSeconds == null) return null;
+    const seconds = Math.max(0, parseInt(totalSeconds, 10) || 0);
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    const minLabel = minutes < 10 ? `0${minutes}` : `${minutes}`;
+    const secLabel = secs < 10 ? `0${secs}` : `${secs}`;
+    return `${minLabel}:${secLabel}`;
+}
+
+function getTierLabel(index) {
+    return TIER_NAMES[index] || TIER_NAMES[0];
+}
+
+function getMenuData(player) {
+    if (!ensureModules()) return null;
+    if (!player || !player.character) return null;
+
+    const isOnJob = player.character.job === JOB_ID;
+    const skillInfo = getSkillData(player);
+    const tierIndex = skillInfo.tierIndex || 0;
+    const tierKey = getTierKey(tierIndex);
+    const tierName = getTierLabel(tierIndex);
+    const stage = SKILL_STAGES[tierIndex] || SKILL_STAGES[0];
+    const stageMin = stage ? stage.min : 0;
+    const stageMax = stage ? stage.max : stageMin;
+    const progressRange = Math.max(1, stageMax - stageMin);
+    const expValue = Math.max(0, Math.round(skillInfo.exp || 0));
+    const progress = Math.max(0, Math.min(100, Math.round(((expValue - stageMin) / progressRange) * 100)));
+    const rewards = REWARD_TIERS[tierKey] || REWARD_TIERS.low;
+    const baseReward = rewards && rewards.length ? rewards[0] : 0;
+    const bonusMultiplier = jobs && typeof jobs.bonusPay === 'number' ? jobs.bonusPay : 1;
+    const estimatedReward = Math.round(baseReward * bonusMultiplier);
+
+    const data = {
+        isOnJob,
+        hasOrder: false,
+        tierIndex,
+        tierName,
+        skillExp: expValue,
+        skillProgress: progress,
+        nextStageExp: stage ? stage.max : null,
+        estimatedReward,
+        bonusMultiplier,
+    };
+
+    const order = getOrder(player);
+    if (order) {
+        data.hasOrder = true;
+        const now = Date.now();
+        const remaining = Math.max(0, Math.ceil((order.expireAt - now) / 1000));
+        data.orderReward = Math.round((order.baseReward || 0) * bonusMultiplier);
+        data.currentReward = Math.round(calculateFinalReward(order) * bonusMultiplier);
+        data.timeRemaining = remaining;
+        data.timeLabel = formatTimeLabel(remaining);
+    }
+
+    return data;
+}
+
+function sendMenuData(player) {
+    if (!player || !mp.players.exists(player)) return;
+    const data = getMenuData(player);
+    player.call('autoroober.menu.data', [data ? JSON.stringify(data) : null]);
+}
+
+function onJobChanged(player) {
+    if (!ensureModules()) return;
+    if (!player || !player.character) return;
+    sendMenuData(player);
+}
+
+function onJobSkillChanged(player, skill) {
+    if (!ensureModules()) return;
+    if (!player || !player.character) return;
+    if (!skill || skill.jobId !== JOB_ID) return;
+    sendMenuData(player);
 }
 
 function getVehicleModel(tierKey, variant) {
@@ -261,6 +342,8 @@ function clearOrder(player, reason = null, notify = true) {
         } else if (notify && reason === 'vehicle') {
             notifs.error(player, 'Транспорт уничтожен', 'Автоугон');
         }
+
+        sendMenuData(player);
     }
 }
 
@@ -279,13 +362,18 @@ function expireOrder(player, reason = 'time') {
 
 function createOrder(player) {
     if (!ensureModules()) return;
-    if (!ensureJob(player, { autoHire: true })) return;
+    if (!ensureJob(player, { autoHire: true })) {
+        sendMenuData(player);
+        return;
+    }
     if (getOrder(player)) {
         notifs.error(player, 'У вас уже есть активный заказ', 'Автоугон');
+        sendMenuData(player);
         return;
     }
     if (player.vehicle) {
         notifs.error(player, 'Покиньте транспорт', 'Автоугон');
+        sendMenuData(player);
         return;
     }
 
@@ -296,6 +384,7 @@ function createOrder(player) {
     const posIndex = getFreePositionIndex();
     if (posIndex === -1) {
         notifs.error(player, 'Сейчас нет свободных заказов', 'Автоугон');
+        sendMenuData(player);
         return;
     }
 
@@ -346,6 +435,7 @@ function createOrder(player) {
     player.autorooberOrder = order;
 
     player.call('autoroober.order.prepare');
+    sendMenuData(player);
 
     setTimeout(() => {
         if (!mp.players.exists(player)) {
@@ -490,6 +580,7 @@ function onStartColshapeEnter(player) {
         ? 'Нажмите <span>E</span>, чтобы открыть меню автоугона'
         : 'Нажмите <span>E</span>, чтобы начать работу автоугонщиком';
 
+    sendMenuData(player);
     prompt.show(player, promptText);
     player.call('autoroober.menu.state', [true]);
 }
@@ -518,4 +609,7 @@ module.exports = {
     cleanupPlayer,
     onVehicleStartEnter,
     onVehicleEnter,
+    sendMenuData,
+    onJobChanged,
+    onJobSkillChanged,
 };

@@ -358,22 +358,40 @@ module.exports = {
 
     async buySeeds(player, amount) {
         try {
-            if (!this.isMoonshiner(player)) return;
+            if (!this.isMoonshiner(player)) {
+                if (player && player.call) player.call('selectMenu.loader', [false]);
+                return;
+            }
             amount = parseInt(amount);
-            if (isNaN(amount) || amount <= 0) return notifs.error(player, 'Некорректное количество семян', 'Самогоноварение');
+            if (isNaN(amount) || amount <= 0) {
+                if (player && player.call) player.call('selectMenu.loader', [false]);
+                return notifs.error(player, 'Некорректное количество семян', 'Самогоноварение');
+            }
             amount = Math.clamp(amount, 1, 100);
             const price = amount * this.seedsPrice;
             money.removeCash(player, price, async (res) => {
-                if (!res) return notifs.error(player, 'Недостаточно наличных', 'Самогоноварение');
-                const giveResult = await this.addStackableItem(player, this.seedItemId, amount);
-                if (!giveResult.success) {
-                    money.addCash(player, price, () => {}, 'Возврат за семена');
-                    return notifs.error(player, giveResult.error || 'Ошибка добавления семян', 'Самогоноварение');
+                try {
+                    if (!res) {
+                        notifs.error(player, 'Недостаточно наличных', 'Самогоноварение');
+                        return;
+                    }
+                    const giveResult = await this.addStackableItem(player, this.seedItemId, amount);
+                    if (!giveResult.success) {
+                        money.addCash(player, price, () => {}, 'Возврат за семена');
+                        notifs.error(player, giveResult.error || 'Ошибка добавления семян', 'Самогоноварение');
+                        return;
+                    }
+                    notifs.success(player, `Куплено ${amount} семян тростника`, 'Самогоноварение');
+                    this.sendMenuUpdate(player);
+                } catch (error) {
+                    console.error('[MOONSHINE] buySeeds callback error:', error);
+                    notifs.error(player, 'Ошибка покупки семян. Сообщите администрации.', 'Самогоноварение');
+                } finally {
+                    if (player && player.call) player.call('selectMenu.loader', [false]);
                 }
-                notifs.success(player, `Куплено ${amount} семян тростника`, 'Самогоноварение');
-                this.sendMenuUpdate(player);
             }, 'Покупка семян тростника');
         } catch (err) {
+            if (player && player.call) player.call('selectMenu.loader', [false]);
             console.error('[MOONSHINE] buySeeds error:', err);
             notifs.error(player, 'Ошибка покупки семян. Сообщите администрации.', 'Самогоноварение');
         }
@@ -444,6 +462,8 @@ module.exports = {
         } catch (err) {
             console.error('[MOONSHINE] craftMoonshine error:', err);
             notifs.error(player, 'Ошибка варки. Сообщите администрации.', 'Самогоноварение');
+        } finally {
+            if (player && player.call) player.call('selectMenu.loader', [false]);
         }
     },
 
