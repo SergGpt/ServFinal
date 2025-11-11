@@ -68,12 +68,19 @@ module.exports = {
         mp.markers.new(1, pos, 0.75, { color: [120, 200, 80, 120] });
         const colshape = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 1.5);
         colshape.onEnter = (player) => {
-            if (!this.isFarmer(player)) return;
-            this.showMainMenu(player);
+            if (!player || !player.character) return;
+            player.farmAtMenuZone = true;
+            if (this.isFarmer(player)) {
+                this.showMainMenu(player);
+            } else {
+                player.call('farms.employment.show');
+            }
         };
         colshape.onExit = (player) => {
             if (!player || !player.character) return;
+            player.farmAtMenuZone = false;
             player.call('farms.menu.hide');
+            player.call('farms.employment.hide');
         };
         mp.blips.new(501, this.adjustBlipPos(pos), {
             name: "Ферма",
@@ -136,6 +143,10 @@ module.exports = {
         data.harvest = data.harvest || 0;
         this.syncPlotsForPlayer(player);
         this.sendMenuUpdate(player);
+        player.call('farms.employment.hide');
+        if (player.farmAtMenuZone) {
+            this.showMainMenu(player);
+        }
         notifs.info(player, 'Вы приступили к работе фермера', 'Ферма');
     },
 
@@ -146,11 +157,17 @@ module.exports = {
         player.call('farms.reset');
         player.call('farms.menu.hide');
         player.call('farms.vendor.hide');
+        if (player.farmAtMenuZone) {
+            player.call('farms.employment.show');
+        } else {
+            player.call('farms.employment.hide');
+        }
     },
 
     cleanupPlayer(player) {
         if (!player) return;
         this.releasePlayerPlots(player);
+        if (player.farmAtMenuZone) player.farmAtMenuZone = false;
     },
 
     releasePlayerPlots(player) {
@@ -332,6 +349,7 @@ module.exports = {
     showMainMenu(player) {
         if (!this.isFarmer(player)) return;
         this.sendMenuUpdate(player);
+        player.call('farms.employment.hide');
         player.call('farms.menu.show', [this.collectMenuData(player)]);
     },
 
