@@ -99,12 +99,21 @@ module.exports = {
         mp.markers.new(1, pos, 0.75, { color: [200, 170, 60, 120] });
         const colshape = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 1.5);
         colshape.onEnter = (player) => {
-            if (!this.isMoonshiner(player)) return;
-            this.showMainMenu(player);
+            if (!player || !player.character) return;
+            player.moonshineAtMenuZone = true;
+            this.updateEmploymentMenu(player);
+            if (this.isMoonshiner(player)) {
+                this.showMainMenu(player);
+            } else {
+                player.call('moonshine.menu.hide');
+                player.call('moonshine.employment.show');
+            }
         };
         colshape.onExit = (player) => {
             if (!player || !player.character) return;
+            player.moonshineAtMenuZone = false;
             player.call('moonshine.menu.hide');
+            player.call('moonshine.employment.hide');
         };
         mp.blips.new(496, this.adjustBlipPos(pos), {
             name: "Плантация тростника",
@@ -188,6 +197,10 @@ module.exports = {
         data.totalBrewed = data.totalBrewed || 0;
         this.syncPlotsForPlayer(player);
         this.sendMenuUpdate(player);
+        player.call('moonshine.employment.hide');
+        if (player.moonshineAtMenuZone) {
+            this.showMainMenu(player);
+        }
         notifs.info(player, 'Вы приступили к работе варщика', 'Самогоноварение');
     },
 
@@ -201,12 +214,19 @@ module.exports = {
         player.call('moonshine.vendor.hide');
         player.call('moonshine.craft.exit');
         player.call('moonshine.craft.menu.hide');
+        if (player.moonshineAtMenuZone) {
+            this.updateEmploymentMenu(player);
+            player.call('moonshine.employment.show');
+        } else {
+            player.call('moonshine.employment.hide');
+        }
     },
 
     cleanupPlayer(player) {
         if (!player) return;
         this.releasePlayerPlots(player);
         this.clearMoonshineEffect(player);
+        if (player.moonshineAtMenuZone) player.moonshineAtMenuZone = false;
     },
 
     releasePlayerPlots(player) {
@@ -383,6 +403,7 @@ module.exports = {
         if (!this.isMoonshiner(player)) return;
         this.sendMenuUpdate(player);
         player.call('moonshine.menu.show', [this.collectMenuData(player)]);
+        this.updateEmploymentMenu(player);
     },
 
     showVendorMenu(player) {
@@ -568,6 +589,50 @@ module.exports = {
         if (!this.isMoonshiner(player)) return;
         const info = this.collectMenuData(player);
         player.call('moonshine.menu.update', [info]);
+        if (player.moonshineAtMenuZone) {
+            this.updateEmploymentMenu(player);
+        }
+    },
+
+    collectEmploymentData(player) {
+        const employed = this.isMoonshiner(player);
+        const data = {
+            title: 'Самогоноварение',
+            statusText: employed ? 'Вы работаете самогонщиком' : 'Вы не устроены',
+            description: employed ? 'Производите тростник, перегоняйте его и сдавайте самогон.' : 'Устройтесь, чтобы получить доступ к плантациям и оборудованию.',
+            stats: [],
+            actions: [],
+        };
+
+        if (employed) {
+            const menu = this.collectMenuData(player);
+            data.stats.push(
+                { label: 'Уровень', value: `${menu.level || 0} / ${menu.maxLevel || 0}` },
+                { label: 'Навык варщика', value: `${menu.skillPercent || 0}%` },
+                { label: 'Семена', value: `${menu.seeds || 0} шт.` },
+                { label: 'Тростник', value: `${menu.cane || 0} шт.` },
+                { label: 'Пустые бутылки', value: `${menu.bottles || 0} шт.` },
+                { label: 'Всего собрано', value: `${menu.totalHarvest || 0}` },
+                { label: 'Всего перегнано', value: `${menu.totalBrewed || 0}` },
+            );
+
+            data.actions.push(
+                { text: 'Открыть панель работы', type: 'remote', event: 'moonshine.employment.action', args: ['openMenu'], close: true },
+                { text: 'Завершить смену и уволиться', type: 'remote', event: 'moonshine.employment.action', args: ['leave'], close: true }
+            );
+        } else {
+            data.actions.push({ text: 'Устроиться на работу', type: 'remote', event: 'moonshine.employment.action', args: ['join'], close: true });
+        }
+
+        data.actions.push({ text: 'Помощь', type: 'help' });
+        data.actions.push({ text: 'Закрыть', type: 'close' });
+
+        return data;
+    },
+
+    updateEmploymentMenu(player) {
+        if (!player || !player.character) return;
+        player.call('moonshine.employment.update', [this.collectEmploymentData(player)]);
     },
 
     getPlayerLevel(player) {

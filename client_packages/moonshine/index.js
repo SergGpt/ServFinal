@@ -178,6 +178,15 @@ mp.events.add({
     'moonshine.vendor.hide': () => {
         mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineVendor') selectMenu.show = false;`);
     },
+    'moonshine.employment.update': (data) => {
+        mp.callCEFV(`selectMenu.menus['moonshineEmployment'].init(${JSON.stringify(data)})`);
+    },
+    'moonshine.employment.show': () => {
+        mp.callCEFV(`selectMenu.showByName('moonshineEmployment')`);
+    },
+    'moonshine.employment.hide': () => {
+        mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineEmployment') selectMenu.show = false;`);
+    },
     'moonshine.craft.enter': () => {
         insideCraftZone = true;
         updatePrompt();
@@ -202,6 +211,7 @@ mp.events.add({
         insideCraftZone = false;
         hideCraftMenu();
         mp.prompt.hide();
+        mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineEmployment') selectMenu.show = false;`);
     },
     'playerQuit': () => {
         currentPlot = null;
