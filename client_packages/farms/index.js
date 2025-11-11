@@ -84,6 +84,20 @@ function createPeds() {
             model: "a_m_m_farmer_01",
             position: { x: 1959.803, y: 5164.562, z: 47.883 },
             heading: 40.0,
+            marker: {
+                x: 1960.056,
+                y: 5164.228,
+                z: 46.883,
+                color: [124, 194, 91, 120],
+                enterEvent: 'farms.jobshape.enter',
+                leaveEvent: 'farms.jobshape.leave',
+            },
+            blip: {
+                sprite: 280,
+                position: { x: 1960.056, y: 5164.228, z: 46.883 },
+                name: 'Работа фермера',
+                color: 25,
+            },
         },
         {
             model: "ig_old_man1a",
@@ -143,6 +157,12 @@ mp.events.add({
         clearMarkers();
         currentPlot = null;
         mp.prompt.hide();
+    },
+    'farms.jobshape.enter': () => {
+        mp.events.call('selectMenu.show', 'farmsJob');
+    },
+    'farms.jobshape.leave': () => {
+        mp.events.call('selectMenu.hide');
     }
 });
 

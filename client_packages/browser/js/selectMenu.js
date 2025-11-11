@@ -7331,6 +7331,44 @@ var selectMenu = new Vue({
                     }
                 }
             },
+            "farmsJob": {
+                name: "farmsJob",
+                header: "Работа фермера",
+                items: [
+                    { text: "Устроиться" },
+                    { text: "Уволиться" },
+                    { text: "Помощь" },
+                    { text: "Закрыть" },
+                ],
+                i: 0,
+                j: 0,
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    var e = {
+                        menuName: this.name,
+                        itemName: item.text,
+                        itemIndex: this.i,
+                        itemValue: (item.i != null && item.values) ? item.values[item.i] : null,
+                        valueIndex: item.i,
+                    };
+                    if (eventName == 'onItemSelected') {
+                        if (e.itemName == 'Устроиться') {
+                            selectMenu.show = false;
+                            mp.trigger('callRemote', 'farms.job.start');
+                        } else if (e.itemName == 'Уволиться') {
+                            selectMenu.show = false;
+                            mp.trigger('callRemote', 'jobs.leave');
+                        } else if (e.itemName == 'Помощь') {
+                            selectMenu.show = false;
+                            modal.showByName('farms_help');
+                        } else if (e.itemName == 'Закрыть') {
+                            selectMenu.show = false;
+                        }
+                    } else if (eventName == 'onBackspacePressed') {
+                        selectMenu.show = false;
+                    }
+                }
+            },
             "moonshineFarm": {
                 name: "moonshineFarm",
                 header: "Самогоноварение",
