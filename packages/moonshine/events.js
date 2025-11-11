@@ -45,5 +45,26 @@ module.exports = {
     },
     'moonshine.consume': (player, item) => {
         moonshine.consumeMoonshine(player, item);
+    },
+    'moonshine.employment.action': (player, action) => {
+        if (!player || !player.character) return;
+        switch (action) {
+            case 'join':
+                if (player.character.job !== moonshine.jobId) {
+                    mp.events.call('jobs.set', player, moonshine.jobId);
+                }
+                break;
+            case 'leave':
+                if (player.character.job === moonshine.jobId) {
+                    mp.events.call('jobs.leave', player);
+                }
+                break;
+            case 'openMenu':
+                moonshine.showMainMenu(player);
+                break;
+            default:
+                break;
+        }
+        moonshine.updateEmploymentMenu(player);
     }
 };

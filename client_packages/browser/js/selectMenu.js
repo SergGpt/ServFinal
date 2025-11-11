@@ -7356,6 +7356,86 @@ var selectMenu = new Vue({
                     }
                 }
             },
+            "moonshineEmployment": {
+                name: "moonshineEmployment",
+                header: "Самогоноварение",
+                baseItems: null,
+                data: null,
+                i: 0,
+                j: 0,
+                init(data) {
+                    if (typeof data === 'string') data = JSON.parse(data);
+                    if (!this.baseItems) {
+                        this.baseItems = [
+                            { text: "Статус", values: [""] },
+                            { text: "Описание", values: [""] }
+                        ];
+                    }
+                    this.update(data);
+                },
+                update(data) {
+                    if (typeof data === 'string') data = JSON.parse(data);
+                    this.data = data || {};
+                    this.applyData();
+                },
+                applyData() {
+                    if (!this.baseItems) {
+                        this.baseItems = [
+                            { text: "Статус", values: [""] },
+                            { text: "Описание", values: [""] }
+                        ];
+                    }
+                    var info = this.data || {};
+                    var summary = cloneObj(this.baseItems);
+                    summary[0].values = [info.statusText || ''];
+                    summary[1].values = [info.description || ''];
+                    var items = summary.slice();
+                    if (Array.isArray(info.stats)) {
+                        info.stats.forEach(function (stat) {
+                            items.push({
+                                text: stat.label || 'Показатель',
+                                values: [stat.value != null ? stat.value : '']
+                            });
+                        });
+                    }
+                    if (Array.isArray(info.actions)) {
+                        info.actions.forEach(function (action) {
+                            items.push({
+                                text: action.text || 'Действие',
+                                actionType: action.type || 'remote',
+                                actionEvent: action.event || null,
+                                actionArgs: Array.isArray(action.args) ? action.args : (action.args != null ? [action.args] : []),
+                                closeOnSelect: action.close === true,
+                                disabled: action.disabled === true
+                            });
+                        });
+                    }
+                    this.items = items;
+                    if (this.i >= this.items.length) this.i = this.items.length - 1;
+                    if (this.i < 0) this.i = 0;
+                    if (this.j > this.i) this.j = this.i;
+                    this.header = info.title || 'Самогоноварение';
+                    selectMenu.loader = false;
+                },
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    if (eventName == 'onItemSelected') {
+                        if (!item) return;
+                        if (item.disabled) return;
+                        if (item.actionType == 'remote' && item.actionEvent) {
+                            var args = Array.isArray(item.actionArgs) ? item.actionArgs : [];
+                            mp.trigger.apply(null, ['callRemote', item.actionEvent].concat(args));
+                            if (item.closeOnSelect) selectMenu.show = false;
+                        } else if (item.actionType == 'help') {
+                            modal.showByName('moonshine_help');
+                        } else if (item.actionType == 'close') {
+                            selectMenu.show = false;
+                        }
+                    } else if (eventName == 'onBackspacePressed') {
+                        selectMenu.show = false;
+                    }
+                }
+            },
             "moonshineFarm": {
                 name: "moonshineFarm",
                 header: "Самогоноварение",
