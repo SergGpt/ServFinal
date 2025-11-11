@@ -915,7 +915,7 @@
         <div class="header">{{ header }}</div>
         <div class="description" v-html="description"></div>
         <div class="body">
-            <div :class="['record', { selected: record == selected }]" v-for="record in records" :key="record.text" @click="select(record)">
+            <div :class="['record', { selected: record == selected, disabled: record.disabled }]" v-for="record in records" :key="record.text" @click="select(record)">
                 <div class="record-title">{{ record.text }}</div>
                 <div class="record-description" v-if="record.description" v-html="record.description"></div>
             </div>

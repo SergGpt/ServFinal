@@ -14,11 +14,11 @@ var selectionWindow = new Vue({
     },
     methods: {
         select(record) {
-            if (!record) return;
+            if (!record || record.disabled) return;
             this.selected = record;
         },
         accept() {
-            if (!this.selected) return;
+            if (!this.selected || this.selected.disabled) return;
             const windowName = this.name;
             const payload = this.selected.value != null ? this.selected.value : this.selected.text;
             this.close();
@@ -30,8 +30,17 @@ var selectionWindow = new Vue({
             if (this.cancelEvent) mp.trigger(this.cancelEvent, windowName);
         },
         open(name, config) {
-            config = config || {};
             this.name = name || '';
+            this.applyConfig(config, null);
+            this.show = true;
+        },
+        update(name, config) {
+            if (name && name !== this.name) return;
+            const preserved = this.selected ? this.selected.value : null;
+            this.applyConfig(config, preserved);
+        },
+        applyConfig(config, preservedValue) {
+            config = config || {};
             this.header = config.header || 'Выбор';
             this.description = config.description || '';
             this.leftWord = config.leftWord || 'Выбрать';
@@ -44,10 +53,14 @@ var selectionWindow = new Vue({
                 const text = record.text || '';
                 const value = record.value != null ? record.value : text;
                 const description = record.description || '';
-                return Object.assign({}, record, { text, value, description });
+                const disabled = Boolean(record.disabled);
+                return Object.assign({}, record, { text, value, description, disabled });
             });
-            this.selected = this.records.length ? this.records[0] : null;
-            this.show = true;
+
+            const availableRecord = preservedValue != null
+                ? this.records.find((record) => record.value === preservedValue && !record.disabled)
+                : null;
+            this.selected = availableRecord || this.records.find((record) => !record.disabled) || null;
         },
         close(name) {
             if (name && name !== this.name) return;

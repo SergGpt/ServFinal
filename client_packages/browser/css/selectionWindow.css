@@ -52,6 +52,13 @@
     background-color: rgba(30, 205, 47, 0.51);
 }
 
+#selection-window .body .record.disabled,
+#selection-window .body .record.disabled:hover {
+    background-color: rgba(0, 0, 0, 0.35);
+    opacity: 0.5;
+    cursor: default;
+}
+
 #selection-window .body .record .record-title {
     font-weight: 500;
 }

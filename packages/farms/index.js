@@ -146,6 +146,7 @@ module.exports = {
         player.call('farms.reset');
         player.call('farms.menu.hide');
         player.call('farms.vendor.hide');
+        this.updateJobWindow(player);
     },
 
     cleanupPlayer(player) {
@@ -312,6 +313,7 @@ module.exports = {
             this.sendMenuUpdate(player);
             this.refreshPlayerPlots(player);
             notifs.success(player, `Куплено ${amount} семян`, 'Ферма');
+            this.updateJobWindow(player);
         }, 'Покупка семян');
     },
 
@@ -326,7 +328,75 @@ module.exports = {
             data.harvest = 0;
             this.sendMenuUpdate(player);
             notifs.success(player, `Вы продали ${amount} ед. урожая за $${payout}`, 'Ферма');
+            this.updateJobWindow(player);
         }, 'Продажа урожая');
+    },
+
+    showJobWindow(player) {
+        if (!player || !player.character) return;
+        player.call('farms.jobWindow.show', [this.buildJobWindowConfig(player)]);
+    },
+
+    updateJobWindow(player) {
+        if (!player || !player.character) return;
+        player.call('farms.jobWindow.update', [this.buildJobWindowConfig(player)]);
+    },
+
+    buildJobWindowConfig(player) {
+        const info = this.collectMenuData(player);
+        const isFarmer = this.isFarmer(player);
+        const descriptionLines = [
+            `Уровень: ${info.level || 0} / ${info.maxLevel || 0}`,
+            `Прогресс: ${info.progress || 0}%`,
+            `Семена: ${info.seeds || 0}`,
+            `Урожай: ${info.harvest || 0}`,
+            `Курс скупщика: $${info.exchangeRate || 0}`,
+        ];
+
+        const seedOptions = [1, 5, 10];
+        const records = [
+            {
+                text: isFarmer ? 'Закончить работу' : 'Начать работу',
+                value: isFarmer ? 'leave' : 'join',
+                description: isFarmer
+                    ? 'Завершить смену и освободить грядки.'
+                    : 'Начать смену фермера и получить доступ к грядкам.',
+            },
+            ...seedOptions.map((amount) => ({
+                text: `Купить ${amount} шт. семян`,
+                value: `buy:${amount}`,
+                description: `Цена: $${amount * this.seedsPrice}`,
+                disabled: !isFarmer,
+            })),
+            {
+                text: 'Продать урожай',
+                value: 'sell',
+                description: info.harvest > 0
+                    ? `Получите $${info.harvest * info.exchangeRate} за ${info.harvest} ед.`
+                    : 'Нет урожая для продажи.',
+                disabled: !isFarmer || !info.harvest,
+            },
+            {
+                text: 'Помощь',
+                value: 'help',
+                description: 'Открыть справку по работе фермера.',
+            },
+            {
+                text: 'Закрыть',
+                value: 'close',
+                description: 'Закрыть окно взаимодействия.',
+            },
+        ];
+
+        return {
+            header: 'Фермерское хозяйство',
+            description: descriptionLines.join('<br/>'),
+            records,
+            leftWord: 'Выбрать',
+            rightWord: 'Закрыть',
+            acceptEvent: 'farms.jobWindow.accept',
+            cancelEvent: 'farms.jobWindow.cancel',
+        };
     },
 
     showMainMenu(player) {
@@ -465,6 +535,7 @@ module.exports = {
         if (!this.isFarmer(player)) return;
         const info = this.collectMenuData(player);
         player.call('farms.menu.update', [info]);
+        this.updateJobWindow(player);
     },
 
     updateExchangeRate(initial = false) {

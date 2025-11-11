@@ -19,6 +19,9 @@ module.exports = {
             farms.stopJob(player);
         }
     },
+    'farms.jobshape.request': (player) => {
+        farms.showJobWindow(player);
+    },
     'farms.job.start': (player) => {
         if (!player || !player.character) return;
         mp.events.call('jobs.set', player, farms.jobId);

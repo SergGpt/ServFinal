@@ -13,20 +13,6 @@ const markerColors = {
     busy: [180, 180, 180, 100],
 };
 
-const farmJobWindowConfig = JSON.stringify({
-    header: 'Работа фермера',
-    description: 'Выберите действие, чтобы начать или завершить смену.',
-    records: [
-        { text: 'Устроиться', value: 'join', description: 'Начать смену фермером.' },
-        { text: 'Уволиться', value: 'leave', description: 'Завершить работу и очистить назначенные грядки.' },
-        { text: 'Помощь', value: 'help', description: 'Открыть справку по работе фермера.' },
-    ],
-    leftWord: 'Выбрать',
-    rightWord: 'Закрыть',
-    acceptEvent: 'farms.jobWindow.accept',
-    cancelEvent: 'farms.jobWindow.cancel',
-});
-
 function createMarkers(positions) {
     clearMarkers();
     plotPositions = positions.map(pos => new mp.Vector3(pos.x, pos.y, pos.z));
@@ -112,11 +98,6 @@ function createPeds() {
                 name: 'Работа фермера',
                 color: 25,
             },
-        },
-        {
-            model: "ig_old_man1a",
-            position: { x: 1955.141, y: 5157.012, z: 47.883 },
-            heading: 214.0,
         }
     ].forEach(data => mp.events.call('NPC.create', data));
 }
@@ -173,11 +154,19 @@ mp.events.add({
         mp.prompt.hide();
     },
     'farms.jobshape.enter': () => {
-        mp.callCEFV(`selectionWindow.open('farmsJob', ${farmJobWindowConfig})`);
+        mp.events.callRemote('farms.jobshape.request');
     },
     'farms.jobshape.leave': () => {
         mp.callCEFV(`selectionWindow.close('farmsJob')`);
-    }
+    },
+    'farms.jobWindow.show': (config) => {
+        const payload = typeof config === 'string' ? config : JSON.stringify(config || {});
+        mp.callCEFV(`selectionWindow.open('farmsJob', ${payload})`);
+    },
+    'farms.jobWindow.update': (config) => {
+        const payload = typeof config === 'string' ? config : JSON.stringify(config || {});
+        mp.callCEFV(`selectionWindow.update('farmsJob', ${payload})`);
+    },
 });
 
 mp.events.add('farms.jobWindow.accept', (windowName, action) => {
@@ -188,6 +177,13 @@ mp.events.add('farms.jobWindow.accept', (windowName, action) => {
         mp.events.callRemote('jobs.leave');
     } else if (action === 'help') {
         mp.callCEFV(`modal.showByName('farms_help')`);
+    } else if (action === 'sell') {
+        mp.events.callRemote('farms.sell');
+    } else if (typeof action === 'string' && action.startsWith('buy:')) {
+        const amount = parseInt(action.split(':')[1], 10);
+        if (!isNaN(amount) && amount > 0) mp.events.callRemote('farms.seed.buy', amount);
+    } else if (action === 'close') {
+        mp.callCEFV(`selectionWindow.close('farmsJob')`);
     }
 });
 
