@@ -13,6 +13,20 @@ const markerColors = {
     busy: [180, 180, 180, 100],
 };
 
+const farmJobWindowConfig = JSON.stringify({
+    header: 'Работа фермера',
+    description: 'Выберите действие, чтобы начать или завершить смену.',
+    records: [
+        { text: 'Устроиться', value: 'join', description: 'Начать смену фермером.' },
+        { text: 'Уволиться', value: 'leave', description: 'Завершить работу и очистить назначенные грядки.' },
+        { text: 'Помощь', value: 'help', description: 'Открыть справку по работе фермера.' },
+    ],
+    leftWord: 'Выбрать',
+    rightWord: 'Закрыть',
+    acceptEvent: 'farms.jobWindow.accept',
+    cancelEvent: 'farms.jobWindow.cancel',
+});
+
 function createMarkers(positions) {
     clearMarkers();
     plotPositions = positions.map(pos => new mp.Vector3(pos.x, pos.y, pos.z));
@@ -159,11 +173,27 @@ mp.events.add({
         mp.prompt.hide();
     },
     'farms.jobshape.enter': () => {
-        mp.events.call('selectMenu.show', 'farmsJob');
+        mp.callCEFV(`selectionWindow.open('farmsJob', ${farmJobWindowConfig})`);
     },
     'farms.jobshape.leave': () => {
-        mp.events.call('selectMenu.hide');
+        mp.callCEFV(`selectionWindow.close('farmsJob')`);
     }
+});
+
+mp.events.add('farms.jobWindow.accept', (windowName, action) => {
+    if (windowName !== 'farmsJob') return;
+    if (action === 'join') {
+        mp.events.callRemote('farms.job.start');
+    } else if (action === 'leave') {
+        mp.events.callRemote('jobs.leave');
+    } else if (action === 'help') {
+        mp.callCEFV(`modal.showByName('farms_help')`);
+    }
+});
+
+mp.events.add('farms.jobWindow.cancel', (windowName) => {
+    if (windowName !== 'farmsJob') return;
+    // No additional logic required, hook reserved for future use.
 });
 
 mp.keys.bind(0x45, true, () => {

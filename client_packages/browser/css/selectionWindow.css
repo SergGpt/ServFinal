@@ -35,11 +35,13 @@
 
 #selection-window .body .record {
     font-size: 1.55vh;
-    height: 4.5vh;
+    min-height: 4.5vh;
     border-radius: 1vh;
     background-color: rgba(0, 0, 0, 0.5);
     margin: 0.6vh 0;
-    line-height: 4.5vh;
+    line-height: 1.6vh;
+    padding: 0.9vh 1.2vh;
+    cursor: pointer;
 }
 
 #selection-window .body .record:hover {
@@ -48,6 +50,16 @@
 
 #selection-window .body .record.selected {
     background-color: rgba(30, 205, 47, 0.51);
+}
+
+#selection-window .body .record .record-title {
+    font-weight: 500;
+}
+
+#selection-window .body .record .record-description {
+    font-size: 1.35vh;
+    opacity: 0.75;
+    margin-top: 0.4vh;
 }
 
 #selection-window .footer {
@@ -76,6 +88,16 @@
 #selection-window .left:hover {
     background-color: #FF42F7;
     color: #000;
+}
+
+#selection-window .left.disabled,
+#selection-window .left.disabled:hover,
+#selection-window .left.disabled:active {
+    opacity: 0.5;
+    background-color: transparent;
+    color: inherit;
+    cursor: default;
+    pointer-events: none;
 }
 
 #selection-window .left:active {

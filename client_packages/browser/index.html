@@ -915,11 +915,14 @@
         <div class="header">{{ header }}</div>
         <div class="description" v-html="description"></div>
         <div class="body">
-            <div :class="['record', { selected: record == selected }]" v-for="record in records" :key="record.text" @click="select(record)">{{ record.text }}</div>
+            <div :class="['record', { selected: record == selected }]" v-for="record in records" :key="record.text" @click="select(record)">
+                <div class="record-title">{{ record.text }}</div>
+                <div class="record-description" v-if="record.description" v-html="record.description"></div>
+            </div>
         </div>
         <div class="footer">
-            <div class="left" @click="accept">Принять</div>
-            <div class="right" @click="decline">Отменить</div>
+            <div class="left" :class="{ disabled: !selected }" @click="accept">{{ leftWord }}</div>
+            <div class="right" @click="decline">{{ rightWord }}</div>
         </div>
     </div>
 
