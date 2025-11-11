@@ -40,9 +40,7 @@ function updateMarker(index) {
     if (plotMarkers[index] && mp.markers.exists(plotMarkers[index])) {
         plotMarkers[index].destroy();
     }
-    plotMarkers[index] = mp.markers.new(1, new mp.Vector3(pos.x, pos.y, pos.z - 1), 0.65, {
-        color,
-    });
+    plotMarkers[index] = mp.markers.new(1, new mp.Vector3(pos.x, pos.y, pos.z - 1), 0.65, { color });
 }
 
 function updatePrompt() {
@@ -123,21 +121,35 @@ mp.events.add({
         updateMarker(index);
     },
     'farms.menu.show': (data) => {
-        mp.callCEFV(`selectMenu.menus['farmsMain'].init(${JSON.stringify(data)})`);
-        mp.callCEFV(`selectMenu.showByName('farmsMain')`);
+        mp.callCEFV(`(function(d){
+            if (window.selectMenu && selectMenu.menus && selectMenu.menus['farmsMain']) {
+                selectMenu.menus['farmsMain'].init(d);
+                selectMenu.showByName('farmsMain');
+            }
+        })(${JSON.stringify(data)})`);
     },
     'farms.vendor.show': (data) => {
-        mp.callCEFV(`selectMenu.menus['farmsVendor'].init(${JSON.stringify(data)})`);
-        mp.callCEFV(`selectMenu.showByName('farmsVendor')`);
+        mp.callCEFV(`(function(d){
+            if (window.selectMenu && selectMenu.menus && selectMenu.menus['farmsVendor']) {
+                selectMenu.menus['farmsVendor'].init(d);
+                selectMenu.showByName('farmsVendor');
+            }
+        })(${JSON.stringify(data)})`);
     },
     'farms.menu.update': (data) => {
-        mp.callCEFV(`(function(){var info=${JSON.stringify(data)};if(selectMenu.menus['farmsMain'])selectMenu.menus['farmsMain'].update(info);if(selectMenu.menus['farmsVendor'])selectMenu.menus['farmsVendor'].update(info);})()`);
+        mp.callCEFV(`(function(){
+            var info=${JSON.stringify(data)};
+            if (window.selectMenu && selectMenu.menus) {
+                if (selectMenu.menus['farmsMain'])   selectMenu.menus['farmsMain'].update(info);
+                if (selectMenu.menus['farmsVendor']) selectMenu.menus['farmsVendor'].update(info);
+            }
+        })()`);
     },
     'farms.menu.hide': () => {
-        mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'farmsMain') selectMenu.show = false;`);
+        mp.callCEFV(`if (window.selectMenu && selectMenu.current && selectMenu.current.name === 'farmsMain') selectMenu.show = false;`);
     },
     'farms.vendor.hide': () => {
-        mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'farmsVendor') selectMenu.show = false;`);
+        mp.callCEFV(`if (window.selectMenu && selectMenu.current && selectMenu.current.name === 'farmsVendor') selectMenu.show = false;`);
     },
     'farms.reset': () => {
         clearMarkers();

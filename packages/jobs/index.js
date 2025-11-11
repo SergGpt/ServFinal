@@ -2,6 +2,8 @@ let money = require('../money');
 let notifs = require('../notifications');
 let factions = call('factions');
 
+const FARM_JOB_ID = 5;
+
 module.exports = {
     // Работы
     jobs: [],
@@ -25,8 +27,7 @@ module.exports = {
         if (!player.character) return;
         if (player.character.factionId && !factions.isCrimeFaction(player.character.factionId)) return;
         if (typeof job == 'number') job = this.getJob(job);
-        if (player.farmJob && job.id != 5) mp.events.call("farms.job.stop", player);
-        if (player.moonshineJob && job.id != 12) mp.events.call("moonshine.job.stop", player);
+        if (player.farmJob && job.id != FARM_JOB_ID) mp.events.call("farms.job.stop", player);
 
         player.character.job = job.id;
         player.character.save();
@@ -36,7 +37,6 @@ module.exports = {
     deleteMember(player) {
         if (!player.character) return;
         if (player.farmJob) mp.events.call("farms.job.stop", player);
-        if (player.moonshineJob) mp.events.call("moonshine.job.stop", player);
 
         player.character.job = null;
         player.character.save();

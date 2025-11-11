@@ -96,11 +96,11 @@ module.exports = {
             title: 'Скупщик электроники',
             ped: {
                 model: 's_m_m_lathandy_01',
-                position: { x: -662.504, y: -856.964, z: 24.517 },
-                heading: 1,
+                position: { x: -656.284, y: -857.401, z: 24.490 },
+                heading: 177.8,
             },
             marker: {
-                position: { x: -662.504, y: -856.964, z: 24.517 },
+                position: { x: -656.236, y: -857.402, z: 23.490 },
                 color: [100, 149, 237, 120],
             },
             blip: {
