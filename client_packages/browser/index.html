@@ -1437,35 +1437,103 @@
 
         <script src="js/shop.js"></script>
         <!-- ------------------------ МАГАЗИН 24/7 ------------------------ -->
- <!-- ------------------------ МАГАЗИН СОБАК ------------------------ -->
-<link rel="stylesheet" type="text/css" href="css/dogShop.css" />
-<div v-cloak id="dogshop" v-if="show">
-    <div class="close">
-        <img src="img/inventory/close.svg" @click="close()" />
-    </div>
-    <div class="main">
-        <div class="head">
-            <div class="title">{{ title }}</div>
-            <div class="logo"><img src="img/dogshop/logo.png" /></div>
-        </div>
-        <div class="body">
-            <div class="content">
-                <div class="items">
-                    <div class="item" v-for="item in list">
-                        <img :src="item.img"/>
-                        <div class="name">{{ item.name }}</div>
-                        <div class="desc">{{ item.description }}</div>
-                        <div class="price">$ {{ item.price }}</div>
-                        <div class="btn" @click="buy(item.id)">Купить</div>
+        <!-- ------------------------ МАГАЗИН СОБАК ------------------------ -->
+        <link rel="stylesheet" type="text/css" href="css/dogShop.css" />
+        <div v-cloak id="dogshop" v-if="show">
+            <div class="close">
+                <img src="img/inventory/close.svg" @click="close()" />
+            </div>
+            <div class="main">
+                <div class="head">
+                    <div class="title">{{ title }}</div>
+                    <div class="logo"><img src="img/dogshop/logo.png" /></div>
+                </div>
+                <div class="body">
+                    <div class="content">
+                        <div class="items">
+                            <div class="item" v-for="item in list">
+                                <img :src="item.img"/>
+                                <div class="name">{{ item.name }}</div>
+                                <div class="desc">{{ item.description }}</div>
+                                <div class="price">$ {{ item.price }}</div>
+                                <div class="btn" @click="buy(item.id)">Купить</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
-<script src="js/dogshop.js"></script>
-<!-- ------------------------ МАГАЗИН СОБАК ------------------------ -->
+        <script src="js/dogshop.js"></script>
+        <!-- ------------------------ МАГАЗИН СОБАК ------------------------ -->
+
+        <!-- ------------------------ СКУПЩИКИ ------------------------ -->
+        <link rel="stylesheet" type="text/css" href="css/pawnshop.css" />
+        <div v-cloak id="pawnshop" v-if="show">
+            <div class="pawnshop-window">
+                <div class="pawnshop-header">
+                    <div class="pawnshop-title">{{ title }}</div>
+                    <div class="pawnshop-close" @click="requestClose()">
+                        <img src="img/inventory/close.svg" />
+                    </div>
+                </div>
+                <div class="pawnshop-summary">
+                    <div class="pawnshop-summary-item">
+                        <div class="pawnshop-summary-label">Всего предметов</div>
+                        <div class="pawnshop-summary-value">{{ totalCountFormatted }}</div>
+                    </div>
+                    <div class="pawnshop-summary-item">
+                        <div class="pawnshop-summary-label">Общая стоимость</div>
+                        <div class="pawnshop-summary-value">{{ totalValueFormatted }}</div>
+                    </div>
+                    <div class="pawnshop-summary-item">
+                        <div class="pawnshop-summary-label">Цена дорогого предмета</div>
+                        <div class="pawnshop-summary-value">{{ nextPriceFormatted }}</div>
+                    </div>
+                </div>
+                <div class="pawnshop-items" v-if="hasItems">
+                    <div
+                        class="pawnshop-item"
+                        v-for="item in items"
+                        :key="item.key"
+                    >
+                        <div class="pawnshop-item-name">{{ item.name }}</div>
+                        <div class="pawnshop-item-count">{{ item.count }} шт.</div>
+                        <div class="pawnshop-item-price">{{ formatMoney(item.price) }}</div>
+                        <div class="pawnshop-item-total">{{ formatMoney(item.total) }}</div>
+                        <button
+                            class="pawnshop-item-sell"
+                            :disabled="processing || !item.canSell"
+                            @click="sell(item)"
+                        >
+                            Продать
+                        </button>
+                    </div>
+                </div>
+                <div class="pawnshop-empty" v-else>
+                    Нет предметов для продажи
+                </div>
+                <div class="pawnshop-actions">
+                    <button
+                        class="pawnshop-action"
+                        :disabled="processing || !hasSellable"
+                        @click="sellOne"
+                    >
+                        Продать дорогой предмет
+                    </button>
+                    <button
+                        class="pawnshop-action pawnshop-action--primary"
+                        :disabled="processing || !hasSellable"
+                        @click="sellAll"
+                    >
+                        Продать всё
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <script src="js/pawnshops.js"></script>
+        <!-- ------------------------ СКУПЩИКИ ------------------------ -->
   
 
 

@@ -197,11 +197,12 @@ module.exports = {
 
             broker.resolvedItems = broker.items.map((item) => {
                 const explicitId = item.itemId != null ? item.itemId : (item.id != null ? item.id : null);
+                const normalizedId = explicitId != null && !Number.isNaN(Number(explicitId)) ? Number(explicitId) : explicitId;
                 let resolved = null;
-                if (explicitId != null && entries) resolved = entries[explicitId] || null;
+                if (normalizedId != null && entries) resolved = entries[normalizedId] || null;
                 if (!resolved && list && item.name) resolved = list.find((invItem) => invItem.name === item.name) || null;
 
-                const itemId = resolved ? resolved.id : explicitId;
+                const itemId = resolved ? resolved.id : normalizedId;
                 const displayName = item.name || (resolved ? resolved.name : (itemId != null ? `#${itemId}` : 'Неизвестный предмет'));
 
                 if (itemId == null) {
@@ -213,7 +214,7 @@ module.exports = {
                 return {
                     name: displayName,
                     price: item.price,
-                    itemId: itemId != null ? itemId : null,
+                    itemId: itemId != null && !Number.isNaN(Number(itemId)) ? Number(itemId) : null,
                     exists: Boolean(resolved),
                 };
             });
@@ -232,20 +233,23 @@ module.exports = {
         resolvedItems.forEach((item) => {
             let count = 0;
             if (item.itemId != null) {
-                const items = inventory.getArrayByItemId(player, item.itemId);
+                const items = inventory.getArrayByItemId(player, item.itemId) || [];
                 for (const invItem of items) {
                     const params = inventory.getParamsValues(invItem);
                     count += params.count ? parseInt(params.count) : 1;
                 }
             }
             if (count > 0 && item.price > nextPrice) nextPrice = item.price;
+            const totalItemPrice = count * item.price;
             totalCount += count;
-            totalValue += count * item.price;
+            totalValue += totalItemPrice;
             itemsInfo.push({
                 name: item.name,
                 price: item.price,
                 count,
-                resolved: item.itemId != null,
+                itemId: item.itemId != null ? item.itemId : null,
+                totalPrice: totalItemPrice,
+                resolved: item.itemId != null && item.exists,
             });
         });
 
@@ -274,7 +278,7 @@ module.exports = {
 
         for (const item of itemsOrdered) {
             if (remaining <= 0) break;
-            const inventoryItems = inventory.getArrayByItemId(player, item.itemId);
+            const inventoryItems = inventory.getArrayByItemId(player, item.itemId) || [];
             if (!inventoryItems.length) continue;
 
             for (const invItem of inventoryItems) {
@@ -310,19 +314,75 @@ module.exports = {
     sellItems(player, broker, unitsToSell, preferExpensive) {
         const { operations, totalPrice, soldCount } = this.collectSaleOperations(player, broker, unitsToSell, preferExpensive);
         if (!soldCount || !operations.length || !totalPrice) {
-            player.call('selectMenu.loader', [false]);
+            player.call('pawnshops.menu.processing', [false]);
             return notifs.error(player, 'Нечего продавать', broker.title);
         }
 
         money.addCash(player, totalPrice, (res) => {
             if (!res) {
-                player.call('selectMenu.loader', [false]);
+                player.call('pawnshops.menu.processing', [false]);
                 return notifs.error(player, 'Ошибка начисления наличных', broker.title);
             }
             this.applyOperations(player, operations);
             notifs.success(player, `Продано ${soldCount} шт. на $${totalPrice}`, broker.title);
             this.refreshMenu(player, broker);
+            player.call('pawnshops.menu.processing', [false]);
         }, `Продажа у ${broker.title}`);
+    },
+
+    sellSpecificItem(player, broker, rawItemId) {
+        const itemId = rawItemId != null && !Number.isNaN(Number(rawItemId)) ? Number(rawItemId) : null;
+        if (itemId == null) {
+            player.call('pawnshops.menu.processing', [false]);
+            return notifs.error(player, 'Этот предмет недоступен для продажи', broker.title);
+        }
+
+        const resolvedItems = this.resolveBrokerItems(broker);
+        const targetItem = resolvedItems.find((entry) => entry.itemId === itemId);
+        if (!targetItem) {
+            player.call('pawnshops.menu.processing', [false]);
+            return notifs.error(player, 'Этот предмет не принимается', broker.title);
+        }
+
+        const inventoryItems = inventory.getArrayByItemId(player, itemId) || [];
+        if (!inventoryItems.length) {
+            player.call('pawnshops.menu.processing', [false]);
+            return notifs.error(player, 'У вас нет таких предметов', broker.title);
+        }
+
+        const operations = [];
+        let soldCount = 0;
+
+        for (const invItem of inventoryItems) {
+            const params = inventory.getParamsValues(invItem);
+            const stackCount = params.count ? parseInt(params.count) : 1;
+            if (!stackCount) continue;
+            soldCount += stackCount;
+            operations.push({ type: 'delete', item: invItem });
+        }
+
+        if (!soldCount || !operations.length) {
+            player.call('pawnshops.menu.processing', [false]);
+            return notifs.error(player, 'У вас нет таких предметов', broker.title);
+        }
+
+        const totalPrice = soldCount * (targetItem.price || 0);
+        if (!totalPrice) {
+            player.call('pawnshops.menu.processing', [false]);
+            return notifs.error(player, 'Не удалось рассчитать цену продажи', broker.title);
+        }
+
+        money.addCash(player, totalPrice, (res) => {
+            if (!res) {
+                player.call('pawnshops.menu.processing', [false]);
+                return notifs.error(player, 'Ошибка начисления наличных', broker.title);
+            }
+
+            this.applyOperations(player, operations);
+            notifs.success(player, `Продано ${soldCount} шт. «${targetItem.name}» на $${totalPrice}`, broker.title);
+            this.refreshMenu(player, broker);
+            player.call('pawnshops.menu.processing', [false]);
+        }, `Продажа ${targetItem.name} у ${broker.title}`);
     },
 
     refreshMenu(player, broker) {
