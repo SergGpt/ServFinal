@@ -7331,6 +7331,31 @@ var selectMenu = new Vue({
                     }
                 }
             },
+            "farmsEmployment": {
+                name: "farmsEmployment",
+                header: "Фермерское хозяйство",
+                items: [
+                    { text: "Устроиться на работу" },
+                    { text: "Помощь" },
+                    { text: "Закрыть" }
+                ],
+                i: 0,
+                j: 0,
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    if (eventName == 'onItemSelected') {
+                        if (item.text == 'Устроиться на работу') {
+                            mp.trigger('callRemote', 'farms.employment');
+                        } else if (item.text == 'Помощь') {
+                            modal.showByName('farms_help');
+                        } else if (item.text == 'Закрыть') {
+                            selectMenu.show = false;
+                        }
+                    } else if (eventName == 'onBackspacePressed') {
+                        selectMenu.show = false;
+                    }
+                }
+            },
             "moonshineFarm": {
                 name: "moonshineFarm",
                 header: "Самогоноварение",

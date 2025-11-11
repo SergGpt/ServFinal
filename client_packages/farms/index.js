@@ -139,6 +139,12 @@ mp.events.add({
     'farms.vendor.hide': () => {
         mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'farmsVendor') selectMenu.show = false;`);
     },
+    'farms.employment.show': () => {
+        mp.callCEFV(`selectMenu.showByName('farmsEmployment')`);
+    },
+    'farms.employment.hide': () => {
+        mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'farmsEmployment') selectMenu.show = false;`);
+    },
     'farms.reset': () => {
         clearMarkers();
         currentPlot = null;

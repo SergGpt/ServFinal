@@ -22,6 +22,14 @@ module.exports = {
     'farms.job.stop': (player) => {
         farms.stopJob(player);
     },
+    'farms.employment': (player) => {
+        if (!player || !player.character) return;
+        if (player.character.job === farms.jobId) {
+            mp.events.call('jobs.leave', player);
+        } else {
+            mp.events.call('jobs.set', player, farms.jobId);
+        }
+    },
     'farms.seed.buy': (player, amount) => {
         farms.buySeeds(player, amount);
     },
