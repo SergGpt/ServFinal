@@ -7360,16 +7360,15 @@ var selectMenu = new Vue({
                 name: "moonshineFarm",
                 header: "Самогоноварение",
                 items: [
-                    { text: "Уровень", values: ["0 / 20"] },
-                    { text: "Прогресс", values: ["0%"] },
-                    { text: "Семена", values: ["0"] },
-                    { text: "Тростник", values: ["0"] },
-                    { text: "Пустые бутылки", values: ["0"] },
-                    { text: "Всего собрано", values: ["0"] },
-                    { text: "Всего перегнано", values: ["0"] },
-                    { text: "До следующего уровня", values: ["0"] },
+                    { text: "Семена", values: ["0 шт."] },
+                    { text: "Сахарный тростник", values: ["0 шт."] },
+                    { text: "Пустые бутылки", values: ["0 шт."] },
                     { text: "Навык варщика", values: ["0%"] },
-                    { text: "Максимальный рецепт", values: ["1 бутылка"] },
+                    { text: "Выход рецепта", values: ["1 бутылка"] },
+                    { text: "Активные посадки", values: ["0 / 0"] },
+                    { text: "Посажено всего", values: ["0"] },
+                    { text: "Собрано всего", values: ["0"] },
+                    { text: "Перегнано всего", values: ["0"] },
                     { text: "Помощь" },
                     { text: "Закрыть" },
                 ],
@@ -7379,18 +7378,16 @@ var selectMenu = new Vue({
                 applyData(data) {
                     data = data || {};
                     var items = this.items;
-                    items[0].values[0] = `${data.level || 0} / ${data.maxLevel || 0}`;
-                    items[1].values[0] = `${data.progress || 0}%`;
-                    items[2].values[0] = `${data.seeds || 0}`;
-                    items[3].values[0] = `${data.cane || 0}`;
-                    items[4].values[0] = `${data.bottles || 0}`;
-                    items[5].values[0] = `${data.totalHarvest || 0}`;
-                    items[6].values[0] = `${data.totalBrewed || 0}`;
-                    items[7].values[0] = data.level >= data.maxLevel ? 'Максимум' : `${data.toNext != null ? data.toNext : 0}`;
-                    items[8].values[0] = `${data.skillPercent || 0}%`;
-                    var maxBatch = data.maxBatch || 1;
-                    var label = maxBatch === 3 ? '3 бутылки' : maxBatch === 2 ? '2 бутылки' : '1 бутылка';
-                    items[9].values[0] = label;
+                    items[0].values[0] = `${data.seeds || 0} шт.`;
+                    items[1].values[0] = `${data.cane || 0} шт.`;
+                    items[2].values[0] = `${data.bottles || 0} шт.`;
+                    items[3].values[0] = `${data.skillPercent || 0}%`;
+                    var output = data.craftOutput || 1;
+                    items[4].values[0] = output === 1 ? '1 бутылка' : `${output} бутылки`;
+                    items[5].values[0] = `${data.activePlots || 0} / ${data.maxPlots || 0}`;
+                    items[6].values[0] = `${data.totalPlanted || 0}`;
+                    items[7].values[0] = `${data.totalHarvested || 0}`;
+                    items[8].values[0] = `${data.totalBrewed || 0}`;
                 },
                 init(data) {
                     if (typeof data == 'string') data = JSON.parse(data);
@@ -7418,16 +7415,15 @@ var selectMenu = new Vue({
                 name: "moonshineVendor",
                 header: "Самогоноварение",
                 items: [
-                    { text: "Уровень", values: ["0 / 20"] },
-                    { text: "Прогресс", values: ["0%"] },
-                    { text: "Семена", values: ["0"] },
-                    { text: "Тростник", values: ["0"] },
-                    { text: "Пустые бутылки", values: ["0"] },
-                    { text: "До следующего уровня", values: ["0"] },
+                    { text: "Семена", values: ["0 шт."] },
+                    { text: "Сахарный тростник", values: ["0 шт."] },
+                    { text: "Пустые бутылки", values: ["0 шт."] },
                     { text: "Навык варщика", values: ["0%"] },
+                    { text: "Выход рецепта", values: ["1 бутылка"] },
                     { text: "Цена семян", values: ["$0"] },
-                    { text: "Купить семена", values: ["1 шт", "5 шт", "10 шт"], i: 0 },
-                    { text: "Закончить работу" },
+                    { text: "Дневной лимит", values: ["0 шт."] },
+                    { text: "Доступно сегодня", values: ["0 шт."] },
+                    { text: "Купить семена", values: ["1 шт.", "5 шт.", "10 шт."], i: 0 },
                     { text: "Помощь" },
                     { text: "Закрыть" },
                 ],
@@ -7437,14 +7433,16 @@ var selectMenu = new Vue({
                 applyData(data) {
                     data = data || {};
                     var items = this.items;
-                    items[0].values[0] = `${data.level || 0} / ${data.maxLevel || 0}`;
-                    items[1].values[0] = `${data.progress || 0}%`;
-                    items[2].values[0] = `${data.seeds || 0}`;
-                    items[3].values[0] = `${data.cane || 0}`;
-                    items[4].values[0] = `${data.bottles || 0}`;
-                    items[5].values[0] = data.level >= data.maxLevel ? 'Максимум' : `${data.toNext != null ? data.toNext : 0}`;
-                    items[6].values[0] = `${data.skillPercent || 0}%`;
-                    items[7].values[0] = `$${data.seedPrice || 0}`;
+                    items[0].values[0] = `${data.seeds || 0} шт.`;
+                    items[1].values[0] = `${data.cane || 0} шт.`;
+                    items[2].values[0] = `${data.bottles || 0} шт.`;
+                    items[3].values[0] = `${data.skillPercent || 0}%`;
+                    var output = data.craftOutput || 1;
+                    items[4].values[0] = output === 1 ? '1 бутылка' : `${output} бутылки`;
+                    items[5].values[0] = `$${data.seedPrice || 0}`;
+                    items[6].values[0] = `${data.dailyLimit || 0} шт.`;
+                    var remaining = data.seedsRemaining != null ? data.seedsRemaining : data.dailyLimit;
+                    items[7].values[0] = `${remaining != null ? remaining : 0} шт.`;
                 },
                 init(data) {
                     if (typeof data == 'string') data = JSON.parse(data);
@@ -7469,10 +7467,13 @@ var selectMenu = new Vue({
                     if (eventName == 'onItemSelected') {
                         if (item.text == 'Купить семена') {
                             var amount = this.getSelectedAmount();
+                            var remaining = this.data && this.data.seedsRemaining != null ? this.data.seedsRemaining : this.data.dailyLimit;
+                            if (remaining != null && remaining <= 0) {
+                                selectMenu.notification = 'Дневной лимит исчерпан';
+                                return;
+                            }
+                            if (remaining != null && amount > remaining) amount = remaining;
                             mp.trigger('callRemote', 'moonshine.seed.buy', amount);
-                        } else if (item.text == 'Закончить работу') {
-                            selectMenu.show = false;
-                            mp.trigger('callRemote', 'jobs.leave');
                         } else if (item.text == 'Помощь') {
                             modal.showByName('moonshine_help');
                         } else if (item.text == 'Закрыть') {
