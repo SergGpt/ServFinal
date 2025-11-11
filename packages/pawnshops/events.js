@@ -23,16 +23,16 @@ module.exports = {
     },
     "pawnshops.sell.one": (player, brokerId) => {
         if (!player.character) {
-            player.call('selectMenu.loader', [false]);
+            player.call('pawnshops.menu.processing', [false]);
             return;
         }
         const broker = pawnshops.getBroker(brokerId);
         if (!broker) {
-            player.call('selectMenu.loader', [false]);
+            player.call('pawnshops.menu.processing', [false]);
             return notifs.error(player, 'Скупщик не найден', 'Скупщик');
         }
         if (player.pawnshopBrokerId !== broker.id) {
-            player.call('selectMenu.loader', [false]);
+            player.call('pawnshops.menu.processing', [false]);
             return notifs.error(player, 'Вы отошли слишком далеко', broker.title);
         }
 
@@ -40,20 +40,37 @@ module.exports = {
     },
     "pawnshops.sell.all": (player, brokerId) => {
         if (!player.character) {
-            player.call('selectMenu.loader', [false]);
+            player.call('pawnshops.menu.processing', [false]);
             return;
         }
         const broker = pawnshops.getBroker(brokerId);
         if (!broker) {
-            player.call('selectMenu.loader', [false]);
+            player.call('pawnshops.menu.processing', [false]);
             return notifs.error(player, 'Скупщик не найден', 'Скупщик');
         }
         if (player.pawnshopBrokerId !== broker.id) {
-            player.call('selectMenu.loader', [false]);
+            player.call('pawnshops.menu.processing', [false]);
             return notifs.error(player, 'Вы отошли слишком далеко', broker.title);
         }
 
         pawnshops.sellItems(player, broker, Infinity, false);
+    },
+    "pawnshops.sell.item": (player, brokerId, itemId) => {
+        if (!player.character) {
+            player.call('pawnshops.menu.processing', [false]);
+            return;
+        }
+        const broker = pawnshops.getBroker(brokerId);
+        if (!broker) {
+            player.call('pawnshops.menu.processing', [false]);
+            return notifs.error(player, 'Скупщик не найден', 'Скупщик');
+        }
+        if (player.pawnshopBrokerId !== broker.id) {
+            player.call('pawnshops.menu.processing', [false]);
+            return notifs.error(player, 'Вы отошли слишком далеко', broker.title);
+        }
+
+        pawnshops.sellSpecificItem(player, broker, itemId);
     },
     "playerQuit": (player) => {
         if (player.pawnshopBrokerId) delete player.pawnshopBrokerId;
