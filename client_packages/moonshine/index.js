@@ -5,24 +5,25 @@ let plotStates = [];
 let plotPositions = [];
 let currentPlot = null;
 let insideCraftZone = false;
-let craftMenuOpen = false;
-let storedCraftData = null;
+let insideVendorZone = false;
+let craftUiOpen = false;
+let vendorData = null;
 
 const markerColors = {
-    available: [124, 194, 91, 120],
-    growing: [255, 210, 64, 120],
-    ready: [84, 255, 84, 160],
-    cooldown: [252, 144, 58, 120],
-    busy: [180, 180, 180, 100],
+    empty: [124, 194, 91, 120],
+    seeded: [255, 210, 64, 120],
+    sprout: [180, 220, 120, 120],
+    mature: [84, 255, 84, 160],
+    blocked: [180, 180, 180, 100],
 };
 
 function createMarkers(positions) {
     clearMarkers();
     plotPositions = positions.map(pos => new mp.Vector3(pos.x, pos.y, pos.z));
-    plotStates = positions.map(() => ({ state: 'available' }));
+    plotStates = positions.map(() => ({ state: 'empty' }));
     plotPositions.forEach((pos, index) => {
         plotMarkers[index] = mp.markers.new(1, new mp.Vector3(pos.x, pos.y, pos.z - 1), 0.65, {
-            color: markerColors.available,
+            color: markerColors.empty,
         });
     });
 }
@@ -36,9 +37,27 @@ function clearMarkers() {
     plotPositions = [];
 }
 
+function getMarkerColor(state, data) {
+    switch (state) {
+        case 'seeded':
+            return markerColors.seeded;
+        case 'sprout':
+            return markerColors.sprout;
+        case 'mature':
+            if (data && data.action === 'harvest') return markerColors.mature;
+            return markerColors.blocked;
+        case 'blocked':
+            return markerColors.blocked;
+        case 'empty':
+        default:
+            return markerColors.empty;
+    }
+}
+
 function updateMarker(index) {
     if (!plotPositions[index] || !plotStates[index]) return;
-    const color = markerColors[plotStates[index].state] || markerColors.busy;
+    const info = plotStates[index];
+    const color = getMarkerColor(info.state, info);
     const pos = plotPositions[index];
     if (plotMarkers[index] && mp.markers.exists(plotMarkers[index])) {
         plotMarkers[index].destroy();
@@ -48,34 +67,50 @@ function updateMarker(index) {
     });
 }
 
+function secondsLeft(value) {
+    if (!value) return null;
+    const seconds = Math.max(0, Math.ceil(value / 1000));
+    return seconds;
+}
+
 function updatePrompt() {
     if (currentPlot) {
-        const { state, action, timeLeft } = currentPlot;
+        const { state, action, timeLeft, graceEndsIn, owner } = currentPlot;
         if (action === 'plant') {
-            mp.prompt.show('Нажмите <span>E</span>, чтобы посадить семя');
+            mp.prompt.show('Нажмите <span>E</span>, чтобы посадить семя тростника');
             return;
         }
         if (action === 'harvest') {
-            mp.prompt.show('Нажмите <span>E</span>, чтобы собрать урожай');
+            mp.prompt.show('Нажмите <span>E</span>, чтобы собрать тростник');
             return;
         }
-        if (state === 'growing' && timeLeft) {
-            const seconds = Math.ceil(timeLeft / 1000);
-            mp.prompt.show(`Грядка созревает (~${seconds} сек.)`);
-            return;
+        if (state === 'seeded' || state === 'sprout') {
+            const seconds = secondsLeft(timeLeft);
+            if (seconds != null) {
+                const stage = state === 'seeded' ? 'Семя прорастает' : 'Росток крепнет';
+                mp.prompt.show(`${stage}: ~${seconds} сек.`);
+                return;
+            }
         }
-        if (state === 'cooldown' && timeLeft) {
-            const seconds = Math.ceil(timeLeft / 1000);
-            mp.prompt.show(`Грядка восстанавливается (~${seconds} сек.)`);
-            return;
-        }
-        if (state === 'busy') {
-            mp.prompt.show('Грядка занята другим фермером');
-            return;
+        if (state === 'mature') {
+            if (graceEndsIn && graceEndsIn > 0 && owner) {
+                const seconds = secondsLeft(graceEndsIn);
+                mp.prompt.show(`Созревшее растение (${owner}). Доступ через ${seconds} сек.`);
+                return;
+            }
+            const seconds = secondsLeft(timeLeft);
+            if (seconds != null) {
+                mp.prompt.show(`Созревшее растение. Завянет через ${seconds} сек.`);
+                return;
+            }
         }
     }
     if (insideCraftZone) {
-        mp.prompt.show('Нажмите <span>E</span>, чтобы открыть самогонный аппарат');
+        mp.prompt.show('Нажмите <span>E</span>, чтобы использовать самогонный аппарат');
+        return;
+    }
+    if (insideVendorZone) {
+        mp.prompt.show('Нажмите <span>E</span>, чтобы купить семена');
         return;
     }
     mp.prompt.hide();
@@ -91,47 +126,55 @@ function applyPlotUpdate(index, data) {
     }
 }
 
-function createPeds() {
-    [
-        {
-            model: "a_m_m_farmer_01",
-            position: { x: 1479.9052734375, y: 1154.0726318359375, z: 114.30072021484375 },
-            heading: 90.0,
-        },
-        {
-            model: "ig_old_man1a",
-            position: { x: 1479.9052734375, y: 1154.0726318359375, z: 114.30072021484375 },
-            heading: 252.0,
-        },
-        {
-            model: "s_m_m_chemsec_01",
-            position: { x: 1479.9052734375, y: 1154.0726318359375, z: 114.30072021484375 },
-            heading: 0.0,
-        }
-    ].forEach(data => mp.events.call('NPC.create', data));
+function openVendorMenu(data) {
+    vendorData = data || {};
+    mp.callCEFV(`selectMenu.menus['moonshineVendor'].init(${JSON.stringify(data)})`);
+    mp.callCEFV(`selectMenu.showByName('moonshineVendor')`);
 }
 
-function showCraftMenu(data) {
-    storedCraftData = data;
-    craftMenuOpen = true;
-    mp.callCEFV(`selectMenu.menus['moonshineCraft'].init(${JSON.stringify(data)})`);
-    mp.callCEFV(`selectMenu.showByName('moonshineCraft')`);
+function updateVendorMenu(data) {
+    vendorData = data || vendorData;
+    mp.callCEFV(`(function(){var info=${JSON.stringify(data)};if(selectMenu.menus['moonshineVendor'])selectMenu.menus['moonshineVendor'].update(info);})()`);
 }
 
-function updateCraftMenu(data) {
-    storedCraftData = data;
-    mp.callCEFV(`(function(){var info=${JSON.stringify(data)};if(selectMenu.menus['moonshineCraft'])selectMenu.menus['moonshineCraft'].update(info);})()`);
+function closeVendorMenu() {
+    vendorData = null;
+    mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineVendor') selectMenu.show = false;`);
 }
 
-function hideCraftMenu() {
-    craftMenuOpen = false;
-    storedCraftData = null;
-    mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineCraft') selectMenu.show = false;`);
+function openCraftUi(data) {
+    craftUiOpen = true;
+    const payload = typeof data === 'string' ? data : JSON.stringify(data || {});
+    mp.callCEFV(`moonshineCraft.open(${payload})`);
+}
+
+function updateCraftUi(data) {
+    const payload = typeof data === 'string' ? data : JSON.stringify(data || {});
+    mp.callCEFV(`moonshineCraft.update(${payload})`);
+}
+
+function closeCraftUi() {
+    craftUiOpen = false;
+    mp.callCEFV('moonshineCraft.hide(true)');
+}
+
+function setCraftProgress(sessionId, duration) {
+    const payload = JSON.stringify({ sessionId, duration });
+    mp.callCEFV(`moonshineCraft.start(${payload})`);
+}
+
+function craftSuccess(amount) {
+    const payload = JSON.stringify({ success: true, amount });
+    mp.callCEFV(`moonshineCraft.finish(${payload})`);
+}
+
+function craftFail(message) {
+    const payload = JSON.stringify({ success: false, message: message || '' });
+    mp.callCEFV(`moonshineCraft.finish(${payload})`);
 }
 
 mp.events.add({
     'characterInit.done': () => {
-        createPeds();
         if (mp.players.local.getVariable('moonshine.effect')) {
             mp.events.call('moonshine.effect.refresh');
         }
@@ -143,7 +186,7 @@ mp.events.add({
     'moonshine.plot.update': (index, info) => {
         index = parseInt(index);
         if (isNaN(index)) return;
-        applyPlotUpdate(index, info);
+        applyPlotUpdate(index, info || {});
     },
     'moonshine.plot.enter': (index, info) => {
         index = parseInt(index);
@@ -155,28 +198,31 @@ mp.events.add({
         currentPlot = null;
         updatePrompt();
     },
-    'moonshine.plot.ready': (index) => {
-        index = parseInt(index);
-        if (isNaN(index) || !plotStates[index]) return;
-        plotStates[index].state = 'ready';
-        updateMarker(index);
+    'moonshine.menu.update': (data) => {
+        const payload = typeof data === 'string' ? data : JSON.stringify(data || {});
+        mp.callCEFV(`(function(){var info=${payload};if(selectMenu.menus['moonshineFarm'])selectMenu.menus['moonshineFarm'].update(info);if(selectMenu.menus['moonshineVendor'])selectMenu.menus['moonshineVendor'].update(info);})()`);
     },
     'moonshine.menu.show': (data) => {
         mp.callCEFV(`selectMenu.menus['moonshineFarm'].init(${JSON.stringify(data)})`);
         mp.callCEFV(`selectMenu.showByName('moonshineFarm')`);
     },
-    'moonshine.vendor.show': (data) => {
-        mp.callCEFV(`selectMenu.menus['moonshineVendor'].init(${JSON.stringify(data)})`);
-        mp.callCEFV(`selectMenu.showByName('moonshineVendor')`);
-    },
-    'moonshine.menu.update': (data) => {
-        mp.callCEFV(`(function(){var info=${JSON.stringify(data)};if(selectMenu.menus['moonshineFarm'])selectMenu.menus['moonshineFarm'].update(info);if(selectMenu.menus['moonshineVendor'])selectMenu.menus['moonshineVendor'].update(info);})()`);
-    },
     'moonshine.menu.hide': () => {
         mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineFarm') selectMenu.show = false;`);
     },
+    'moonshine.vendor.enter': () => {
+        insideVendorZone = true;
+        updatePrompt();
+    },
+    'moonshine.vendor.exit': () => {
+        insideVendorZone = false;
+        closeVendorMenu();
+        updatePrompt();
+    },
+    'moonshine.vendor.show': (data) => {
+        openVendorMenu(typeof data === 'string' ? JSON.parse(data) : data);
+    },
     'moonshine.vendor.hide': () => {
-        mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineVendor') selectMenu.show = false;`);
+        closeVendorMenu();
     },
     'moonshine.craft.enter': () => {
         insideCraftZone = true;
@@ -184,29 +230,48 @@ mp.events.add({
     },
     'moonshine.craft.exit': () => {
         insideCraftZone = false;
-        if (craftMenuOpen) hideCraftMenu();
+        closeCraftUi();
         updatePrompt();
     },
     'moonshine.craft.menu.show': (data) => {
-        showCraftMenu(typeof data === 'string' ? JSON.parse(data) : data);
+        openCraftUi(data);
     },
     'moonshine.craft.menu.update': (data) => {
-        updateCraftMenu(typeof data === 'string' ? JSON.parse(data) : data);
+        updateCraftUi(data);
     },
     'moonshine.craft.menu.hide': () => {
-        hideCraftMenu();
+        closeCraftUi();
+    },
+    'moonshine.craft.ui.start': (sessionId, duration) => {
+        setCraftProgress(sessionId, duration);
+    },
+    'moonshine.craft.ui.success': (amount) => {
+        craftSuccess(amount);
+    },
+    'moonshine.craft.ui.fail': (message) => {
+        craftFail(message);
+    },
+    'moonshine.craft.ui.abort': () => {
+        craftFail('Процесс прерван');
+    },
+    'moonshine.craft.ui.hide': () => {
+        closeCraftUi();
     },
     'moonshine.reset': () => {
         clearMarkers();
         currentPlot = null;
         insideCraftZone = false;
-        hideCraftMenu();
+        insideVendorZone = false;
+        closeCraftUi();
+        closeVendorMenu();
         mp.prompt.hide();
     },
     'playerQuit': () => {
         currentPlot = null;
         insideCraftZone = false;
-        hideCraftMenu();
+        insideVendorZone = false;
+        closeCraftUi();
+        closeVendorMenu();
         mp.prompt.hide();
     },
 });
@@ -225,9 +290,28 @@ mp.keys.bind(0x45, true, () => {
             return;
         }
     }
-    if (insideCraftZone && !craftMenuOpen) {
-        mp.events.callRemote('moonshine.craft.menu');
+    if (insideCraftZone) {
+        if (!craftUiOpen) {
+            mp.events.callRemote('moonshine.craft.menu');
+        }
+        return;
     }
+    if (insideVendorZone) {
+        mp.events.callRemote('moonshine.vendor.open');
+        return;
+    }
+});
+
+mp.events.add('moonshine.vendor.request', () => {
+    mp.events.callRemote('moonshine.menu.sync');
+});
+
+mp.events.add('moonshine.craft.ui.start.request', () => {
+    mp.events.callRemote('moonshine.craft.start');
+});
+
+mp.events.add('moonshine.craft.ui.cancel', () => {
+    mp.events.callRemote('moonshine.craft.cancel');
 });
 
 let baseMaxHealth = null;

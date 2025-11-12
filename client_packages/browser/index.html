@@ -1534,7 +1534,74 @@
 
         <script src="js/pawnshops.js"></script>
         <!-- ------------------------ СКУПЩИКИ ------------------------ -->
-  
+
+
+        <!-- ------------------------ САМОГОННЫЙ АППАРАТ ------------------------ -->
+        <link rel="stylesheet" type="text/css" href="css/moonshineCraft.css" />
+        <div v-cloak id="moonshineCraft" v-if="show">
+            <div class="moonshine-craft__window">
+                <div class="moonshine-craft__header">
+                    <div class="moonshine-craft__title">Самогонный аппарат</div>
+                    <div class="moonshine-craft__close" @click="closeWindow">
+                        <img src="img/inventory/close.svg" />
+                    </div>
+                </div>
+                <div class="moonshine-craft__body">
+                    <div class="moonshine-craft__stat">
+                        <div class="moonshine-craft__stat-label">Навык варщика</div>
+                        <div>{{ recipe.skillPercent }}%</div>
+                    </div>
+                    <div class="moonshine-craft__stat">
+                        <div class="moonshine-craft__stat-label">Выход</div>
+                        <div>{{ recipe.outputLabel }}</div>
+                    </div>
+                    <div class="moonshine-craft__recipe">
+                        <div class="moonshine-craft__ingredient">Пустая бутылка × {{ recipe.bottlesRequired }}</div>
+                        <div class="moonshine-craft__arrow">→</div>
+                        <div class="moonshine-craft__ingredient">Тростник × {{ recipe.caneRequired }}</div>
+                        <div class="moonshine-craft__arrow">=</div>
+                        <div class="moonshine-craft__result">Самогон × {{ recipe.output }}</div>
+                    </div>
+                    <div class="moonshine-craft__stock">
+                        В наличии: бутылок {{ recipe.bottles }} шт., тростника {{ recipe.cane }} шт.
+                    </div>
+                    <div class="moonshine-craft__progress" v-if="processing">
+                        <div class="moonshine-craft__progress-bar">
+                            <div class="moonshine-craft__progress-fill" :style="{ width: progressPercent + '%' }"></div>
+                        </div>
+                        <div class="moonshine-craft__status">{{ statusMessage }}</div>
+                    </div>
+                    <div class="moonshine-craft__status" v-else-if="statusMessage">{{ statusMessage }}</div>
+                    <div class="moonshine-craft__actions">
+                        <button
+                            class="moonshine-craft__button"
+                            v-if="processing"
+                            @click="cancel"
+                        >
+                            Прервать
+                        </button>
+                        <button
+                            class="moonshine-craft__button moonshine-craft__button--primary"
+                            :disabled="!canCraft || processing"
+                            @click="brew"
+                        >
+                            Варить
+                        </button>
+                        <button
+                            class="moonshine-craft__button"
+                            :disabled="processing"
+                            @click="closeWindow"
+                        >
+                            Закрыть
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="js/moonshineCraft.js"></script>
+        <!-- ------------------------ САМОГОННЫЙ АППАРАТ ------------------------ -->
+
 
 
 
