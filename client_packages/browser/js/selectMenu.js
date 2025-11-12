@@ -7369,6 +7369,7 @@ var selectMenu = new Vue({
                     { text: "Посажено всего", values: ["0"] },
                     { text: "Собрано всего", values: ["0"] },
                     { text: "Перегнано всего", values: ["0"] },
+                    { text: "Уволиться с работы" },
                     { text: "Помощь" },
                     { text: "Закрыть" },
                 ],
@@ -7403,6 +7404,9 @@ var selectMenu = new Vue({
                     if (eventName == 'onItemSelected') {
                         if (item.text == 'Помощь') {
                             modal.showByName('moonshine_help');
+                        } else if (item.text == 'Уволиться с работы') {
+                            selectMenu.show = false;
+                            mp.trigger('callRemote', 'moonshine.job.leave');
                         } else if (item.text == 'Закрыть') {
                             selectMenu.show = false;
                         }

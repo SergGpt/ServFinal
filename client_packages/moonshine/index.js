@@ -34,6 +34,18 @@ const ACTION_BUSY_KEY = 'moonshine.action';
 
 let nextStreamUpdate = 0;
 
+function parsePayload(value, fallback) {
+    if (typeof value === 'string') {
+        try {
+            return JSON.parse(value);
+        } catch (e) {
+            return fallback;
+        }
+    }
+    if (value == null) return fallback;
+    return value;
+}
+
 const actionAnimations = {
     plant: { dict: 'amb@world_human_gardener_plant@male@enter', name: 'enter', duration: 2600, flag: 1 },
     harvest: { dict: 'amb@world_human_gardener_plant@male@exit', name: 'exit', duration: 2000, flag: 1 },
@@ -118,6 +130,7 @@ function updatePlotObject(index, force = false) {
     const hash = mp.game.joaat(modelName);
     if (!mp.game.streaming.hasModelLoaded(hash)) {
         mp.game.streaming.requestModel(hash);
+        return;
     }
     const spawnPos = new mp.Vector3(pos.x, pos.y, pos.z - 0.9);
     const obj = mp.objects.new(hash, spawnPos, { rotation: new mp.Vector3(0, 0, 0), dimension });
@@ -288,14 +301,16 @@ function applyPlotUpdate(index, data) {
 }
 
 function openVendorMenu(data) {
+    data = parsePayload(data, {});
     vendorData = data || {};
-    mp.callCEFV(`selectMenu.menus['moonshineVendor'].init(${JSON.stringify(data)})`);
+    mp.callCEFV(`selectMenu.menus['moonshineVendor'].init(${JSON.stringify(vendorData)})`);
     mp.callCEFV(`selectMenu.showByName('moonshineVendor')`);
 }
 
 function updateVendorMenu(data) {
+    data = parsePayload(data, vendorData || {});
     vendorData = data || vendorData;
-    mp.callCEFV(`(function(){var info=${JSON.stringify(data)};if(selectMenu.menus['moonshineVendor'])selectMenu.menus['moonshineVendor'].update(info);})()`);
+    mp.callCEFV(`(function(){var info=${JSON.stringify(vendorData || {})};if(selectMenu.menus['moonshineVendor'])selectMenu.menus['moonshineVendor'].update(info);})()`);
 }
 
 function closeVendorMenu() {
@@ -305,13 +320,13 @@ function closeVendorMenu() {
 
 function openCraftUi(data) {
     craftUiOpen = true;
-    const payload = typeof data === 'string' ? data : JSON.stringify(data || {});
-    mp.callCEFV(`moonshineCraft.open(${payload})`);
+    const info = parsePayload(data, {});
+    mp.callCEFV(`moonshineCraft.open(${JSON.stringify(info || {})})`);
 }
 
 function updateCraftUi(data) {
-    const payload = typeof data === 'string' ? data : JSON.stringify(data || {});
-    mp.callCEFV(`moonshineCraft.update(${payload})`);
+    const info = parsePayload(data, {});
+    mp.callCEFV(`moonshineCraft.update(${JSON.stringify(info || {})})`);
 }
 
 function closeCraftUi() {
@@ -341,10 +356,12 @@ mp.events.add({
         }
     },
     'moonshine.plots.init': (positions) => {
+        positions = parsePayload(positions, []);
         if (!Array.isArray(positions)) positions = [];
         createMarkers(positions);
     },
     'cane:stageSync': (items) => {
+        items = parsePayload(items, []);
         if (!Array.isArray(items)) return;
         items.forEach(data => {
             if (!data) return;
@@ -361,12 +378,14 @@ mp.events.add({
     'moonshine.plot.update': (index, info) => {
         index = parseInt(index);
         if (isNaN(index)) return;
-        applyPlotUpdate(index, info || {});
+        info = parsePayload(info, {});
+        applyPlotUpdate(index, info);
     },
     'moonshine.plot.enter': (index, info) => {
         index = parseInt(index);
         if (isNaN(index)) return;
-        currentPlot = Object.assign({ index }, info || {});
+        info = parsePayload(info, {});
+        currentPlot = Object.assign({ index }, info);
         updatePrompt();
     },
     'moonshine.plot.exit': () => {
@@ -380,11 +399,14 @@ mp.events.add({
         startPlotAction('harvest');
     },
     'moonshine.menu.update': (data) => {
-        const payload = typeof data === 'string' ? data : JSON.stringify(data || {});
+        const info = parsePayload(data, {});
+        const payload = JSON.stringify(info || {});
         mp.callCEFV(`(function(){var info=${payload};if(selectMenu.menus['moonshineFarm'])selectMenu.menus['moonshineFarm'].update(info);if(selectMenu.menus['moonshineVendor'])selectMenu.menus['moonshineVendor'].update(info);})()`);
     },
     'moonshine.menu.show': (data) => {
-        mp.callCEFV(`selectMenu.menus['moonshineFarm'].init(${JSON.stringify(data)})`);
+        const info = parsePayload(data, {});
+        const payload = JSON.stringify(info || {});
+        mp.callCEFV(`selectMenu.menus['moonshineFarm'].init(${payload})`);
         mp.callCEFV(`selectMenu.showByName('moonshineFarm')`);
     },
     'moonshine.menu.hide': () => {
@@ -400,7 +422,7 @@ mp.events.add({
         updatePrompt();
     },
     'moonshine.vendor.show': (data) => {
-        openVendorMenu(typeof data === 'string' ? JSON.parse(data) : data);
+        openVendorMenu(data);
     },
     'moonshine.vendor.hide': () => {
         closeVendorMenu();
@@ -551,12 +573,21 @@ function clearMoonshineEffectClient() {
     moonshineEffectActive = false;
     const maxHealth = baseMaxHealth != null ? baseMaxHealth : 100;
     mp.players.local.setMaxHealth(maxHealth);
+    try {
+        if (mp.players.local.getHealth() > maxHealth) {
+            mp.players.local.setHealth(maxHealth);
+        }
+    } catch (e) {
+        // ignore health reset errors
+    }
     setRunSprintMultiplier(1.0);
     baseMaxHealth = null;
 }
 
 mp.events.addDataHandler('moonshine.effect', (entity, value) => {
-    if (!entity || !entity.handle || !entity.isLocalPlayer()) return;
+    if (!entity || !entity.handle || entity.type !== 'player') return;
+    if (!mp.players.local) return;
+    if (entity.remoteId !== mp.players.local.remoteId) return;
     if (value && value.active) {
         applyMoonshineEffectClient(value);
     } else {

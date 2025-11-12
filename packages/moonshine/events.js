@@ -42,6 +42,12 @@ module.exports = {
     'moonshine.vendor.open': (player) => {
         moonshine.openVendor(player);
     },
+    'moonshine.job.leave': (player) => {
+        moonshine.leaveJob(player);
+    },
+    'moonshine.job.stop': (player) => {
+        moonshine.stopWork(player);
+    },
     'moonshine.craft.menu': (player) => {
         moonshine.openCraftMenu(player);
     },

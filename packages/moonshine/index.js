@@ -739,11 +739,13 @@ module.exports = {
         this.ensurePlayerData(player);
         this.syncPlotsForPlayer(player);
         this.sendMenuUpdate(player);
+        player.moonshineJob = true;
         notifs.info(player, 'Вы приступили к работе варщика', MODULE_NAME);
     },
 
     stopWork(player) {
         if (!player) return;
+        delete player.moonshineJob;
         player.call('moonshine.reset');
         player.call('moonshine.menu.hide');
         player.call('moonshine.vendor.exit');
@@ -756,7 +758,16 @@ module.exports = {
         if (!player) return;
         this.abortCraft(player, 'disconnect', true);
         this.clearMoonshineEffect(player);
+        delete player.moonshineJob;
         delete player.moonshineDrinkCooldown;
+    },
+
+    leaveJob(player) {
+        if (!player || !player.character) return;
+        if (player.character.job !== this.config.jobId) {
+            return notifs.error(player, 'Вы не работаете самогонщиком', MODULE_NAME);
+        }
+        mp.events.call('jobs.leave', player);
     },
 
     openCraftMenu(player) {
