@@ -31,15 +31,16 @@
     --texture-noise: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVQI12NgYGD4z0AEYBxVSFUAACMAB2Hn0xAoAAAAAElFTkSuQmCC");
 }
 
+html,
 body {
-    background-color: var(--color-bg-primary);
-    background-image:
-        radial-gradient(circle at top left, rgba(155, 229, 0, 0.08), transparent 45%),
-        radial-gradient(circle at bottom right, rgba(102, 255, 204, 0.05), transparent 40%),
-        linear-gradient(120deg, rgba(168, 103, 59, 0.12), rgba(13, 15, 16, 0.75) 32%, rgba(102, 255, 204, 0.08) 68%, rgba(13, 15, 16, 0.9)),
-        var(--texture-noise);
-    background-blend-mode: soft-light, screen, normal, normal;
-    background-size: cover, cover, 100% 100%, 200px 200px;
+    background: transparent;
+}
+
+body {
+    background-color: transparent;
+    background-image: none;
+    background-blend-mode: normal;
+    background-size: auto;
     color: var(--color-text-primary);
     font-family: var(--font-body);
     font-size: 1.4vh;
@@ -54,42 +55,6 @@ body {
     perspective: 700px;
     transform-style: preserve-3d;
     perspective-origin: 50% 50%;
-}
-
-body::before,
-body::after,
-html::before {
-    content: '';
-    pointer-events: none;
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    z-index: -1;
-}
-
-body::before {
-    background: var(--texture-noise);
-    opacity: 0.18;
-    mix-blend-mode: screen;
-    animation: noisePulse 9s infinite ease-in-out alternate;
-}
-
-body::after {
-    background: radial-gradient(circle at center, transparent 55%, rgba(0, 0, 0, 0.65));
-}
-
-html::before {
-    background:
-        radial-gradient(circle at 3% 5%, rgba(102, 255, 204, 0.4) 0.4vh, transparent 1vh),
-        radial-gradient(circle at 97% 7%, rgba(155, 229, 0, 0.35) 0.4vh, transparent 1vh),
-        radial-gradient(circle at 5% 95%, rgba(168, 103, 59, 0.45) 0.4vh, transparent 1vh),
-        radial-gradient(circle at 95% 93%, rgba(102, 255, 204, 0.4) 0.4vh, transparent 1vh);
-    background-repeat: no-repeat;
-    background-size: 3vh 3vh;
-    filter: drop-shadow(0 0 0.8vh rgba(0, 0, 0, 0.8));
-    z-index: -2;
 }
 
 body input::selection,
@@ -276,7 +241,8 @@ input[type="button"],
 input[type="submit"],
 input[type="reset"],
 .action-button {
-    background: linear-gradient(135deg, rgba(26, 29, 31, 0.6), rgba(102, 255, 204, 0.12));
+    background-color: rgba(26, 29, 31, 0.95);
+    background-image: linear-gradient(135deg, rgba(26, 29, 31, 0.2), rgba(102, 255, 204, 0.12));
     border: 0.2vh solid rgba(102, 255, 204, 0.3);
     border-radius: 1vh;
     box-shadow: inset 0 0 0.6vh rgba(102, 255, 204, 0.15), 0 0.7vh 1.5vh rgba(0, 0, 0, 0.55);
@@ -301,10 +267,11 @@ input[type="reset"]::before,
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(90deg, transparent, rgba(155, 229, 0, 0.25), transparent);
+    background: linear-gradient(90deg, rgba(155, 229, 0, 0), rgba(155, 229, 0, 0.45), rgba(155, 229, 0, 0));
     transform: translateX(-120%);
-    transition: transform 0.35s ease;
-    mix-blend-mode: screen;
+    transition: transform 0.35s ease, opacity 0.35s ease;
+    mix-blend-mode: normal;
+    opacity: 0;
 }
 
 button::after,
@@ -319,8 +286,8 @@ input[type="reset"]::after,
     inset: 0;
     background: linear-gradient(90deg, rgba(102, 255, 204, 0.2), transparent 30%, rgba(155, 229, 0, 0.12) 60%, transparent 90%);
     opacity: 0;
-    mix-blend-mode: screen;
-    transition: opacity 0.15s ease;
+    mix-blend-mode: normal;
+    transition: opacity 0.2s ease;
     animation: glitchShift 4s infinite linear alternate;
 }
 
@@ -345,6 +312,7 @@ input[type="submit"]:hover::before,
 input[type="reset"]:hover::before,
 .action-button:hover::before {
     transform: translateX(120%);
+    opacity: 0.45;
 }
 
 button:hover::after,
@@ -354,7 +322,7 @@ input[type="button"]:hover::after,
 input[type="submit"]:hover::after,
 input[type="reset"]:hover::after,
 .action-button:hover::after {
-    opacity: 1;
+    opacity: 0.55;
 }
 
 button:active,
