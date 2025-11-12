@@ -17,11 +17,11 @@ let moonshineBuffState = { active: false, remainingMs: 0 };
 let craftBusyActive = false;
 
 const markerColors = {
-    empty: [140, 140, 140, 100],
-    plantable: [110, 200, 110, 150],
-    growing: [240, 205, 80, 160],
-    mature: [70, 255, 130, 190],
-    blocked: [160, 160, 160, 110],
+    empty: [140, 140, 140, 70],
+    plantable: [110, 200, 110, 120],
+    growing: [240, 205, 80, 130],
+    mature: [70, 255, 130, 160],
+    blocked: [160, 160, 160, 90],
 };
 
 const plantModels = {
@@ -58,11 +58,14 @@ function createMarkers(positions) {
     plotPositions = positions.map(pos => new mp.Vector3(pos.x, pos.y, pos.z));
     plotStates = positions.map(() => ({ state: 'empty' }));
     const dimension = mp.players.local ? mp.players.local.dimension : 0;
+    const ringScale = new mp.Vector3(1.6, 1.6, 0.15);
     plotPositions.forEach((pos, index) => {
-        plotMarkers[index] = mp.markers.new(28, new mp.Vector3(pos.x, pos.y, pos.z + 0.05), 0.85, {
+        plotMarkers[index] = mp.markers.new(1, new mp.Vector3(pos.x, pos.y, pos.z + 0.02), 0.8, {
             color: markerColors.empty,
-            scale: new mp.Vector3(1.35, 1.35, 0.35),
+            scale: ringScale,
             dimension,
+            bobUpAndDown: false,
+            rotate: false,
         });
         plotCenterMarkers[index] = mp.markers.new(2, new mp.Vector3(pos.x, pos.y, pos.z - 0.9), 0.18, {
             color: markerColors.empty,
@@ -172,10 +175,12 @@ function updateMarker(index) {
     if (plotCenterMarkers[index] && mp.markers.exists(plotCenterMarkers[index])) {
         plotCenterMarkers[index].destroy();
     }
-    plotMarkers[index] = mp.markers.new(28, new mp.Vector3(pos.x, pos.y, pos.z + 0.05), 0.85, {
+    plotMarkers[index] = mp.markers.new(1, new mp.Vector3(pos.x, pos.y, pos.z + 0.02), 0.8, {
         color,
-        scale: new mp.Vector3(1.35, 1.35, 0.35),
+        scale: new mp.Vector3(1.6, 1.6, 0.15),
         dimension,
+        bobUpAndDown: false,
+        rotate: false,
     });
     plotCenterMarkers[index] = mp.markers.new(2, new mp.Vector3(pos.x, pos.y, pos.z - 0.9), 0.18, {
         color,
@@ -575,6 +580,11 @@ mp.events.add('moonshine.craft.ui.start.request', () => {
 
 mp.events.add('moonshine.craft.ui.cancel', () => {
     mp.events.callRemote('moonshine.craft.cancel');
+});
+
+mp.events.add('moonshine.craft.ui.closed', () => {
+    if (!craftUiOpen) return;
+    closeCraftUi();
 });
 
 let baseMaxHealth = null;

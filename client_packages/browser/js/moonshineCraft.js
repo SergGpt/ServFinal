@@ -132,6 +132,9 @@ var moonshineCraft = new Vue({
             this.canUseNow = false;
             this.useInProgress = false;
             this.show = false;
+            if (!force) {
+                mp.trigger('moonshine.craft.ui.closed');
+            }
         },
         startProgress() {
             this.stopProgress();
