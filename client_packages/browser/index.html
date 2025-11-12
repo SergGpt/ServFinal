@@ -2016,6 +2016,7 @@
                             <div class="item" v-if="equipment[n-1] && !equipment[n-1].search" @mouseenter="itemMouseHandler(equipment[n-1], $event)" @mouseleave="itemMouseHandler(equipment[n-1], $event)" @mousemove="itemMouseHandler(equipment[n-1], $event)"
                                 @contextmenu="itemMouseHandler(equipment[n-1], $event)" :style="{backgroundImage: 'url('+urlItemImg(equipment[n-1].itemId)+')' }" @mousedown="itemMouseHandler(equipment[n-1], $event)"
                                 :class="{dragging: equipment[n-1] == itemDrag.item}">
+                                <div v-if="itemRarity(equipment[n-1])" :class="['rarity-badge', itemRarityClass(equipment[n-1])]">{{ itemRarityLabel(equipment[n-1]) }}</div>
                                 <div class="count" v-if="equipment[n-1].params.count">{{ equipment[n-1].params.count }}</div>
                                 <div class="sqlid" v-if="debug">#{{ equipment[n-1].sqlId }}</div>
                                 <div v-if="equipment[n-1].wait" v-cloak="v-cloak" class="loader lds-css ng-scope">
@@ -2034,6 +2035,7 @@
                                 v-bind:style="{backgroundImage: 'url(' + urlItemImg(equipment[13].itemId) + ')'}"
                                 @mousedown="itemMouseHandler(equipment[13], $event)"
                                 @contextmenu="itemMouseHandler(equipment[13], $event)" :class="{dragging: equipment[13] == itemDrag.item}">
+                                <div v-if="itemRarity(equipment[13])" :class="['rarity-badge', itemRarityClass(equipment[13])]">{{ itemRarityLabel(equipment[13]) }}</div>
                                 <div class="count" v-if="equipment[13].params.count">{{ equipment[13].params.count }}</div>
                                 <div class="sqlid" v-if="debug">#{{ equipment[13].sqlId }}</div>
                                 <div v-if="equipment[13].wait" v-cloak="v-cloak" class="loader lds-css ng-scope">
@@ -2081,6 +2083,7 @@
                                                 :style="itemStyle(pocket.items[n-1])"
                                                 :class="{dragging: pocket.items[n-1] == itemDrag.item, found: pocket.items[n-1].found }"
                                             >
+                                                <div v-if="itemRarity(pocket.items[n-1])" :class="['rarity-badge', itemRarityClass(pocket.items[n-1])]">{{ itemRarityLabel(pocket.items[n-1]) }}</div>
                                                 <div class="count" v-if="pocket.items[n-1].params.count && !pocket.items[n-1].found">{{ pocket.items[n-1].params.count }}</div>
                                                 <div class="eye" v-if="pocket.items[n-1].found"><img src="img/inventory/eye.svg" /></div>
                                                 <!--<div class="health" v-if="pocket.items[n-1].params.health" v-bind:style="{top: 100 - pocket.items[n-1].params.health + '%', 'border-color': valueColor(pocket.items[n-1].params.health)}"></div>-->
@@ -2132,6 +2135,7 @@
                                                 :style="itemStyle(pocket.items[n-1])"
                                                 :class="{dragging: pocket.items[n-1] == itemDrag.item, found: pocket.items[n-1].found }"
                                             >
+                                                <div v-if="itemRarity(pocket.items[n-1])" :class="['rarity-badge', itemRarityClass(pocket.items[n-1])]">{{ itemRarityLabel(pocket.items[n-1]) }}</div>
                                                 <div class="count" v-if="pocket.items[n-1].params.count && !pocket.items[n-1].found">{{ pocket.items[n-1].params.count }}</div>
                                                 <div class="eye" v-if="pocket.items[n-1].found"><img src="img/inventory/eye.svg" /></div>
                                                 <div class="sqlid" v-if="debug">#{{ pocket.items[n-1].sqlId }}</div>
@@ -2159,6 +2163,7 @@
                         @mousedown="itemMouseHandler(hotkeys[n], $event)">
                         <!--<span class="close" @click="unbindHotkey(n)">x</span>-->
 
+                        <div v-if="itemRarity(hotkeys[n])" :class="['rarity-badge', itemRarityClass(hotkeys[n])]">{{ itemRarityLabel(hotkeys[n]) }}</div>
                         <div class="count" v-if="hotkeys[n].params.count">{{ hotkeys[n].params.count }}</div>
                         <!--<div class="health" v-if="hotkeys[n].params.health" v-bind:style="{top: 100 - hotkeys[n].params.health + '%', 'border-color': valueColor(hotkeys[n].params.health)}"></div>-->
                         <div class="sqlid" v-if="debug">#{{ hotkeys[n].sqlId }}</div>
@@ -2173,6 +2178,7 @@
             </div>
             <div class="item-desc" v-if="itemDesc.item && !itemMenu.item && !itemDrag.item && (getItem(itemDesc.item.sqlId) || getEnvironmentItem(itemDesc.item.sqlId))" :style="{left: itemDesc.x + 'px', top: itemDesc.y + 'px'}">
                 <div class="title">{{ descItemName }}</div>
+                <div v-if="itemRarity(itemDesc.item)" :class="['rarity-badge', itemRarityClass(itemDesc.item)]">{{ itemRarityLabel(itemDesc.item) }}</div>
                 <div v-if="debug">itemId: #{{ itemDesc.item.itemId }}</div>
                 <!-- <div class="item" v-if="itemDesc.item" :style="itemStyle(itemDesc.item)">
                     <div class="sqlid" v-if="debug">#{{ itemDesc.item.sqlId }}</div>
