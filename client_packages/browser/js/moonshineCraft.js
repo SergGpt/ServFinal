@@ -17,6 +17,8 @@ var moonshineCraft = new Vue({
         duration: 0,
         progress: 0,
         progressTimer: null,
+        canUseNow: false,
+        useInProgress: false,
     },
     computed: {
         canCraft() {
@@ -33,6 +35,8 @@ var moonshineCraft = new Vue({
         open(payload) {
             this.setData(payload);
             this.statusMessage = '';
+            this.canUseNow = false;
+            this.useInProgress = false;
             this.show = true;
         },
         update(payload) {
@@ -77,6 +81,8 @@ var moonshineCraft = new Vue({
             this.duration = Number(data.duration) || 0;
             this.progress = 0;
             this.statusMessage = 'Варка...' ;
+            this.canUseNow = false;
+            this.useInProgress = false;
             this.startProgress();
         },
         finish(payload) {
@@ -94,10 +100,13 @@ var moonshineCraft = new Vue({
             this.sessionId = null;
             if (data.success) {
                 const amount = Number(data.amount) || this.recipe.output;
-                this.statusMessage = `Готово: ${amount} шт.`;
+                this.statusMessage = `Скрафчено 303×${amount}`;
+                this.canUseNow = amount > 0;
             } else {
                 this.statusMessage = data.message || 'Процесс прерван';
+                this.canUseNow = false;
             }
+            this.useInProgress = false;
         },
         cancel() {
             if (!this.processing) {
@@ -120,6 +129,8 @@ var moonshineCraft = new Vue({
             this.processing = false;
             this.sessionId = null;
             this.statusMessage = '';
+            this.canUseNow = false;
+            this.useInProgress = false;
             this.show = false;
         },
         startProgress() {
@@ -146,6 +157,15 @@ var moonshineCraft = new Vue({
             if (event.key === 'Escape' || event.keyCode === 27) {
                 this.cancel();
             }
+        },
+        useNow() {
+            if (this.processing || this.useInProgress) return;
+            this.useInProgress = true;
+            this.canUseNow = false;
+            mp.trigger('callRemote', 'moonshine:drink');
+            setTimeout(() => {
+                this.useInProgress = false;
+            }, 1500);
         },
     },
     mounted() {

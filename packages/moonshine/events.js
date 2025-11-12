@@ -54,4 +54,10 @@ module.exports = {
     'moonshine.consume': (player, item) => {
         moonshine.consumeMoonshine(player, item);
     },
+    'moonshine:drink': (player, itemSqlId) => {
+        moonshine.drinkMoonshine(player, itemSqlId);
+    },
+    'cane:syncPlots': (player) => {
+        moonshine.syncPlotStages(player);
+    },
 };

@@ -201,6 +201,13 @@ var inventory = new Vue({
                     }
                 }
             },
+            303: {
+                'Использовать': {
+                    handler(item) {
+                        mp.trigger('callRemote', 'moonshine:drink', item.sqlId);
+                    }
+                }
+            },
             /*37: { // test
                 'Разрядить': {
                     handler(item) {

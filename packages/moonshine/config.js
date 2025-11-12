@@ -40,6 +40,7 @@ module.exports = {
         speedMultiplier: 1.1,
         maxHealth: 120,
         healthThresholdPercent: 10,
+        useCooldownMs: 1500,
     },
 
     plots: [

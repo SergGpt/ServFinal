@@ -146,6 +146,11 @@
     color: #141414;
 }
 
+.moonshine-craft__button--accent {
+    background: linear-gradient(90deg, #4fd38c 0%, #2bbd6f 100%);
+    color: #141414;
+}
+
 .moonshine-craft__button:disabled {
     opacity: 0.4;
     cursor: default;
@@ -157,4 +162,8 @@
 
 .moonshine-craft__button--primary:not(:disabled):hover {
     background: linear-gradient(90deg, #ffbf74 0%, #ff8b36 100%);
+}
+
+.moonshine-craft__button--accent:not(:disabled):hover {
+    background: linear-gradient(90deg, #60e0a0 0%, #32c778 100%);
 }

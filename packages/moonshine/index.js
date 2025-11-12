@@ -376,14 +376,11 @@ module.exports = {
     },
 
     broadcastPlotUpdate(plot) {
-        this.plots.forEach((p, idx) => {
-            if (p === plot) {
-                mp.players.forEach(player => {
-                    if (!this.isWorker(player)) return;
-                    const info = this.serializePlot(plot, player);
-                    player.call('moonshine.plot.update', [plot.index, info]);
-                });
-            }
+        if (!plot) return;
+        mp.players.forEach(player => {
+            if (!this.isWorker(player)) return;
+            const info = this.serializePlot(plot, player);
+            player.call('moonshine.plot.update', [plot.index, info]);
         });
     },
 
@@ -392,6 +389,34 @@ module.exports = {
         const positions = this.plots.map(plot => ({ x: plot.position.x, y: plot.position.y, z: plot.position.z }));
         player.call('moonshine.plots.init', [positions]);
         this.refreshPlotsForPlayer(player);
+        this.syncPlotStages(player);
+    },
+
+    syncPlotStages(player) {
+        if (!this.isWorker(player)) return;
+        const stages = this.plots.map(plot => ({
+            index: plot.index,
+            stage: plot.stage || STAGES.EMPTY,
+        }));
+        player.call('cane:stageSync', [stages]);
+    },
+
+    emitStageUpdate(plot, targets = null) {
+        if (!plot) return;
+        const payload = [plot.index, plot.stage || STAGES.EMPTY];
+        if (targets) {
+            const list = Array.isArray(targets) ? targets : [targets];
+            list.forEach(player => {
+                if (!player || !mp.players.exists(player)) return;
+                if (!this.isWorker(player)) return;
+                player.call('cane:stageUpdate', payload);
+            });
+            return;
+        }
+        mp.players.forEach(player => {
+            if (!this.isWorker(player)) return;
+            player.call('cane:stageUpdate', payload);
+        });
     },
 
     refreshPlotsForPlayer(player) {
@@ -477,6 +502,8 @@ module.exports = {
         this.adjustActiveByOwner(characterId, 1);
         this.ensurePlayerData(player).totalPlanted += 1;
 
+        player.call('cane:plant', [plot.id]);
+        this.emitStageUpdate(plot);
         this.broadcastPlotUpdate(plot);
         this.sendMenuUpdate(player);
         notifs.info(player, 'Вы посадили семя тростника', MODULE_NAME);
@@ -505,6 +532,7 @@ module.exports = {
             record.nextStageAt = plot.nextStageAt;
             await record.save();
             plot.stageTimer = timer.add(() => this.advanceStage(plot), this.config.planting.sproutToMatureMs);
+            this.emitStageUpdate(plot);
             this.broadcastPlotUpdate(plot);
             this.logEvent(`Грядка #${plot.id} перешла в стадию ростка`, plot.ownerId);
             return;
@@ -523,6 +551,7 @@ module.exports = {
             record.witherAt = plot.witherAt;
             await record.save();
             plot.witherTimer = timer.add(() => this.handleWither(plot), this.config.planting.witherAfterMs);
+            this.emitStageUpdate(plot);
             this.broadcastPlotUpdate(plot);
             if (plot.ownerId != null) {
                 const owner = this.findOnlineByCharacterId(plot.ownerId);
@@ -546,6 +575,7 @@ module.exports = {
         plot.graceEndsAt = null;
         plot.witherAt = null;
         this.adjustActiveByOwner(ownerId, -1);
+        this.emitStageUpdate(plot);
         this.broadcastPlotUpdate(plot);
         this.logEvent(`Грядка #${plot.id} завяла`, ownerId);
     },
@@ -581,6 +611,7 @@ module.exports = {
             return notifs.error(player, result.error || 'Недостаточно места', MODULE_NAME);
         }
 
+        player.call('cane:harvest', [plot.id, amount]);
         await db.Models.MoonshinePlant.destroy({ where: { plotId: plot.id } });
 
         const ownerId = plot.ownerId;
@@ -598,6 +629,7 @@ module.exports = {
         const stats = this.ensurePlayerData(player);
         stats.totalHarvested += amount;
 
+        this.emitStageUpdate(plot);
         this.broadcastPlotUpdate(plot);
         this.sendMenuUpdate(player);
         notifs.success(player, `Вы собрали ${amount} ед. тростника`, MODULE_NAME);
@@ -724,6 +756,7 @@ module.exports = {
         if (!player) return;
         this.abortCraft(player, 'disconnect', true);
         this.clearMoonshineEffect(player);
+        delete player.moonshineDrinkCooldown;
     },
 
     openCraftMenu(player) {
@@ -868,6 +901,16 @@ module.exports = {
         data.lastCraftExp = now;
     },
 
+    sendBuffState(player) {
+        if (!player || !mp.players.exists(player)) return;
+        const effect = player.moonshineEffect;
+        const state = effect ? {
+            active: true,
+            remainingMs: Math.max(0, effect.endTime - Date.now()),
+        } : { active: false, remainingMs: 0 };
+        player.call('moonshine:buffState', [state]);
+    },
+
     applyMoonshineEffect(player) {
         if (!player || !player.character) return;
         const current = player.moonshineEffect;
@@ -875,15 +918,19 @@ module.exports = {
         const now = Date.now();
         const effect = {
             endTime: now + this.config.effect.durationMs,
+            baseMaxHealth: current && current.baseMaxHealth ? current.baseMaxHealth : 100,
+            speedMultiplier: this.config.effect.speedMultiplier,
             timer: timer.addInterval(() => this.checkMoonshineEffect(player), 1000),
         };
         player.moonshineEffect = effect;
-        player.health = Math.min(this.config.effect.maxHealth, Math.max(player.health, this.config.effect.maxHealth));
+        const desiredHealth = Math.max(Number(player.health) || 0, effect.baseMaxHealth);
+        player.health = Math.min(this.config.effect.maxHealth, desiredHealth);
         player.setVariable('moonshine.effect', {
             active: true,
             speedMultiplier: this.config.effect.speedMultiplier,
             expires: effect.endTime,
         });
+        this.sendBuffState(player);
     },
 
     checkMoonshineEffect(player) {
@@ -894,7 +941,8 @@ module.exports = {
             this.clearMoonshineEffect(player);
             return;
         }
-        const threshold = Math.floor(100 * (this.config.effect.healthThresholdPercent / 100));
+        const base = effect.baseMaxHealth || 100;
+        const threshold = Math.max(1, Math.floor(base * (this.config.effect.healthThresholdPercent / 100)));
         if (player.health <= threshold) {
             notifs.warning(player, 'Эффект самогона рассеялся', MODULE_NAME);
             this.clearMoonshineEffect(player);
@@ -903,7 +951,9 @@ module.exports = {
         if (Date.now() >= effect.endTime) {
             notifs.info(player, 'Эффект самогона завершён', MODULE_NAME);
             this.clearMoonshineEffect(player);
+            return;
         }
+        this.sendBuffState(player);
     },
 
     clearMoonshineEffect(player) {
@@ -911,18 +961,87 @@ module.exports = {
         const effect = player.moonshineEffect;
         if (effect && effect.timer) timer.remove(effect.timer);
         if (player && mp.players.exists(player)) {
-            if (player.health > 100) player.health = Math.min(player.health, 100);
+            const base = effect && effect.baseMaxHealth ? effect.baseMaxHealth : 100;
+            if (player.health > base) player.health = Math.min(player.health, base);
             player.setVariable('moonshine.effect', null);
         }
         delete player.moonshineEffect;
+        this.sendBuffState(player);
+    },
+
+    consumeFromStack(player, item, amount = 1) {
+        if (!item) return false;
+        const param = inventory.getParam(item, 'count');
+        if (param) {
+            const current = parseInt(param.value) || 0;
+            if (current < amount) return false;
+            const next = current - amount;
+            if (next > 0) inventory.updateParam(player, item, 'count', next);
+            else inventory.deleteItem(player, item);
+            return true;
+        }
+        inventory.deleteItem(player, item);
+        return true;
+    },
+
+    async drinkMoonshine(player, itemSqlId = null) {
+        if (!player || !player.character) return false;
+
+        const bottleId = this.config.items.moonshineBottle;
+        if (!this.hasItem(player, bottleId, 1)) {
+            notifs.error(player, 'Предмет не найден.', MODULE_NAME);
+            return false;
+        }
+
+        if (player.health <= 0 || player.getVariable && player.getVariable('cuffs')) {
+            notifs.error(player, 'Нельзя использовать сейчас.', MODULE_NAME);
+            return false;
+        }
+
+        const now = Date.now();
+        const cooldown = this.config.effect.useCooldownMs || 1500;
+        if (player.moonshineDrinkCooldown && now < player.moonshineDrinkCooldown) {
+            notifs.warning(player, 'Подождите немного, чтобы снова выпить.', MODULE_NAME);
+            return false;
+        }
+
+        let targetItem = null;
+        if (itemSqlId != null) {
+            const sqlId = parseInt(itemSqlId);
+            const item = isNaN(sqlId) ? null : inventory.getItem(player, sqlId);
+            if (item && item.itemId === bottleId) targetItem = item;
+        }
+        if (!targetItem) {
+            const items = inventory.getArrayByItemId(player, bottleId);
+            if (items && items.length) targetItem = items[0];
+        }
+        if (!targetItem) {
+            notifs.error(player, 'Предмет не найден.', MODULE_NAME);
+            return false;
+        }
+
+        if (!this.consumeFromStack(player, targetItem, 1)) {
+            notifs.error(player, 'Нельзя использовать сейчас.', MODULE_NAME);
+            return false;
+        }
+
+        player.moonshineDrinkCooldown = now + cooldown;
+
+        const alreadyActive = !!player.moonshineEffect;
+        this.applyMoonshineEffect(player);
+        inventory.notifyOverhead(player, "Выпил 'Самогон'");
+        if (alreadyActive) {
+            notifs.info(player, 'У вас уже активен эффект — продлил действие.', MODULE_NAME);
+        } else {
+            notifs.success(player, 'Вы выпили самогон', MODULE_NAME);
+        }
+        this.logEvent(`Персонаж ${player.name} выпил самогон`, player.character.id);
+        return true;
     },
 
     async consumeMoonshine(player, item) {
-        if (!player || !player.character) return;
-        inventory.deleteItem(player, item);
-        inventory.notifyOverhead(player, "Выпил 'Самогон'");
-        notifs.success(player, 'Вы выпили самогон', MODULE_NAME);
-        this.applyMoonshineEffect(player);
+        const sqlId = item ? item.sqlId : null;
+        return this.drinkMoonshine(player, sqlId);
     },
 
     hasItem(player, itemId, amount = 1) {

@@ -659,7 +659,7 @@ module.exports = {
                 }
                 break;
             case 303: // самогон
-                moonshine.consumeMoonshine(player, item);
+                moonshine.drinkMoonshine(player, item ? item.sqlId : null);
                 break;
         }
     },
