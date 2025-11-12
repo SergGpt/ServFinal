@@ -7389,6 +7389,23 @@ var selectMenu = new Vue({
                     items[6].values[0] = `${data.totalPlanted || 0}`;
                     items[7].values[0] = `${data.totalHarvested || 0}`;
                     items[8].values[0] = `${data.totalBrewed || 0}`;
+                    var actionItem = items[9];
+                    if (actionItem) {
+                        var employed = !!data.employed;
+                        var canJoin = data.canJoin !== false;
+                        var jobName = data.currentJobName || '';
+                        actionItem.values = [''];
+                        if (employed) {
+                            actionItem.text = 'Уволиться с работы';
+                            actionItem.disabled = false;
+                        } else {
+                            actionItem.text = 'Устроиться на работу';
+                            actionItem.disabled = !canJoin;
+                            if (actionItem.disabled) {
+                                actionItem.values[0] = jobName ? `Вы работаете: ${jobName}` : 'Занято другой работой';
+                            }
+                        }
+                    }
                 },
                 init(data) {
                     if (typeof data == 'string') data = JSON.parse(data);
@@ -7402,8 +7419,12 @@ var selectMenu = new Vue({
                 handler(eventName) {
                     var item = this.items[this.i];
                     if (eventName == 'onItemSelected') {
+                        if (item.disabled) return;
                         if (item.text == 'Помощь') {
                             modal.showByName('moonshine_help');
+                        } else if (item.text == 'Устроиться на работу') {
+                            selectMenu.show = false;
+                            mp.trigger('callRemote', 'moonshine.job.join');
                         } else if (item.text == 'Уволиться с работы') {
                             selectMenu.show = false;
                             mp.trigger('callRemote', 'moonshine.job.leave');

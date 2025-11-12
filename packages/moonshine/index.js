@@ -252,9 +252,7 @@ module.exports = {
             if (!player || !player.character) return;
             player.moonshineAtMenuZone = true;
             player.call('moonshine.menu.enter');
-            if (this.isWorker(player)) {
-                this.sendMenuUpdate(player);
-            }
+            this.sendMenuUpdate(player);
         };
         this.menuColshape.onExit = (player) => {
             if (!player || !player.character) return;
@@ -785,6 +783,11 @@ module.exports = {
         const seedsRemaining = player.moonshineDailyRemaining != null ? player.moonshineDailyRemaining : null;
         delete player.moonshineDailyRemaining;
 
+        const currentJobId = player.character ? player.character.job : null;
+        const employed = currentJobId === this.config.jobId;
+        const canJoin = !currentJobId || employed;
+        const currentJobName = currentJobId ? jobs.getJobNameById(currentJobId) : null;
+
         return {
             seeds,
             cane,
@@ -799,19 +802,20 @@ module.exports = {
             seedPrice: this.config.vendor.pricePerSeed,
             dailyLimit: this.config.vendor.dailyLimit,
             seedsRemaining,
+            employed,
+            canJoin,
+            currentJobName,
         };
     },
 
     sendMenuUpdate(player) {
-        if (!this.isWorker(player)) return;
+        if (!player || !player.character) return;
         const info = this.collectMenuData(player);
         player.call('moonshine.menu.update', [info]);
     },
 
     openMainMenu(player) {
-        if (!this.isWorker(player)) {
-            return notifs.error(player, 'Вы не работаете самогонщиком', MODULE_NAME);
-        }
+        if (!player || !player.character) return;
         const info = this.collectMenuData(player);
         player.call('moonshine.menu.show', [info]);
     },
@@ -844,6 +848,7 @@ module.exports = {
         player.call('moonshine.craft.exit');
         player.call('moonshine.craft.ui.hide');
         this.abortCraft(player, 'job_change', true);
+        this.sendMenuUpdate(player);
         if (player.moonshineAtMenuZone) {
             player.call('moonshine.menu.enter');
         }
@@ -856,6 +861,18 @@ module.exports = {
         delete player.moonshineJob;
         delete player.moonshineDrinkCooldown;
         if (player.moonshineAtMenuZone) player.moonshineAtMenuZone = false;
+    },
+
+    joinJob(player) {
+        if (!player || !player.character) return;
+        if (player.character.job === this.config.jobId) {
+            return notifs.warning(player, 'Вы уже работаете самогонщиком', MODULE_NAME);
+        }
+        if (player.character.job && player.character.job !== this.config.jobId) {
+            const current = jobs.getJobNameById(player.character.job) || 'другой работе';
+            return notifs.error(player, `Вы уже трудоустроены (${current})`, MODULE_NAME);
+        }
+        mp.events.call('jobs.set', player, this.config.jobId);
     },
 
     leaveJob(player) {

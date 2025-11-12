@@ -45,6 +45,9 @@ module.exports = {
     'moonshine.vendor.open': (player) => {
         moonshine.openVendor(player);
     },
+    'moonshine.job.join': (player) => {
+        moonshine.joinJob(player);
+    },
     'moonshine.job.leave': (player) => {
         moonshine.leaveJob(player);
     },
