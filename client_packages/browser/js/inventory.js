@@ -341,6 +341,13 @@ var inventory = new Vue({
                 },
             },
         },
+        rarityLabels: {
+            common: 'Common',
+            uncommon: 'Uncommon',
+            rare: 'Rare',
+            epic: 'Epic',
+            legendary: 'Legendary',
+        },
         // Вайт-лист предметов, которые можно надеть
         bodyList: {
             // columnIndex: [itemId, ...]
@@ -682,10 +689,19 @@ var inventory = new Vue({
             var item = this.itemDesc.item;
             if (!item) return [];
 
-            var params = [{
+            var params = [];
+            var rarity = this.itemRarity(item);
+            if (rarity) {
+                params.push({
+                    name: "Редкость",
+                    value: this.itemRarityLabel(item)
+                });
+            }
+
+            params.push({
                 name: "Вес",
                 value: this.descItemWeight + " кг"
-            }, ];
+            });
             if (item.pockets) {
                 params.push({
                     name: "Карманы",
@@ -744,6 +760,23 @@ var inventory = new Vue({
         itemGradient(item, transparent) {
             if (item && item.params && item.params.health && !item.search)
                 return `linear-gradient(0deg, ${this.valueColor(item.params.health)} ${item.params.health}%, rgba(255,255,255,${(transparent ? 0 : 0.3)}) ${item.params.health}%)`;
+        },
+        itemRarity(item) {
+            if (!item) return null;
+            var rarity = item.rarity || (item.params && item.params.rarity);
+            if (!rarity && this.itemsInfo[item.itemId] && this.itemsInfo[item.itemId].rarity) rarity = this.itemsInfo[item.itemId].rarity;
+            if (!rarity) return null;
+            rarity = rarity.toString().toLowerCase();
+            return rarity;
+        },
+        itemRarityClass(item) {
+            var rarity = this.itemRarity(item);
+            return (rarity) ? `rarity-${rarity}` : null;
+        },
+        itemRarityLabel(item) {
+            var rarity = this.itemRarity(item);
+            if (!rarity) return '';
+            return this.rarityLabels[rarity] || rarity.charAt(0).toUpperCase() + rarity.slice(1);
         },
         getItemsMenu(itemId) {
             if (!this.searchMode) return this.itemsMenu[itemId];
