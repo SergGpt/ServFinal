@@ -45,6 +45,9 @@ module.exports = {
     vendorColshape: null,
     vendorMarker: null,
     vendorBlip: null,
+    menuColshape: null,
+    menuMarker: null,
+    menuBlip: null,
     craftColshape: null,
     craftMarker: null,
     craftBlip: null,
@@ -52,6 +55,7 @@ module.exports = {
     init() {
         this.resetState();
         this.createVendorZone();
+        this.createMenuZone();
         this.createCraftZone();
         this.createPlots();
         this.restoreState().catch(err => console.error('[MOONSHINE] restoreState error', err));
@@ -69,6 +73,7 @@ module.exports = {
             this.disposePlot(plot);
         });
         this.destroyVendorZone();
+        this.destroyMenuZone();
         this.destroyCraftZone();
         this.activeCrafts.forEach(session => {
             if (session && session.timer) timer.remove(session.timer);
@@ -82,6 +87,7 @@ module.exports = {
             this.plots.forEach(plot => this.disposePlot(plot));
         }
         this.destroyVendorZone();
+        this.destroyMenuZone();
         this.destroyCraftZone();
         this.plots = [];
         this.plotsById.clear();
@@ -91,6 +97,9 @@ module.exports = {
         this.vendorColshape = null;
         this.vendorMarker = null;
         this.vendorBlip = null;
+        this.menuColshape = null;
+        this.menuMarker = null;
+        this.menuBlip = null;
         this.craftColshape = null;
         this.craftMarker = null;
         this.craftBlip = null;
@@ -157,6 +166,32 @@ module.exports = {
         this.vendorBlip = null;
     },
 
+    destroyMenuZone() {
+        try {
+            if (this.menuMarker) this.menuMarker.destroy();
+            if (this.menuColshape) this.menuColshape.destroy();
+            if (this.menuBlip) this.menuBlip.destroy();
+        } catch (err) {
+            console.warn('[MOONSHINE] Failed to destroy menu zone', err);
+        }
+        mp.players.forEach(player => {
+            if (!player || !mp.players.exists(player)) return;
+            if (!player.character) return;
+            if (player.moonshineAtMenuZone) {
+                player.moonshineAtMenuZone = false;
+                try {
+                    player.call('moonshine.menu.exit');
+                    player.call('moonshine.menu.hide');
+                } catch (e) {
+                    // ignore call errors
+                }
+            }
+        });
+        this.menuMarker = null;
+        this.menuColshape = null;
+        this.menuBlip = null;
+    },
+
     destroyCraftZone() {
         try {
             if (this.craftMarker) this.craftMarker.destroy();
@@ -201,6 +236,50 @@ module.exports = {
             color: 11,
             shortRange: true,
             scale: 0.9,
+        });
+    },
+
+    createMenuZone() {
+        const menuConfig = this.config.menu || {};
+        const pos = menuConfig.position;
+        if (!pos) return;
+        this.destroyMenuZone();
+        const vector = new mp.Vector3(pos.x, pos.y, pos.z);
+        const radius = Number(menuConfig.radius) || 1.5;
+        this.menuMarker = mp.markers.new(1, vector, 0.75, { color: [80, 180, 255, 120] });
+        this.menuColshape = mp.colshapes.newSphere(vector.x, vector.y, vector.z, radius);
+        this.menuColshape.onEnter = (player) => {
+            if (!player || !player.character) return;
+            player.moonshineAtMenuZone = true;
+            player.call('moonshine.menu.enter');
+            this.sendMenuUpdate(player);
+        };
+        this.menuColshape.onExit = (player) => {
+            if (!player || !player.character) return;
+            player.moonshineAtMenuZone = false;
+            player.call('moonshine.menu.exit');
+            player.call('moonshine.menu.hide');
+        };
+        const blipCfg = menuConfig.blip || {};
+        const sprite = blipCfg.sprite != null ? blipCfg.sprite : 566;
+        const color = blipCfg.color != null ? blipCfg.color : 46;
+        const scale = blipCfg.scale != null ? blipCfg.scale : 0.9;
+        const name = blipCfg.name || 'Самогонщик';
+        this.menuBlip = mp.blips.new(sprite, new mp.Vector3(vector.x, vector.y, vector.z + 1.5), {
+            name,
+            color,
+            shortRange: true,
+            scale,
+        });
+        const radiusSq = radius * radius;
+        mp.players.forEach(player => {
+            if (!player || !player.character || !player.position) return;
+            const dx = player.position.x - vector.x;
+            const dy = player.position.y - vector.y;
+            const dz = player.position.z - vector.z;
+            if ((dx * dx + dy * dy + dz * dz) <= radiusSq) {
+                this.menuColshape.onEnter(player);
+            }
         });
     },
 
@@ -376,14 +455,11 @@ module.exports = {
     },
 
     broadcastPlotUpdate(plot) {
-        this.plots.forEach((p, idx) => {
-            if (p === plot) {
-                mp.players.forEach(player => {
-                    if (!this.isWorker(player)) return;
-                    const info = this.serializePlot(plot, player);
-                    player.call('moonshine.plot.update', [plot.index, info]);
-                });
-            }
+        if (!plot) return;
+        mp.players.forEach(player => {
+            if (!this.isWorker(player)) return;
+            const info = this.serializePlot(plot, player);
+            player.call('moonshine.plot.update', [plot.index, info]);
         });
     },
 
@@ -392,6 +468,34 @@ module.exports = {
         const positions = this.plots.map(plot => ({ x: plot.position.x, y: plot.position.y, z: plot.position.z }));
         player.call('moonshine.plots.init', [positions]);
         this.refreshPlotsForPlayer(player);
+        this.syncPlotStages(player);
+    },
+
+    syncPlotStages(player) {
+        if (!this.isWorker(player)) return;
+        const stages = this.plots.map(plot => ({
+            index: plot.index,
+            stage: plot.stage || STAGES.EMPTY,
+        }));
+        player.call('cane:stageSync', [stages]);
+    },
+
+    emitStageUpdate(plot, targets = null) {
+        if (!plot) return;
+        const payload = [plot.index, plot.stage || STAGES.EMPTY];
+        if (targets) {
+            const list = Array.isArray(targets) ? targets : [targets];
+            list.forEach(player => {
+                if (!player || !mp.players.exists(player)) return;
+                if (!this.isWorker(player)) return;
+                player.call('cane:stageUpdate', payload);
+            });
+            return;
+        }
+        mp.players.forEach(player => {
+            if (!this.isWorker(player)) return;
+            player.call('cane:stageUpdate', payload);
+        });
     },
 
     refreshPlotsForPlayer(player) {
@@ -477,6 +581,8 @@ module.exports = {
         this.adjustActiveByOwner(characterId, 1);
         this.ensurePlayerData(player).totalPlanted += 1;
 
+        player.call('cane:plant', [plot.id]);
+        this.emitStageUpdate(plot);
         this.broadcastPlotUpdate(plot);
         this.sendMenuUpdate(player);
         notifs.info(player, 'Вы посадили семя тростника', MODULE_NAME);
@@ -505,6 +611,7 @@ module.exports = {
             record.nextStageAt = plot.nextStageAt;
             await record.save();
             plot.stageTimer = timer.add(() => this.advanceStage(plot), this.config.planting.sproutToMatureMs);
+            this.emitStageUpdate(plot);
             this.broadcastPlotUpdate(plot);
             this.logEvent(`Грядка #${plot.id} перешла в стадию ростка`, plot.ownerId);
             return;
@@ -523,6 +630,7 @@ module.exports = {
             record.witherAt = plot.witherAt;
             await record.save();
             plot.witherTimer = timer.add(() => this.handleWither(plot), this.config.planting.witherAfterMs);
+            this.emitStageUpdate(plot);
             this.broadcastPlotUpdate(plot);
             if (plot.ownerId != null) {
                 const owner = this.findOnlineByCharacterId(plot.ownerId);
@@ -546,6 +654,7 @@ module.exports = {
         plot.graceEndsAt = null;
         plot.witherAt = null;
         this.adjustActiveByOwner(ownerId, -1);
+        this.emitStageUpdate(plot);
         this.broadcastPlotUpdate(plot);
         this.logEvent(`Грядка #${plot.id} завяла`, ownerId);
     },
@@ -581,6 +690,7 @@ module.exports = {
             return notifs.error(player, result.error || 'Недостаточно места', MODULE_NAME);
         }
 
+        player.call('cane:harvest', [plot.id, amount]);
         await db.Models.MoonshinePlant.destroy({ where: { plotId: plot.id } });
 
         const ownerId = plot.ownerId;
@@ -598,6 +708,7 @@ module.exports = {
         const stats = this.ensurePlayerData(player);
         stats.totalHarvested += amount;
 
+        this.emitStageUpdate(plot);
         this.broadcastPlotUpdate(plot);
         this.sendMenuUpdate(player);
         notifs.success(player, `Вы собрали ${amount} ед. тростника`, MODULE_NAME);
@@ -672,6 +783,11 @@ module.exports = {
         const seedsRemaining = player.moonshineDailyRemaining != null ? player.moonshineDailyRemaining : null;
         delete player.moonshineDailyRemaining;
 
+        const currentJobId = player.character ? player.character.job : null;
+        const employed = currentJobId === this.config.jobId;
+        const canJoin = !currentJobId || employed;
+        const currentJobName = currentJobId ? jobs.getJobNameById(currentJobId) : null;
+
         return {
             seeds,
             cane,
@@ -686,13 +802,22 @@ module.exports = {
             seedPrice: this.config.vendor.pricePerSeed,
             dailyLimit: this.config.vendor.dailyLimit,
             seedsRemaining,
+            employed,
+            canJoin,
+            currentJobName,
         };
     },
 
     sendMenuUpdate(player) {
-        if (!this.isWorker(player)) return;
+        if (!player || !player.character) return;
         const info = this.collectMenuData(player);
         player.call('moonshine.menu.update', [info]);
+    },
+
+    openMainMenu(player) {
+        if (!player || !player.character) return;
+        const info = this.collectMenuData(player);
+        player.call('moonshine.menu.show', [info]);
     },
 
     async openVendor(player) {
@@ -707,23 +832,55 @@ module.exports = {
         this.ensurePlayerData(player);
         this.syncPlotsForPlayer(player);
         this.sendMenuUpdate(player);
+        player.moonshineJob = true;
         notifs.info(player, 'Вы приступили к работе варщика', MODULE_NAME);
+        if (player.moonshineAtMenuZone) {
+            this.openMainMenu(player);
+        }
     },
 
     stopWork(player) {
         if (!player) return;
+        delete player.moonshineJob;
         player.call('moonshine.reset');
         player.call('moonshine.menu.hide');
         player.call('moonshine.vendor.exit');
         player.call('moonshine.craft.exit');
         player.call('moonshine.craft.ui.hide');
         this.abortCraft(player, 'job_change', true);
+        this.sendMenuUpdate(player);
+        if (player.moonshineAtMenuZone) {
+            player.call('moonshine.menu.enter');
+        }
     },
 
     cleanupPlayer(player) {
         if (!player) return;
         this.abortCraft(player, 'disconnect', true);
         this.clearMoonshineEffect(player);
+        delete player.moonshineJob;
+        delete player.moonshineDrinkCooldown;
+        if (player.moonshineAtMenuZone) player.moonshineAtMenuZone = false;
+    },
+
+    joinJob(player) {
+        if (!player || !player.character) return;
+        if (player.character.job === this.config.jobId) {
+            return notifs.warning(player, 'Вы уже работаете самогонщиком', MODULE_NAME);
+        }
+        if (player.character.job && player.character.job !== this.config.jobId) {
+            const current = jobs.getJobNameById(player.character.job) || 'другой работе';
+            return notifs.error(player, `Вы уже трудоустроены (${current})`, MODULE_NAME);
+        }
+        mp.events.call('jobs.set', player, this.config.jobId);
+    },
+
+    leaveJob(player) {
+        if (!player || !player.character) return;
+        if (player.character.job !== this.config.jobId) {
+            return notifs.error(player, 'Вы не работаете самогонщиком', MODULE_NAME);
+        }
+        mp.events.call('jobs.leave', player);
     },
 
     openCraftMenu(player) {
@@ -868,6 +1025,16 @@ module.exports = {
         data.lastCraftExp = now;
     },
 
+    sendBuffState(player) {
+        if (!player || !mp.players.exists(player)) return;
+        const effect = player.moonshineEffect;
+        const state = effect ? {
+            active: true,
+            remainingMs: Math.max(0, effect.endTime - Date.now()),
+        } : { active: false, remainingMs: 0 };
+        player.call('moonshine:buffState', [state]);
+    },
+
     applyMoonshineEffect(player) {
         if (!player || !player.character) return;
         const current = player.moonshineEffect;
@@ -875,15 +1042,19 @@ module.exports = {
         const now = Date.now();
         const effect = {
             endTime: now + this.config.effect.durationMs,
+            baseMaxHealth: current && current.baseMaxHealth ? current.baseMaxHealth : 100,
+            speedMultiplier: this.config.effect.speedMultiplier,
             timer: timer.addInterval(() => this.checkMoonshineEffect(player), 1000),
         };
         player.moonshineEffect = effect;
-        player.health = Math.min(this.config.effect.maxHealth, Math.max(player.health, this.config.effect.maxHealth));
+        const desiredHealth = Math.max(Number(player.health) || 0, effect.baseMaxHealth);
+        player.health = Math.min(this.config.effect.maxHealth, desiredHealth);
         player.setVariable('moonshine.effect', {
             active: true,
             speedMultiplier: this.config.effect.speedMultiplier,
             expires: effect.endTime,
         });
+        this.sendBuffState(player);
     },
 
     checkMoonshineEffect(player) {
@@ -894,7 +1065,8 @@ module.exports = {
             this.clearMoonshineEffect(player);
             return;
         }
-        const threshold = Math.floor(100 * (this.config.effect.healthThresholdPercent / 100));
+        const base = effect.baseMaxHealth || 100;
+        const threshold = Math.max(1, Math.floor(base * (this.config.effect.healthThresholdPercent / 100)));
         if (player.health <= threshold) {
             notifs.warning(player, 'Эффект самогона рассеялся', MODULE_NAME);
             this.clearMoonshineEffect(player);
@@ -903,7 +1075,9 @@ module.exports = {
         if (Date.now() >= effect.endTime) {
             notifs.info(player, 'Эффект самогона завершён', MODULE_NAME);
             this.clearMoonshineEffect(player);
+            return;
         }
+        this.sendBuffState(player);
     },
 
     clearMoonshineEffect(player) {
@@ -911,18 +1085,87 @@ module.exports = {
         const effect = player.moonshineEffect;
         if (effect && effect.timer) timer.remove(effect.timer);
         if (player && mp.players.exists(player)) {
-            if (player.health > 100) player.health = Math.min(player.health, 100);
+            const base = effect && effect.baseMaxHealth ? effect.baseMaxHealth : 100;
+            if (player.health > base) player.health = Math.min(player.health, base);
             player.setVariable('moonshine.effect', null);
         }
         delete player.moonshineEffect;
+        this.sendBuffState(player);
+    },
+
+    consumeFromStack(player, item, amount = 1) {
+        if (!item) return false;
+        const param = inventory.getParam(item, 'count');
+        if (param) {
+            const current = parseInt(param.value) || 0;
+            if (current < amount) return false;
+            const next = current - amount;
+            if (next > 0) inventory.updateParam(player, item, 'count', next);
+            else inventory.deleteItem(player, item);
+            return true;
+        }
+        inventory.deleteItem(player, item);
+        return true;
+    },
+
+    async drinkMoonshine(player, itemSqlId = null) {
+        if (!player || !player.character) return false;
+
+        const bottleId = this.config.items.moonshineBottle;
+        if (!this.hasItem(player, bottleId, 1)) {
+            notifs.error(player, 'Предмет не найден.', MODULE_NAME);
+            return false;
+        }
+
+        if (player.health <= 0 || player.getVariable && player.getVariable('cuffs')) {
+            notifs.error(player, 'Нельзя использовать сейчас.', MODULE_NAME);
+            return false;
+        }
+
+        const now = Date.now();
+        const cooldown = this.config.effect.useCooldownMs || 1500;
+        if (player.moonshineDrinkCooldown && now < player.moonshineDrinkCooldown) {
+            notifs.warning(player, 'Подождите немного, чтобы снова выпить.', MODULE_NAME);
+            return false;
+        }
+
+        let targetItem = null;
+        if (itemSqlId != null) {
+            const sqlId = parseInt(itemSqlId);
+            const item = isNaN(sqlId) ? null : inventory.getItem(player, sqlId);
+            if (item && item.itemId === bottleId) targetItem = item;
+        }
+        if (!targetItem) {
+            const items = inventory.getArrayByItemId(player, bottleId);
+            if (items && items.length) targetItem = items[0];
+        }
+        if (!targetItem) {
+            notifs.error(player, 'Предмет не найден.', MODULE_NAME);
+            return false;
+        }
+
+        if (!this.consumeFromStack(player, targetItem, 1)) {
+            notifs.error(player, 'Нельзя использовать сейчас.', MODULE_NAME);
+            return false;
+        }
+
+        player.moonshineDrinkCooldown = now + cooldown;
+
+        const alreadyActive = !!player.moonshineEffect;
+        this.applyMoonshineEffect(player);
+        inventory.notifyOverhead(player, "Выпил 'Самогон'");
+        if (alreadyActive) {
+            notifs.info(player, 'У вас уже активен эффект — продлил действие.', MODULE_NAME);
+        } else {
+            notifs.success(player, 'Вы выпили самогон', MODULE_NAME);
+        }
+        this.logEvent(`Персонаж ${player.name} выпил самогон`, player.character.id);
+        return true;
     },
 
     async consumeMoonshine(player, item) {
-        if (!player || !player.character) return;
-        inventory.deleteItem(player, item);
-        inventory.notifyOverhead(player, "Выпил 'Самогон'");
-        notifs.success(player, 'Вы выпили самогон', MODULE_NAME);
-        this.applyMoonshineEffect(player);
+        const sqlId = item ? item.sqlId : null;
+        return this.drinkMoonshine(player, sqlId);
     },
 
     hasItem(player, itemId, amount = 1) {

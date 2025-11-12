@@ -36,11 +36,23 @@ module.exports = {
     'moonshine.menu.sync': (player) => {
         moonshine.sendMenuUpdate(player);
     },
+    'moonshine.menu.open': (player) => {
+        moonshine.openMainMenu(player);
+    },
     'moonshine.seed.buy': (player, amount) => {
         moonshine.buySeeds(player, amount);
     },
     'moonshine.vendor.open': (player) => {
         moonshine.openVendor(player);
+    },
+    'moonshine.job.join': (player) => {
+        moonshine.joinJob(player);
+    },
+    'moonshine.job.leave': (player) => {
+        moonshine.leaveJob(player);
+    },
+    'moonshine.job.stop': (player) => {
+        moonshine.stopWork(player);
     },
     'moonshine.craft.menu': (player) => {
         moonshine.openCraftMenu(player);
@@ -53,5 +65,11 @@ module.exports = {
     },
     'moonshine.consume': (player, item) => {
         moonshine.consumeMoonshine(player, item);
+    },
+    'moonshine:drink': (player, itemSqlId) => {
+        moonshine.drinkMoonshine(player, itemSqlId);
+    },
+    'cane:syncPlots': (player) => {
+        moonshine.syncPlotStages(player);
     },
 };

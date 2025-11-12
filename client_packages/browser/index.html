@@ -1588,6 +1588,14 @@
                             Варить
                         </button>
                         <button
+                            class="moonshine-craft__button moonshine-craft__button--accent"
+                            v-if="canUseNow"
+                            :disabled="processing || useInProgress"
+                            @click="useNow"
+                        >
+                            Использовать сейчас
+                        </button>
+                        <button
                             class="moonshine-craft__button"
                             :disabled="processing"
                             @click="closeWindow"

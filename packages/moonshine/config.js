@@ -26,6 +26,17 @@ module.exports = {
         dailyLimit: 20,
     },
 
+    menu: {
+        position: { x: 1476.148, y: 1156.927, z: 113.301, heading: 0 },
+        radius: 1.75,
+        blip: {
+            sprite: 566,
+            color: 46,
+            scale: 0.9,
+            name: 'Самогонщик',
+        },
+    },
+
     craft: {
         position: { x: 1475.892, y: 1149.214, z: 113.301, heading: 180 },
         durationMs: 25 * 1000,
@@ -40,6 +51,7 @@ module.exports = {
         speedMultiplier: 1.1,
         maxHealth: 120,
         healthThresholdPercent: 10,
+        useCooldownMs: 1500,
     },
 
     plots: [
