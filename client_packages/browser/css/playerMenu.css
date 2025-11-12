@@ -4,7 +4,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(13, 15, 16, 0.92);
+    background-color: rgba(5, 7, 8, 0.88);
     backdrop-filter: blur(0.6vh);
     font-family: var(--font-body);
     z-index: 100;
@@ -19,7 +19,7 @@
 }
 
 #player-menu .line {
-    background-color: rgba(102, 255, 204, 0.16);
+    background-color: rgba(61, 217, 255, 0.2);
     height: 1px;
     width: 100%;
 }
@@ -35,10 +35,10 @@
     left: 50%;
     top: 48.5%;
     transform: translate(-50%, -50%);
-    background: linear-gradient(155deg, rgba(26, 29, 31, 0.92), rgba(10, 12, 13, 0.78));
-    border: 0.24vh solid rgba(102, 255, 204, 0.25);
+    background: linear-gradient(160deg, rgba(14, 20, 26, 0.94), rgba(7, 10, 14, 0.78));
+    border: 0.24vh solid rgba(61, 217, 255, 0.26);
     border-radius: 1.6vh;
-    box-shadow: 0 1.8vh 4vh rgba(0, 0, 0, 0.65), inset 0 0 1vh rgba(102, 255, 204, 0.1);
+    box-shadow: 0 1.8vh 4vh rgba(0, 0, 0, 0.65), inset 0 0 1.2vh rgba(255, 47, 166, 0.12);
     overflow: hidden;
 }
 
@@ -108,7 +108,7 @@
 #player-menu .sidebar .item:hover,
 #player-menu .head .menu-bar .item:hover {
     color: var(--color-accent-glow);
-    text-shadow: 0 0 1.2vh rgba(102, 255, 204, 0.45);
+    text-shadow: 0 0 1.2vh rgba(255, 47, 166, 0.45);
     /* background-color: rgba(255, 255, 255, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.1); */
 }
@@ -118,12 +118,12 @@
     /* border: 1px solid rgba(255, 223, 41, 0.1);
     background-color: #FFDF29; */
     color: var(--color-accent-toxic);
-    text-shadow: 0 0 1.2vh rgba(155, 229, 0, 0.35);
+    text-shadow: 0 0 1.2vh rgba(61, 217, 255, 0.35);
 }
 
 #player-menu .head .btn {
-    background: linear-gradient(135deg, rgba(26, 29, 31, 0.7), rgba(102, 255, 204, 0.2));
-    border: 0.2vh solid rgba(102, 255, 204, 0.3);
+    background: linear-gradient(135deg, rgba(12, 18, 24, 0.75), rgba(255, 47, 166, 0.24));
+    border: 0.2vh solid rgba(61, 217, 255, 0.32);
     box-sizing: border-box;
     font-family: var(--font-heading);
     font-size: 1.67vh;
@@ -136,13 +136,13 @@
 
 #player-menu .head .btn:hover:not(.disable) {
     border-color: var(--color-accent-toxic);
-    box-shadow: 0 0.8vh 1.6vh rgba(155, 229, 0, 0.4);
+    box-shadow: 0 0.8vh 1.6vh rgba(61, 217, 255, 0.45);
 }
 
 #player-menu .blur-window .btn,
 #player-menu .body .btn {
-    background: linear-gradient(160deg, rgba(18, 20, 22, 0.8), rgba(26, 29, 31, 0.5));
-    border: 0.2vh solid rgba(102, 255, 204, 0.2);
+    background: linear-gradient(160deg, rgba(12, 18, 24, 0.8), rgba(7, 10, 14, 0.6));
+    border: 0.2vh solid rgba(61, 217, 255, 0.24);
     box-sizing: border-box;
     font-family: var(--font-heading);
     font-size: 1.67vh;
@@ -155,7 +155,7 @@
 #player-menu .blur-window .btn:hover:not(.disable),
 #player-menu .body .btn:hover:not(.disable) {
     border-color: var(--color-accent-glow);
-    box-shadow: 0 0.9vh 1.8vh rgba(102, 255, 204, 0.35);
+    box-shadow: 0 0.9vh 1.8vh rgba(255, 47, 166, 0.4);
     /* border: none; */
 }
 
@@ -212,7 +212,7 @@
 }
 
 #player-menu .body .body::-webkit-scrollbar-thumb {
-    background-color: rgba(102, 255, 204, 0.3) !important;
+    background-color: rgba(255, 47, 166, 0.3) !important;
     border-radius: 1vh;
 }
 
@@ -248,7 +248,7 @@
     height: 5.2vh;
     margin-bottom: .9vh;
     position: relative;
-    border: 0.2vh solid rgba(102, 255, 204, 0.18);
+    border: 0.2vh solid rgba(255, 47, 166, 0.18);
     border-radius: 1.2vh;
     box-shadow: inset 0 0 0.8vh rgba(0, 0, 0, 0.75);
 }
@@ -270,8 +270,8 @@
 }
 
 #player-menu .body .character .block.skills .skill .progress {
-    background-image: linear-gradient(90deg, rgba(155, 229, 0, 0.25), rgba(102, 255, 204, 0.65));
-    box-shadow: 0px 0px 2vh rgba(102, 255, 204, 0.25);
+    background-image: linear-gradient(90deg, rgba(61, 217, 255, 0.25), rgba(255, 47, 166, 0.65));
+    box-shadow: 0px 0px 2vh rgba(255, 47, 166, 0.25);
     height: 100%;
     position: absolute;
     border-radius: 1.2vh;
@@ -279,7 +279,7 @@
 
 #player-menu .body .character .block-bottom {
     background: linear-gradient(150deg, rgba(18, 20, 22, 0.82), rgba(26, 29, 31, 0.6));
-    border: 0.2vh solid rgba(102, 255, 204, 0.18);
+    border: 0.2vh solid rgba(255, 47, 166, 0.18);
     box-sizing: border-box;
     height: 15.75vh;
     border-radius: 1.2vh;
@@ -336,7 +336,7 @@
 #player-menu .body .report textarea {
     background: rgba(18, 20, 22, 0.75);
     box-sizing: border-box;
-    border: 0.2vh solid rgba(102, 255, 204, 0.2);
+    border: 0.2vh solid rgba(255, 47, 166, 0.2);
     color: var(--color-text-primary);
     font-family: var(--font-body);
     font-size: 1.5vh;
@@ -370,7 +370,7 @@
 
 #player-menu .body .help input {
     background: rgba(18, 20, 22, 0.75);
-    border: 0.2vh solid rgba(102, 255, 204, 0.2);
+    border: 0.2vh solid rgba(255, 47, 166, 0.2);
     color: var(--color-text-primary);
     font-family: var(--font-body);
     font-size: 1.5vh;
@@ -418,7 +418,7 @@
     margin-top: 1.15vh;
     padding: 1.5vh 2.2vh;
     padding-right: 35%;
-    border: 0.2vh solid rgba(102, 255, 204, 0.18);
+    border: 0.2vh solid rgba(255, 47, 166, 0.18);
     border-radius: 1.1vh;
     box-shadow: inset 0 0 0.8vh rgba(0, 0, 0, 0.75);
 }
@@ -496,7 +496,7 @@
 
 #player-menu .body .reference .body .block {
     background: linear-gradient(150deg, rgba(18, 20, 22, 0.82), rgba(26, 29, 31, 0.6));
-    border: 0.2vh solid rgba(102, 255, 204, 0.18);
+    border: 0.2vh solid rgba(255, 47, 166, 0.18);
     box-sizing: border-box;
     font-size: 2.6vh;
     font-family: var(--font-heading);
@@ -519,7 +519,7 @@
 
 
 #player-menu .sidebar .line {
-    background: rgba(102, 255, 204, 0.25);
+    background: rgba(255, 47, 166, 0.25);
 }
 
 #player-menu .sidebar-win {
@@ -529,7 +529,7 @@
 
 #player-menu .sidebar-win input {
     background: rgba(18, 20, 22, 0.75);
-    border: 0.2vh solid rgba(102, 255, 204, 0.2);
+    border: 0.2vh solid rgba(255, 47, 166, 0.2);
     box-sizing: border-box;
     color: var(--color-text-primary);
     font-family: var(--font-body);
@@ -637,7 +637,7 @@
 
 #player-menu .settings-main .record {
     background: linear-gradient(155deg, rgba(18, 20, 22, 0.82), rgba(26, 29, 31, 0.6));
-    border: 0.2vh solid rgba(102, 255, 204, 0.18);
+    border: 0.2vh solid rgba(255, 47, 166, 0.18);
     box-sizing: border-box;
     display: flex;
     height: 5.5vh;
@@ -680,7 +680,7 @@
 }
 
 #player-menu .settings-main .slidebar img:hover {
-    filter: drop-shadow(0 0 1vh rgba(102, 255, 204, 0.6));
+    filter: drop-shadow(0 0 1vh rgba(255, 47, 166, 0.6));
 }
 
 #player-menu .settings-main .slidebar .left {
@@ -702,7 +702,7 @@
 
 #player-menu .protection .record {
     background: linear-gradient(155deg, rgba(18, 20, 22, 0.82), rgba(26, 29, 31, 0.6));
-    border: 0.2vh solid rgba(102, 255, 204, 0.18);
+    border: 0.2vh solid rgba(255, 47, 166, 0.18);
     box-sizing: border-box;
     margin-bottom: 2.5vh;
     padding: 3.7vh 2.78vh;
@@ -777,7 +777,7 @@
 
 #player-menu .protection input {
     background: rgba(18, 20, 22, 0.75);
-    border: 0.2vh solid rgba(102, 255, 204, 0.2);
+    border: 0.2vh solid rgba(255, 47, 166, 0.2);
     box-sizing: border-box;
     color: var(--color-text-primary);
     font-family: var(--font-body);

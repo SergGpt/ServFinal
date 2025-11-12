@@ -1,15 +1,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600&family=Roboto+Condensed:wght@300;400;600&family=Share+Tech+Mono&family=Oswald:wght@400;500&family=Russo+One&display=swap');
 
 :root {
-    --inventory-bg: #0d0f10;
-    --inventory-bg-secondary: #121416;
-    --inventory-panel: #1a1d1f;
-    --inventory-grid: #2a2e31;
-    --inventory-accent-1: #9be500;
-    --inventory-accent-2: #a8673b;
-    --inventory-accent-3: #66ffcc;
-    --inventory-text: #e6e6e6;
-    --inventory-text-secondary: #9aa0a6;
+    --inventory-bg: #050708;
+    --inventory-bg-secondary: #080b0f;
+    --inventory-panel: #12171f;
+    --inventory-grid: #1d242d;
+    --inventory-accent-1: #3dd9ff;
+    --inventory-accent-2: #ff6b3d;
+    --inventory-accent-3: #ff2fa6;
+    --inventory-text: #f3f5f8;
+    --inventory-text-secondary: #8a929b;
     --inventory-error: #ff5e57;
     --inventory-warning: #fbbc04;
     --inventory-success: #34a853;
@@ -26,11 +26,11 @@
     transform: translate(-50%, -50%);
     /* width: 126.3vh; */
     z-index: 100;
-    background: radial-gradient(circle at 20% 20%, rgba(155, 229, 0, 0.05), transparent 45%),
-        radial-gradient(circle at 80% 15%, rgba(102, 255, 204, 0.06), transparent 50%),
-        radial-gradient(circle at 50% 80%, rgba(168, 103, 59, 0.08), transparent 55%),
+    background: radial-gradient(circle at 20% 20%, rgba(61, 217, 255, 0.05), transparent 45%),
+        radial-gradient(circle at 80% 15%, rgba(255, 47, 166, 0.06), transparent 50%),
+        radial-gradient(circle at 50% 80%, rgba(255, 107, 61, 0.08), transparent 55%),
         var(--inventory-bg);
-    box-shadow: 0 0 4vh rgba(0, 0, 0, 0.75), 0 0 2vh rgba(155, 229, 0, 0.05);
+    box-shadow: 0 0 4vh rgba(0, 0, 0, 0.75), 0 0 2vh rgba(61, 217, 255, 0.05);
     border: 1px solid rgba(42, 46, 49, 0.8);
     overflow: hidden;
 }
@@ -65,13 +65,13 @@
     margin-left: auto;
     margin-right: 0;
     opacity: .5;
-    filter: drop-shadow(0 0 0.8vh rgba(155, 229, 0, 0.35));
+    filter: drop-shadow(0 0 0.8vh rgba(61, 217, 255, 0.35));
     transition: opacity .2s ease, filter .3s ease;
 }
 
 #inventory>.close>img:hover {
     opacity: 1;
-    filter: drop-shadow(0 0 1.6vh rgba(155, 229, 0, 0.75));
+    filter: drop-shadow(0 0 1.6vh rgba(61, 217, 255, 0.75));
 }
 
 #inventory.non-environment>.body {
@@ -79,7 +79,7 @@
 }
 
 #inventory>.body {
-    background: linear-gradient(125deg, rgba(18, 20, 22, 0.98) 0%, rgba(12, 13, 15, 0.94) 45%, rgba(18, 20, 22, 0.98) 100%);
+    background: linear-gradient(125deg, rgba(14, 18, 24, 0.98) 0%, rgba(7, 10, 14, 0.94) 45%, rgba(14, 18, 24, 0.98) 100%);
     border: 1px solid rgba(42, 46, 49, 0.95);
     box-sizing: border-box;
     display: grid;
@@ -89,7 +89,7 @@
     padding: 2.77vh;
     position: relative;
     overflow: hidden;
-    box-shadow: inset 0 0 2vh rgba(0, 0, 0, 0.65), 0 0 1vh rgba(155, 229, 0, 0.08);
+    box-shadow: inset 0 0 2vh rgba(0, 0, 0, 0.65), 0 0 1vh rgba(61, 217, 255, 0.08);
 }
 
 #inventory>.body::before {
@@ -107,9 +107,9 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background: radial-gradient(circle at 0 0, rgba(102, 255, 204, 0.08), transparent 35%),
-        radial-gradient(circle at 100% 0, rgba(155, 229, 0, 0.06), transparent 35%),
-        radial-gradient(circle at 0 100%, rgba(168, 103, 59, 0.08), transparent 45%);
+    background: radial-gradient(circle at 0 0, rgba(255, 47, 166, 0.08), transparent 35%),
+        radial-gradient(circle at 100% 0, rgba(61, 217, 255, 0.06), transparent 35%),
+        radial-gradient(circle at 0 100%, rgba(255, 107, 61, 0.08), transparent 45%);
     opacity: 0.6;
 }
 
@@ -119,7 +119,7 @@
     height: -webkit-fill-available;
     overflow: hidden;
     width: 36.5vh;
-    background: linear-gradient(160deg, rgba(26, 29, 31, 0.95) 0%, rgba(13, 15, 16, 0.85) 100%);
+    background: linear-gradient(160deg, rgba(12, 18, 24, 0.95) 0%, rgba(6, 9, 12, 0.85) 100%);
     border: 1px solid rgba(42, 46, 49, 0.6);
     box-shadow: inset 0 0 1.2vh rgba(0, 0, 0, 0.7);
     position: relative;
@@ -186,18 +186,18 @@
 }
 
 #inventory .body-items .column:not(:empty) {
-    background: rgba(102, 255, 204, 0.12);
-    border: 1px solid rgba(102, 255, 204, 0.25);
-    box-shadow: 0 0 1.2vh rgba(102, 255, 204, 0.2);
+    background: rgba(255, 47, 166, 0.12);
+    border: 1px solid rgba(255, 47, 166, 0.25);
+    box-shadow: 0 0 1.2vh rgba(255, 47, 166, 0.2);
 }
 
 #inventory .body-items .column.active {
-    background-color: rgba(155, 229, 0, 0.28);
-    box-shadow: 0 0 1.6vh rgba(155, 229, 0, 0.35), inset 0 0 0.8vh rgba(155, 229, 0, 0.25);
+    background-color: rgba(61, 217, 255, 0.28);
+    box-shadow: 0 0 1.6vh rgba(61, 217, 255, 0.35), inset 0 0 0.8vh rgba(61, 217, 255, 0.25);
 }
 
 #inventory .body-items .column.active:empty:hover {
-    background-color: rgba(102, 255, 204, 0.35);
+    background-color: rgba(255, 47, 166, 0.35);
 }
 
 #inventory .body-items .column:before {
@@ -402,7 +402,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(100deg, transparent 0%, rgba(102, 255, 204, 0.15) 45%, transparent 90%);
+    background: linear-gradient(100deg, transparent 0%, rgba(255, 47, 166, 0.15) 45%, transparent 90%);
     opacity: 0;
     transform: translateX(-40%);
     transition: transform .6s ease, opacity .6s ease;
@@ -452,7 +452,7 @@
     height: 3.5vh;
     margin: auto;
     width: 3.5vh;
-    filter: drop-shadow(0 0 0.5vh rgba(102, 255, 204, 0.35));
+    filter: drop-shadow(0 0 0.5vh rgba(255, 47, 166, 0.35));
     transition: transform .3s ease, filter .3s ease;
 }
 
@@ -462,7 +462,7 @@
 
 #inventory>.body .block .container>.header:hover>img {
     transform: scale(1.08) rotate(-2deg);
-    filter: drop-shadow(0 0 1.4vh rgba(155, 229, 0, 0.8));
+    filter: drop-shadow(0 0 1.4vh rgba(61, 217, 255, 0.8));
 }
 
 #inventory>.body .block .container>.header:hover>img.hidden {
@@ -497,8 +497,8 @@
 }
 
 #inventory>.body .block .container>.pockets>.items .column.access:not(.deny) {
-    background-color: rgba(155, 229, 0, 0.3);
-    box-shadow: 0 0 1vh rgba(155, 229, 0, 0.4);
+    background-color: rgba(61, 217, 255, 0.3);
+    box-shadow: 0 0 1vh rgba(61, 217, 255, 0.4);
 }
 
 #inventory>.body .block .container>.pockets>.items .column.deny {
@@ -507,10 +507,10 @@
 }
 
 #inventory>.body .block .container>.pockets>.items .column .item {
-    background-color: rgba(102, 255, 204, 0.1);
+    background-color: rgba(255, 47, 166, 0.1);
     margin-top: -1px;
     margin-left: -1px;
-    border: 1px solid rgba(102, 255, 204, 0.18);
+    border: 1px solid rgba(255, 47, 166, 0.18);
 }
 
 #inventory .container.drag {
@@ -543,8 +543,8 @@
 }
 
 #inventory .hands.active .slot {
-    background-color: rgba(155, 229, 0, 0.28)!important;
-    box-shadow: inset 0 0 0.8vh rgba(155, 229, 0, 0.25);
+    background-color: rgba(61, 217, 255, 0.28)!important;
+    box-shadow: inset 0 0 0.8vh rgba(61, 217, 255, 0.25);
 }
 
 #inventory .hands.blocked .slot {
@@ -564,7 +564,7 @@
     display: flex;
     margin: auto;
     opacity: .6;
-    filter: drop-shadow(0 0 0.6vh rgba(102, 255, 204, 0.35));
+    filter: drop-shadow(0 0 0.6vh rgba(255, 47, 166, 0.35));
 }
 
 #inventory .hands .slot .img img {
@@ -577,8 +577,8 @@
 }
 
 #inventory .hands .slot.focus {
-    background-color: rgba(102, 255, 204, 0.35)!important;
-    box-shadow: 0 0 1.4vh rgba(102, 255, 204, 0.45);
+    background-color: rgba(255, 47, 166, 0.35)!important;
+    box-shadow: 0 0 1.4vh rgba(255, 47, 166, 0.45);
 }
 
 #inventory .hands .slot.busy {
@@ -641,15 +641,15 @@
 }
 
 #inventory .hotkeys .key.active {
-    background-color: rgba(155, 229, 0, 0.28);
-    border-color: rgba(155, 229, 0, 0.65);
-    box-shadow: 0 0 1.6vh rgba(155, 229, 0, 0.45);
+    background-color: rgba(61, 217, 255, 0.28);
+    border-color: rgba(61, 217, 255, 0.65);
+    box-shadow: 0 0 1.6vh rgba(61, 217, 255, 0.45);
 }
 
 #inventory .hotkeys>.key.focus {
-    background-color: rgba(102, 255, 204, 0.35);
-    border-color: rgba(102, 255, 204, 0.6);
-    box-shadow: 0 0 1.6vh rgba(102, 255, 204, 0.45);
+    background-color: rgba(255, 47, 166, 0.35);
+    border-color: rgba(255, 47, 166, 0.6);
+    box-shadow: 0 0 1.6vh rgba(255, 47, 166, 0.45);
 }
 
 #inventory .hotkeys>.key.has {
@@ -659,8 +659,8 @@
 
 #inventory .hotkeys .key:hover {
     transform: translateY(-0.3vh);
-    box-shadow: 0 0 1.2vh rgba(155, 229, 0, 0.35);
-    border-color: rgba(155, 229, 0, 0.4);
+    box-shadow: 0 0 1.2vh rgba(61, 217, 255, 0.35);
+    border-color: rgba(61, 217, 255, 0.4);
 }
 
 #inventory .item {
@@ -675,7 +675,7 @@
 
 #inventory .item:hover {
     transform: translateY(-0.2vh) scale(1.04);
-    filter: drop-shadow(0 0 1vh rgba(102, 255, 204, 0.35));
+    filter: drop-shadow(0 0 1vh rgba(255, 47, 166, 0.35));
 }
 
 #inventory .item.dragging {
@@ -683,13 +683,13 @@
 }
 
 #inventory .item.found {
-    background-color: rgba(102, 255, 204, 0.3)!important;
-    box-shadow: 0 0 1.4vh rgba(102, 255, 204, 0.45);
+    background-color: rgba(255, 47, 166, 0.3)!important;
+    box-shadow: 0 0 1.4vh rgba(255, 47, 166, 0.45);
 }
 #inventory .item.found .eye img {
     margin: 1vh 0.5vh;
     height: 1.1vh;
-    filter: drop-shadow(0 0 0.6vh rgba(102, 255, 204, 0.65));
+    filter: drop-shadow(0 0 0.6vh rgba(255, 47, 166, 0.65));
 }
 
 #inventory .item .close {
@@ -702,7 +702,7 @@
 
 #inventory .item .close:hover {
     color: var(--inventory-accent-1);
-    text-shadow: 0 0 0.8vh rgba(155, 229, 0, 0.8);
+    text-shadow: 0 0 0.8vh rgba(61, 217, 255, 0.8);
 }
 
 #inventory .item .count {
@@ -756,7 +756,7 @@
     color: var(--inventory-accent-3);
     font-family: 'Share Tech Mono', monospace;
     letter-spacing: 0.2em;
-    text-shadow: 0 0 1vh rgba(102, 255, 204, 0.6);
+    text-shadow: 0 0 1vh rgba(255, 47, 166, 0.6);
 }
 
 #inventory .loader:after {
@@ -908,7 +908,7 @@
     /* background-color: #2496FF; */
     /* border-color: #777; */
     color: var(--inventory-accent-3);
-    text-shadow: 0 0 0.6vh rgba(102, 255, 204, 0.8);
+    text-shadow: 0 0 0.6vh rgba(255, 47, 166, 0.8);
     transform: translateX(0.4vh);
 }
 
@@ -937,7 +937,7 @@
     letter-spacing: 0.22em;
     font-family: 'Bebas Neue', 'Russo One', 'Oswald', sans-serif;
     color: var(--inventory-accent-1);
-    text-shadow: 0 0 1.2vh rgba(155, 229, 0, 0.75);
+    text-shadow: 0 0 1.2vh rgba(61, 217, 255, 0.75);
 }
 
 /* #inventory .items .column.busy {
@@ -973,8 +973,8 @@
 }
 
 #inventory ::-webkit-scrollbar-thumb {
-    background-color: rgba(102, 255, 204, 0.6);
-    box-shadow: 0 0 0.8vh rgba(102, 255, 204, 0.45);
+    background-color: rgba(255, 47, 166, 0.6);
+    box-shadow: 0 0 0.8vh rgba(255, 47, 166, 0.45);
 }
 
 /* Анимация */
@@ -1025,7 +1025,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    filter: drop-shadow(0 0 1vh rgba(168, 103, 59, 0.65));
+    filter: drop-shadow(0 0 1vh rgba(255, 107, 61, 0.65));
 }
 
 #inventory .bin svg {
@@ -1043,8 +1043,8 @@
 }
 
 .rarity-uncommon {
-    color: #66ffcc;
-    text-shadow: 0 0 0.6vh rgba(102, 255, 204, 0.8);
+    color: #ff2fa6;
+    text-shadow: 0 0 0.6vh rgba(255, 47, 166, 0.8);
 }
 
 .rarity-rare {
@@ -1112,5 +1112,5 @@
 
 #inventory .parallax-hover:hover {
     transform: translate3d(0, -0.4vh, 0);
-    box-shadow: 0 0 1.6vh rgba(102, 255, 204, 0.45);
+    box-shadow: 0 0 1.6vh rgba(255, 47, 166, 0.45);
 }

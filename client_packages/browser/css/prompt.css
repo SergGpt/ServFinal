@@ -1,6 +1,6 @@
 #prompt {
-    background: linear-gradient(155deg, rgba(26, 29, 31, 0.92), rgba(12, 15, 17, 0.78));
-    border: 0.24vh solid rgba(102, 255, 204, 0.26);
+    background: linear-gradient(155deg, rgba(14, 20, 26, 0.92), rgba(7, 10, 14, 0.78));
+    border: 0.24vh solid rgba(61, 217, 255, 0.28);
     border-radius: 1.4vh;
     box-sizing: border-box;
     color: var(--color-text-primary);
@@ -13,7 +13,7 @@
     word-break: break-word;
     line-height: 2vh;
     opacity: 0;
-    box-shadow: 0 1.4vh 3vh rgba(0, 0, 0, 0.65), inset 0 0 0.8vh rgba(102, 255, 204, 0.1);
+    box-shadow: 0 1.4vh 3vh rgba(0, 0, 0, 0.65), inset 0 0 0.8vh rgba(255, 47, 166, 0.15);
 }
 
 #prompt img {
@@ -28,7 +28,7 @@
 }
 
 #prompt span {
-    background: rgba(102, 255, 204, 0.12);
+    background: rgba(255, 47, 166, 0.16);
     border-radius: 1vh;
     font-family: var(--font-heading);
     font-weight: 600;
