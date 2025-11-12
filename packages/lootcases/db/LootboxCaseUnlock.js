@@ -8,7 +8,7 @@ module.exports = (sequelize, DataTypes) => {
             primaryKey: true,
         },
         characterId: {
-            type: DataTypes.INTEGER.UNSIGNED,
+            type: DataTypes.INTEGER(11),
             allowNull: false,
         },
         caseId: {
