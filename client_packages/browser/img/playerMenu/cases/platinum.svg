@@ -1,0 +1,10 @@
+<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="platinum_grad" x1="16" y1="12" x2="64" y2="68" gradientUnits="userSpaceOnUse">
+<stop stop-color="#D6F4FF"/>
+<stop offset="1" stop-color="#7CC0FF"/>
+</linearGradient>
+</defs>
+<circle cx="40" cy="40" r="34" fill="url(#platinum_grad)" stroke="#E9F8FF" stroke-width="4"/>
+<path d="M40 20L52.9904 31.0649L48.5091 48.4351H31.4909L27.0096 31.0649L40 20Z" fill="rgba(255,255,255,0.5)"/>
+</svg>

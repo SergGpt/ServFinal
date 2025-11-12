@@ -1187,6 +1187,136 @@
             </div>
         </script>
 
+        <script type="text/x-template" id="player-menu-cases">
+            <div class="cases-module">
+                <div class="cases-header">
+                    <div class="cases-balance">
+                        <span class="label">Баланс:</span>
+                        <span class="value">{{ balance }}</span>
+                        <img src="./img/playerMenu/coins.svg" />
+                    </div>
+                    <div class="cases-actions">
+                        <div class="btn primary" @click="showTopup()">Пополнить</div>
+                        <div class="btn ghost" :class="{ disabled: state.isLoading }" @click="refresh">Обновить</div>
+                    </div>
+                </div>
+                <div class="cases-tabs">
+                    <div :class="['cases-tab', { active: localTab === 'shop' }]" @click="localTab = 'shop'">Магазин</div>
+                    <div :class="['cases-tab', { active: localTab === 'inventory' }]" @click="localTab = 'inventory'">Инвентарь</div>
+                    <div :class="['cases-tab', { active: localTab === 'history' }]" @click="localTab = 'history'">История</div>
+                </div>
+                <div class="cases-error" v-if="error">{{ error }}</div>
+                <div class="cases-body">
+                    <div v-show="localTab === 'shop'" class="cases-shop">
+                        <div class="case-card" v-for="caseItem in casesWithInventory" :key="caseItem.id">
+                            <div class="card-header">
+                                <img :src="caseItem.icon" />
+                                <div class="title">{{ caseItem.name }}</div>
+                            </div>
+                            <div class="card-price">
+                                <span>{{ caseItem.priceDon }}</span>
+                                <img src="./img/playerMenu/coins.svg" />
+                            </div>
+                            <div class="rarities">
+                                <div class="rarity-row" v-for="rarity in caseItem.rarities" :key="rarity.id">
+                                    <span class="rarity-name" :style="{ color: rarity.color }">{{ rarity.name }}</span>
+                                    <span class="rarity-chance">{{ prettyChance(rarity.chance) }}</span>
+                                </div>
+                            </div>
+                            <div class="card-actions">
+                                <div class="btn primary" :class="{ disabled: isBusy }" @click="buySingle(caseItem)">Купить 1</div>
+                                <div class="btn" :class="{ disabled: isBusy }" @click="buyMulti(caseItem)">Купить x10</div>
+                            </div>
+                        </div>
+                        <div class="empty" v-if="!casesWithInventory.length">Кейсы недоступны</div>
+                    </div>
+                    <div v-show="localTab === 'inventory'" class="cases-inventory">
+                        <div class="case-row" v-for="caseItem in casesWithInventory" :key="caseItem.id">
+                            <div class="info">
+                                <img :src="caseItem.icon" />
+                                <div class="name">{{ caseItem.name }}</div>
+                            </div>
+                            <div class="count">В наличии: {{ caseItem.count }}</div>
+                            <div class="open-actions">
+                                <div class="btn primary" :class="{ disabled: !canOpen(caseItem, 1) }" @click="openSingle(caseItem)">Открыть 1</div>
+                                <div class="btn" :class="{ disabled: !canOpen(caseItem, Math.min(caseItem.multiOpenMax || 10, 10)) }" @click="openMulti(caseItem)">Открыть x10</div>
+                            </div>
+                        </div>
+                        <div class="empty" v-if="!casesWithInventory.some(item => item.count)">У вас нет кейсов</div>
+                    </div>
+                    <div v-show="localTab === 'history'" class="cases-history">
+                        <div class="history-row" v-for="entry in historyList" :key="entry.id">
+                            <div class="history-time">{{ prettyDate(entry.createdAt) }}</div>
+                            <div class="history-case">{{ entry.caseName }}</div>
+                            <div class="history-reward" :style="{ color: entry.rarityColor }">
+                                {{ entry.rewardName }}
+                                <span v-if="entry.amount && entry.amount > 1" class="qty">x{{ entry.amount }}</span>
+                            </div>
+                            <div class="history-extra" v-if="entry.duplicate">Дубликат</div>
+                            <div class="history-extra" v-else-if="entry.refund">+{{ entry.refund }} TC</div>
+                        </div>
+                        <div class="empty" v-if="!historyList.length">История пуста</div>
+                    </div>
+                </div>
+                <div class="cases-loading" v-if="state.isLoading">
+                    <div class="spinner"></div>
+                </div>
+                <div class="cases-overlay" v-if="animation">
+                    <div class="overlay-bg" @click="closeAnimation"></div>
+                    <div class="roller-window">
+                        <div class="roller-title">Результат кейса</div>
+                        <div class="roller-viewport" ref="rollerViewport">
+                            <div :class="['roller-track', { active: rollerAnimating }]" :style="{ transform: `translateX(-${rollerOffset}px)` }">
+                                <div class="roller-card" v-for="(item, index) in animation.tape" :key="index" ref="rollerCard">
+                                    <div class="rarity" :style="{ color: item.rarityColor }">{{ item.rarityName }}</div>
+                                    <div class="name">{{ item.name }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="reward-summary">
+                            <div class="title">Вы получили:</div>
+                            <div class="reward" :style="{ color: animation.reward?.rarityColor }">
+                                {{ animation.reward?.name }}
+                                <span v-if="animation.reward?.amount && animation.reward.amount > 1">x{{ animation.reward.amount }}</span>
+                            </div>
+                            <div class="duplicate" v-if="animation.duplicate?.duplicate">Дубликат — конвертирован</div>
+                        </div>
+                        <div class="overlay-actions">
+                            <div class="btn primary" @click="closeAnimation">ОК</div>
+                            <div class="btn" :class="{ disabled: state.isOpening }" @click="openAgain(1)">Открыть ещё</div>
+                            <div class="btn ghost" @click="shareLatest">Поделиться</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="cases-overlay" v-if="multiSummary">
+                    <div class="overlay-bg" @click="closeSummary"></div>
+                    <div class="multi-window">
+                        <div class="roller-title">Результат x{{ multiSummary.quantity }}</div>
+                        <div class="multi-grid">
+                            <div class="multi-card" v-for="(result, index) in multiSummary.results" :key="index">
+                                <div class="rarity" :style="{ color: result.reward?.rarityColor }">{{ result.reward?.rarityName }}</div>
+                                <div class="name">{{ result.reward?.name }}</div>
+                                <div class="qty" v-if="result.reward?.amount && result.reward.amount > 1">x{{ result.reward.amount }}</div>
+                                <div class="duplicate" v-if="result.duplicate?.duplicate">Дубликат</div>
+                            </div>
+                        </div>
+                        <div class="summary-footer">
+                            <div class="summary-item" v-for="info in raritySummary(multiSummary.summary)" :key="info.id">
+                                <span :style="{ color: info.color }">{{ info.name || info.id }}</span>
+                                <span>x{{ info.count }}</span>
+                            </div>
+                            <div class="summary-item" v-if="multiSummary.summary?.refund">Возврат: {{ multiSummary.summary.refund }} TC</div>
+                        </div>
+                        <div class="overlay-actions">
+                            <div class="btn primary" @click="closeSummary">ОК</div>
+                            <div class="btn" :class="{ disabled: state.isOpening }" @click="openAgain(multiSummary.quantity)">Повторить x{{ multiSummary.quantity }}</div>
+                            <div class="btn ghost" @click="shareLatest">Поделиться</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </script>
+
         <script type="text/x-template" id="player-menu-window-sidebar">
             <div class="sidebar">
                 <div class="head">
