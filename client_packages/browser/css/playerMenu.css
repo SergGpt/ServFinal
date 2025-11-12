@@ -4,9 +4,11 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    font-family: Roboto;
+    background-color: rgba(13, 15, 16, 0.92);
+    backdrop-filter: blur(0.6vh);
+    font-family: var(--font-body);
     z-index: 100;
+    color: var(--color-text-primary);
 }
 
 #player-menu .logo {
@@ -17,13 +19,13 @@
 }
 
 #player-menu .line {
-    background-color: rgba(255, 255, 255, .1);
+    background-color: rgba(102, 255, 204, 0.16);
     height: 1px;
     width: 100%;
 }
 
 #player-menu .content {
-    color: #fff;
+    color: var(--color-text-primary);
     display: grid;
     grid-gap: 1.85vh;
     grid-template-columns: 24vh 101.85vh;
@@ -33,6 +35,11 @@
     left: 50%;
     top: 48.5%;
     transform: translate(-50%, -50%);
+    background: linear-gradient(155deg, rgba(26, 29, 31, 0.92), rgba(10, 12, 13, 0.78));
+    border: 0.24vh solid rgba(102, 255, 204, 0.25);
+    border-radius: 1.6vh;
+    box-shadow: 0 1.8vh 4vh rgba(0, 0, 0, 0.65), inset 0 0 1vh rgba(102, 255, 204, 0.1);
+    overflow: hidden;
 }
 
 #player-menu .content.blur {
@@ -45,31 +52,24 @@
 }
 
 #player-menu .head .name {
-    font-size: 2.22vh;
-    font-weight: 900;
+    font-size: 2.8vh;
+    font-family: var(--font-heading);
+    font-weight: 600;
+    letter-spacing: 0.32vh;
     width: min-content;
+    text-transform: uppercase;
 }
 
 #player-menu .head .social {
     font-size: 1.48vh;
     margin-top: .5vh;
+    color: var(--color-text-secondary);
 }
 
-#player-menu .head .social-status1 {
-    color: #FFFCBB;
-}
-
-#player-menu .head .social-status2 {
-    color: #BBC2FF;
-}
-
-#player-menu .head .social-status3 {
-    color: #FFBBBB;
-}
-
-#player-menu .head .social-status4 {
-    color: #FF4D4D;
-}
+#player-menu .head .social-status1 { color: var(--color-legendary); }
+#player-menu .head .social-status2 { color: var(--color-epic); }
+#player-menu .head .social-status3 { color: var(--color-rare); }
+#player-menu .head .social-status4 { color: var(--color-error); }
 
 #player-menu .head .coins {
     margin-top: 1vh;
@@ -77,7 +77,8 @@
     height: 2vh;
     line-height: 2vh;
     font-size: 1.6vh;
-    font-weight: 500;
+    font-weight: 600;
+    letter-spacing: 0.2vh;
 }
 
 #player-menu .head .line {
@@ -85,16 +86,17 @@
 }
 
 #player-menu .head .menu-bar {
-    color: #F5F5F5;
+    color: var(--color-text-primary);
     font-size: 1.9vh;
     width: 100%;
 }
 
 #player-menu .sidebar .item,
 #player-menu .head .menu-bar .item {
-    color: rgba(255, 255, 255, .6);
-    font-size: 2.22vh;
-    font-weight: 900;
+    color: var(--color-text-secondary);
+    font-size: 2.1vh;
+    font-family: var(--font-heading);
+    font-weight: 500;
     margin-bottom: 1.5vh;
     /* border-radius: 1.8vh;
     border: 1px solid rgba(255, 255, 255, 0.3);
@@ -105,7 +107,8 @@
 
 #player-menu .sidebar .item:hover,
 #player-menu .head .menu-bar .item:hover {
-    color: #fff;
+    color: var(--color-accent-glow);
+    text-shadow: 0 0 1.2vh rgba(102, 255, 204, 0.45);
     /* background-color: rgba(255, 255, 255, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.1); */
 }
@@ -114,38 +117,45 @@
 #player-menu .head .menu-bar .item.focus {
     /* border: 1px solid rgba(255, 223, 41, 0.1);
     background-color: #FFDF29; */
-    color: #2496FF;
-    /*font-weight: bold;*/
+    color: var(--color-accent-toxic);
+    text-shadow: 0 0 1.2vh rgba(155, 229, 0, 0.35);
 }
 
 #player-menu .head .btn {
-    background-image: linear-gradient(90.81deg, rgba(36, 150, 255, 0.8) 0.01%, #2496FF 50.52%, rgba(36, 150, 255, 0.4) 100%);
-    background-repeat: no-repeat;
+    background: linear-gradient(135deg, rgba(26, 29, 31, 0.7), rgba(102, 255, 204, 0.2));
+    border: 0.2vh solid rgba(102, 255, 204, 0.3);
     box-sizing: border-box;
+    font-family: var(--font-heading);
     font-size: 1.67vh;
+    letter-spacing: 0.24vh;
     padding: 1.85vh 3.7vh;
     width: min-content;
     white-space: nowrap;
+    text-transform: uppercase;
 }
 
 #player-menu .head .btn:hover:not(.disable) {
-    filter: drop-shadow(0 0 .5vh #2496FF);
+    border-color: var(--color-accent-toxic);
+    box-shadow: 0 0.8vh 1.6vh rgba(155, 229, 0, 0.4);
 }
 
 #player-menu .blur-window .btn,
 #player-menu .body .btn {
-    background-image: linear-gradient(106.73deg, rgba(0, 0, 0, 0.24) 0.01%, rgba(0, 0, 0, 0.32) 33.33%, rgba(0, 0, 0, 0) 100%);
-    background-repeat: no-repeat;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: linear-gradient(160deg, rgba(18, 20, 22, 0.8), rgba(26, 29, 31, 0.5));
+    border: 0.2vh solid rgba(102, 255, 204, 0.2);
     box-sizing: border-box;
+    font-family: var(--font-heading);
     font-size: 1.67vh;
+    letter-spacing: 0.22vh;
     padding: 1.85vh 5.56vh;
     width: min-content;
+    text-transform: uppercase;
 }
 
 #player-menu .blur-window .btn:hover:not(.disable),
 #player-menu .body .btn:hover:not(.disable) {
-    background-image: linear-gradient(90.81deg, rgba(36, 150, 255, 0.8) 0.01%, #2496FF 50.52%, rgba(36, 150, 255, 0.4) 100%);
+    border-color: var(--color-accent-glow);
+    box-shadow: 0 0.9vh 1.8vh rgba(102, 255, 204, 0.35);
     /* border: none; */
 }
 
@@ -165,7 +175,7 @@
 }
 
 #player-menu .body .character .header {
-    color: rgba(255, 255, 255, .4);
+    color: var(--color-text-secondary);
     font-size: 1.5vh;
 }
 
@@ -180,12 +190,16 @@
 }
 
 #player-menu .body .character .body {
-    color: rgba(255, 255, 255, .7);
+    color: var(--color-text-primary);
     font-size: 1.29vh;
     height: 36vh;
     overflow-y: scroll;
     padding-right: 1.5vh;
     text-transform: uppercase;
+    background: rgba(18, 20, 22, 0.55);
+    border: 0.2vh solid rgba(42, 46, 49, 0.75);
+    border-radius: 1vh;
+    box-shadow: inset 0 0 1vh rgba(0, 0, 0, 0.85);
 }
 
 #player-menu .body .body::-webkit-scrollbar {
@@ -193,13 +207,13 @@
 }
 
 #player-menu .body .body::-webkit-scrollbar-track {
-    background-color: rgba(255, 255, 255, .1) !important;
+    background-color: rgba(18, 20, 22, 0.8) !important;
     box-shadow: none;
 }
 
 #player-menu .body .body::-webkit-scrollbar-thumb {
-    background-color: #fff !important;
-    /* height: 3vh; */
+    background-color: rgba(102, 255, 204, 0.3) !important;
+    border-radius: 1vh;
 }
 
 #player-menu .body .character .body .record {
@@ -210,7 +224,8 @@
 
 #player-menu .body .character .body .record span {
     font-size: 1.3vh;
-    font-weight: 900;
+    font-weight: 600;
+    letter-spacing: 0.18vh;
 }
 
 #player-menu .body .character .body .record .line {
@@ -224,15 +239,18 @@
 
 
 #player-menu .body .character .block.skills .skill {
-    background-image: linear-gradient(106.73deg, rgba(0, 0, 0, 0.24) 0.01%, rgba(0, 0, 0, 0.32) 33.33%, rgba(0, 0, 0, 0) 100%);
-    background-repeat: no-repeat;
-    color: rgba(255, 255, 255, .6);
+    background: linear-gradient(160deg, rgba(18, 20, 22, 0.8), rgba(26, 29, 31, 0.6));
+    color: var(--color-text-primary);
     display: flex;
     font-size: 1.9vh;
-    font-weight: 900;
+    font-family: var(--font-heading);
+    font-weight: 500;
     height: 5.2vh;
     margin-bottom: .9vh;
     position: relative;
+    border: 0.2vh solid rgba(102, 255, 204, 0.18);
+    border-radius: 1.2vh;
+    box-shadow: inset 0 0 0.8vh rgba(0, 0, 0, 0.75);
 }
 
 #player-menu .body .character .block.skills .skill>div {
@@ -240,33 +258,36 @@
 }
 
 #player-menu .body .character .block.skills .skill .head {
-    color: #fff;
+    color: var(--color-text-primary);
     margin-left: 1.85vh;
     z-index: 1;
 }
 
 #player-menu .body .character .block.skills .skill .val {
     margin-right: 1.85vh;
+    font-family: var(--font-mono);
+    color: var(--color-accent-glow);
 }
 
 #player-menu .body .character .block.skills .skill .progress {
-    background-image: linear-gradient(90.81deg, rgba(36, 150, 255, 0.8) 0.01%, #2496FF 50.52%, rgba(36, 150, 255, 0.4) 100%);
-    background-repeat: no-repeat;
-    box-shadow: 0px 0px 15px rgba(36, 150, 255, 0.3);
+    background-image: linear-gradient(90deg, rgba(155, 229, 0, 0.25), rgba(102, 255, 204, 0.65));
+    box-shadow: 0px 0px 2vh rgba(102, 255, 204, 0.25);
     height: 100%;
     position: absolute;
+    border-radius: 1.2vh;
 }
 
 #player-menu .body .character .block-bottom {
-    background-image: linear-gradient(106.73deg, rgba(0, 0, 0, 0.24) 0.01%, rgba(0, 0, 0, 0.32) 33.33%, rgba(0, 0, 0, 0) 100%);
-    background-repeat: no-repeat;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: linear-gradient(150deg, rgba(18, 20, 22, 0.82), rgba(26, 29, 31, 0.6));
+    border: 0.2vh solid rgba(102, 255, 204, 0.18);
     box-sizing: border-box;
     height: 15.75vh;
+    border-radius: 1.2vh;
+    box-shadow: inset 0 0 0.8vh rgba(0, 0, 0, 0.75);
 }
 
 #player-menu .body .character .block-bottom .header {
-    color: rgba(255, 255, 255, .6);
+    color: var(--color-text-secondary);
     margin: 2vh 0 0 2vh;
 
 }
@@ -287,14 +308,16 @@
 }
 
 #player-menu .body .character .block-bottom .body .record .head {
-    color: rgba(255, 255, 255, .4);
+    color: var(--color-text-secondary);
     font-size: 1.2vh;
 }
 
 #player-menu .body .character .block-bottom .body .record .val {
     font-size: 1.9vh;
-    font-weight: 900;
+    font-family: var(--font-heading);
+    font-weight: 500;
     margin-top: .2vh;
+    color: var(--color-accent-toxic);
 }
 
 
@@ -311,13 +334,11 @@
 }
 
 #player-menu .body .report textarea {
-    background-color: #fff0;
-    background-image: linear-gradient(106.73deg, rgba(0, 0, 0, 0.24) 0.01%, rgba(0, 0, 0, 0.32) 33.33%, rgba(0, 0, 0, 0) 100%);
-    background-repeat: no-repeat;
+    background: rgba(18, 20, 22, 0.75);
     box-sizing: border-box;
-    border: none;
-    color: #fff;
-    font-family: Roboto;
+    border: 0.2vh solid rgba(102, 255, 204, 0.2);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
     font-size: 1.5vh;
     height: 15vh;
     margin-top: 1.66vh;
@@ -325,15 +346,18 @@
     padding: 1.5vh 2.3vh;
     resize: none;
     width: 50vh;
+    border-radius: 1vh;
+    box-shadow: inset 0 0 1vh rgba(0, 0, 0, 0.85);
 }
 
 #player-menu .body .report .hint {
     font-size: 1.67vh;
     margin-top: .6vh;
+    color: var(--color-text-secondary);
 }
 
 #player-menu .body .report .hint.sec {
-    color: #34DE3B;
+    color: var(--color-accent-toxic);
     margin-top: 4.35vh;
     text-align: center;
 }
@@ -345,19 +369,18 @@
 }
 
 #player-menu .body .help input {
-    background-color: #fff0;
-    background-image: linear-gradient(106.73deg, rgba(0, 0, 0, 0.24) 0.01%, rgba(0, 0, 0, 0.32) 33.33%, rgba(0, 0, 0, 0) 100%);
-    background-repeat: no-repeat;
-    border: none;
-    color: #fff;
-    font-family: Roboto;
+    background: rgba(18, 20, 22, 0.75);
+    border: 0.2vh solid rgba(102, 255, 204, 0.2);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
     font-size: 1.5vh;
     height: 4.7vh;
     margin-top: 1.67vh;
     outline: none;
     padding: 0 2.2vh;
     width: 97%;
-
+    border-radius: 0.9vh;
+    box-shadow: inset 0 0 0.8vh rgba(0, 0, 0, 0.85);
 }
 
 #player-menu .body .help .messages {
@@ -373,7 +396,8 @@
 
 #player-menu .body .help .qw {
     font-size: 1.95vh;
-    font-weight: 900;
+    font-family: var(--font-heading);
+    font-weight: 500;
     text-transform: uppercase;
 }
 
@@ -389,16 +413,18 @@
 }
 
 #player-menu .body .help .answer {
-    background-image: linear-gradient(106.73deg, rgba(0, 0, 0, 0.24) 0.01%, rgba(0, 0, 0, 0.32) 33.33%, rgba(0, 0, 0, 0) 100%);
-    background-repeat: no-repeat;
+    background: linear-gradient(150deg, rgba(18, 20, 22, 0.82), rgba(26, 29, 31, 0.6));
     font-size: 1.5vh;
     margin-top: 1.15vh;
     padding: 1.5vh 2.2vh;
     padding-right: 35%;
+    border: 0.2vh solid rgba(102, 255, 204, 0.18);
+    border-radius: 1.1vh;
+    box-shadow: inset 0 0 0.8vh rgba(0, 0, 0, 0.75);
 }
 
 #player-menu .body .help .message:hover .header {
-    color: #2496FF;
+    color: var(--color-accent-glow);
 }
 
 #player-menu .body .help .message.focus {
@@ -451,7 +477,7 @@
 }
 
 #player-menu .body .reference span {
-    color: #53F56D;
+    color: var(--color-accent-toxic);
 }
 
 #player-menu .body .reference .body {
@@ -463,20 +489,23 @@
 }
 
 #player-menu .body .reference .body .head {
-    color: rgba(255, 255, 255, .4);
+    color: var(--color-text-secondary);
     font-size: 1.25vh;
     text-transform: uppercase;
 }
 
 #player-menu .body .reference .body .block {
-    background-image: linear-gradient(106.73deg, rgba(0, 0, 0, 0.24) 0.01%, rgba(0, 0, 0, 0.32) 33.33%, rgba(0, 0, 0, 0) 100%);
-    background-repeat: no-repeat;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: linear-gradient(150deg, rgba(18, 20, 22, 0.82), rgba(26, 29, 31, 0.6));
+    border: 0.2vh solid rgba(102, 255, 204, 0.18);
     box-sizing: border-box;
     font-size: 2.6vh;
-    font-weight: 900;
+    font-family: var(--font-heading);
+    font-weight: 500;
     margin-top: 1.3vh;
     padding: 3.7vh 5.56vh;
+    border-radius: 1.2vh;
+    box-shadow: inset 0 0 0.8vh rgba(0, 0, 0, 0.75);
+    color: var(--color-accent-glow);
 }
 
 
@@ -490,7 +519,7 @@
 
 
 #player-menu .sidebar .line {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(102, 255, 204, 0.25);
 }
 
 #player-menu .sidebar-win {
@@ -499,13 +528,11 @@
 
 
 #player-menu .sidebar-win input {
-    background-color: #fff0;
-    background-image: linear-gradient(106.73deg, rgba(0, 0, 0, 0.24) 0.01%, rgba(0, 0, 0, 0.32) 33.33%, rgba(0, 0, 0, 0) 100%);
-    background-repeat: no-repeat;
-    border: none;
+    background: rgba(18, 20, 22, 0.75);
+    border: 0.2vh solid rgba(102, 255, 204, 0.2);
     box-sizing: border-box;
-    color: #fff;
-    font-family: Roboto;
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
     font-size: 1.5vh;
     height: 4.7vh;
     margin-left: 0vh;
@@ -513,6 +540,8 @@
     outline: none;
     padding: 0 2vh;
     width: 27.3vh;
+    border-radius: 0.9vh;
+    box-shadow: inset 0 0 0.8vh rgba(0, 0, 0, 0.85);
 }
 
 #player-menu .sidebar-win .coin-logo {
@@ -525,14 +554,14 @@
 #player-menu .sidebar-win .price {
     display: flex;
     height: 2vh;
-    color: rgba(255, 255, 255, .5);
+    color: var(--color-text-secondary);
     margin-top: 1vh;
     font-size: 1.6vh;
 }
 
 #player-menu .sidebar-win .price span {
-    color: #fff;
-    font-weight: 500;
+    color: var(--color-accent-glow);
+    font-weight: 600;
 }
 
 #player-menu .head .coins img,
@@ -568,7 +597,7 @@
 }
 
 #player-menu .convert>div .value {
-    color: #53F56D;
+    color: var(--color-accent-toxic);
 }
 
 
@@ -578,8 +607,9 @@
 
 #player-menu .warn .info {
     font-size: 2.2vh;
-    font-weight: 900;
-    color: #DC1A1A;
+    font-family: var(--font-heading);
+    font-weight: 500;
+    color: var(--color-error);
 }
 
 #player-menu .warn .info.n-warns {
@@ -588,7 +618,8 @@
 
 #player-menu .addslot .info {
     font-size: 2.2vh;
-    font-weight: 900;
+    font-family: var(--font-heading);
+    font-weight: 500;
 }
 
 #player-menu .settings-main {
@@ -605,19 +636,21 @@
 }
 
 #player-menu .settings-main .record {
-    background-image: linear-gradient(106.73deg, rgba(0, 0, 0, 0.36) 0.01%, rgba(0, 0, 0, 0.48) 33.33%, rgba(0, 0, 0, 0.06) 100%);
-    background-repeat: no-repeat;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: linear-gradient(155deg, rgba(18, 20, 22, 0.82), rgba(26, 29, 31, 0.6));
+    border: 0.2vh solid rgba(102, 255, 204, 0.18);
     box-sizing: border-box;
     display: flex;
     height: 5.5vh;
     margin-bottom: .6vh;
     width: 76vh;
+    border-radius: 1.1vh;
+    box-shadow: inset 0 0 0.8vh rgba(0, 0, 0, 0.75);
 }
 
 #player-menu .settings-main .record .title {
     font-size: 1.4vh;
-    font-weight: 900;
+    font-family: var(--font-heading);
+    font-weight: 500;
     margin: auto;
     margin-left: 1.8vh;
     text-transform: uppercase;
@@ -647,7 +680,7 @@
 }
 
 #player-menu .settings-main .slidebar img:hover {
-    filter: drop-shadow(0 0 1vh #2496FF);
+    filter: drop-shadow(0 0 1vh rgba(102, 255, 204, 0.6));
 }
 
 #player-menu .settings-main .slidebar .left {
@@ -668,13 +701,14 @@
 }
 
 #player-menu .protection .record {
-    background-image: linear-gradient(106.73deg, rgba(0, 0, 0, 0.24) 0.01%, rgba(0, 0, 0, 0.32) 33.33%, rgba(0, 0, 0, 0) 100%);
-    background-repeat: no-repeat;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: linear-gradient(155deg, rgba(18, 20, 22, 0.82), rgba(26, 29, 31, 0.6));
+    border: 0.2vh solid rgba(102, 255, 204, 0.18);
     box-sizing: border-box;
     margin-bottom: 2.5vh;
     padding: 3.7vh 2.78vh;
     width: 63vh;
+    border-radius: 1.1vh;
+    box-shadow: inset 0 0 0.8vh rgba(0, 0, 0, 0.75);
 }
 
 #player-menu .protection .record:last-child {
@@ -684,11 +718,13 @@
 #player-menu .protection .record .head {
     display: flex;
     font-size: 2.22vh;
-    font-weight: 900;
+    font-family: var(--font-heading);
+    font-weight: 500;
+    letter-spacing: 0.28vh;
 }
 
 #player-menu .protection .record .title {
-    color: rgba(255, 255, 255, .4);
+    color: var(--color-text-secondary);
     font-size: 1.25vh;
     margin-top: 2.3vh;
     text-align: left;
@@ -696,16 +732,16 @@
 }
 
 #player-menu .protection .record .info {
-    color: #E51414;
+    color: var(--color-error);
     font-size: 1.25vh;
-    font-weight: normal;
+    font-weight: 500;
     margin: auto;
     margin-left: 2vh;
     text-transform: uppercase;
 }
 
 #player-menu .protection .record .info.conf {
-    color: #34DE3B;
+    color: var(--color-accent-toxic);
 }
 
 #player-menu .protection .record .body {
@@ -715,15 +751,17 @@
 
 #player-menu .protection .record .body .email {
     font-size: 1.67vh;
-    font-weight: 900;
+    font-family: var(--font-heading);
+    font-weight: 500;
 }
 
 #player-menu .protection .record .action {
     box-sizing: border-box;
-    color: rgba(255, 255, 255, .4);
+    color: var(--color-text-secondary);
     font-size: 1.5vh;
-    font-weight: normal;
+    font-weight: 400;
     margin: .3vh 0 0 1vh;
+    text-transform: uppercase;
 }
 
 #player-menu .protection .record .action:not(.inf):hover {
@@ -738,13 +776,11 @@
 }
 
 #player-menu .protection input {
-    background-color: #fff0;
-    background-image: linear-gradient(106.73deg, rgba(0, 0, 0, 0.24) 0.01%, rgba(0, 0, 0, 0.32) 33.33%, rgba(0, 0, 0, 0) 100%);
-    background-repeat: no-repeat;
-    border: none;
+    background: rgba(18, 20, 22, 0.75);
+    border: 0.2vh solid rgba(102, 255, 204, 0.2);
     box-sizing: border-box;
-    color: #fff;
-    font-family: Roboto;
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
     font-size: 1.5vh;
     height: 4.7vh;
     margin-left: 0vh;
@@ -752,6 +788,8 @@
     outline: none;
     padding: 0 2vh;
     width: 27.3vh;
+    border-radius: 0.9vh;
+    box-shadow: inset 0 0 0.8vh rgba(0, 0, 0, 0.85);
 }
 
 #player-menu .protection .record .actions {
