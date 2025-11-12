@@ -216,6 +216,130 @@ let settingsMenuData = {
     },
 };
 
+const playerMenuCasesState = Vue.observable({
+    isLoaded: false,
+    isLoading: false,
+    isOpening: false,
+    cases: [],
+    inventory: [],
+    history: [],
+    error: null,
+    activeTab: 'shop',
+    animation: null,
+    multiSummary: null,
+    lastCaseId: null,
+    lastQuantity: 0,
+    lastRequest: 0,
+});
+
+const playerMenuCases = {
+    state: playerMenuCasesState,
+    root: null,
+    attach(root) {
+        this.root = root;
+    },
+    requestData(force = false) {
+        if (this.state.isLoading) return;
+        const now = Date.now();
+        if (!force && this.state.isLoaded && now - this.state.lastRequest < 1500) return;
+        this.state.isLoading = true;
+        this.state.error = null;
+        this.state.lastRequest = now;
+        mp.trigger('callRemote', 'lootcases.menu.requestState');
+    },
+    buyCase(caseId, quantity) {
+        if (!caseId || quantity <= 0 || this.state.isOpening) return;
+        mp.trigger('callRemote', 'lootcases.buy', caseId, quantity);
+    },
+    openCase(caseId, quantity) {
+        if (!caseId || quantity <= 0 || this.state.isOpening) return;
+        const requestId = this.generateRequestId();
+        this.state.isOpening = true;
+        this.state.error = null;
+        this.state.lastCaseId = caseId;
+        this.state.lastQuantity = quantity;
+        this.state.animation = null;
+        this.state.multiSummary = null;
+        mp.trigger('callRemote', 'lootcases.open', caseId, quantity, requestId);
+    },
+    share(historyId) {
+        if (!historyId) return;
+        mp.trigger('callRemote', 'lootcases.share', historyId);
+    },
+    showTopup() {
+        if (!this.root) return;
+        const donateTab = menuBar.find(item => item.window === 'player-menu-window-sidebar' && item.windowData === donateMenuData);
+        if (donateTab) this.root.menuBarFocus = donateTab;
+    },
+    onActivated() {
+        if (!this.state.isLoaded) this.requestData();
+    },
+    setState(raw) {
+        const data = typeof raw === 'string' ? JSON.parse(raw) : raw || {};
+        this.state.cases = data.cases || [];
+        this.state.inventory = data.inventory || [];
+        this.state.history = data.history || [];
+        this.state.isLoaded = true;
+        this.state.isLoading = false;
+        this.state.isOpening = false;
+        this.state.error = null;
+    },
+    setInventory(raw) {
+        const data = typeof raw === 'string' ? JSON.parse(raw) : raw || {};
+        if (Array.isArray(data.inventory)) this.state.inventory = data.inventory;
+        this.state.isLoading = false;
+        this.state.error = null;
+    },
+    setHistory(raw) {
+        const data = typeof raw === 'string' ? JSON.parse(raw) : raw || {};
+        if (Array.isArray(data.history)) this.state.history = data.history;
+    },
+    setOpenResult(raw) {
+        const data = typeof raw === 'string' ? JSON.parse(raw) : raw || {};
+        if (Array.isArray(data.inventory)) this.state.inventory = data.inventory;
+        if (Array.isArray(data.history)) {
+            this.state.history = data.history.concat(this.state.history).slice(0, 20);
+        }
+        this.state.animation = null;
+        this.state.multiSummary = null;
+        this.state.isOpening = false;
+        this.state.isLoading = false;
+        this.state.error = null;
+        if (data.caseId) this.state.lastCaseId = data.caseId;
+        if (data.quantity) this.state.lastQuantity = data.quantity;
+        if (data.quantity > 1) {
+            this.state.multiSummary = {
+                caseId: data.caseId,
+                quantity: data.quantity,
+                summary: data.summary,
+                results: data.results,
+            };
+        } else if (data.results && data.results[0]) {
+            const rewardData = data.results[0];
+            const animation = data.animation || {};
+            this.state.animation = {
+                tape: animation.tape || [],
+                focusIndex: animation.focusIndex || Math.floor((animation.tape || []).length / 2),
+                reward: rewardData.reward,
+                duplicate: rewardData.duplicate,
+                caseId: data.caseId,
+                key: Date.now(),
+            };
+        }
+    },
+    setError(raw) {
+        const data = typeof raw === 'string' ? JSON.parse(raw) : raw || {};
+        this.state.error = data.message || data || null;
+        this.state.isOpening = false;
+        this.state.isLoading = false;
+    },
+    generateRequestId() {
+        return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    },
+};
+
+window.playerMenuCases = playerMenuCases;
+
 let donateMenuData = {
     head: "Донат",
     headImg: "img/playerMenu/settings.svg",
@@ -282,6 +406,11 @@ let menuBar = [{
         head: "Промокод",
         window: "player-menu-reference",
         windowData: referenceData
+    },
+    {
+        head: "Кейсы",
+        window: "player-menu-cases",
+        windowData: playerMenuCases,
     },
     {
         head: "Донат",
@@ -938,6 +1067,11 @@ var playerMenu = new Vue({
                 if (this.$refs.name)
                     playerMenu.longName = this.$refs.name.offsetHeight > this.$refs.def.offsetHeight * 2;
             }, 100);
+        },
+        menuBarFocus(val) {
+            if (val && val.window === 'player-menu-cases') {
+                playerMenuCases.onActivated();
+            }
         }
     },
     filters: {
@@ -956,6 +1090,8 @@ var playerMenu = new Vue({
         });
     },
 });
+
+playerMenuCases.attach(playerMenu);
 
 Vue.component('player-menu-character', {
     template: '#player-menu-character',
@@ -1074,6 +1210,152 @@ Vue.component('player-menu-reference', {
         amountInvitees: referenceData.amountInvitees,
         amountCompleted: referenceData.amountCompleted,*/
     }),
+});
+
+Vue.component('player-menu-cases', {
+    template: '#player-menu-cases',
+    props: {
+        state: Object,
+        requestData: Function,
+        buyCase: Function,
+        openCase: Function,
+        share: Function,
+        showTopup: Function,
+    },
+    data: () => ({
+        localTab: 'shop',
+        rollerOffset: 0,
+        rollerAnimating: false,
+    }),
+    computed: {
+        cases() {
+            return this.state.cases || [];
+        },
+        inventoryMap() {
+            const map = {};
+            (this.state.inventory || []).forEach(entry => {
+                map[entry.caseId] = entry.count;
+            });
+            return map;
+        },
+        casesWithInventory() {
+            return this.cases.map(item => ({
+                ...item,
+                count: this.inventoryMap[item.id] || 0,
+            }));
+        },
+        historyList() {
+            return this.state.history || [];
+        },
+        isBusy() {
+            return !!(this.state.isOpening || this.state.isLoading);
+        },
+        balance() {
+            return playerMenu.coins;
+        },
+        animation() {
+            return this.state.animation;
+        },
+        multiSummary() {
+            return this.state.multiSummary;
+        },
+        error() {
+            return this.state.error;
+        },
+    },
+    watch: {
+        'state.activeTab'(val) {
+            if (val && val !== this.localTab) this.localTab = val;
+        },
+        localTab(val) {
+            this.state.activeTab = val;
+        },
+        'state.animation.key'(val) {
+            if (val) this.startRoll();
+        }
+    },
+    mounted() {
+        this.localTab = this.state.activeTab || 'shop';
+        if (!this.state.isLoaded && !this.state.isLoading) this.requestData();
+    },
+    methods: {
+        prettyChance(chance) {
+            if (chance == null) return '-';
+            return `${chance}%`;
+        },
+        prettyDate(time) {
+            if (!time) return '';
+            const date = new Date(time);
+            return date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        },
+        caseCount(caseId) {
+            return this.inventoryMap[caseId] || 0;
+        },
+        buySingle(caseInfo) {
+            this.buyCase(caseInfo.id, 1);
+        },
+        buyMulti(caseInfo) {
+            const qty = Math.min(caseInfo.multiOpenMax || 10, 10);
+            this.buyCase(caseInfo.id, qty);
+        },
+        openSingle(caseInfo) {
+            if (!this.canOpen(caseInfo, 1)) return;
+            this.openCase(caseInfo.id, 1);
+        },
+        openMulti(caseInfo) {
+            const available = this.caseCount(caseInfo.id);
+            const qty = Math.min(caseInfo.multiOpenMax || 10, 10, available);
+            if (qty < 1) return;
+            this.openCase(caseInfo.id, qty);
+        },
+        canOpen(caseInfo, needed) {
+            return !this.state.isOpening && this.caseCount(caseInfo.id) >= needed;
+        },
+        refresh() {
+            this.requestData(true);
+        },
+        startRoll() {
+            this.rollerAnimating = false;
+            this.rollerOffset = 0;
+            this.$nextTick(() => {
+                const animation = this.state.animation;
+                if (!animation || !animation.tape || !animation.tape.length) return;
+                const viewport = this.$refs.rollerViewport;
+                const cards = this.$refs.rollerCard || [];
+                if (!viewport || !cards.length) return;
+                const card = cards[0];
+                const cardWidth = card.offsetWidth;
+                const gap = 16;
+                const focus = Math.min(Math.max(animation.focusIndex || 0, 0), animation.tape.length - 1);
+                const target = Math.max(0, focus * (cardWidth + gap) - (viewport.clientWidth / 2 - cardWidth / 2));
+                this.rollerOffset = target;
+                requestAnimationFrame(() => {
+                    this.rollerAnimating = true;
+                });
+            });
+        },
+        closeAnimation() {
+            this.state.animation = null;
+        },
+        closeSummary() {
+            this.state.multiSummary = null;
+        },
+        openAgain(quantity) {
+            const caseId = this.state.lastCaseId;
+            if (!caseId) return;
+            const qty = quantity || 1;
+            this.openCase(caseId, qty);
+        },
+        shareLatest() {
+            const history = this.state.history;
+            if (!history || !history.length) return;
+            this.share(history[0].id);
+        },
+        raritySummary(summary) {
+            if (!summary || !summary.raritySummary) return [];
+            return Object.values(summary.raritySummary);
+        },
+    },
 });
 
 Vue.component('player-menu-window-sidebar', {

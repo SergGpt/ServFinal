@@ -176,4 +176,19 @@ mp.events.add({
     "casino.chips.changed": (chips) => {
         mp.playerMenu.setChips(chips);
     },
+    "lootcases.state": (data) => {
+        mp.callCEFV(`playerMenuCases.setState(${JSON.stringify(data)})`);
+    },
+    "lootcases.inventory": (data) => {
+        mp.callCEFV(`playerMenuCases.setInventory(${JSON.stringify(data)})`);
+    },
+    "lootcases.history": (data) => {
+        mp.callCEFV(`playerMenuCases.setHistory(${JSON.stringify(data)})`);
+    },
+    "lootcases.open.result": (data) => {
+        mp.callCEFV(`playerMenuCases.setOpenResult(${JSON.stringify(data)})`);
+    },
+    "lootcases.error": (data) => {
+        mp.callCEFV(`playerMenuCases.setError(${JSON.stringify(data)})`);
+    },
 });
