@@ -45,6 +45,9 @@ module.exports = {
     vendorColshape: null,
     vendorMarker: null,
     vendorBlip: null,
+    menuColshape: null,
+    menuMarker: null,
+    menuBlip: null,
     craftColshape: null,
     craftMarker: null,
     craftBlip: null,
@@ -52,6 +55,7 @@ module.exports = {
     init() {
         this.resetState();
         this.createVendorZone();
+        this.createMenuZone();
         this.createCraftZone();
         this.createPlots();
         this.restoreState().catch(err => console.error('[MOONSHINE] restoreState error', err));
@@ -69,6 +73,7 @@ module.exports = {
             this.disposePlot(plot);
         });
         this.destroyVendorZone();
+        this.destroyMenuZone();
         this.destroyCraftZone();
         this.activeCrafts.forEach(session => {
             if (session && session.timer) timer.remove(session.timer);
@@ -82,6 +87,7 @@ module.exports = {
             this.plots.forEach(plot => this.disposePlot(plot));
         }
         this.destroyVendorZone();
+        this.destroyMenuZone();
         this.destroyCraftZone();
         this.plots = [];
         this.plotsById.clear();
@@ -91,6 +97,9 @@ module.exports = {
         this.vendorColshape = null;
         this.vendorMarker = null;
         this.vendorBlip = null;
+        this.menuColshape = null;
+        this.menuMarker = null;
+        this.menuBlip = null;
         this.craftColshape = null;
         this.craftMarker = null;
         this.craftBlip = null;
@@ -157,6 +166,32 @@ module.exports = {
         this.vendorBlip = null;
     },
 
+    destroyMenuZone() {
+        try {
+            if (this.menuMarker) this.menuMarker.destroy();
+            if (this.menuColshape) this.menuColshape.destroy();
+            if (this.menuBlip) this.menuBlip.destroy();
+        } catch (err) {
+            console.warn('[MOONSHINE] Failed to destroy menu zone', err);
+        }
+        mp.players.forEach(player => {
+            if (!player || !mp.players.exists(player)) return;
+            if (!player.character) return;
+            if (player.moonshineAtMenuZone) {
+                player.moonshineAtMenuZone = false;
+                try {
+                    player.call('moonshine.menu.exit');
+                    player.call('moonshine.menu.hide');
+                } catch (e) {
+                    // ignore call errors
+                }
+            }
+        });
+        this.menuMarker = null;
+        this.menuColshape = null;
+        this.menuBlip = null;
+    },
+
     destroyCraftZone() {
         try {
             if (this.craftMarker) this.craftMarker.destroy();
@@ -201,6 +236,52 @@ module.exports = {
             color: 11,
             shortRange: true,
             scale: 0.9,
+        });
+    },
+
+    createMenuZone() {
+        const menuConfig = this.config.menu || {};
+        const pos = menuConfig.position;
+        if (!pos) return;
+        this.destroyMenuZone();
+        const vector = new mp.Vector3(pos.x, pos.y, pos.z);
+        const radius = Number(menuConfig.radius) || 1.5;
+        this.menuMarker = mp.markers.new(1, vector, 0.75, { color: [80, 180, 255, 120] });
+        this.menuColshape = mp.colshapes.newSphere(vector.x, vector.y, vector.z, radius);
+        this.menuColshape.onEnter = (player) => {
+            if (!player || !player.character) return;
+            player.moonshineAtMenuZone = true;
+            player.call('moonshine.menu.enter');
+            if (this.isWorker(player)) {
+                this.sendMenuUpdate(player);
+            }
+        };
+        this.menuColshape.onExit = (player) => {
+            if (!player || !player.character) return;
+            player.moonshineAtMenuZone = false;
+            player.call('moonshine.menu.exit');
+            player.call('moonshine.menu.hide');
+        };
+        const blipCfg = menuConfig.blip || {};
+        const sprite = blipCfg.sprite != null ? blipCfg.sprite : 566;
+        const color = blipCfg.color != null ? blipCfg.color : 46;
+        const scale = blipCfg.scale != null ? blipCfg.scale : 0.9;
+        const name = blipCfg.name || 'Самогонщик';
+        this.menuBlip = mp.blips.new(sprite, new mp.Vector3(vector.x, vector.y, vector.z + 1.5), {
+            name,
+            color,
+            shortRange: true,
+            scale,
+        });
+        const radiusSq = radius * radius;
+        mp.players.forEach(player => {
+            if (!player || !player.character || !player.position) return;
+            const dx = player.position.x - vector.x;
+            const dy = player.position.y - vector.y;
+            const dz = player.position.z - vector.z;
+            if ((dx * dx + dy * dy + dz * dz) <= radiusSq) {
+                this.menuColshape.onEnter(player);
+            }
         });
     },
 
@@ -727,6 +808,14 @@ module.exports = {
         player.call('moonshine.menu.update', [info]);
     },
 
+    openMainMenu(player) {
+        if (!this.isWorker(player)) {
+            return notifs.error(player, 'Вы не работаете самогонщиком', MODULE_NAME);
+        }
+        const info = this.collectMenuData(player);
+        player.call('moonshine.menu.show', [info]);
+    },
+
     async openVendor(player) {
         if (!this.isWorker(player)) return;
         const info = await this.getDailyPurchase(player);
@@ -741,6 +830,9 @@ module.exports = {
         this.sendMenuUpdate(player);
         player.moonshineJob = true;
         notifs.info(player, 'Вы приступили к работе варщика', MODULE_NAME);
+        if (player.moonshineAtMenuZone) {
+            this.openMainMenu(player);
+        }
     },
 
     stopWork(player) {
@@ -752,6 +844,9 @@ module.exports = {
         player.call('moonshine.craft.exit');
         player.call('moonshine.craft.ui.hide');
         this.abortCraft(player, 'job_change', true);
+        if (player.moonshineAtMenuZone) {
+            player.call('moonshine.menu.enter');
+        }
     },
 
     cleanupPlayer(player) {
@@ -760,6 +855,7 @@ module.exports = {
         this.clearMoonshineEffect(player);
         delete player.moonshineJob;
         delete player.moonshineDrinkCooldown;
+        if (player.moonshineAtMenuZone) player.moonshineAtMenuZone = false;
     },
 
     leaveJob(player) {

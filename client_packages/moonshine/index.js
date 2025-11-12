@@ -10,9 +10,11 @@ let currentPlot = null;
 let lastMarkerDimension = 0;
 let insideCraftZone = false;
 let insideVendorZone = false;
+let insideFarmZone = false;
 let craftUiOpen = false;
 let vendorData = null;
 let moonshineBuffState = { active: false, remainingMs: 0 };
+let craftBusyActive = false;
 
 const markerColors = {
     empty: [140, 140, 140, 100],
@@ -278,6 +280,10 @@ function updatePrompt() {
             return;
         }
     }
+    if (insideFarmZone) {
+        mp.prompt.show('Нажмите <span>E</span>, чтобы открыть меню самогонщика');
+        return;
+    }
     if (insideCraftZone) {
         mp.prompt.show('Нажмите <span>E</span>, чтобы использовать самогонный аппарат');
         return;
@@ -319,6 +325,10 @@ function closeVendorMenu() {
 }
 
 function openCraftUi(data) {
+    if (!craftBusyActive) {
+        const added = mp.busy.add('moonshine.craft');
+        craftBusyActive = added !== false ? true : mp.busy.includes('moonshine.craft');
+    }
     craftUiOpen = true;
     const info = parsePayload(data, {});
     mp.callCEFV(`moonshineCraft.open(${JSON.stringify(info || {})})`);
@@ -332,6 +342,10 @@ function updateCraftUi(data) {
 function closeCraftUi() {
     craftUiOpen = false;
     mp.callCEFV('moonshineCraft.hide(true)');
+    if (craftBusyActive) {
+        mp.busy.remove('moonshine.craft');
+        craftBusyActive = false;
+    }
 }
 
 function setCraftProgress(sessionId, duration) {
@@ -402,6 +416,15 @@ mp.events.add({
         const info = parsePayload(data, {});
         const payload = JSON.stringify(info || {});
         mp.callCEFV(`(function(){var info=${payload};if(selectMenu.menus['moonshineFarm'])selectMenu.menus['moonshineFarm'].update(info);if(selectMenu.menus['moonshineVendor'])selectMenu.menus['moonshineVendor'].update(info);})()`);
+    },
+    'moonshine.menu.enter': () => {
+        insideFarmZone = true;
+        mp.events.callRemote('moonshine.menu.sync');
+        updatePrompt();
+    },
+    'moonshine.menu.exit': () => {
+        insideFarmZone = false;
+        updatePrompt();
     },
     'moonshine.menu.show': (data) => {
         const info = parsePayload(data, {});
@@ -476,8 +499,10 @@ mp.events.add({
         currentPlot = null;
         insideCraftZone = false;
         insideVendorZone = false;
+        insideFarmZone = false;
         closeCraftUi();
         closeVendorMenu();
+        mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineFarm') selectMenu.show = false;`);
         mp.prompt.hide();
     },
     'playerQuit': () => {
@@ -485,8 +510,10 @@ mp.events.add({
         currentPlot = null;
         insideCraftZone = false;
         insideVendorZone = false;
+        insideFarmZone = false;
         closeCraftUi();
         closeVendorMenu();
+        mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineFarm') selectMenu.show = false;`);
         mp.prompt.hide();
     },
 });
@@ -521,6 +548,10 @@ mp.keys.bind(0x45, true, () => {
             mp.prompt.hide();
             return;
         }
+    }
+    if (insideFarmZone) {
+        mp.events.callRemote('moonshine.menu.open');
+        return;
     }
     if (insideCraftZone) {
         if (!craftUiOpen) {

@@ -36,6 +36,9 @@ module.exports = {
     'moonshine.menu.sync': (player) => {
         moonshine.sendMenuUpdate(player);
     },
+    'moonshine.menu.open': (player) => {
+        moonshine.openMainMenu(player);
+    },
     'moonshine.seed.buy': (player, amount) => {
         moonshine.buySeeds(player, amount);
     },
