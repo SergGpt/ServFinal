@@ -13,6 +13,7 @@ import taxiClient from '../../modules/phone/reducers/taxi.client.reducer';
 import taxiDriver from '../../modules/phone/reducers/taxi.driver.reducer';
 import players from '../../modules/players/reducers/reducer.players';
 import bankApp from '../../modules/phone/reducers/bankApp.reducer';
+import inventory from '../../modules/inventory/reducers/reducer.inventory';
 
 export default combineReducers({
     forms,
@@ -27,5 +28,6 @@ export default combineReducers({
     taxiClient,
     taxiDriver,
     players,
-    bankApp
+    bankApp,
+    inventory
 });
