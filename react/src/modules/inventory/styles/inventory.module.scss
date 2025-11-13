@@ -1,0 +1,399 @@
+.overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(7, 12, 20, 0.72);
+    backdrop-filter: blur(8px);
+    z-index: 2000;
+    font-family: 'Montserrat', 'Roboto', sans-serif;
+}
+
+.container {
+    width: 1100px;
+    height: 640px;
+    display: flex;
+    background: linear-gradient(135deg, rgba(18, 25, 39, 0.95), rgba(7, 11, 19, 0.9));
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.55);
+    color: #f1f5ff;
+    overflow: hidden;
+}
+
+.sectionHeading {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    margin-bottom: 16px;
+}
+
+.quickSlots {
+    width: 170px;
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, rgba(21, 31, 51, 0.4), rgba(12, 18, 30, 0.3));
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.quickSlot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.quickSlot:last-child {
+    margin-bottom: 0;
+}
+
+.quickSlotIndex {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.quickSlotBody {
+    flex: 1;
+    height: 68px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(135deg, rgba(31, 45, 70, 0.28), rgba(15, 23, 42, 0.28));
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    gap: 12px;
+}
+
+.quickSlotIcon {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: rgba(108, 175, 255, 0.15);
+    color: #8abfff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.quickSlotInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.quickSlotName {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.quickSlotWeight {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.quickSlotEmpty {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.inventorySection {
+    flex: 1;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+}
+
+.inventoryHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.inventoryHeader h2 {
+    margin: 0;
+    font-size: 26px;
+    letter-spacing: 0.02em;
+}
+
+.weightLabel {
+    margin-top: 4px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.filters {
+    display: flex;
+    gap: 12px;
+}
+
+.filters button {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 8px 18px;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.filters button:hover {
+    border-color: rgba(122, 187, 255, 0.55);
+    color: #9cccff;
+}
+
+.filterActive {
+    background: linear-gradient(135deg, rgba(98, 169, 255, 0.3), rgba(55, 118, 229, 0.3));
+    border-color: rgba(122, 187, 255, 0.55) !important;
+    color: #d8e9ff !important;
+}
+
+.inventoryGrid {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 14px;
+    flex: 1;
+}
+
+.inventorySlot {
+    position: relative;
+    min-height: 100px;
+    border-radius: 18px;
+    border: 1px dashed rgba(255, 255, 255, 0.08);
+    background: rgba(18, 25, 39, 0.38);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 10px;
+    text-align: center;
+    transition: border-color 0.25s ease, background 0.25s ease;
+}
+
+.inventorySlotFilled {
+    border-style: solid;
+    border-color: rgba(126, 200, 255, 0.45);
+    background: linear-gradient(160deg, rgba(32, 64, 111, 0.45), rgba(16, 32, 62, 0.45));
+    box-shadow: inset 0 0 0 1px rgba(126, 200, 255, 0.25);
+}
+
+.slotIndex {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.itemIcon {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    background: rgba(122, 187, 255, 0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 600;
+    color: #9fc9ff;
+    margin-bottom: 12px;
+}
+
+.itemInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+}
+
+.itemName {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.itemWeight {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.emptyPlaceholder {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.sectionGroup {
+    margin-top: 30px;
+}
+
+.sectionSlots {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.sectionSlot {
+    min-height: 72px;
+}
+
+.equipmentSection {
+    width: 280px;
+    padding: 32px 28px;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, rgba(20, 27, 44, 0.45), rgba(10, 16, 30, 0.45));
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.equipmentLayout {
+    display: grid;
+    grid-template-columns: 1fr 120px 1fr;
+    gap: 16px;
+}
+
+.equipmentColumn {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.avatarPlaceholder {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatarPlaceholder::before {
+    content: '';
+    position: absolute;
+    width: 120px;
+    height: 340px;
+    border-radius: 60px;
+    background: linear-gradient(180deg, rgba(67, 105, 168, 0.2), rgba(32, 51, 87, 0.2));
+    filter: drop-shadow(0 0 25px rgba(98, 169, 255, 0.35));
+}
+
+.avatarCore {
+    width: 68px;
+    height: 240px;
+    border-radius: 34px;
+    background: linear-gradient(180deg, rgba(24, 37, 62, 0.55), rgba(16, 27, 47, 0.55));
+    border: 1px solid rgba(126, 200, 255, 0.18);
+}
+
+.equipmentSlot {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(18, 26, 42, 0.42);
+    min-height: 70px;
+}
+
+.equipmentSlotFilled {
+    border-color: rgba(126, 200, 255, 0.45);
+    box-shadow: inset 0 0 0 1px rgba(126, 200, 255, 0.25);
+}
+
+.equipmentLabel {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.equipmentBody {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #e6eeff;
+    font-size: 13px;
+    text-align: center;
+}
+
+.equipmentEmpty {
+    color: rgba(255, 255, 255, 0.38);
+    font-size: 12px;
+}
+
+.equipmentBottom {
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.handsSection {
+    margin-top: 24px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.handSlot {
+    min-height: 90px;
+}
+
+.statsPanel {
+    margin-top: 28px;
+    padding: 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(12, 18, 32, 0.55);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.statBlock {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.statDot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #9cccff, #3b82f6);
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
+}
+
+.statLabel {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.statValue {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+@media (max-width: 1280px) {
+    .container {
+        transform: scale(0.92);
+    }
+}
