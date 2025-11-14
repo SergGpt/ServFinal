@@ -82,12 +82,12 @@ function createPeds() {
     [
         {
             model: "a_m_m_farmer_01",
-            position: { x: 1959.803, y: 5164.562, z: 47.883 },
+            position: { x: 2023.0729980469, y: 4976.6215820312, z: 41.2263450623 },
             heading: 40.0,
         },
         {
             model: "ig_old_man1a",
-            position: { x: 1955.141, y: 5157.012, z: 47.883 },
+            position: { x: 2014.1748046875, y: 4971.5131835938, z: 41.4857597351 },
             heading: 214.0,
         }
     ].forEach(data => mp.events.call('NPC.create', data));
