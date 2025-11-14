@@ -145,6 +145,11 @@ module.exports = {
         }
 
         let rearmed = false;
+        const valuesEqual = (left, right) => {
+            if (left == null && right == null) return true;
+            if (left == null || right == null) return false;
+            return left.toString() === right.toString();
+        };
         const ensureParam = (key, value, forceSync = false) => {
             const existing = inventory.getParam(crowbar, key);
             if (!existing) {
@@ -153,10 +158,10 @@ module.exports = {
                 return created;
             }
 
-            if (existing.value !== value) {
-                inventory.updateParam(player, crowbar, key, value);
+            if (!valuesEqual(existing.value, value)) {
+                const updated = inventory.updateParam(player, crowbar, key, value);
                 if (forceSync) rearmed = true;
-                return inventory.getParam(crowbar, key);
+                return updated;
             }
 
             return existing;
@@ -256,13 +261,17 @@ module.exports = {
 
     isCrowbar(player, item) {
         if (!item) return false;
-        if (item.itemId === this.crowbarItemId) return true;
+        const itemIdRaw = item.itemId;
+        const itemId = typeof itemIdRaw === 'number' ? itemIdRaw : parseInt(itemIdRaw, 10);
+        if (!Number.isNaN(itemId) && itemId === this.crowbarItemId) return true;
 
         const weaponHash = inventory.getParam(item, 'weaponHash');
-        if (weaponHash && weaponHash.value === mp.joaat('weapon_crowbar')) return true;
+        const weaponHashValue = weaponHash ? parseInt(weaponHash.value, 10) : null;
+        if (!Number.isNaN(weaponHashValue) && weaponHashValue === mp.joaat('weapon_crowbar')) return true;
 
         const handsVar = player.getVariable('hands');
-        if (handsVar === this.crowbarItemId) return true;
+        const handsVarId = typeof handsVar === 'number' ? handsVar : parseInt(handsVar, 10);
+        if (!Number.isNaN(handsVarId) && handsVarId === this.crowbarItemId) return true;
 
         const currentWeapon = typeof player.weapon === 'number' ? player.weapon : parseInt(player.weapon || 0);
         if (currentWeapon === mp.joaat('weapon_crowbar')) return true;
