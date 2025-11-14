@@ -144,20 +144,32 @@ module.exports = {
             return outError('Возьмите в руки монтировку');
         }
 
-        const ensureParam = (key, value) => inventory.updateParam(player, crowbar, key, value);
         let rearmed = false;
+        const valuesEqual = (left, right) => {
+            if (left == null && right == null) return true;
+            if (left == null || right == null) return false;
+            return left.toString() === right.toString();
+        };
+        const ensureParam = (key, value, forceSync = false) => {
+            const existing = inventory.getParam(crowbar, key);
+            if (!existing) {
+                const created = inventory.updateParam(player, crowbar, key, value);
+                if (forceSync) rearmed = true;
+                return created;
+            }
 
-        const weaponParam = inventory.getParam(crowbar, 'weaponHash');
-        if (!weaponParam) {
-            ensureParam('weaponHash', mp.joaat('weapon_crowbar'));
-            rearmed = true;
-        }
+            if (!valuesEqual(existing.value, value)) {
+                const updated = inventory.updateParam(player, crowbar, key, value);
+                if (forceSync) rearmed = true;
+                return updated;
+            }
 
-        const modelParam = inventory.getParam(crowbar, 'model');
-        if (!modelParam) ensureParam('model', 'weapon_crowbar');
+            return existing;
+        };
 
-        let crowbarHealth = inventory.getParam(crowbar, 'health');
-        if (!crowbarHealth) crowbarHealth = ensureParam('health', 100);
+        ensureParam('weaponHash', mp.joaat('weapon_crowbar'), true);
+        ensureParam('model', 'weapon_crowbar');
+        let crowbarHealth = ensureParam('health', 100);
 
         if (rearmed) inventory.syncHandsItem(player, crowbar);
 
@@ -249,13 +261,17 @@ module.exports = {
 
     isCrowbar(player, item) {
         if (!item) return false;
-        if (item.itemId === this.crowbarItemId) return true;
+        const itemIdRaw = item.itemId;
+        const itemId = typeof itemIdRaw === 'number' ? itemIdRaw : parseInt(itemIdRaw, 10);
+        if (!Number.isNaN(itemId) && itemId === this.crowbarItemId) return true;
 
         const weaponHash = inventory.getParam(item, 'weaponHash');
-        if (weaponHash && weaponHash.value === mp.joaat('weapon_crowbar')) return true;
+        const weaponHashValue = weaponHash ? parseInt(weaponHash.value, 10) : null;
+        if (!Number.isNaN(weaponHashValue) && weaponHashValue === mp.joaat('weapon_crowbar')) return true;
 
         const handsVar = player.getVariable('hands');
-        if (handsVar === this.crowbarItemId) return true;
+        const handsVarId = typeof handsVar === 'number' ? handsVar : parseInt(handsVar, 10);
+        if (!Number.isNaN(handsVarId) && handsVarId === this.crowbarItemId) return true;
 
         const currentWeapon = typeof player.weapon === 'number' ? player.weapon : parseInt(player.weapon || 0);
         if (currentWeapon === mp.joaat('weapon_crowbar')) return true;
