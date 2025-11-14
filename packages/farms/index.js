@@ -6,6 +6,26 @@ let jobs = call("jobs");
 let timer = call("timer");
 
 const JOB_ID = 5;
+const FIELD_CENTER = { x: 2050.4384765625, y: 4920.4482421875, z: 40.96115493774414 };
+const PLOT_GRID_SIZE = 10;
+const PLOT_SPACING = 1.5;
+
+function generatePlots(center, size, spacing) {
+    const offsetBase = (size - 1) / 2;
+    const result = [];
+    for (let row = 0; row < size; row++) {
+        for (let col = 0; col < size; col++) {
+            const offsetX = (col - offsetBase) * spacing;
+            const offsetY = (row - offsetBase) * spacing;
+            result.push({
+                x: parseFloat((center.x + offsetX).toFixed(12)),
+                y: parseFloat((center.y + offsetY).toFixed(12)),
+                z: center.z,
+            });
+        }
+    }
+    return result;
+}
 
 module.exports = {
     jobId: JOB_ID,
@@ -19,26 +39,15 @@ module.exports = {
     minProcessTime: 10 * 1000,
     harvestsPerLevel: 100,
     maxLevel: 20,
-    farmMenuPos: new mp.Vector3(1960.572, 5163.742, 47.879 - 1),
-    vendorPos: new mp.Vector3(1956.281, 5157.392, 47.879 - 1),
-    plotsData: [
-        { x: 1955.971, y: 5167.531, z: 47.879 },
-        { x: 1958.412, y: 5169.893, z: 47.879 },
-        { x: 1960.947, y: 5172.225, z: 47.879 },
-        { x: 1963.324, y: 5174.594, z: 47.879 },
-        { x: 1965.781, y: 5176.942, z: 47.879 },
-        { x: 1968.267, y: 5179.286, z: 47.879 },
-        { x: 1970.684, y: 5181.613, z: 47.879 },
-        { x: 1973.169, y: 5183.971, z: 47.879 },
-        { x: 1975.603, y: 5186.305, z: 47.879 },
-        { x: 1978.062, y: 5188.655, z: 47.879 },
-        { x: 1980.506, y: 5191.008, z: 47.879 },
-        { x: 1982.968, y: 5193.329, z: 47.879 },
-    ],
+    farmMenuPos: new mp.Vector3(2023.072998046875, 4976.62158203125, 41.22634506225586 - 1),
+    vendorPos: new mp.Vector3(2014.1748046875, 4971.51318359375, 41.48575973510742 - 1),
+    fieldCenter: new mp.Vector3(FIELD_CENTER.x, FIELD_CENTER.y, FIELD_CENTER.z),
+    plotsData: generatePlots(FIELD_CENTER, PLOT_GRID_SIZE, PLOT_SPACING),
 
     plots: [],
     exchangeRate: 60,
     exchangeTimer: null,
+    fieldBlip: null,
 
     init() {
         this.createFarmMenuZone();
@@ -57,6 +66,14 @@ module.exports = {
 
     shutdown() {
         if (this.exchangeTimer) timer.remove(this.exchangeTimer);
+        if (this.fieldBlip) {
+            try {
+                this.fieldBlip.destroy();
+            } catch (e) {
+                // ignore destroy errors
+            }
+            this.fieldBlip = null;
+        }
         this.plots.forEach(plot => {
             if (plot.growthTimer) timer.remove(plot.growthTimer);
             if (plot.cooldownTimer) timer.remove(plot.cooldownTimer);
@@ -115,6 +132,22 @@ module.exports = {
     },
 
     createPlots() {
+        if (this.fieldBlip) {
+            try {
+                this.fieldBlip.destroy();
+            } catch (e) {
+                // ignore destroy errors
+            }
+            this.fieldBlip = null;
+        }
+        if (this.fieldCenter) {
+            this.fieldBlip = mp.blips.new(567, this.adjustBlipPos(this.fieldCenter), {
+                name: "Грядки фермы",
+                color: 2,
+                shortRange: false,
+                scale: 0.8,
+            });
+        }
         this.plots = this.plotsData.map((plotData, index) => {
             const position = new mp.Vector3(plotData.x, plotData.y, plotData.z);
             const colshape = mp.colshapes.newSphere(position.x, position.y, position.z, 1.2);
