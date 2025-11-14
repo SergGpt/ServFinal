@@ -130,7 +130,10 @@
 
 #shop .main .body .content .items .item img {
     height: 7.68vh;
+    width: 7.68vh;
     margin: 0 auto;
+    object-fit: contain;
+    display: block;
 }
 
 #shop .main .body .content .items .item .name {

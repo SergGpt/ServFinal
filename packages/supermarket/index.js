@@ -82,6 +82,18 @@ module.exports = {
                 description: 'Позволяет отремонтировать транспортное средство.',
                 products: 10
             },
+            {
+                id: 67,
+                name: 'Лом',
+                description: 'Прочная монтировка, пригодится в хозяйстве.',
+                products: 12
+            },
+            {
+                id: 246,
+                name: 'Бутылка вина',
+                description: 'Бутылка качественного вина.',
+                products: 8
+            },
         ]
     },
     async init() {
