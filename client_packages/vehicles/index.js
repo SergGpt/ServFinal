@@ -738,6 +738,40 @@ mp.events.add('vehicles.boats.rent.ans', (ans) => {
     }
 });
 
+mp.events.add('vehicles.moto.rent.enter', (enter, price, duration, models) => {
+    if (enter) {
+        const minutes = Math.floor(duration / 60000);
+        const items = models.map(model => ({
+            text: model.name,
+            values: [`$${price}`, `${minutes} мин`],
+            model: model.model
+        }));
+        items.push({ text: 'Закрыть' });
+
+        mp.callCEFV(`selectMenu.setItems('motoRent', ${JSON.stringify(items)});`);
+        mp.callCEFV(`selectMenu.notification = ''`);
+        mp.events.call('selectMenu.show', 'motoRent');
+    } else {
+        mp.callCEFV(`selectMenu.show = false`);
+    }
+});
+
+mp.events.add('vehicles.moto.rent.ans', (ans) => {
+    mp.callCEFV(`selectMenu.loader = false`);
+
+    switch (ans) {
+        case 0:
+            mp.callCEFV(`selectMenu.notification = 'Ошибка операции'`);
+            break;
+        case 1:
+            mp.events.call('vehicles.moto.rent.enter', false);
+            break;
+        case 2:
+            mp.callCEFV(`selectMenu.notification = 'Недостаточно денег'`);
+            break;
+    }
+});
+
 mp.keys.bind(0x45, true, () => { /// E
     if (!isInNewbieRent) return;
     if (mp.busy.includes()) return;

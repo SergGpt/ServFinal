@@ -28,7 +28,7 @@ module.exports = {
             return;
         }
 
-        if ((vehicle.key == 'newbierent' || vehicle.key == 'boatsrent') && vehicle.rentCharacterId != player.character.id && seat == 0) {
+        if ((vehicle.key == 'newbierent' || vehicle.key == 'boatsrent' || vehicle.key == 'motorent') && vehicle.rentCharacterId != player.character.id && seat == 0) {
             player.removeFromVehicle();
             player.call('notifications.push.warning', ["Транспорт арендуется другим игроком", "Нет доступа"]);
             return;
@@ -79,6 +79,14 @@ module.exports = {
             timer.remove(player.indicatorsUpdateTimer);
         }
         if (player.vehicle) player.vehicle.lastPlayerTime = Date.now();
+        if (player.motoRentVehicle && mp.vehicles.exists(player.motoRentVehicle)) {
+            let veh = player.motoRentVehicle;
+            if (veh.motorentTimer) {
+                timer.remove(veh.motorentTimer);
+            }
+            veh.destroy();
+        }
+        delete player.motoRentVehicle;
     },
     "vehicleDeath": (vehicle) => {
         vehicles.respawnVehicle(vehicle);
@@ -719,6 +727,82 @@ module.exports = {
             player.rentBoat = veh;
             mp.events.call('playerEnterVehicle', player, veh, 0);
         })
+    },
+    "vehicles.moto.rent.spawn": async (player, modelName) => {
+        if (!player.character) return;
+        if (!player.motoRentAvailable) return player.call('vehicles.moto.rent.ans', [0]);
+
+        const config = vehicles.motoRent;
+        const option = config.models.find(x => x.model === modelName);
+        if (!option) return player.call('vehicles.moto.rent.ans', [0]);
+
+        if (player.character.cash < config.price) return player.call('vehicles.moto.rent.ans', [2]);
+
+        money.removeCash(player, config.price, async (res) => {
+            if (!res) return player.call('vehicles.moto.rent.ans', [0]);
+
+            player.call('vehicles.moto.rent.ans', [1]);
+
+            if (player.motoRentVehicle && mp.vehicles.exists(player.motoRentVehicle)) {
+                let oldVeh = player.motoRentVehicle;
+                if (oldVeh.motorentTimer) {
+                    timer.remove(oldVeh.motorentTimer);
+                }
+                oldVeh.destroy();
+            }
+            delete player.motoRentVehicle;
+
+            const color = utils.randomInteger(1, 158);
+            let veh = {
+                modelName: modelName,
+                x: config.spawn.x,
+                y: config.spawn.y,
+                z: config.spawn.z,
+                h: config.spawn.h,
+                d: player.dimension,
+                color1: color,
+                color2: color,
+                license: 0,
+                key: "motorent",
+                owner: 0,
+                fuel: 40,
+                mileage: 0,
+                plate: "RENT",
+                destroys: 0,
+            };
+            veh = await vehicles.spawnVehicle(veh);
+            veh.rentCharacterId = player.character.id;
+            veh.motorentOwnerId = player.character.id;
+
+            veh.motorentTimer = timer.add(() => {
+                try {
+                    if (!mp.vehicles.exists(veh)) return;
+                    const driver = vehicles.getDriver(veh);
+                    if (driver && mp.players.exists(driver)) {
+                        driver.call('notifications.push.warning', ['Время аренды истекло', 'Аренда мототехники']);
+                        driver.removeFromVehicle();
+                    }
+                    const owner = mp.players.toArray().find(x => x.character && x.character.id === veh.motorentOwnerId);
+                    if (owner) {
+                        if (owner !== driver && mp.players.exists(owner)) {
+                            owner.call('notifications.push.warning', ['Время аренды истекло', 'Аренда мототехники']);
+                        }
+                        if (owner.motoRentVehicle === veh) delete owner.motoRentVehicle;
+                    }
+                    veh.engineStatus = false;
+                    veh.engine = false;
+                    veh.setVariable("engine", false);
+                    veh.destroy();
+                } catch (err) {
+                    console.log(err);
+                }
+            }, config.duration);
+
+            player.putIntoVehicle(veh, 0);
+            player.motoRentVehicle = veh;
+            notifs.success(player, `Вы арендовали мототехнику на 20 минут`, 'Аренда мототехники');
+            mp.events.call('playerEnterVehicle', player, veh, 0);
+        }, 'Аренда мототехники');
     },
     "vehicles.position.set": (player, vehicle, fixedPosition) => {
         const position = JSON.parse(fixedPosition);
