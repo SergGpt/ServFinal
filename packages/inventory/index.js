@@ -859,11 +859,32 @@ getName(itemId) {
         return params;
     },
     updateParam(player, item, key, value) {
-        var param = this.getParam(item, key);
-        if (!param) return;
-        param.value = value;
-        param.save();
-        player.call(`inventory.setItemParam`, [item.id, key, value]);
+        if (!item) return null;
+
+        if (!item.params) item.params = [];
+
+        let param = this.getParam(item, key);
+        if (!param) {
+            param = db.Models.CharacterInventoryParam.build({
+                itemId: item.id,
+                key,
+                value,
+            });
+            item.params.push(param);
+        } else {
+            param.value = value;
+        }
+
+        if (param && typeof param.save === 'function') {
+            if (!param.itemId && item.id) param.itemId = item.id;
+            if (param.itemId) param.save();
+        }
+
+        if (player && typeof player.call === 'function' && item.id) {
+            player.call('inventory.setItemParam', [item.id, key, value]);
+        }
+
+        return param;
     },
     findFreeSlot(player, itemId) {
         // debug(`findFreeSlot | itemId: ${itemId}`)
@@ -1365,9 +1386,13 @@ getName(itemId) {
     },
     giveWeapon(player, hash, ammo) {
         if (!hash) return;
+
+        let ammoCount = parseInt(ammo);
+        if (Number.isNaN(ammoCount) || ammoCount < 0) ammoCount = 0;
+
         player.setWeaponAmmo(hash, 0);
         player.giveWeapon(hash, 0);
-        player.setWeaponAmmo(hash, parseInt(ammo));
+        player.setWeaponAmmo(hash, ammoCount);
         player.call(`weapons.giveWeapon`, [hash.toString()]);
     },
     removeWeapon(player, hash) {

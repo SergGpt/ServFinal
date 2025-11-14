@@ -144,20 +144,27 @@ module.exports = {
             return outError('Возьмите в руки монтировку');
         }
 
-        const ensureParam = (key, value) => inventory.updateParam(player, crowbar, key, value);
         let rearmed = false;
+        const ensureParam = (key, value, forceSync = false) => {
+            const existing = inventory.getParam(crowbar, key);
+            if (!existing) {
+                const created = inventory.updateParam(player, crowbar, key, value);
+                if (forceSync) rearmed = true;
+                return created;
+            }
 
-        const weaponParam = inventory.getParam(crowbar, 'weaponHash');
-        if (!weaponParam) {
-            ensureParam('weaponHash', mp.joaat('weapon_crowbar'));
-            rearmed = true;
-        }
+            if (existing.value !== value) {
+                inventory.updateParam(player, crowbar, key, value);
+                if (forceSync) rearmed = true;
+                return inventory.getParam(crowbar, key);
+            }
 
-        const modelParam = inventory.getParam(crowbar, 'model');
-        if (!modelParam) ensureParam('model', 'weapon_crowbar');
+            return existing;
+        };
 
-        let crowbarHealth = inventory.getParam(crowbar, 'health');
-        if (!crowbarHealth) crowbarHealth = ensureParam('health', 100);
+        ensureParam('weaponHash', mp.joaat('weapon_crowbar'), true);
+        ensureParam('model', 'weapon_crowbar');
+        let crowbarHealth = ensureParam('health', 100);
 
         if (rearmed) inventory.syncHandsItem(player, crowbar);
 

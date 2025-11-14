@@ -48,6 +48,7 @@ module.exports = {
                 params.weaponHash = mp.joaat('weapon_crowbar');
                 params.model = 'weapon_crowbar';
                 params.health = 100;
+                params.ammo = 0;
                 params.owner = player.character.id;
                 break;
             case 56:
