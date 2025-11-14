@@ -19,11 +19,8 @@ module.exports = {
     minProcessTime: 10 * 1000,
     harvestsPerLevel: 100,
     maxLevel: 20,
-
-    // Точки (меню и скупщик доступны всем — кнопка "Устроиться" внутри)
-    farmMenuPos: new mp.Vector3(1960.572, 5163.742, 47.879),
-    vendorPos:   new mp.Vector3(1956.281, 5157.392, 47.879),
-
+    farmMenuPos: new mp.Vector3(1960.572, 5163.742, 47.879 - 1),
+    vendorPos: new mp.Vector3(1956.281, 5157.392, 47.879 - 1),
     plotsData: [
         { x: 1955.971, y: 5167.531, z: 47.879 },
         { x: 1958.412, y: 5169.893, z: 47.879 },
@@ -52,7 +49,9 @@ module.exports = {
 
         mp.players.forEach(player => {
             if (!player || !player.character) return;
-            if (player.character.job === this.jobId) this.startJob(player);
+            if (player.character.job === this.jobId) {
+                this.startJob(player);
+            }
         });
     },
 
@@ -64,18 +63,24 @@ module.exports = {
         });
     },
 
-    // Зона "Фермерское хозяйство" — открываем всем
     createFarmMenuZone() {
         const pos = this.farmMenuPos;
         mp.markers.new(1, pos, 0.75, { color: [120, 200, 80, 120] });
         const colshape = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 1.5);
         colshape.onEnter = (player) => {
-            // console.log('[FARMS] enter farm menu zone', player?.id);
-            this.showMainMenu(player);
+            if (!player || !player.character) return;
+            player.farmAtMenuZone = true;
+            if (this.isFarmer(player)) {
+                this.showMainMenu(player);
+            } else {
+                player.call('farms.employment.show');
+            }
         };
         colshape.onExit = (player) => {
             if (!player || !player.character) return;
+            player.farmAtMenuZone = false;
             player.call('farms.menu.hide');
+            player.call('farms.employment.hide');
         };
         mp.blips.new(501, this.adjustBlipPos(pos), {
             name: "Ферма",
@@ -85,12 +90,12 @@ module.exports = {
         });
     },
 
-    // Зона "Скупщик" — тоже всем
     createVendorZone() {
         const pos = this.vendorPos;
         mp.markers.new(1, pos, 0.75, { color: [200, 140, 40, 120] });
         const colshape = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 1.5);
         colshape.onEnter = (player) => {
+            if (!this.isFarmer(player)) return;
             this.showVendorMenu(player);
         };
         colshape.onExit = (player) => {
@@ -138,6 +143,10 @@ module.exports = {
         data.harvest = data.harvest || 0;
         this.syncPlotsForPlayer(player);
         this.sendMenuUpdate(player);
+        player.call('farms.employment.hide');
+        if (player.farmAtMenuZone) {
+            this.showMainMenu(player);
+        }
         notifs.info(player, 'Вы приступили к работе фермера', 'Ферма');
     },
 
@@ -148,11 +157,17 @@ module.exports = {
         player.call('farms.reset');
         player.call('farms.menu.hide');
         player.call('farms.vendor.hide');
+        if (player.farmAtMenuZone) {
+            player.call('farms.employment.show');
+        } else {
+            player.call('farms.employment.hide');
+        }
     },
 
     cleanupPlayer(player) {
         if (!player) return;
         this.releasePlayerPlots(player);
+        if (player.farmAtMenuZone) player.farmAtMenuZone = false;
     },
 
     releasePlayerPlots(player) {
@@ -174,7 +189,12 @@ module.exports = {
     },
 
     ensureJobData(player) {
-        if (!player.farmJob) player.farmJob = { seeds: 0, harvest: 0 };
+        if (!player.farmJob) {
+            player.farmJob = {
+                seeds: 0,
+                harvest: 0,
+            };
+        }
         return player.farmJob;
     },
 
@@ -183,6 +203,7 @@ module.exports = {
     },
 
     onPlotEnter(player, index) {
+        if (!this.isFarmer(player)) return;
         const plot = this.plots[index];
         if (!plot) return;
         const info = this.serializePlotForPlayer(plot, player);
@@ -195,12 +216,12 @@ module.exports = {
     },
 
     plantSeed(player, index) {
-        if (!this.isFarmer(player)) return notifs.warning(player, 'Устройтесь фермером у НПС', 'Ферма');
+        if (!this.isFarmer(player)) return;
         const plot = this.plots[index];
         if (!plot) return notifs.error(player, 'Грядка не найдена', 'Ферма');
         if (plot.state !== 'empty') {
             if (plot.state === 'growing') return notifs.warning(player, 'Эта грядка уже занята посевами', 'Ферма');
-            if (plot.state === 'ready') return notifs.warning(player, 'Сначала соберите урожай', 'Ферма');
+            if (plot.state === 'ready') return notifs.warning(player, 'Сначала соберите урожай с этой грядки', 'Ферма');
             if (plot.state === 'cooldown') return notifs.warning(player, 'Грядка восстанавливается', 'Ферма');
             return notifs.warning(player, 'Эта грядка недоступна', 'Ферма');
         }
@@ -241,7 +262,7 @@ module.exports = {
     },
 
     harvestPlot(player, index) {
-        if (!this.isFarmer(player)) return notifs.warning(player, 'Устройтесь фермером у НПС', 'Ферма');
+        if (!this.isFarmer(player)) return;
         const plot = this.plots[index];
         if (!plot) return notifs.error(player, 'Грядка не найдена', 'Ферма');
         if (plot.state !== 'ready') {
@@ -296,7 +317,7 @@ module.exports = {
     },
 
     buySeeds(player, amount) {
-        if (!this.isFarmer(player)) return notifs.warning(player, 'Устройтесь фермером у НПС', 'Ферма');
+        if (!this.isFarmer(player)) return;
         amount = parseInt(amount);
         if (isNaN(amount) || amount <= 0) return notifs.error(player, 'Некорректное количество семян', 'Ферма');
         amount = Math.clamp(amount, 1, 100);
@@ -312,7 +333,7 @@ module.exports = {
     },
 
     sellHarvest(player) {
-        if (!this.isFarmer(player)) return notifs.warning(player, 'Устройтесь фермером у НПС', 'Ферма');
+        if (!this.isFarmer(player)) return;
         const data = this.ensureJobData(player);
         if (!data.harvest || data.harvest <= 0) return notifs.warning(player, 'У вас нет урожая для продажи', 'Ферма');
         const amount = data.harvest;
@@ -326,13 +347,16 @@ module.exports = {
     },
 
     showMainMenu(player) {
-        const info = this.collectMenuData(player);
-        player.call('farms.menu.show', [info]);
+        if (!this.isFarmer(player)) return;
+        this.sendMenuUpdate(player);
+        player.call('farms.employment.hide');
+        player.call('farms.menu.show', [this.collectMenuData(player)]);
     },
 
     showVendorMenu(player) {
-        const info = this.collectMenuData(player);
-        player.call('farms.vendor.show', [info]);
+        if (!this.isFarmer(player)) return;
+        this.sendMenuUpdate(player);
+        player.call('farms.vendor.show', [this.collectMenuData(player)]);
     },
 
     syncPlotsForPlayer(player) {
@@ -373,21 +397,25 @@ module.exports = {
             case 'empty':
                 result.state = 'available';
                 result.owner = null;
-                result.action = this.isFarmer(player) && this.ensureJobData(player).seeds > 0 ? 'plant' : null;
+                result.action = this.ensureJobData(player).seeds > 0 ? 'plant' : null;
                 break;
             case 'growing':
                 if (plot.ownerId === player.id) {
                     result.state = 'growing';
                     result.owner = null;
                     result.timeLeft = Math.max(0, plot.readyAt - now);
-                } else result.state = 'busy';
+                } else {
+                    result.state = 'busy';
+                }
                 break;
             case 'ready':
                 if (plot.ownerId === player.id) {
                     result.state = 'ready';
                     result.owner = null;
                     result.action = 'harvest';
-                } else result.state = 'busy';
+                } else {
+                    result.state = 'busy';
+                }
                 break;
             case 'cooldown':
                 result.state = 'cooldown';
@@ -407,7 +435,8 @@ module.exports = {
     },
 
     getProcessTime(range, level) {
-        const [min, max] = range;
+        const min = range[0];
+        const max = range[1];
         const randomTime = Math.floor(Math.random() * (max - min + 1)) + min;
         const reduced = randomTime - level * this.levelReductionMs;
         return Math.max(this.minProcessTime, reduced);
@@ -430,18 +459,18 @@ module.exports = {
         const exp = skill ? skill.exp : 0;
         const expPerLevel = this.getExpPerLevel();
         const level = Math.min(this.maxLevel, Math.floor(exp / expPerLevel));
+        const nextLevelExp = Math.min(this.maxLevel * expPerLevel, (level + 1) * expPerLevel);
         const progress = level >= this.maxLevel ? 1 : (exp - level * expPerLevel) / expPerLevel;
         const totalHarvest = Math.floor(exp / this.getHarvestExp(1));
         const toNext = level >= this.maxLevel ? 0 : Math.max(0, (level + 1) * this.harvestsPerLevel - totalHarvest);
 
         return {
-            isFarmer: this.isFarmer(player),
             level,
             maxLevel: this.maxLevel,
             progress: Math.round(progress * 100),
             seeds: data.seeds || 0,
             harvest: data.harvest || 0,
-            totalHarvest,
+            totalHarvest: totalHarvest,
             toNext,
             exchangeRate: this.exchangeRate,
             seedPrice: this.seedsPrice,
@@ -451,6 +480,7 @@ module.exports = {
     },
 
     sendMenuUpdate(player) {
+        if (!this.isFarmer(player)) return;
         const info = this.collectMenuData(player);
         player.call('farms.menu.update', [info]);
     },

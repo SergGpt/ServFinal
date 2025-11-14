@@ -14,12 +14,19 @@ mp.lootboxes = {
         try {
             const player = mp.players.local;
             const handsItem = mp.inventory?.getHandsItem ? mp.inventory.getHandsItem(player) : null;
-            if (handsItem && (handsItem.itemId === CROWBAR_ITEM_ID || handsItem.model === 'weapon_crowbar')) {
+            const itemId = handsItem && handsItem.itemId != null
+                ? (typeof handsItem.itemId === 'number' ? handsItem.itemId : parseInt(handsItem.itemId, 10))
+                : null;
+            const hasCrowbarItemId = itemId != null && !Number.isNaN(itemId) && itemId === CROWBAR_ITEM_ID;
+            if (handsItem && (hasCrowbarItemId || handsItem.model === 'weapon_crowbar')) {
                 return true;
             }
 
             const handsVar = player.getVariable('hands');
-            if (handsVar === CROWBAR_ITEM_ID) return true;
+            const handsVarId = handsVar != null
+                ? (typeof handsVar === 'number' ? handsVar : parseInt(handsVar, 10))
+                : null;
+            if (handsVarId != null && !Number.isNaN(handsVarId) && handsVarId === CROWBAR_ITEM_ID) return true;
 
             const currentWeapon = typeof player.weapon === 'number' ? player.weapon : parseInt(player.weapon || 0);
             return currentWeapon === CROWBAR_HASH;

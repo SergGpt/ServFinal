@@ -1,6 +1,23 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600&family=Roboto+Condensed:wght@300;400;600&family=Share+Tech+Mono&family=Oswald:wght@400;500&family=Russo+One&display=swap');
+
+:root {
+    --inventory-bg: #0d0f10;
+    --inventory-bg-secondary: #121416;
+    --inventory-panel: #1a1d1f;
+    --inventory-grid: #2a2e31;
+    --inventory-accent-1: #9be500;
+    --inventory-accent-2: #a8673b;
+    --inventory-accent-3: #66ffcc;
+    --inventory-text: #e6e6e6;
+    --inventory-text-secondary: #9aa0a6;
+    --inventory-error: #ff5e57;
+    --inventory-warning: #fbbc04;
+    --inventory-success: #34a853;
+}
+
 #inventory {
-    color: #ddd;
-    font-family: Roboto;
+    color: var(--inventory-text);
+    font-family: 'Inter', 'Roboto Condensed', sans-serif;
     height: 88.6vh;
     left: 50%;
     opacity: 0;
@@ -9,11 +26,38 @@
     transform: translate(-50%, -50%);
     /* width: 126.3vh; */
     z-index: 100;
+    background: radial-gradient(circle at 20% 20%, rgba(155, 229, 0, 0.05), transparent 45%),
+        radial-gradient(circle at 80% 15%, rgba(102, 255, 204, 0.06), transparent 50%),
+        radial-gradient(circle at 50% 80%, rgba(168, 103, 59, 0.08), transparent 55%),
+        var(--inventory-bg);
+    box-shadow: 0 0 4vh rgba(0, 0, 0, 0.75), 0 0 2vh rgba(155, 229, 0, 0.05);
+    border: 1px solid rgba(42, 46, 49, 0.8);
+    overflow: hidden;
+}
+
+#inventory::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.13'/%3E%3C/svg%3E");
+    background-size: 24vh;
+    mix-blend-mode: screen;
+    opacity: 0.35;
+}
+
+#inventory::after {
+    content: "";
+    position: absolute;
+    inset: -4vh;
+    pointer-events: none;
+    background: radial-gradient(circle at center, transparent 50%, rgba(6, 7, 8, 0.85) 90%);
 }
 
 #inventory>.close {
     height: 5vh;
     display: flex;
+    position: relative;
 }
 
 #inventory>.close>img {
@@ -21,10 +65,13 @@
     margin-left: auto;
     margin-right: 0;
     opacity: .5;
+    filter: drop-shadow(0 0 0.8vh rgba(155, 229, 0, 0.35));
+    transition: opacity .2s ease, filter .3s ease;
 }
 
 #inventory>.close>img:hover {
     opacity: 1;
+    filter: drop-shadow(0 0 1.6vh rgba(155, 229, 0, 0.75));
 }
 
 #inventory.non-environment>.body {
@@ -32,14 +79,38 @@
 }
 
 #inventory>.body {
-    background-image: linear-gradient(122.33deg, rgba(255, 66, 247, 0.08) 0%, rgba(255, 66, 247, 0) 69.38%), linear-gradient(287.89deg, rgba(36, 150, 255, 0.08) 0%, rgba(36, 150, 255, 0) 86.36%), linear-gradient(106.73deg, #1C1C1C 0.01%, rgba(19, 19, 19, 0.96) 38.95%, rgba(31, 31, 31, 0.98) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: linear-gradient(125deg, rgba(18, 20, 22, 0.98) 0%, rgba(12, 13, 15, 0.94) 45%, rgba(18, 20, 22, 0.98) 100%);
+    border: 1px solid rgba(42, 46, 49, 0.95);
     box-sizing: border-box;
     display: grid;
     grid-gap: 2.77vh;
     grid-template-columns: repeat(3, min-content);
     height: 72vh;
     padding: 2.77vh;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 0 2vh rgba(0, 0, 0, 0.65), 0 0 1vh rgba(155, 229, 0, 0.08);
+}
+
+#inventory>.body::before {
+    content: "";
+    position: absolute;
+    inset: 1.4vh;
+    border: 1px solid rgba(66, 70, 74, 0.5);
+    pointer-events: none;
+    box-shadow: inset 0 0 0.6vh rgba(0, 0, 0, 0.85);
+    border-radius: 0.8vh;
+}
+
+#inventory>.body::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at 0 0, rgba(102, 255, 204, 0.08), transparent 35%),
+        radial-gradient(circle at 100% 0, rgba(155, 229, 0, 0.06), transparent 35%),
+        radial-gradient(circle at 0 100%, rgba(168, 103, 59, 0.08), transparent 45%);
+    opacity: 0.6;
 }
 
 #inventory>.body>div {
@@ -48,6 +119,33 @@
     height: -webkit-fill-available;
     overflow: hidden;
     width: 36.5vh;
+    background: linear-gradient(160deg, rgba(26, 29, 31, 0.95) 0%, rgba(13, 15, 16, 0.85) 100%);
+    border: 1px solid rgba(42, 46, 49, 0.6);
+    box-shadow: inset 0 0 1.2vh rgba(0, 0, 0, 0.7);
+    position: relative;
+}
+
+#inventory>.body>div::before,
+#inventory>.body>div::after {
+    content: "";
+    position: absolute;
+    width: 1.3vh;
+    height: 1.3vh;
+    background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.25) 0%, rgba(128, 128, 128, 0.1) 35%, rgba(0, 0, 0, 0.8) 100%);
+    border: 1px solid rgba(10, 11, 12, 0.8);
+    box-shadow: inset 0 0.2vh 0.4vh rgba(0, 0, 0, 0.6), 0 0 0.4vh rgba(0, 0, 0, 0.8);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+#inventory>.body>div::before {
+    top: 0.8vh;
+    left: 0.8vh;
+}
+
+#inventory>.body>div::after {
+    bottom: 0.8vh;
+    right: 0.8vh;
 }
 
 #inventory>.body .equipment {
@@ -70,31 +168,40 @@
     height: 53.88vh;
     margin: auto;
     margin-top: .3vh;
+    position: relative;
+    border: 1px solid rgba(42, 46, 49, 0.6);
+    background-color: rgba(10, 12, 13, 0.75);
+    box-shadow: inset 0 0 1.6vh rgba(0, 0, 0, 0.9);
 }
 
 #inventory>.body .equipment .body-items .column:empty {
-    background-image: linear-gradient(106.73deg, rgba(0, 0, 0, 0.24) 0.01%, rgba(0, 0, 0, 0.32) 33.33%, rgba(0, 0, 0, 0) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background-image: linear-gradient(140deg, rgba(16, 20, 22, 0.9) 0%, rgba(18, 22, 24, 0.35) 100%);
+    border: 1px solid rgba(42, 46, 49, 0.6);
     box-sizing: border-box;
     background-position: center;
     background-repeat: no-repeat;
     display: flex;
+    position: relative;
+    overflow: hidden;
 }
 
 #inventory .body-items .column:not(:empty) {
-    background: rgba(255, 255, 255, .05);
+    background: rgba(102, 255, 204, 0.12);
+    border: 1px solid rgba(102, 255, 204, 0.25);
+    box-shadow: 0 0 1.2vh rgba(102, 255, 204, 0.2);
 }
 
 #inventory .body-items .column.active {
-    background-color: rgba(52, 222, 59, 0.2);
+    background-color: rgba(155, 229, 0, 0.28);
+    box-shadow: 0 0 1.6vh rgba(155, 229, 0, 0.35), inset 0 0 0.8vh rgba(155, 229, 0, 0.25);
 }
 
 #inventory .body-items .column.active:empty:hover {
-    background-color: rgba(255, 255, 255, 0.4);
+    background-color: rgba(102, 255, 204, 0.35);
 }
 
 #inventory .body-items .column:before {
-    opacity: .2;
+    opacity: .3;
 }
 
 #inventory .body-items .column.active:before {
@@ -109,6 +216,7 @@
     background-position-x: center;
     background-repeat: no-repeat;
     background-size: 65%;
+    filter: saturate(0.85);
 }
 
 #inventory .body-items .column .item {
@@ -267,54 +375,98 @@
 
 
 #inventory>.body .header {
-    /*background-color: rgba(255, 255, 255, 0.1);*/
-    color: rgba(255, 255, 255, .5);
+    color: var(--inventory-text-secondary);
     font-size: 1.3vh;
     height: 3.4vh;
+    display: flex;
+    align-items: center;
+    padding: 0 1.2vh;
+    letter-spacing: 0.08em;
+    position: relative;
+    text-shadow: 0 0 0.6vh rgba(0, 0, 0, 0.8);
 }
 
 #inventory .header>.title {
-    color: #fff;
-    font-size: 1.66vh;
-    font-weight: 900;
+    color: var(--inventory-text);
+    font-size: 1.8vh;
+    font-weight: 500;
     margin-right: auto;
     text-transform: uppercase;
+    letter-spacing: 0.24em;
+    font-family: 'Bebas Neue', 'Russo One', 'Oswald', sans-serif;
+    position: relative;
+    overflow: hidden;
+}
+
+#inventory .header>.title::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 0%, rgba(102, 255, 204, 0.15) 45%, transparent 90%);
+    opacity: 0;
+    transform: translateX(-40%);
+    transition: transform .6s ease, opacity .6s ease;
+}
+
+#inventory .header>.title:hover::after {
+    opacity: 1;
+    transform: translateX(40%);
 }
 
 #inventory>.body .block {
-    background-color: rgba(255, 255, 255, 0.05);
-    /* display: grid; */
+    background-color: rgba(12, 14, 16, 0.85);
     height: 61vh;
     margin-top: 1.2vh;
     overflow-x: hidden;
     overflow-y: auto;
     padding: 1vh;
     padding-bottom: 0;
+    border: 1px solid rgba(42, 46, 49, 0.7);
+    box-shadow: inset 0 0 1.6vh rgba(0, 0, 0, 0.8);
+    position: relative;
 }
 
 #inventory>.body .block .container>.header {
-    background-color: rgba(255, 255, 255, 0.05);
+    background: linear-gradient(90deg, rgba(18, 21, 23, 0.8) 0%, rgba(10, 12, 13, 0.65) 100%);
     display: grid;
-    font-size: 1.3vh!important;
+    font-size: 1.2vh!important;
     grid-template-columns: 5vh 1fr 5vh;
     height: 3.3vh;
     margin-bottom: 1vh;
     margin-top: .5vh;
     width: 34.7vh;
+    border: 1px solid rgba(42, 46, 49, 0.8);
+    box-shadow: inset 0 0 0.8vh rgba(0, 0, 0, 0.8);
+    position: relative;
+    overflow: hidden;
 }
 
 #inventory>.body .block .container>.header>div {
     margin: auto;
+    color: var(--inventory-text-secondary);
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 0.18em;
 }
 
 #inventory>.body .block .container>.header>img {
     height: 3.5vh;
     margin: auto;
     width: 3.5vh;
+    filter: drop-shadow(0 0 0.5vh rgba(102, 255, 204, 0.35));
+    transition: transform .3s ease, filter .3s ease;
 }
 
 #inventory>.body .block .container>.header>img.hidden {
     transform: scale(-1);
+}
+
+#inventory>.body .block .container>.header:hover>img {
+    transform: scale(1.08) rotate(-2deg);
+    filter: drop-shadow(0 0 1.4vh rgba(155, 229, 0, 0.8));
+}
+
+#inventory>.body .block .container>.header:hover>img.hidden {
+    transform: scale(-1.08) rotate(2deg);
 }
 
 #inventory>.body .block .container>.pockets {
@@ -329,29 +481,36 @@
     height: fit-content;
     margin-bottom: 1vh;
     width: fit-content;
+    background: rgba(12, 14, 16, 0.85);
+    padding: 0.4vh;
+    border: 1px solid rgba(42, 46, 49, 0.6);
+    box-shadow: inset 0 0 1vh rgba(0, 0, 0, 0.7);
 }
 
 #inventory>.body .block .container>.pockets>.items .column {
-    background-color: rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background-color: rgba(13, 16, 18, 0.8);
+    border: 1px solid rgba(42, 46, 49, 0.8);
     box-sizing: border-box;
     height: 2.77vh;
     width: 2.77vh;
+    transition: background-color .2s ease, box-shadow .3s ease;
 }
 
 #inventory>.body .block .container>.pockets>.items .column.access:not(.deny) {
-    background-color: rgba(52, 222, 59, 0.2);
+    background-color: rgba(155, 229, 0, 0.3);
+    box-shadow: 0 0 1vh rgba(155, 229, 0, 0.4);
 }
 
 #inventory>.body .block .container>.pockets>.items .column.deny {
-    background-color: rgba(222, 52, 52, 0.3);
+    background-color: rgba(255, 94, 87, 0.35);
     box-shadow: 0px 10px 25px rgba(0, 0, 0, 0.45);
 }
 
 #inventory>.body .block .container>.pockets>.items .column .item {
-    background-color: rgba(255, 255, 255, .05);
+    background-color: rgba(102, 255, 204, 0.1);
     margin-top: -1px;
     margin-left: -1px;
+    border: 1px solid rgba(102, 255, 204, 0.18);
 }
 
 #inventory .container.drag {
@@ -373,32 +532,39 @@
 }
 
 #inventory .hands {
-    background-image: linear-gradient(106.73deg, rgba(0, 0, 0, 0.24) 0.01%, rgba(0, 0, 0, 0.32) 33.33%, rgba(0, 0, 0, 0) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background-image: linear-gradient(135deg, rgba(18, 21, 23, 0.95) 0%, rgba(10, 12, 13, 0.85) 100%);
+    border: 1px solid rgba(42, 46, 49, 0.8);
     box-sizing: border-box;
     height: 10vh;
     margin-left: 2.68vh;
     width: 36.6vh;
+    box-shadow: inset 0 0 1vh rgba(0, 0, 0, 0.7);
+    position: relative;
 }
 
 #inventory .hands.active .slot {
-    background-color: rgba(52, 222, 59, 0.2)!important;
+    background-color: rgba(155, 229, 0, 0.28)!important;
+    box-shadow: inset 0 0 0.8vh rgba(155, 229, 0, 0.25);
 }
 
 #inventory .hands.blocked .slot {
-    background-color: rgba(222, 52, 52, 0.3);
+    background-color: rgba(255, 94, 87, 0.35);
 }
 
 #inventory .hands .slot {
     display: flex;
     height: 100%;
     width: 100%;
+    transition: background-color .2s ease, box-shadow .3s ease;
+    background: linear-gradient(145deg, rgba(12, 14, 16, 0.85) 0%, rgba(18, 21, 23, 0.55) 100%);
+    border: 1px solid rgba(42, 46, 49, 0.8);
 }
 
 #inventory .hands .slot .img {
     display: flex;
     margin: auto;
-    opacity: .5;
+    opacity: .6;
+    filter: drop-shadow(0 0 0.6vh rgba(102, 255, 204, 0.35));
 }
 
 #inventory .hands .slot .img img {
@@ -411,14 +577,16 @@
 }
 
 #inventory .hands .slot.focus {
-    background-color: rgba(255, 255, 255, 0.4)!important;
+    background-color: rgba(102, 255, 204, 0.35)!important;
+    box-shadow: 0 0 1.4vh rgba(102, 255, 204, 0.45);
 }
 
 #inventory .hands .slot.busy {
     background-image: none;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(18, 21, 23, 0.65);
     width: 100%;
     margin: 0;
+    border: 1px solid rgba(42, 46, 49, 0.8);
 }
 
 #inventory .hands .slot .item {
@@ -433,25 +601,28 @@
 }
 
 #inventory .hotkeys {
-    background-image: linear-gradient(122.33deg, rgba(255, 66, 247, 0.08) 0%, rgba(255, 66, 247, 0) 69.38%), linear-gradient(287.89deg, rgba(36, 150, 255, 0.08) 0%, rgba(36, 150, 255, 0) 86.36%), linear-gradient(106.73deg, #1C1C1C 0.01%, rgba(19, 19, 19, 0.96) 38.95%, rgba(31, 31, 31, 0.98) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background-image: linear-gradient(110deg, rgba(18, 21, 23, 0.95) 0%, rgba(13, 15, 16, 0.8) 100%);
+    border: 1px solid rgba(42, 46, 49, 0.8);
     box-sizing: border-box;
     display: flex;
     height: 9.2vh;
     margin-top: 2.3vh;
     padding-left: 1.85vh;
     width: 100%;
+    box-shadow: inset 0 0 1.2vh rgba(0, 0, 0, 0.75);
+    position: relative;
 }
 
 #inventory .hotkeys .key {
-    background-image: linear-gradient(106.73deg, rgba(0, 0, 0, 0.24) 0.01%, rgba(0, 0, 0, 0.32) 33.33%, rgba(0, 0, 0, 0) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background-image: linear-gradient(130deg, rgba(13, 16, 18, 0.95) 0%, rgba(12, 14, 15, 0.65) 100%);
+    border: 1px solid rgba(42, 46, 49, 0.8);
     box-sizing: border-box;
     display: flex;
     height: 7.4vh;
     margin: auto .4vh;
     position: relative;
     width: 7.4vh;
+    transition: transform .2s ease, box-shadow .3s ease, border-color .3s ease;
 }
 
 #inventory .hotkeys .key .item {
@@ -463,18 +634,33 @@
 #inventory .hotkeys .item .count {
     /* top: -0.2vh;
     left: -0.2vh; */
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 0.08em;
+    color: var(--inventory-text);
+    text-shadow: 0 0 0.6vh rgba(0, 0, 0, 0.8);
 }
 
 #inventory .hotkeys .key.active {
-    background-color: rgba(52, 222, 59, 0.2);
+    background-color: rgba(155, 229, 0, 0.28);
+    border-color: rgba(155, 229, 0, 0.65);
+    box-shadow: 0 0 1.6vh rgba(155, 229, 0, 0.45);
 }
 
 #inventory .hotkeys>.key.focus {
-    background-color: rgba(255, 255, 255, 0.4);
+    background-color: rgba(102, 255, 204, 0.35);
+    border-color: rgba(102, 255, 204, 0.6);
+    box-shadow: 0 0 1.6vh rgba(102, 255, 204, 0.45);
 }
 
 #inventory .hotkeys>.key.has {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(26, 29, 31, 0.7);
+    border-color: rgba(42, 46, 49, 0.8);
+}
+
+#inventory .hotkeys .key:hover {
+    transform: translateY(-0.3vh);
+    box-shadow: 0 0 1.2vh rgba(155, 229, 0, 0.35);
+    border-color: rgba(155, 229, 0, 0.4);
 }
 
 #inventory .item {
@@ -484,6 +670,12 @@
     background-size: contain;
     margin: auto;
     position: relative;
+    transition: transform .2s ease, filter .3s ease;
+}
+
+#inventory .item:hover {
+    transform: translateY(-0.2vh) scale(1.04);
+    filter: drop-shadow(0 0 1vh rgba(102, 255, 204, 0.35));
 }
 
 #inventory .item.dragging {
@@ -491,35 +683,41 @@
 }
 
 #inventory .item.found {
-    background-color: rgba(0, 87, 255, 0.3)!important;
+    background-color: rgba(102, 255, 204, 0.3)!important;
+    box-shadow: 0 0 1.4vh rgba(102, 255, 204, 0.45);
 }
 #inventory .item.found .eye img {
     margin: 1vh 0.5vh;
     height: 1.1vh;
+    filter: drop-shadow(0 0 0.6vh rgba(102, 255, 204, 0.65));
 }
 
 #inventory .item .close {
-    color: #888;
+    color: rgba(154, 160, 166, 0.8);
     position: absolute;
     right: -0.8vh;
     top: -0.8vh;
+    transition: color .2s ease, text-shadow .3s ease;
 }
 
 #inventory .item .close:hover {
-    color: #fff;
+    color: var(--inventory-accent-1);
+    text-shadow: 0 0 0.8vh rgba(155, 229, 0, 0.8);
 }
 
 #inventory .item .count {
-    color: white;
-    font-size: 1.5vh;
-    font-weight: 900;
+    color: var(--inventory-text);
+    font-size: 1.4vh;
+    font-weight: 700;
     position: absolute;
     left: 0.2vh;
     bottom: 0.2vh;
+    font-family: 'Share Tech Mono', monospace;
+    text-shadow: 0 0 0.6vh rgba(0, 0, 0, 0.8);
 }
 
 #inventory .item .health {
-    border-left: 2px solid green;
+    border-left: 2px solid var(--inventory-success);
     bottom: 0;
     left: 0;
     position: absolute;
@@ -527,11 +725,15 @@
 }
 
 #inventory .item .hotkey {
-    background: #222c;
+    background: rgba(13, 16, 18, 0.8);
     bottom: -0.6vh;
     padding: 0.25vh 0.5vh;
     position: absolute;
     right: -1.5vh;
+    color: var(--inventory-accent-3);
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 0.08em;
+    text-shadow: 0 0 0.6vh rgba(0, 0, 0, 0.8);
 }
 
 #inventory .key .hotkey {
@@ -543,7 +745,7 @@
 
 /* Колесо загрузки в инвентаре */
 #inventory .loader {
-    background: rgba(255, 255, 255, .1);
+    background: rgba(12, 14, 16, 0.85);
     height: 100%;
     width: 100%;
     display: flex;
@@ -551,6 +753,10 @@
     position: absolute;
     top: 50%;
     transform: translate(-50%, -50%);
+    color: var(--inventory-accent-3);
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 0.2em;
+    text-shadow: 0 0 1vh rgba(102, 255, 204, 0.6);
 }
 
 #inventory .loader:after {
@@ -589,35 +795,42 @@
 } */
 
 #inventory .item .sqlid {
-    background: #222c;
-    color: #fff;
-    font-size: 1.7vh;
+    background: rgba(12, 14, 16, 0.85);
+    color: var(--inventory-text);
+    font-size: 1.5vh;
     font-weight: bold;
     padding: 0.25vh 0.5vh;
     position: absolute;
     top: 0;
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 0.12em;
+    box-shadow: 0 0 0.6vh rgba(0, 0, 0, 0.8);
 }
 
 #inventory .item-desc {
-    background-image: linear-gradient(122.33deg, rgba(255, 66, 247, 0.08) 0%, rgba(255, 66, 247, 0) 69.38%), linear-gradient(287.89deg, rgba(36, 150, 255, 0.08) 0%, rgba(36, 150, 255, 0) 86.36%), linear-gradient(106.73deg, rgba(0, 0, 0, 0.76) 0.01%, rgba(0, 0, 0, 0.72) 38.95%, rgba(0, 0, 0, 0.68) 100%);
+    background-image: linear-gradient(130deg, rgba(18, 21, 23, 0.96) 0%, rgba(12, 14, 16, 0.85) 100%);
     background-repeat: no-repeat;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(42, 46, 49, 0.85);
     box-sizing: border-box;
     font-size: 1.3vh;
-
+    color: var(--inventory-text-secondary);
     height: fit-content;
     max-height: 40vh;
     overflow-y: auto;
     position: absolute;
     width: 23.5vh;
     padding: 1.85vh;
+    box-shadow: 0 1vh 2vh rgba(0, 0, 0, 0.65);
 }
 
 #inventory .item-desc .title {
-    color: white;
-    font-size: 1.66vh;
-    font-weight: 900;
+    color: var(--inventory-text);
+    font-size: 1.7vh;
+    font-weight: 600;
     text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-family: 'Bebas Neue', 'Russo One', 'Oswald', sans-serif;
+    text-shadow: 0 0 0.8vh rgba(0, 0, 0, 0.9);
 }
 
 #inventory .item-desc .params {
@@ -630,21 +843,24 @@
 }
 
 #inventory .item-desc .params .name {
-    color: rgba(255, 255, 255, .75);
+    color: rgba(154, 160, 166, 0.85);
     font-size: 1.3vh;
     font-weight: normal;
+    letter-spacing: 0.05em;
 }
 
 #inventory .item-desc .params .value {
-    color: #2496FF;
+    color: var(--inventory-accent-3);
     font-weight: 500;
     text-align: right;
     margin-left: auto;
+    letter-spacing: 0.08em;
 }
 
 #inventory .item-desc .description {
-    color: #fff;
+    color: var(--inventory-text);
     margin-top: 1.8vh;
+    line-height: 1.4;
 }
 
 
@@ -662,8 +878,8 @@
 }
 
 #inventory .item-menu {
-    background-image: linear-gradient(122.33deg, rgba(255, 66, 247, 0.08) 0%, rgba(255, 66, 247, 0) 69.38%), linear-gradient(287.89deg, rgba(36, 150, 255, 0.08) 0%, rgba(36, 150, 255, 0) 86.36%), linear-gradient(106.73deg, rgba(0, 0, 0, 0.76) 0.01%, rgba(0, 0, 0, 0.72) 38.95%, rgba(0, 0, 0, 0.68) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(10, 12, 13, 0.95);
+    border: 1px solid rgba(42, 46, 49, 0.9);
     box-sizing: border-box;
     font-size: 1.5vh;
     height: fit-content;
@@ -673,18 +889,27 @@
     position: absolute;
     width: fit-content;
     text-align: center;
+    border-radius: 0.5vh;
+    overflow: hidden;
+    box-shadow: 0 1.2vh 2.8vh rgba(0, 0, 0, 0.75);
 }
 
 #inventory .item-menu .menu-item {
     /*display: flex;*/
-    font-weight: 400;
+    font-weight: 500;
     padding: 1vh 3vh;
+    color: rgba(154, 160, 166, 0.9);
+    cursor: pointer;
+    transition: color .2s ease, text-shadow .25s ease, transform .2s ease;
+    letter-spacing: 0.08em;
 }
 
 #inventory .item-menu .menu-item:hover {
     /* background-color: #2496FF; */
     /* border-color: #777; */
-    color: #2496FF;
+    color: var(--inventory-accent-3);
+    text-shadow: 0 0 0.6vh rgba(102, 255, 204, 0.8);
+    transform: translateX(0.4vh);
 }
 
 #inventory .item-menu .menu-item:not(:last-child) {
@@ -694,11 +919,12 @@
 #inventory .item-menu .menu-item .arrow {
     /*margin-left: 2vh;*/
     width: 100%;
+    color: rgba(154, 160, 166, 0.6);
 }
 
 #inventory .item-notif {
-    background-image: linear-gradient(122.33deg, rgba(255, 66, 247, 0.08) 0%, rgba(255, 66, 247, 0) 69.38%), linear-gradient(287.89deg, rgba(36, 150, 255, 0.08) 0%, rgba(36, 150, 255, 0) 86.36%), linear-gradient(106.73deg, rgba(0, 0, 0, 0.76) 0.01%, rgba(0, 0, 0, 0.72) 38.95%, rgba(0, 0, 0, 0.68) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background-image: linear-gradient(120deg, rgba(18, 21, 23, 0.92) 0%, rgba(13, 15, 16, 0.85) 60%, rgba(18, 21, 23, 0.92) 100%);
+    border: 1px solid rgba(42, 46, 49, 0.85);
     box-sizing: border-box;
     font-size: 1.34vh;
     line-height: 3.2vh;
@@ -708,6 +934,10 @@
     width: fit-content;
     z-index: 2;
     text-transform: uppercase;
+    letter-spacing: 0.22em;
+    font-family: 'Bebas Neue', 'Russo One', 'Oswald', sans-serif;
+    color: var(--inventory-accent-1);
+    text-shadow: 0 0 1.2vh rgba(155, 229, 0, 0.75);
 }
 
 /* #inventory .items .column.busy {
@@ -738,12 +968,13 @@
 }
 
 #inventory ::-webkit-scrollbar-track {
-    box-shadow: none;
-    background-color: rgba(16, 20, 26, 0.5);
+    box-shadow: inset 0 0 1vh rgba(0, 0, 0, 0.7);
+    background-color: rgba(12, 14, 16, 0.8);
 }
 
 #inventory ::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.5);;
+    background-color: rgba(102, 255, 204, 0.6);
+    box-shadow: 0 0 0.8vh rgba(102, 255, 204, 0.45);
 }
 
 /* Анимация */
@@ -794,6 +1025,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    filter: drop-shadow(0 0 1vh rgba(168, 103, 59, 0.65));
 }
 
 #inventory .bin svg {
@@ -801,6 +1033,84 @@
 }
 
 #inventory .bin:hover svg path {
-    fill: #F03636;
-    box-shadow: 0 0 0.5vh #F03636;
+    fill: var(--inventory-error);
+    filter: drop-shadow(0 0 1.2vh rgba(255, 94, 87, 0.85));
+}
+
+.rarity-common {
+    color: #7a7f84;
+    text-shadow: 0 0 0.4vh rgba(122, 127, 132, 0.4);
+}
+
+.rarity-uncommon {
+    color: #66ffcc;
+    text-shadow: 0 0 0.6vh rgba(102, 255, 204, 0.8);
+}
+
+.rarity-rare {
+    color: #4aa3ff;
+    text-shadow: 0 0 0.6vh rgba(74, 163, 255, 0.8);
+}
+
+.rarity-epic {
+    color: #b88cff;
+    text-shadow: 0 0 0.8vh rgba(184, 140, 255, 0.9);
+}
+
+.rarity-legendary {
+    color: #ffcc33;
+    text-shadow: 0 0 1vh rgba(255, 204, 51, 0.9);
+}
+
+#inventory .glitch-hover {
+    position: relative;
+    overflow: hidden;
+}
+
+#inventory .glitch-hover::before,
+#inventory .glitch-hover::after {
+    content: attr(data-glitch);
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    mix-blend-mode: screen;
+    pointer-events: none;
+}
+
+#inventory .glitch-hover:hover::before {
+    opacity: 0.4;
+    transform: translate(0.3vh, -0.3vh);
+    color: var(--inventory-accent-3);
+    animation: glitch 0.4s steps(2, end) infinite;
+}
+
+#inventory .glitch-hover:hover::after {
+    opacity: 0.4;
+    transform: translate(-0.3vh, 0.3vh);
+    color: var(--inventory-accent-1);
+    animation: glitch 0.35s steps(2, end) infinite reverse;
+}
+
+@keyframes glitch {
+    0% {
+        clip-path: inset(10% 0 60% 0);
+    }
+
+    50% {
+        clip-path: inset(35% 0 20% 0);
+    }
+
+    100% {
+        clip-path: inset(5% 0 65% 0);
+    }
+}
+
+#inventory .parallax-hover {
+    position: relative;
+    transition: transform .35s ease;
+}
+
+#inventory .parallax-hover:hover {
+    transform: translate3d(0, -0.4vh, 0);
+    box-shadow: 0 0 1.6vh rgba(102, 255, 204, 0.45);
 }

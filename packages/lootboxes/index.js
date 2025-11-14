@@ -37,70 +37,13 @@ module.exports = {
     crowbarItemId: 67,
 
     /**
-     * Сколько предметов выпадет (рандомно в диапазоне) при вскрытии ящика.
+     * Таблица наград. Количество берётся случайным образом в диапазоне [min, max].
+     * params будут записаны в предмет.
      */
-    lootRollsMin: 1,
-    lootRollsMax: 2,
-
-    /**
-     * Пул лута (вместо старого lootTable). weight — относительная вероятность дропа.
-     * min/max — количество предметов за один ролл.
-     */
-    lootPool: [
-        // БАЗОВЫЕ РАСХОДНИКИ
-        { itemId: 34,  weight: 20, min: 1, max: 2, params: { count: 1 } }, // вода
-        { itemId: 126, weight: 14, min: 0, max: 1, params: { count: 1 } }, // бургер
-        { itemId: 129, weight: 18, min: 0, max: 3, params: { count: 1 } }, // чипсы
-
-        // СКУПЩИЦКИЕ ПРЕДМЕТЫ (205–214)
-        { itemId: 205, weight: 8,  min: 1, max: 1 }, // Золотая цепь
-        { itemId: 206, weight: 6,  min: 1, max: 1 }, // Золотые часы
-        { itemId: 207, weight: 9,  min: 1, max: 1 }, // Золотое кольцо
-        { itemId: 208, weight: 5,  min: 1, max: 1 }, // Картина
-        { itemId: 209, weight: 11, min: 1, max: 2 }, // Инструмент
-        { itemId: 210, weight: 7,  min: 1, max: 1 }, // Старый паспорт
-        { itemId: 211, weight: 10, min: 1, max: 2 }, // Старое фото
-        { itemId: 212, weight: 12, min: 1, max: 1 }, // Разбитый телефон
-        { itemId: 213, weight: 7,  min: 1, max: 1 }, // Сломанный фотоаппарат
-        { itemId: 214, weight: 7,  min: 1, max: 1 }, // Сломанный планшет
-
-        // ДОПОЛНИТЕЛЬНЫЕ ПРЕДМЕТЫ (215–250)
-        { itemId: 215, weight: 9,  min: 1, max: 1 }, // Серебряная цепочка
-        { itemId: 216, weight: 9,  min: 1, max: 1 }, // Серебряное кольцо
-        { itemId: 217, weight: 5,  min: 1, max: 1 }, // Золотая зажигалка
-        { itemId: 218, weight: 10, min: 1, max: 1 }, // Браслет
-        { itemId: 219, weight: 6,  min: 1, max: 2 }, // Старинная монета
-        { itemId: 220, weight: 10, min: 1, max: 1 }, // Пепельница
-        { itemId: 221, weight: 8,  min: 1, max: 1 }, // Старый будильник
-        { itemId: 222, weight: 10, min: 1, max: 1 }, // Фонарик
-        { itemId: 223, weight: 4,  min: 1, max: 1 }, // Старый радиоприёмник
-        { itemId: 224, weight: 5,  min: 1, max: 1 }, // Видеокамера
-        { itemId: 225, weight: 9,  min: 1, max: 2 }, // Музыкальная пластинка
-        { itemId: 226, weight: 12, min: 1, max: 2 }, // Старая книга
-        { itemId: 227, weight: 11, min: 1, max: 3 }, // Дискета
-        { itemId: 228, weight: 4,  min: 1, max: 1 }, // Игровая приставка
-        { itemId: 229, weight: 3,  min: 1, max: 1 }, // Камера наблюдения
-        { itemId: 230, weight: 2,  min: 1, max: 1 }, // Старый телевизор
-        { itemId: 231, weight: 5,  min: 1, max: 1 }, // Старый ноутбук
-        { itemId: 232, weight: 10, min: 1, max: 1 }, // Кастрюля
-        { itemId: 233, weight: 6,  min: 1, max: 1 }, // Кофеварка
-        { itemId: 234, weight: 8,  min: 1, max: 2 }, // Металлический лом
-        { itemId: 235, weight: 14, min: 1, max: 3 }, // Жестяная банка
-        { itemId: 236, weight: 6,  min: 1, max: 1 }, // Бита
-        { itemId: 237, weight: 12, min: 1, max: 1 }, // Пустой кошелёк
-        { itemId: 238, weight: 6,  min: 1, max: 1 }, // Старый чемодан
-        { itemId: 239, weight: 6,  min: 1, max: 1 }, // Старый фотоаппарат
-        { itemId: 240, weight: 12, min: 1, max: 1 }, // Старые очки
-        { itemId: 241, weight: 13, min: 1, max: 2 }, // Брелок
-        { itemId: 242, weight: 10, min: 1, max: 1 }, // Кулон
-        { itemId: 243, weight: 15, min: 1, max: 1 }, // Пачка сигарет
-        { itemId: 244, weight: 9,  min: 1, max: 1 }, // Ключи от старой машины
-        { itemId: 245, weight: 12, min: 1, max: 2 }, // Пластмассовая игрушка
-        { itemId: 246, weight: 10, min: 1, max: 1 }, // Бутылка вина (пустая)
-        { itemId: 247, weight: 14, min: 1, max: 2 }, // Кусок ткани
-        { itemId: 248, weight: 10, min: 1, max: 1 }, // Пустая коробка
-        { itemId: 249, weight: 8,  min: 1, max: 1 }, // Банка краски
-        { itemId: 250, weight: 7,  min: 1, max: 1 }, // Старый мобильник
+    lootTable: [
+        { itemId: 34, min: 1, max: 2, params: { count: 1 } }, // вода
+        { itemId: 126, min: 0, max: 1, params: { count: 1 } }, // бургер
+        { itemId: 129, min: 0, max: 3, params: { count: 1 } }, // чипсы
     ],
 
     init() {
@@ -140,6 +83,7 @@ module.exports = {
         }
 
         const crowbar = inventory.getHandsItem(player);
+        if (crowbar) inventory.ensureHandCombatParams(crowbar, player);
         if (!this.isCrowbar(player, crowbar)) {
             return outError('Возьмите в руки монтировку');
         }
@@ -204,17 +148,9 @@ module.exports = {
         });
     },
 
-    /**
-     * Выдача наград: делаем 1–2 ролла из пула по весам.
-     */
     async rewardPlayer(player, colshape) {
-        const rolls = this.randomInt(this.lootRollsMin, this.lootRollsMax);
-
-        for (let i = 0; i < rolls; i++) {
-            const loot = this.pickWeighted(this.lootPool);
-            if (!loot) continue;
-
-            const count = this.randomInt(loot.min || 1, loot.max || 1);
+        for (const loot of this.lootTable) {
+            const count = this.randomInt(loot.min, loot.max);
             if (count <= 0) continue;
 
             const params = Object.assign({}, loot.params || {});
@@ -272,22 +208,6 @@ module.exports = {
             return acc + (value?.value || 0);
         }, 0);
         return 1 + boost / 100;
-    },
-
-    /**
-     * Выбор одного элемента из массива по весам.
-     */
-    pickWeighted(list) {
-        if (!Array.isArray(list) || !list.length) return null;
-        const total = list.reduce((acc, x) => acc + (x.weight > 0 ? x.weight : 0), 0);
-        if (total <= 0) return null;
-        let r = Math.random() * total;
-        for (const el of list) {
-            const w = el.weight > 0 ? el.weight : 0;
-            if (r < w) return el;
-            r -= w;
-        }
-        return list[list.length - 1];
     },
 
     randomInt(min, max) {

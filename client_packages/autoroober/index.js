@@ -8,6 +8,7 @@ let menuAvailable = false;
 let menuOpen = false;
 let activeOrder = null;
 let hackState = null;
+let menuData = null;
 
 function sendNotification(type, message, header = 'Автоугон') {
     if (!message) return;
@@ -36,6 +37,10 @@ function openMenu() {
     if (menuOpen) return;
     if (!mp.busy.add(MENU_BUSY_KEY, false)) return;
     menuOpen = true;
+    if (menuData) {
+        const dataJson = JSON.stringify(menuData);
+        mp.callCEFV(`(function(){var menu = selectMenu.menus['autoRobberJob']; if (!menu) return; if (!menu.baseItems) menu.init(${dataJson}); else menu.update(${dataJson});})()`);
+    }
     mp.callCEFV('selectMenu.menus["autoRobberJob"].i = 0');
     mp.callCEFV('selectMenu.menus["autoRobberJob"].j = 0');
     mp.callCEFV('selectMenu.showByName("autoRobberJob")');
@@ -174,6 +179,23 @@ function stopHack() {
 mp.events.add('autoroober.menu.state', (state) => {
     menuAvailable = !!state;
     if (!menuAvailable) closeMenu();
+});
+
+mp.events.add('autoroober.menu.data', (json) => {
+    if (!json) {
+        menuData = null;
+        return;
+    }
+    let data = null;
+    try {
+        data = typeof json === 'string' ? JSON.parse(json) : json;
+    } catch (err) {
+        mp.console.logInfo(`autoroober.menu.data parse error: ${err.message}`);
+        data = null;
+    }
+    menuData = data;
+    const payload = JSON.stringify(menuData || {});
+    mp.callCEFV(`(function(){var menu = selectMenu.menus['autoRobberJob']; if (!menu) return; if (!menu.baseItems) menu.init(${payload}); else menu.update(${payload});})()`);
 });
 
 mp.events.add('autoroober.menu.accept', () => {

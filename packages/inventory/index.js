@@ -4,6 +4,24 @@ let notifs = call('notifications');
 let timer = call('timer');
 let utils = call('utils');
 
+const HAND_COMBAT_DEFAULTS = {
+    64: {
+        model: 'weapon_hatchet',
+        weaponHash: mp.joaat('weapon_hatchet'),
+        health: 100,
+    },
+    76: {
+        model: 'weapon_stone_hatchet',
+        weaponHash: mp.joaat('weapon_stone_hatchet'),
+        health: 100,
+    },
+    67: {
+        model: 'weapon_crowbar',
+        weaponHash: mp.joaat('weapon_crowbar'),
+        health: 100,
+    },
+};
+
 
 
 
@@ -314,6 +332,7 @@ convertServerInventoryItemToClient(item) {
                 }
             ]
         });
+        items.forEach(item => this.ensureHandCombatParams(item));
         return items;
     },
     convertServerToClientItems(dbItems) {
@@ -412,6 +431,7 @@ async addItem(player, itemId, params, callback = () => {}) {
 
     callback();
     await item.save();
+    this.ensureHandCombatParams(item, player);
 
     player.call("inventory.addItem", [
         this.convertServerToClientItem(player.inventory.items, item),
@@ -444,6 +464,7 @@ async addItem(player, itemId, params, callback = () => {}) {
             else this.updateView(player, item);
         }
         item.restore();
+        this.ensureHandCombatParams(item, player);
         player.call("inventory.addItem", [this.convertServerToClientItem(player.inventory.items, item), item.pocketIndex, item.index, item.parentId]);
         callback();
     },
@@ -831,6 +852,7 @@ getName(itemId) {
             this.updateView(player, item);
         }
         var handsItem = this.getHandsItem(player);
+        if (handsItem) this.ensureHandCombatParams(handsItem, player);
         this.syncHandsItem(player, handsItem);
     },
     clearAllView(player) {
@@ -858,12 +880,61 @@ getName(itemId) {
         }
         return params;
     },
+    ensureHandCombatParams(item, player = null) {
+        if (!item) return false;
+        const defaults = HAND_COMBAT_DEFAULTS[item.itemId];
+        if (!defaults) return false;
+
+        if (!Array.isArray(item.params)) item.params = [];
+
+        let changed = false;
+        for (const [key, value] of Object.entries(defaults)) {
+            let param = this.getParam(item, key);
+            let paramChanged = false;
+
+            if (!param) {
+                if (!item.id) continue;
+                param = db.Models.CharacterInventoryParam.build({
+                    itemId: item.id,
+                    key,
+                    value,
+                });
+                item.params.push(param);
+                paramChanged = true;
+            } else if (param.value == null || param.value === '' || (typeof param.value === 'number' && isNaN(param.value))) {
+                param.value = value;
+                paramChanged = true;
+            }
+
+            if (paramChanged) {
+                changed = true;
+                param.save().catch((e) => console.error(`[INVENTORY] Не удалось сохранить параметр ${key} для предмета #${item.id}:`, e));
+                if (player && player.call) player.call(`inventory.setItemParam`, [item.id, key, value]);
+            }
+        }
+
+        if (changed && player && !item.parentId && item.index == 13) this.syncHandsItem(player, item);
+        return changed;
+    },
     updateParam(player, item, key, value) {
-        var param = this.getParam(item, key);
-        if (!param) return;
-        param.value = value;
+        if (!item) return null;
+        if (!item.params) item.params = [];
+
+        let param = this.getParam(item, key);
+        if (!param) {
+            param = db.Models.CharacterInventoryParam.build({
+                itemId: item.id,
+                key,
+                value
+            });
+            item.params.push(param);
+        } else {
+            param.value = value;
+        }
+
         param.save();
-        player.call(`inventory.setItemParam`, [item.id, key, value]);
+        if (player && player.call) player.call(`inventory.setItemParam`, [item.id, key, value]);
+        return param;
     },
     findFreeSlot(player, itemId) {
         // debug(`findFreeSlot | itemId: ${itemId}`)

@@ -1,6 +1,44 @@
 let currentBroker = null;
 let currentBrokerTitle = '';
 const spawnedBrokers = new Set();
+let isMenuOpen = false;
+let isProcessing = false;
+
+function setProcessing(state) {
+    const value = state === true || state === 'true' || state === 1;
+    isProcessing = value;
+    mp.callCEFV(`pawnshop.setProcessing(${value});`);
+}
+
+function showPromptIfNeeded() {
+    if (!currentBroker) return;
+    mp.prompt.show(`Нажмите <span>E</span>, чтобы поговорить со скупщиком «${currentBrokerTitle}»`);
+}
+
+function closePawnshopMenu() {
+    if (isMenuOpen) {
+        mp.busy.remove('pawnshop');
+        isMenuOpen = false;
+    }
+    setProcessing(false);
+    mp.callCEFV('pawnshop.close();');
+    showPromptIfNeeded();
+}
+
+function openPawnshopMenu(data) {
+    try {
+        const payload = JSON.stringify(data);
+        mp.callCEFV(`pawnshop.open(${payload});`);
+    } catch (e) {
+        mp.console.logInfo(`pawnshops.menu.show serialization error: ${e.message}`);
+        return;
+    }
+    if (!isMenuOpen) {
+        mp.busy.add('pawnshop', true);
+        isMenuOpen = true;
+    }
+    setProcessing(false);
+}
 
 mp.events.add({
     'pawnshops.init': (json) => {
@@ -24,77 +62,72 @@ mp.events.add({
             });
         });
     },
-
     'pawnshops.prompt': (brokerId, title) => {
         if (!brokerId) {
             currentBroker = null;
             currentBrokerTitle = '';
             mp.prompt.hide();
+            closePawnshopMenu();
             return;
         }
         currentBroker = brokerId;
         currentBrokerTitle = title || 'Скупщик';
-        mp.prompt.show(`Нажмите <span>E</span>, чтобы поговорить со скупщиком «${currentBrokerTitle}»`);
+        showPromptIfNeeded();
     },
-
     'pawnshops.menu.show': (json) => {
         if (!json) {
-            mp.callCEFV(`if (selectMenu.menu && selectMenu.menu.name === 'pawnshop') selectMenu.show = false;`);
+            closePawnshopMenu();
             return;
         }
 
-        // Парсим данные на клиенте
         let data;
         try {
-            data = JSON.parse(json);
+            data = typeof json === 'string' ? JSON.parse(json) : json;
         } catch (e) {
-            return mp.console.logInfo(`pawnshops.menu.show parse error: ${e.message}`);
+            mp.console.logInfo(`pawnshops.menu.show parse error: ${e.message}`);
+            closePawnshopMenu();
+            return;
         }
 
-        // Синхронизация актуального брокера и заголовка
         if (data && data.id) currentBroker = data.id;
         if (data && data.title) currentBrokerTitle = data.title;
 
         mp.prompt.hide();
-
-        // Безопасная сериализация для CEF
-        const payload = JSON.stringify(data);
-
-        // Принудительный сброс + чистая инициализация
-        mp.callCEFV(`
-            (function(){
-                try {
-                    if (selectMenu.menu && selectMenu.menu.name === 'pawnshop') {
-                        selectMenu.show = false;
-                    }
-                    const menu = selectMenu.menus['pawnshop'];
-                    if (menu && typeof menu.reset === 'function') {
-                        menu.reset();
-                    } else if (window.selectMenu && typeof selectMenu.clear === 'function') {
-                        selectMenu.clear();
-                    }
-                    selectMenu.menus['pawnshop'].init(${payload});
-                    selectMenu.showByName('pawnshop');
-                } catch (e) {
-                    console.error('pawnshop CEF init error:', e && e.message);
-                }
-            })();
-        `);
+        openPawnshopMenu(data || {});
     },
-
     'pawnshops.menu.hide': () => {
-        mp.callCEFV(`
-            if (selectMenu.menu && selectMenu.menu.name === 'pawnshop') {
-                selectMenu.show = false;
-            }
-        `);
-        if (currentBroker) {
-            mp.prompt.show(`Нажмите <span>E</span>, чтобы поговорить со скупщиком «${currentBrokerTitle}»`);
-        }
+        closePawnshopMenu();
+    },
+    'pawnshops.menu.processing': (state) => {
+        setProcessing(state);
     }
 });
 
-// Клавиша E
+mp.events.add('pawnshops.ui.close', () => {
+    closePawnshopMenu();
+});
+
+mp.events.add('pawnshops.ui.sell.item', (itemId) => {
+    if (!currentBroker || itemId == null) return;
+    if (isProcessing) return;
+    setProcessing(true);
+    mp.events.callRemote('pawnshops.sell.item', currentBroker, itemId);
+});
+
+mp.events.add('pawnshops.ui.sell.one', () => {
+    if (!currentBroker) return;
+    if (isProcessing) return;
+    setProcessing(true);
+    mp.events.callRemote('pawnshops.sell.one', currentBroker);
+});
+
+mp.events.add('pawnshops.ui.sell.all', () => {
+    if (!currentBroker) return;
+    if (isProcessing) return;
+    setProcessing(true);
+    mp.events.callRemote('pawnshops.sell.all', currentBroker);
+});
+
 mp.keys.bind(0x45, true, () => { // E
     if (!currentBroker) return;
     if (mp.busy.includes()) return;

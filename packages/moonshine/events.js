@@ -1,49 +1,75 @@
-let moonshine = require('./index');
+const moonshine = require('./index');
 
 module.exports = {
-    'init': () => {
+    init: () => {
         moonshine.init();
         inited(__dirname);
     },
-    'shutdown': () => {
+    shutdown: () => {
         moonshine.shutdown();
     },
-    'playerQuit': (player) => {
+    playerQuit: (player) => {
         moonshine.cleanupPlayer(player);
     },
-    'playerDeath': (player) => {
+    playerDeath: (player) => {
         moonshine.clearMoonshineEffect(player);
+        moonshine.abortCraft(player, 'death', true);
+    },
+    playerDimensionChange: (player) => {
+        moonshine.clearMoonshineEffect(player);
+        moonshine.abortCraft(player, 'dimension', true);
     },
     'player.job.changed': (player) => {
         if (!player || !player.character) return;
-        if (player.character.job === moonshine.jobId) {
-            moonshine.startJob(player);
+        if (moonshine.isWorker(player)) {
+            moonshine.startWork(player);
         } else {
-            moonshine.stopJob(player);
+            moonshine.stopWork(player);
         }
     },
-    'moonshine.job.stop': (player) => {
-        moonshine.stopJob(player);
-    },
-    'moonshine.seed.buy': (player, amount) => {
-        moonshine.buySeeds(player, amount);
-    },
     'moonshine.plot.plant': (player, index) => {
-        moonshine.plantSeed(player, parseInt(index));
+        moonshine.plantSeed(player, index);
     },
     'moonshine.plot.harvest': (player, index) => {
-        moonshine.harvestPlot(player, parseInt(index));
+        moonshine.harvestPlot(player, index);
     },
     'moonshine.menu.sync': (player) => {
         moonshine.sendMenuUpdate(player);
     },
-    'moonshine.craft.menu': (player) => {
-        moonshine.showCraftMenu(player);
+    'moonshine.menu.open': (player) => {
+        moonshine.openMainMenu(player);
     },
-    'moonshine.craft.request': (player, amount) => {
-        moonshine.craftMoonshine(player, amount);
+    'moonshine.seed.buy': (player, amount) => {
+        moonshine.buySeeds(player, amount);
+    },
+    'moonshine.vendor.open': (player) => {
+        moonshine.openVendor(player);
+    },
+    'moonshine.job.join': (player) => {
+        moonshine.joinJob(player);
+    },
+    'moonshine.job.leave': (player) => {
+        moonshine.leaveJob(player);
+    },
+    'moonshine.job.stop': (player) => {
+        moonshine.stopWork(player);
+    },
+    'moonshine.craft.menu': (player) => {
+        moonshine.openCraftMenu(player);
+    },
+    'moonshine.craft.start': (player) => {
+        moonshine.startCraft(player);
+    },
+    'moonshine.craft.cancel': (player) => {
+        moonshine.abortCraft(player, 'cancel', true);
     },
     'moonshine.consume': (player, item) => {
         moonshine.consumeMoonshine(player, item);
-    }
+    },
+    'moonshine:drink': (player, itemSqlId) => {
+        moonshine.drinkMoonshine(player, itemSqlId);
+    },
+    'cane:syncPlots': (player) => {
+        moonshine.syncPlotStages(player);
+    },
 };
