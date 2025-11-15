@@ -8,6 +8,7 @@ let factions = call('factions');
 let timer = call('timer');
 let death = call('death');
 let utils = call('utils');
+let moonshine = call('moonshine');
 
 module.exports = {
 
@@ -1072,6 +1073,31 @@ module.exports = {
             target.call('chat.message.push', [`!{#ffbe4f}Администратор ${player.name} сменил ваш ник на ${args[1]} ${args[2]}`]);
             target.call('chat.message.push', [`!{#ffbe4f}Перезайдите в игру (F1)`]);
             target.kick('kicked');
+        }
+    },
+    "/moonshineplot": {
+        access: 6,
+        description: "Добавить точку посадки тростника",
+        args: "[радиус]:n?",
+        handler: async (player, args) => {
+            if (!moonshine || moonshine.isEmpty) {
+                return notify.error(player, 'Модуль самогоноварения недоступен', 'Самогоноварение');
+            }
+            const radiusArg = args && args.length ? parseFloat(args[0]) : null;
+            if (radiusArg != null && (isNaN(radiusArg) || radiusArg <= 0)) {
+                return notify.error(player, 'Некорректный радиус', 'Самогоноварение');
+            }
+            try {
+                const plot = await moonshine.addPlot(player.position, radiusArg);
+                if (plot) {
+                    notify.success(player, `Добавлен участок #${plot.id} (r=${plot.radius.toFixed(2)})`, 'Самогоноварение');
+                } else {
+                    notify.error(player, 'Не удалось создать участок', 'Самогоноварение');
+                }
+            } catch (err) {
+                console.error('[ADMIN] moonshineplot error', err);
+                notify.error(player, 'Ошибка при создании участка', 'Самогоноварение');
+            }
         }
     },
     "/removeaccount": {
