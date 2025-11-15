@@ -25,6 +25,8 @@ let bindASCIIKeys = {
     Shift: 16
 };
 
+const formatNumber = (value, fractionDigits = 2) => Number(value).toFixed(fractionDigits);
+
 let isNoClip = false;
 let noClipCamera;
 let shiftModifier = false;
@@ -137,5 +139,15 @@ mp.events.add('render', function() {
         rot.z + rightAxisX * -5.0,
         2
     );
+
+    if (mp.utils && typeof mp.utils.drawText2d === "function") {
+        const cameraPosition = noClipCamera.getCoord();
+        const cameraRotation = noClipCamera.getRot(2);
+        const positionText = `Cam pos: X ${formatNumber(cameraPosition.x)} | Y ${formatNumber(cameraPosition.y)} | Z ${formatNumber(cameraPosition.z)}`;
+        const rotationText = `Cam rot: Pitch ${formatNumber(cameraRotation.x)} | Roll ${formatNumber(cameraRotation.y)} | Yaw ${formatNumber(cameraRotation.z)}`;
+
+        mp.utils.drawText2d(positionText, [0.5, 0.86], [255, 255, 255, 230], [0.35, 0.35]);
+        mp.utils.drawText2d(rotationText, [0.5, 0.90], [255, 255, 255, 230], [0.35, 0.35]);
+    }
     if (mp.renderChecker) mp.utils.drawText2d(`noclip rend: ${Date.now() - start} ms`, [0.8, 0.63]);
 });
