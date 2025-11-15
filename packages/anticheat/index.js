@@ -146,7 +146,7 @@ module.exports = {
         let vehicle = player.vehicle;
         if (!vehicle) return;
         if (player.seat !== 0) return;
-        if (vehicle.key === 'newbierent' || vehicle.key === 'boatsrent' || vehicle.key === 'testdrive' || vehicle.key === 'admin') return;
+        if (vehicle.key === 'newbierent' || vehicle.key === 'boatsrent' || vehicle.key === 'motorent' || vehicle.key === 'testdrive' || vehicle.key === 'admin') return;
         if (vehicle.key === 'private' && vehicle.owner === player.character.id) return;
         if (vehicle.key === 'faction' && vehicle.owner === player.character.factionId) return;
         if (!vehicle.engineStatus && vehicle.engine) {

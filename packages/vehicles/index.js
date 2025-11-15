@@ -118,6 +118,30 @@ module.exports = {
             name: 'Marquis'
         },
     },
+    motoRent: {
+        price: 500,
+        duration: 20 * 60 * 1000,
+        position: {
+            x: 198.69374084472656,
+            y: -3133.565185546875,
+            z: 5.790219783782959
+        },
+        spawn: {
+            x: 198.69374084472656,
+            y: -3138.0,
+            z: 5.790219783782959,
+            h: 0
+        },
+        npc: {
+            model: 's_m_y_bikehire_01',
+            heading: 90
+        },
+        models: [
+            { model: 'sanchez', name: 'Sanchez' },
+            { model: 'sanchez2', name: 'Sanchez Sport' },
+            { model: 'manchez', name: 'Manchez' },
+        ]
+    },
     async init() {
         houses = call('houses');
         await this.loadVehiclePropertiesFromDB();
@@ -125,6 +149,7 @@ module.exports = {
         await this.loadCarPlates();
         this.createNewbieRentColshapes();
         this.createBoatsRentColshapes();
+        this.createMotoRentColshape();
         mp.events.call('vehicles.loaded');
     },
     async spawnVehicle(veh, source) { /// source: 0 - спавн автомобиля из БД, 1 - респавн любого автомобиля, null - спавн админского авто и т. д.
@@ -254,7 +279,15 @@ module.exports = {
     respawnVehicle(veh) {
         if (!mp.vehicles.exists(veh)) return;
         timer.remove(veh.fuelTimer);
-        if (veh.key == "admin" || veh.key == 'testdrive' || veh.key == 'newbierent') { /// Если админская, не респавним
+        if (veh.motorentTimer) {
+            timer.remove(veh.motorentTimer);
+            delete veh.motorentTimer;
+        }
+        if (veh.key == "admin" || veh.key == 'testdrive' || veh.key == 'newbierent' || veh.key == 'motorent') { /// Если админская, не респавним
+            if (veh.key == 'motorent' && veh.motorentOwnerId) {
+                const owner = mp.players.toArray().find(x => x.character && x.character.id === veh.motorentOwnerId);
+                if (owner && owner.motoRentVehicle === veh) delete owner.motoRentVehicle;
+            }
             veh.destroy();
             return;
         }
@@ -834,6 +867,50 @@ module.exports = {
             shape.onExit = (player) => {
                 player.call('vehicles.boats.rent.enter', [false]);
             };
+        });
+    },
+    createMotoRentColshape() {
+        const config = this.motoRent;
+        const pos = config.position;
+
+        mp.blips.new(226, new mp.Vector3(pos.x, pos.y, pos.z), {
+            name: 'Аренда мототехники',
+            shortRange: true,
+            color: 38
+        });
+
+        mp.markers.new(1, new mp.Vector3(pos.x, pos.y, pos.z - 2.5), 2.5, {
+            direction: new mp.Vector3(pos.x, pos.y, pos.z),
+            rotation: 0,
+            color: [92, 141, 255, 180],
+            visible: true,
+            dimension: 0
+        });
+
+        mp.labels.new('Аренда мототехники', new mp.Vector3(pos.x, pos.y, pos.z + 0.5), {
+            los: false,
+            font: 0,
+            drawDistance: 10,
+        });
+
+        const shape = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 2.8);
+        shape.isMotoRent = true;
+
+        shape.onEnter = (player) => {
+            if (player.vehicle) return;
+            player.motoRentAvailable = true;
+            player.call('vehicles.moto.rent.enter', [true, config.price, config.duration, config.models]);
+        };
+
+        shape.onExit = (player) => {
+            player.call('vehicles.moto.rent.enter', [false]);
+            delete player.motoRentAvailable;
+        };
+
+        const npcModel = mp.joaat(config.npc.model);
+        mp.peds.new(npcModel, new mp.Vector3(pos.x, pos.y, pos.z), {
+            heading: config.npc.heading,
+            dimension: 0,
         });
     },
     destroyCharacterVehicles(characterId) {
