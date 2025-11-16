@@ -37,14 +37,26 @@ module.exports = {
         return commands;
     },
     isValidArg(type, arg) {
-        if (type == "n") return !isNaN(arg) && arg.length > 0;
-        if (type == "s") return arg && arg.length > 0;
-        if (type == "b") return !isNaN(arg) && (arg == 0 || arg == 1);
+        if (!type) return false;
+        const optional = type.endsWith("?");
+        const normalizedType = optional ? type.slice(0, -1) : type;
+        if ((arg === undefined || arg === null || arg === "") && optional) {
+            return true;
+        }
+        if (normalizedType == "n") return !isNaN(arg) && String(arg).length > 0;
+        if (normalizedType == "s") return arg && String(arg).length > 0;
+        if (normalizedType == "b") return !isNaN(arg) && (arg == 0 || arg == 1);
         return false;
     },
     toValidArg(type, arg) {
-        if (type == "n") return parseFloat(arg);
-        if (type == "b") return arg == 1 ? true : false;
+        if (!type) return arg;
+        const optional = type.endsWith("?");
+        const normalizedType = optional ? type.slice(0, -1) : type;
+        if ((arg === undefined || arg === null || arg === "") && optional) {
+            return null;
+        }
+        if (normalizedType == "n") return parseFloat(arg);
+        if (normalizedType == "b") return arg == 1 ? true : false;
         return arg;
     },
     isTerminalCommand(args) {

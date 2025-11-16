@@ -52,13 +52,13 @@ module.exports = {
     craftMarker: null,
     craftBlip: null,
 
-    init() {
+    async init() {
         this.resetState();
         this.createVendorZone();
         this.createMenuZone();
         this.createCraftZone();
-        this.createPlots();
-        this.restoreState().catch(err => console.error('[MOONSHINE] restoreState error', err));
+        await this.loadPlotsFromDatabase();
+        await this.restoreState().catch(err => console.error('[MOONSHINE] restoreState error', err));
 
         mp.players.forEach(player => {
             if (!player || !player.character) return;
@@ -123,34 +123,84 @@ module.exports = {
         return player.moonshineData;
     },
 
-    createPlots() {
-        this.config.plots.forEach((plotConfig, index) => {
-            const id = plotConfig.plotId || (index + 1);
-            const position = new mp.Vector3(plotConfig.x, plotConfig.y, plotConfig.z);
-            const radius = plotConfig.radius || 1.5;
-            const colshape = mp.colshapes.newSphere(position.x, position.y, position.z, radius);
-            const plot = {
-                id,
-                index,
-                position,
-                radius,
-                colshape,
-                stage: STAGES.EMPTY,
-                ownerId: null,
-                ownerName: null,
-                stageStartedAt: null,
-                nextStageAt: null,
-                graceEndsAt: null,
-                witherAt: null,
-                stageTimer: null,
-                witherTimer: null,
-            };
-            colshape.moonshinePlotId = id;
-            colshape.onEnter = (player) => this.onPlotEnter(player, plot);
-            colshape.onExit = (player) => this.onPlotExit(player, plot);
-            this.plots.push(plot);
-            this.plotsById.set(id, plot);
+    async loadPlotsFromDatabase() {
+        try {
+            const records = await db.Models.MoonshinePlot.findAll({ order: [['id', 'ASC']] });
+            records.forEach(record => this.createPlotFromRecord(record));
+            console.log(`[MOONSHINE] Загружено участков: ${records.length}`);
+        } catch (err) {
+            console.error('[MOONSHINE] Не удалось загрузить участки', err);
+        }
+    },
+
+    createPlotFromRecord(record) {
+        if (!record) return null;
+        const index = this.plots.length;
+        const id = record.id;
+        const position = new mp.Vector3(Number(record.x), Number(record.y), Number(record.z));
+        const radius = Number(record.radius) || this.config.defaultPlotRadius || 1.5;
+        const colshape = mp.colshapes.newSphere(position.x, position.y, position.z, radius);
+        const plot = {
+            id,
+            index,
+            position,
+            radius,
+            colshape,
+            stage: STAGES.EMPTY,
+            ownerId: null,
+            ownerName: null,
+            stageStartedAt: null,
+            nextStageAt: null,
+            graceEndsAt: null,
+            witherAt: null,
+            stageTimer: null,
+            witherTimer: null,
+        };
+        colshape.moonshinePlotId = id;
+        colshape.onEnter = (player) => this.onPlotEnter(player, plot);
+        colshape.onExit = (player) => this.onPlotExit(player, plot);
+        this.plots.push(plot);
+        this.plotsById.set(id, plot);
+
+        return plot;
+    },
+
+    checkPlotPresence(player) {
+        if (!player || !player.position || !this.isWorker(player)) return;
+        this.plots.forEach(plot => {
+            if (!plot || !plot.position) return;
+            const dx = player.position.x - plot.position.x;
+            const dy = player.position.y - plot.position.y;
+            const dz = player.position.z - plot.position.z;
+            if ((dx * dx + dy * dy + dz * dz) <= (plot.radius * plot.radius)) {
+                this.onPlotEnter(player, plot);
+            }
         });
+    },
+
+    async addPlot(position, radius = null) {
+        if (!position) throw new Error('Position is required');
+        const defaultRadius = this.config.defaultPlotRadius || 1.5;
+        let value = Number(radius);
+        if (!value || !isFinite(value) || value <= 0) {
+            value = defaultRadius;
+        }
+        try {
+            const record = await db.Models.MoonshinePlot.create({
+                x: Number(position.x),
+                y: Number(position.y),
+                z: Number(position.z),
+                radius: value,
+            });
+            const plot = this.createPlotFromRecord(record);
+            if (plot) {
+                mp.players.forEach(player => this.syncPlotsForPlayer(player));
+            }
+            return plot;
+        } catch (err) {
+            console.error('[MOONSHINE] Не удалось создать участок', err);
+            throw err;
+        }
     },
 
     destroyVendorZone() {
@@ -469,6 +519,7 @@ module.exports = {
         player.call('moonshine.plots.init', [positions]);
         this.refreshPlotsForPlayer(player);
         this.syncPlotStages(player);
+        this.checkPlotPresence(player);
     },
 
     syncPlotStages(player) {

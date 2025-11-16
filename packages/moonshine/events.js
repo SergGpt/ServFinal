@@ -1,8 +1,12 @@
 const moonshine = require('./index');
 
 module.exports = {
-    init: () => {
-        moonshine.init();
+    init: async () => {
+        try {
+            await moonshine.init();
+        } catch (err) {
+            console.error('[MOONSHINE] init error', err);
+        }
         inited(__dirname);
     },
     shutdown: () => {
