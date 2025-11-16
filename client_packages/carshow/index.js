@@ -15,6 +15,9 @@ let camera;
 
 let controlsDisabled = false;
 let isTestDriving = false;
+let isRotatingVehicle = false;
+let lastCursorPosition = null;
+const VEHICLE_ROTATION_SENSITIVITY = 0.25;
 
 let updateTimeout;
 
@@ -66,6 +69,7 @@ mp.events.add('carshow.list.show', (inputList, inputInfo) => {
 mp.events.add('render', () => {
     if (controlsDisabled) {
         mp.game.controls.disableControlAction(1, 200, true);
+        handleVehicleRotation();
     }
 });
 
@@ -80,6 +84,8 @@ mp.events.add('carshow.list.close', () => {
     mp.game.ui.displayRadar(true);
     mp.callCEFV(`carShop.show = false`);
     controlsDisabled = false;
+    isRotatingVehicle = false;
+    lastCursorPosition = null;
     mp.busy.remove('carshow');
     mp.callCEFR('setOpacityChat', [1.0]);
     mp.events.callRemote('carshow.list.close', carShowInfo.sqlId);
@@ -201,3 +207,35 @@ mp.keys.bind(0x1B, false, () => { //esc
         mp.events.call('carshow.list.close');
     }
 });
+
+function handleVehicleRotation() {
+    if (!current || !mp.gui.cursor.visible) {
+        isRotatingVehicle = false;
+        return;
+    }
+
+    const isLeftMousePressed = mp.game.controls.isControlPressed(0, 24);
+    const cursorPos = mp.gui.cursor.position;
+
+    if (isLeftMousePressed) {
+        if (!isRotatingVehicle) {
+            isRotatingVehicle = true;
+            lastCursorPosition = cursorPos;
+            return;
+        }
+
+        if (lastCursorPosition) {
+            const deltaX = cursorPos[0] - lastCursorPosition[0];
+            if (deltaX !== 0) {
+                const heading = current.getHeading();
+                current.setHeading(heading - deltaX * VEHICLE_ROTATION_SENSITIVITY);
+            }
+        }
+
+        lastCursorPosition = cursorPos;
+        return;
+    }
+
+    isRotatingVehicle = false;
+    lastCursorPosition = null;
+}
