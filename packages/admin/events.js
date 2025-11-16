@@ -25,14 +25,29 @@ module.exports = {
                 } else {
                     requiredArgs = cmd.args.split('] ');
                 }
-                if (args.length < requiredArgs.length) {
+                const parsedArgs = requiredArgs.map(raw => {
+                    const parts = raw.split(":");
+                    const type = parts[1];
+                    const optional = type && type.endsWith('?');
+                    return {
+                        raw,
+                        type,
+                        optional,
+                    };
+                });
+                const requiredCount = parsedArgs.filter(arg => !arg.optional).length;
+                if (args.length < requiredCount) {
                     return player.call('chat.message.push', [`!{#ffffff} Используйте: ${command} ${cmd.args}`]);
                 }
-                for (let i = 0; i < requiredArgs.length; i++) {
-                    let argType = requiredArgs[i].split(":")[1];
-                    if (!argType) continue;
-                    if (!admin.isValidArg(argType, args[i])) return player.call('chat.message.push', [`Неверное значение "${args[i]}" для параметра ${requiredArgs[i]}`])
-                    else args[i] = admin.toValidArg(argType, args[i]);
+                for (let i = 0; i < parsedArgs.length; i++) {
+                    const meta = parsedArgs[i];
+                    if (!meta.type) continue;
+                    const value = args[i];
+                    if ((value === undefined || value === null || value === '') && meta.optional) {
+                        continue;
+                    }
+                    if (!admin.isValidArg(meta.type, value)) return player.call('chat.message.push', [`Неверное значение "${args[i]}" для параметра ${meta.raw}`])
+                    else args[i] = admin.toValidArg(meta.type, args[i]);
                 }
             }
 
