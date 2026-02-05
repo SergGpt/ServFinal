@@ -2,10 +2,14 @@
 
 const config = require("./config");
 
+function getVehicleConfigByModelName(modelName) {
+    if (!modelName) return null;
+    return config.vehicles?.[modelName.toLowerCase()] || null;
+}
+
 function isVehicleAllowed(vehicle) {
     if (!vehicle) return false;
-    if (!vehicle.modelName) return false;
-    return config.driftVehicles.includes(vehicle.modelName.toLowerCase());
+    return Boolean(getVehicleConfigByModelName(vehicle.modelName));
 }
 
 module.exports = {

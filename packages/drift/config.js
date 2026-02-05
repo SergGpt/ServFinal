@@ -1,19 +1,90 @@
 "use strict";
 
 module.exports = {
-    // Список моделей авто, которые участвуют в дрифте (редактируйте под свой сервер)
-    driftVehicles: [
-        "futo",
-        "sultan",
-        "elegy",
-        "elegy2",
-        "jester",
-        "banshee",
-        "tampa",
-        "coquette",
-        "kuruma",
-        "schafter3",
-    ],
+    // Настройки дрифта по моделям авто (ключ - modelName в нижнем регистре).
+    // Здесь можно добавлять/удалять авто и настраивать уникальные характеристики для каждого.
+    vehicles: {
+        futo: {
+            speedMin: 8,
+            angleMin: 12,
+            burnoutSpeedMax: 4,
+            reduceGrip: true,
+            smokeScaleMin: 0.35,
+            smokeScaleMax: 1.1,
+        },
+        sultan: {
+            speedMin: 9,
+            angleMin: 14,
+            burnoutSpeedMax: 4,
+            reduceGrip: true,
+            smokeScaleMin: 0.4,
+            smokeScaleMax: 1.15,
+        },
+        elegy: {
+            speedMin: 10,
+            angleMin: 15,
+            burnoutSpeedMax: 4,
+            reduceGrip: true,
+            smokeScaleMin: 0.42,
+            smokeScaleMax: 1.2,
+        },
+        elegy2: {
+            speedMin: 10,
+            angleMin: 15,
+            burnoutSpeedMax: 4,
+            reduceGrip: true,
+            smokeScaleMin: 0.42,
+            smokeScaleMax: 1.2,
+        },
+        jester: {
+            speedMin: 10,
+            angleMin: 16,
+            burnoutSpeedMax: 4,
+            reduceGrip: true,
+            smokeScaleMin: 0.38,
+            smokeScaleMax: 1.1,
+        },
+        banshee: {
+            speedMin: 10,
+            angleMin: 16,
+            burnoutSpeedMax: 4,
+            reduceGrip: true,
+            smokeScaleMin: 0.38,
+            smokeScaleMax: 1.15,
+        },
+        tampa: {
+            speedMin: 8,
+            angleMin: 12,
+            burnoutSpeedMax: 5,
+            reduceGrip: true,
+            smokeScaleMin: 0.45,
+            smokeScaleMax: 1.25,
+        },
+        coquette: {
+            speedMin: 11,
+            angleMin: 16,
+            burnoutSpeedMax: 4,
+            reduceGrip: true,
+            smokeScaleMin: 0.35,
+            smokeScaleMax: 1.05,
+        },
+        kuruma: {
+            speedMin: 9,
+            angleMin: 14,
+            burnoutSpeedMax: 4,
+            reduceGrip: true,
+            smokeScaleMin: 0.4,
+            smokeScaleMax: 1.2,
+        },
+        schafter3: {
+            speedMin: 9,
+            angleMin: 14,
+            burnoutSpeedMax: 5,
+            reduceGrip: true,
+            smokeScaleMin: 0.43,
+            smokeScaleMax: 1.25,
+        },
+    },
     // Настройки дыма
     smoke: {
         drift: {
@@ -29,6 +100,7 @@ module.exports = {
             scaleMax: 1.3,
         },
     },
+    // Базовые значения, применяются если для модели нет персональной настройки.
     // Минимальная скорость для дрифта (м/с)
     speedMin: 9,
     // Минимальный угол скольжения (градусы)

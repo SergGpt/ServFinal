@@ -1,7 +1,7 @@
 "use strict";
 
 const defaultConfig = {
-    driftVehicles: [],
+    vehicles: {},
     smoke: {
         drift: {
             dict: "core",
@@ -26,7 +26,7 @@ const defaultConfig = {
 
 const state = {
     config: { ...defaultConfig },
-    driftVehicleHashes: new Set(),
+    driftVehiclesConfigByHash: new Map(),
     lastSyncAt: 0,
     lastSent: { active: false, mode: null, scale: 0 },
     smokeByVehicle: new Map(),
@@ -44,9 +44,12 @@ mp.events.add("drift.config", (config) => {
             ...(config?.smoke || {}),
         },
     };
-    state.driftVehicleHashes.clear();
-    (state.config.driftVehicles || []).forEach((model) => {
-        state.driftVehicleHashes.add(mp.game.joaat(model));
+
+    state.driftVehiclesConfigByHash.clear();
+    const vehiclesConfig = state.config.vehicles || {};
+    Object.keys(vehiclesConfig).forEach((model) => {
+        const hash = mp.game.joaat(model);
+        state.driftVehiclesConfigByHash.set(hash, vehiclesConfig[model] || {});
     });
 });
 
@@ -58,9 +61,13 @@ function getVehicleKey(vehicle) {
     return vehicle?.remoteId ?? vehicle?.id ?? vehicle?.handle;
 }
 
+function getVehicleDriftConfig(vehicle) {
+    if (!vehicle || !mp.vehicles.exists(vehicle)) return null;
+    return state.driftVehiclesConfigByHash.get(vehicle.model) || null;
+}
+
 function isEligibleVehicle(vehicle) {
-    if (!vehicle || !mp.vehicles.exists(vehicle)) return false;
-    return state.driftVehicleHashes.has(vehicle.model);
+    return Boolean(getVehicleDriftConfig(vehicle));
 }
 
 function getSlipAngle(vehicle) {
@@ -76,28 +83,30 @@ function getSlipAngle(vehicle) {
     return angle;
 }
 
-function detectMode(vehicle, speed) {
+function detectMode(vehicle, speed, vehicleConfig = {}) {
     const isAccel = mp.game.controls.isControlPressed(0, 71);
     const isBrake = mp.game.controls.isControlPressed(0, 72);
     const isHandbrake = mp.game.controls.isControlPressed(0, 76);
-    if (speed <= state.config.burnoutSpeedMax && isAccel && (isBrake || isHandbrake)) {
+    if (speed <= (vehicleConfig.burnoutSpeedMax ?? state.config.burnoutSpeedMax) && isAccel && (isBrake || isHandbrake)) {
         return "burnout";
     }
 
     const angle = getSlipAngle(vehicle);
-    if (speed >= state.config.speedMin && angle >= state.config.angleMin) {
+    if (speed >= (vehicleConfig.speedMin ?? state.config.speedMin) && angle >= (vehicleConfig.angleMin ?? state.config.angleMin)) {
         return "drift";
     }
 
     return null;
 }
 
-function getScaleForSpeed(mode, speed) {
+function getScaleForSpeed(mode, speed, vehicleConfig = {}) {
     const smokeConfig = state.config.smoke[mode];
     if (!smokeConfig) return 1;
-    const maxSpeed = state.config.speedMin * 2;
+    const maxSpeed = (vehicleConfig.speedMin ?? state.config.speedMin) * 2;
     const normalized = clamp(speed / Math.max(maxSpeed, 1), 0, 1);
-    return smokeConfig.scaleMin + ((smokeConfig.scaleMax - smokeConfig.scaleMin) * normalized);
+    const scaleMin = vehicleConfig.smokeScaleMin ?? smokeConfig.scaleMin;
+    const scaleMax = vehicleConfig.smokeScaleMax ?? smokeConfig.scaleMax;
+    return scaleMin + ((scaleMax - scaleMin) * normalized);
 }
 
 function applyReduceGrip(vehicle, shouldApply) {
@@ -207,12 +216,13 @@ function updateLocalState() {
         return;
     }
 
-    const eligible = isEligibleVehicle(vehicle);
+    const vehicleConfig = getVehicleDriftConfig(vehicle) || {};
+    const eligible = Boolean(vehicleConfig);
     if (state.lastVehicle && state.lastVehicle !== vehicle) {
         applyReduceGrip(state.lastVehicle, false);
     }
     state.lastVehicle = vehicle;
-    applyReduceGrip(vehicle, eligible && state.config.reduceGrip);
+    applyReduceGrip(vehicle, eligible && (vehicleConfig.reduceGrip ?? state.config.reduceGrip));
 
     if (!eligible) {
         syncStateIfNeeded({ active: false, mode: null, scale: 0 });
@@ -221,9 +231,9 @@ function updateLocalState() {
     }
 
     const speed = mp.game.entity.getEntitySpeed(vehicle.handle);
-    const mode = detectMode(vehicle, speed);
+    const mode = detectMode(vehicle, speed, vehicleConfig);
     const active = Boolean(mode);
-    const scale = active ? getScaleForSpeed(mode, speed) : 0;
+    const scale = active ? getScaleForSpeed(mode, speed, vehicleConfig) : 0;
 
     const nextState = { active, mode, scale };
     syncStateIfNeeded(nextState);
