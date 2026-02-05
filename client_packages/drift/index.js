@@ -46,7 +46,9 @@ mp.events.add("drift.config", (config) => {
     };
     state.driftVehicleHashes.clear();
     (state.config.driftVehicles || []).forEach((model) => {
-        state.driftVehicleHashes.add(mp.game.joaat(model));
+        const hash = Number(mp.game.joaat(model));
+        state.driftVehicleHashes.add(hash);
+        state.driftVehicleHashes.add(hash >>> 0);
     });
 });
 
@@ -60,7 +62,12 @@ function getVehicleKey(vehicle) {
 
 function isEligibleVehicle(vehicle) {
     if (!vehicle || !mp.vehicles.exists(vehicle)) return false;
-    return state.driftVehicleHashes.has(vehicle.model);
+
+    const modelHash = Number(vehicle.model);
+    return (
+        state.driftVehicleHashes.has(modelHash) ||
+        state.driftVehicleHashes.has(modelHash >>> 0)
+    );
 }
 
 function getSlipAngle(vehicle) {
