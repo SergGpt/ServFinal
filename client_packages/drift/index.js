@@ -19,6 +19,8 @@ const defaultConfig = {
     speedMin: 9,
     angleMin: 15,
     burnoutSpeedMax: 4,
+    assistForce: 0.9,
+    assistSpeedMin: 4,
     syncIntervalMs: 250,
     smokeIntervalMs: 100,
     reduceGrip: true,
@@ -31,6 +33,8 @@ const state = {
     lastSent: { active: false, mode: null, scale: 0 },
     smokeByVehicle: new Map(),
     lastVehicle: null,
+    eligibleHintVehicleKey: null,
+    driftHudState: null,
 };
 
 const wheelBones = ["wheel_lf", "wheel_rf", "wheel_lr", "wheel_rr"];
@@ -112,6 +116,46 @@ function getScaleForSpeed(mode, speed, vehicleConfig = {}) {
 function applyReduceGrip(vehicle, shouldApply) {
     if (!vehicle || !mp.vehicles.exists(vehicle)) return;
     vehicle.setReduceGrip(shouldApply);
+}
+
+
+function getSteerInput() {
+    let steer = 0;
+    if (mp.game.controls.isControlPressed(0, 63)) steer -= 1;
+    if (mp.game.controls.isControlPressed(0, 64)) steer += 1;
+    return steer;
+}
+
+function applyDriftAssist(vehicle, speed, vehicleConfig = {}) {
+    if (!vehicle || !mp.vehicles.exists(vehicle)) return;
+    if (speed < (vehicleConfig.assistSpeedMin ?? state.config.assistSpeedMin)) return;
+
+    const steer = getSteerInput();
+    const accelPressed = mp.game.controls.isControlPressed(0, 71);
+    if (!accelPressed || steer === 0) return;
+
+    const heading = mp.game.entity.getEntityHeading(vehicle.handle) * (Math.PI / 180);
+    const rightVector = { x: Math.cos(heading), y: -Math.sin(heading) };
+    const force = (vehicleConfig.assistForce ?? state.config.assistForce) * speed * steer;
+
+    vehicle.applyForceToCenterOfMass(1, rightVector.x * force, rightVector.y * force, 0, false, true, true);
+}
+
+function notifyEligibleVehicle(vehicle) {
+    const vehicleKey = getVehicleKey(vehicle);
+    if (state.eligibleHintVehicleKey === vehicleKey) return;
+    state.eligibleHintVehicleKey = vehicleKey;
+    mp.game.graphics.notify("~b~DRIFT MODE~w~: авто поддерживает дрифт");
+}
+
+function drawDriftHud(text, color = [255, 255, 255, 215]) {
+    mp.game.graphics.drawText(text, [0.5, 0.86], {
+        font: 4,
+        color,
+        scale: [0.42, 0.42],
+        outline: true,
+        centre: true,
+    });
 }
 
 function ensureAssetLoaded(dict) {
@@ -212,6 +256,8 @@ function updateLocalState() {
             applyReduceGrip(state.lastVehicle, false);
             state.lastVehicle = null;
         }
+        state.eligibleHintVehicleKey = null;
+        state.driftHudState = null;
         syncStateIfNeeded({ active: false, mode: null, scale: 0 });
         return;
     }
@@ -225,17 +271,24 @@ function updateLocalState() {
     applyReduceGrip(vehicle, eligible && (vehicleConfig.reduceGrip ?? state.config.reduceGrip));
 
     if (!eligible) {
+        state.eligibleHintVehicleKey = null;
+        state.driftHudState = "unsupported";
         syncStateIfNeeded({ active: false, mode: null, scale: 0 });
         updateSmoke(vehicle, { active: false });
         return;
     }
 
+    notifyEligibleVehicle(vehicle);
+
     const speed = mp.game.entity.getEntitySpeed(vehicle.handle);
+    applyDriftAssist(vehicle, speed, vehicleConfig);
+
     const mode = detectMode(vehicle, speed, vehicleConfig);
     const active = Boolean(mode);
     const scale = active ? getScaleForSpeed(mode, speed, vehicleConfig) : 0;
 
     const nextState = { active, mode, scale };
+    state.driftHudState = active ? mode : "ready";
     syncStateIfNeeded(nextState);
     updateSmoke(vehicle, nextState);
 }
@@ -257,6 +310,28 @@ function updateRemoteSmoke() {
         }
     }
 }
+
+
+mp.events.add("render", () => {
+    if (!state.driftHudState) return;
+
+    if (state.driftHudState === "unsupported") {
+        drawDriftHud("DRIFT: OFF (авто не в списке)", [255, 150, 150, 220]);
+        return;
+    }
+
+    if (state.driftHudState === "ready") {
+        drawDriftHud("DRIFT: READY", [180, 220, 255, 220]);
+        return;
+    }
+
+    if (state.driftHudState === "burnout") {
+        drawDriftHud("DRIFT: BURNOUT", [255, 205, 130, 230]);
+        return;
+    }
+
+    drawDriftHud("DRIFT: ACTIVE", [140, 255, 160, 230]);
+});
 
 mp.timer.addInterval(() => {
     try {
