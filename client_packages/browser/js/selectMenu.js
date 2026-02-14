@@ -7218,6 +7218,142 @@ var selectMenu = new Vue({
                     }
                 }
             },
+            "cargoBoardMenu": {
+                name: "cargoBoardMenu",
+                header: "Контракт на груз",
+                items: [
+                    { text: "Точка погрузки", values: ["-"] },
+                    { text: "Точка доставки", values: ["-"] },
+                    { text: "Награда", values: ["$0"] },
+                    { text: "Цена контракта (10%)", values: ["$0"] },
+                    { text: "Статус", values: ["Нет контракта"] },
+                    { text: "Обновление доски", values: ["00:00"] },
+                    { text: "Взять контракт" },
+                    { text: "Закрыть" },
+                ],
+                baseItems: null,
+                data: null,
+                i: 0,
+                j: 0,
+                init(data) {
+                    if (typeof data === 'string') data = JSON.parse(data);
+                    if (!this.baseItems) this.baseItems = cloneObj(this.items);
+                    this.update(data);
+                },
+                update(data) {
+                    if (typeof data === 'string') data = JSON.parse(data);
+                    this.data = data || {};
+                    this.applyData();
+                },
+                applyData() {
+                    if (!this.baseItems) this.baseItems = cloneObj(this.items);
+                    var d = this.data || {};
+                    var items = cloneObj(this.baseItems);
+
+                    items[0].values = [d.pickupName || '-'];
+                    items[1].values = [d.dropoffName || '-'];
+                    items[2].values = [`$${d.reward || 0}`];
+                    items[3].values = [`$${d.deposit || 0}`];
+
+                    var statusText = 'Нет контракта';
+                    if (d.hasActiveContract && d.cargoLoaded) statusText = 'Груз в пути';
+                    else if (d.hasActiveContract && d.hasRentedVehicle) statusText = 'Езжайте на погрузку';
+                    else if (d.hasActiveContract) statusText = 'Нужно арендовать Mule';
+                    items[4].values = [statusText];
+
+                    var refreshSeconds = d.refreshInSeconds != null ? d.refreshInSeconds : 0;
+                    var mm = Math.floor(refreshSeconds / 60);
+                    var ss = refreshSeconds % 60;
+                    var timeLabel = `${mm < 10 ? '0' : ''}${mm}:${ss < 10 ? '0' : ''}${ss}`;
+                    var routesCount = d.routesCount != null ? d.routesCount : 0;
+                    items[5].values = [`${timeLabel} • маршрутов: ${routesCount}`];
+
+                    if (d.hasActiveContract) items[6].values = ['У вас уже активен контракт'];
+                    else items[6].values = [''];
+
+                    this.items = items;
+                    selectMenu.loader = false;
+                },
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    var d = this.data || {};
+                    if (eventName == 'onItemSelected') {
+                        if (item.text == 'Взять контракт') {
+                            if (d.hasActiveContract) {
+                                selectMenu.notification = 'Сначала завершите текущий контракт';
+                                return;
+                            }
+                            mp.events.call('cargo.board.accept');
+                        } else if (item.text == 'Закрыть') {
+                            mp.events.call('cargo.board.close');
+                        }
+                    } else if (eventName == 'onBackspacePressed' || eventName == 'onEscapePressed') {
+                        mp.events.call('cargo.board.close');
+                    }
+                }
+            },
+            "cargoRentMenu": {
+                name: "cargoRentMenu",
+                header: "Аренда Mule",
+                items: [
+                    { text: "Стоимость аренды", values: ["$1000"] },
+                    { text: "Статус", values: ["-"] },
+                    { text: "Арендовать Mule" },
+                    { text: "Закрыть" },
+                ],
+                baseItems: null,
+                data: null,
+                i: 0,
+                j: 0,
+                init(data) {
+                    if (typeof data === 'string') data = JSON.parse(data);
+                    if (!this.baseItems) this.baseItems = cloneObj(this.items);
+                    this.update(data);
+                },
+                update(data) {
+                    if (typeof data === 'string') data = JSON.parse(data);
+                    this.data = data || {};
+                    this.applyData();
+                },
+                applyData() {
+                    if (!this.baseItems) this.baseItems = cloneObj(this.items);
+                    var d = this.data || {};
+                    var items = cloneObj(this.baseItems);
+                    items[0].values = [`$${d.rentPrice || 1000}`];
+
+                    var status = 'Нет активного контракта';
+                    if (d.hasActiveContract && d.hasVehicle) status = 'Mule уже арендован';
+                    else if (d.hasActiveContract) status = 'Можно арендовать';
+                    items[1].values = [status];
+
+                    if (!d.hasActiveContract || d.hasVehicle) items[2].values = ['Недоступно'];
+                    else items[2].values = [''];
+
+                    this.items = items;
+                    selectMenu.loader = false;
+                },
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    var d = this.data || {};
+                    if (eventName == 'onItemSelected') {
+                        if (item.text == 'Арендовать Mule') {
+                            if (!d.hasActiveContract) {
+                                selectMenu.notification = 'Сначала возьмите контракт на доске';
+                                return;
+                            }
+                            if (d.hasVehicle) {
+                                selectMenu.notification = 'Mule уже арендован';
+                                return;
+                            }
+                            mp.events.call('cargo.rent.accept');
+                        } else if (item.text == 'Закрыть') {
+                            mp.events.call('cargo.rent.close');
+                        }
+                    } else if (eventName == 'onBackspacePressed' || eventName == 'onEscapePressed') {
+                        mp.events.call('cargo.rent.close');
+                    }
+                }
+            },
             "farmsMain": {
                 name: "farmsMain",
                 header: "Фермерское хозяйство",
