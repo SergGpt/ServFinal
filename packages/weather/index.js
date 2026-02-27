@@ -1,151 +1,124 @@
 "use strict";
 
-const request = require("request");
-
-let weather = {};
-weather.isSet = false;
-
-const API_KEY = "780c6411-0e39-4d67-8e1e-ef3788643629"; // твой ключ
-const LAT = 56.8519; // Екатеринбург
-const LON = 60.6122;
-const DEFAULT_SUMMARY = "Ясно";
-const DEFAULT_TEMPERATURE = 20;
-const DEFAULT_ICON = "clear";
-const REQUEST_TIME = 60 * 60 * 1000; // повторный запрос через 1 час при ошибке
-
-let weatherForecast = [];
-let customTemperature;
 let timer = call('timer');
 let utils = call('utils');
 
-let conditionTranslate = {
-    "clear": "Ясно",
-    "partly-cloudy": "Малооблачно",
-    "cloudy": "Облачно с прояснениями",
-    "overcast": "Пасмурно",
-    "drizzle": "Морось",
-    "light-rain": "Небольшой дождь",
-    "rain": "Дождь",
-    "moderate-rain": "Умеренный дождь",
-    "heavy-rain": "Сильный дождь",
-    "showers": "Ливень",
-    "wet-snow": "Дождь со снегом",
-    "light-snow": "Небольшой снег",
-    "snow": "Снег",
-    "snow-showers": "Снегопад",
-    "hail": "Град",
-    "thunderstorm": "Гроза",
-    "thunderstorm-with-rain": "Дождь с грозой",
-    "thunderstorm-with-hail": "Гроза с градом"
-};
+const WEATHER_CHANGE_INTERVAL = 15 * 60 * 1000;
+const SUNNY_CHANCE = 60;
+const DEFAULT_TEMPERATURE = 20;
+
+const WEATHER_SEQUENCE = [
+    { icon: "clear", summary: "Ясно", gameWeather: "CLEAR", minTemp: 20, maxTemp: 30 },
+    { icon: "partly-cloudy", summary: "Малооблачно", gameWeather: "EXTRASUNNY", minTemp: 18, maxTemp: 28 },
+    { icon: "cloudy", summary: "Облачно", gameWeather: "CLOUDS", minTemp: 14, maxTemp: 22 },
+    { icon: "overcast", summary: "Пасмурно", gameWeather: "OVERCAST", minTemp: 10, maxTemp: 18 },
+    { icon: "rain", summary: "Дождь", gameWeather: "RAIN", minTemp: 8, maxTemp: 16 },
+    { icon: "thunderstorm", summary: "Гроза", gameWeather: "THUNDER", minTemp: 6, maxTemp: 14 }
+];
+
+const SUNNY_WEATHERS = ["clear", "partly-cloudy"];
+
+let customTemperature = null;
+let currentWeather = WEATHER_SEQUENCE[0];
+let weatherTimer = null;
+
+function pickRandomWeather() {
+    const isSunny = utils.randomInteger(1, 100) <= SUNNY_CHANCE;
+
+    if (isSunny) {
+        return WEATHER_SEQUENCE.find((w) => w.icon === SUNNY_WEATHERS[utils.randomInteger(0, SUNNY_WEATHERS.length - 1)]);
+    }
+
+    const nonSunny = WEATHER_SEQUENCE.filter((w) => !SUNNY_WEATHERS.includes(w.icon));
+    return nonSunny[utils.randomInteger(0, nonSunny.length - 1)];
+}
 
 module.exports = {
-  customWeather: false,
-  customWeatherType: 'winter',
-  currentWeatherName: 'CLEAR',
+    customWeather: false,
+    customWeatherType: 'winter',
+    currentWeatherName: 'CLEAR',
 
-  init() {
-    this.requestWeather();
-  },
-
-  requestWeather() {
-    request({
-      url: `https://api.weather.yandex.ru/v2/forecast?lat=${LAT}&lon=${LON}&lang=ru_RU&hours=true`,
-      headers: { "X-Yandex-API-Key": API_KEY },
-      json: true
+    init() {
+        this.setWeatherFromRotation();
+        this.startWeatherRotation();
     },
-    (err, res, body) => {
-      if (err || res.statusCode !== 200) {
-        console.log("[WEATHER] Ошибка загрузки:", err || res.statusCode);
-        return this.repeatWeatherRequest();
-      }
 
-      try {
-        weatherForecast = body.forecasts[0].hours.map(h => ({
-          time: parseInt(h.hour),
-          summary: h.condition,
-          temperature: h.temp,
-          icon: h.condition
-        }));
-      } catch (e) {
-        console.log("[WEATHER] Ошибка парсинга:", e);
-        return this.repeatWeatherRequest();
-      }
+    startWeatherRotation() {
+        if (weatherTimer) timer.remove(weatherTimer);
+        weatherTimer = timer.addInterval(() => {
+            try {
+                this.setWeatherFromRotation();
+            } catch (e) {
+                console.log(e);
+            }
+        }, WEATHER_CHANGE_INTERVAL);
+    },
 
-      console.log("[WEATHER] Прогноз загружен с Яндекс.Погоды");
-      if (!weather.isSet) this.setWeather();
-    });
-  },
+    setWeatherFromRotation() {
+        if (!this.customWeather) {
+            currentWeather = pickRandomWeather();
+        } else {
+            currentWeather = this.generateCustomWeather();
+        }
 
-  repeatWeatherRequest() {
-    if (!weather.isSet) this.setWeather();
-    console.log(`[WEATHER] Повтор запроса через ${REQUEST_TIME / (60 * 1000)} мин.`);
-    timer.add(this.requestWeather, REQUEST_TIME);
-  },
+        this.currentWeatherName = currentWeather.gameWeather || 'CLEAR';
+        mp.world.weather = this.currentWeatherName;
 
-  getForecastDataByHour(hours) {
-    if (this.customWeather) return this.generateCustomWeather(hours);
-    const item = weatherForecast.find(f => f.time === hours);
-    return item || { summary: DEFAULT_SUMMARY, temperature: DEFAULT_TEMPERATURE, icon: DEFAULT_ICON };
-  },
+        const forecast = this.getCurrentWeather();
+        mp.players.forEach((p) => p.call('weather.info.update', [forecast]));
 
-  setWeather() {
-    weather.isSet = true;
-    const now = new Date();
-    weather.current = this.getForecastDataByHour(now.getHours());
-    weather.current.summary = conditionTranslate[weather.current.icon] || weather.current.summary;
-    console.log(`[WEATHER] Текущая погода: ${JSON.stringify(weather.current)}`);
+        console.log(`[WEATHER] Новая погода: ${forecast.summary} (${this.currentWeatherName}), t=${forecast.temperature}`);
+    },
 
-    const weatherName = this.getGameWeatherByIcon(weather.current.icon);
-    this.currentWeatherName = weatherName;
-    mp.world.weather = weatherName;
+    setCustomTemperature(temp) {
+        customTemperature = temp;
+        mp.players.forEach((p) => p.call('weather.info.update', [this.getCurrentWeather()]));
+    },
 
-    const forecast = { ...weather.current, temperature: customTemperature ?? weather.current.temperature };
-    mp.players.forEach(p => p.call('weather.info.update', [forecast]));
+    resetCustomTemperature() {
+        customTemperature = null;
+        mp.players.forEach((p) => p.call('weather.info.update', [this.getCurrentWeather()]));
+    },
 
-    timer.add(() => {
-      try { this.setWeather(); } catch (e) { console.log(e); }
-    }, (60 - now.getMinutes()) * 60 * 1000);
+    getCurrentWeather() {
+        const weatherInfo = {
+            summary: currentWeather.summary,
+            icon: currentWeather.icon,
+            temperature: customTemperature != null
+                ? customTemperature
+                : utils.randomInteger(currentWeather.minTemp || DEFAULT_TEMPERATURE, currentWeather.maxTemp || DEFAULT_TEMPERATURE)
+        };
 
-    console.log(`[WEATHER] Следующее обновление через ${60 - now.getMinutes()} мин`);
-  },
+        return weatherInfo;
+    },
 
-  setCustomTemperature(temp) {
-    customTemperature = temp;
-    mp.players.forEach(p => p.call('weather.info.update', [this.getCurrentWeather()]));
-  },
+    forceWeather(icon) {
+        const weather = WEATHER_SEQUENCE.find((w) => w.icon === icon);
+        if (!weather) return false;
 
-  resetCustomTemperature() {
-    customTemperature = null;
-    mp.players.forEach(p => p.call('weather.info.update', [this.getCurrentWeather()]));
-  },
+        currentWeather = weather;
+        this.currentWeatherName = weather.gameWeather;
+        mp.world.weather = weather.gameWeather;
+        mp.players.forEach((p) => p.call('weather.info.update', [this.getCurrentWeather()]));
+        return true;
+    },
 
-  getCurrentWeather() {
-    let current = {};
-    if (!weather.current) {
-      current.summary = DEFAULT_SUMMARY;
-      current.temperature = DEFAULT_TEMPERATURE;
-      current.icon = DEFAULT_ICON;
-    } else {
-      Object.assign(current, weather.current);
+    getAvailableWeatherIcons() {
+        return WEATHER_SEQUENCE.map((w) => w.icon);
+    },
+
+    generateCustomWeather() {
+        if (this.customWeatherType === 'winter') {
+            return {
+                summary: 'Снег',
+                temperature: utils.randomInteger(-15, -5),
+                icon: 'snow',
+                gameWeather: 'XMAS',
+                minTemp: -15,
+                maxTemp: -5
+            };
+        }
+
+        return WEATHER_SEQUENCE[0];
     }
-    if (customTemperature != null) current.temperature = customTemperature;
-    return current;
-  },
-
-  getGameWeatherByIcon(icon) {
-    return weatherConfig[icon] || "SMOG";
-  },
-
-  generateCustomWeather(hours) {
-    let w = {};
-    if (this.customWeatherType === 'winter') {
-      w.summary = 'Снег';
-      w.temperature = hours > 6 && hours < 23
-        ? utils.randomInteger(-10, -5)
-        : utils.randomInteger(-15, -10);
-      w.icon = 'snow';
-    }
-    return w;
-  }
 };

@@ -27,5 +27,17 @@ module.exports = {
             time.resetCustomTime();
             out.info(`${player.name} возобновил обновление времени`);
         }
+    },
+    "/settimerate": {
+        access: 6,
+        description: "Изменить скорость игрового времени (2 = 2 игровых суток за 1 реальный день)",
+        args: "[множитель]",
+        handler: (player, args, out) => {
+            const rate = parseFloat(args[0]);
+            if (isNaN(rate) || rate <= 0) return out.error('Укажите число больше 0', player);
+
+            time.setTimeRate(rate);
+            out.info(`${player.name} установил множитель игрового времени: ${rate}`);
+        }
     }
 }
