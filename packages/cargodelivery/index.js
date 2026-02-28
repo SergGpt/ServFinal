@@ -20,6 +20,9 @@ const MULE_RENT_COST = 1000;
 const DELIVERY_SECONDS = 30 * 60;
 const CONTRACT_REFRESH_SECONDS = 20 * 60;
 const CARGO_JOB_OWNER_ID = 13;
+const RENT_SECONDS = 2 * 60 * 60;
+const RENT_WARN_SECONDS = [10 * 60, 5 * 60, 60];
+const RENT_DESTROY_DELAY_SECONDS = 2 * 60;
 
 // Полный список маршрутов (для разнообразия)
 const CARGO_ROUTES = [
@@ -113,6 +116,10 @@ function getSession(player) {
             pickupInside: false,
             rentedVehicleDbId: null,
             rentedVehiclePlate: null,
+            rentExpiresAt: null,
+            rentWarnTimers: [],
+            rentExpireTimer: null,
+            rentDestroyTimer: null,
         });
     }
     return sessions.get(player.id);
@@ -154,8 +161,10 @@ function findNearestFreeJobMule(player, radius = 120) {
 function isPlayerInRentedMule(player, session) {
     if (!player || !session) return false;
     if (!player.vehicle) return false;
+    if (session.rentExpiresAt && Date.now() > session.rentExpiresAt) return false;
 
     const vehicle = player.vehicle;
+    if (vehicle.cargoRentExpired) return false;
     if (session.rentedVehicle && mp.vehicles.exists(session.rentedVehicle) && vehicle === session.rentedVehicle) {
         return true;
     }
@@ -166,6 +175,22 @@ function isPlayerInRentedMule(player, session) {
     if (session.rentedVehiclePlate && vehicle.plate && vehicle.plate === session.rentedVehiclePlate) return true;
 
     return false;
+}
+
+function clearRentTimers(session) {
+    if (!session) return;
+    if (session.rentWarnTimers && session.rentWarnTimers.length) {
+        session.rentWarnTimers.forEach(t => clearTimeout(t));
+    }
+    session.rentWarnTimers = [];
+    if (session.rentExpireTimer) {
+        clearTimeout(session.rentExpireTimer);
+        session.rentExpireTimer = null;
+    }
+    if (session.rentDestroyTimer) {
+        clearTimeout(session.rentDestroyTimer);
+        session.rentDestroyTimer = null;
+    }
 }
 
 function clearColshape(colshape) {
@@ -191,16 +216,7 @@ function clearSessionProgress(player, reason = null) {
         session.timer = null;
     }
 
-    if (session.rentedVehicle && mp.vehicles.exists(session.rentedVehicle)) {
-        const veh = session.rentedVehicle;
-        if (veh.cargoOwnerId === player.id) veh.cargoOwnerId = null;
-        veh.engine = false;
-        veh.engineStatus = false;
-        veh.setVariable('engine', false);
-    }
-
     session.contract = null;
-    session.rentedVehicle = null;
     session.cargoLoaded = false;
     session.deliveryEndsAt = null;
     session.startBodyHealth = 1000;
@@ -397,7 +413,7 @@ module.exports = {
         if (!ensureModules()) return;
         const session = getSession(player);
         if (!session || !session.contract) return notifs.error(player, 'Сначала возьмите контракт на доске', 'Грузоперевозка');
-        if (session.rentedVehicle && mp.vehicles.exists(session.rentedVehicle)) {
+        if (session.rentedVehicle && mp.vehicles.exists(session.rentedVehicle) && !session.rentedVehicle.cargoRentExpired) {
             return notifs.error(player, 'У вас уже арендован Mule', 'Грузоперевозка');
         }
 
@@ -421,6 +437,42 @@ module.exports = {
             session.startBodyHealth = 1000;
             session.rentedVehicleDbId = veh.db ? veh.db.id : null;
             session.rentedVehiclePlate = veh.plate || null;
+            session.rentExpiresAt = Date.now() + RENT_SECONDS * 1000;
+            clearRentTimers(session);
+            session.rentWarnTimers = [];
+            veh.cargoRentExpired = false;
+
+            RENT_WARN_SECONDS.forEach((warnSec) => {
+                const delay = session.rentExpiresAt - Date.now() - warnSec * 1000;
+                if (delay <= 0) return;
+                const timer = setTimeout(() => {
+                    if (!mp.players.exists(player)) return;
+                    const mins = Math.ceil(warnSec / 60);
+                    notifs.info(player, `До окончания аренды Mule осталось ${mins} мин.`, 'Грузоперевозка');
+                }, delay);
+                session.rentWarnTimers.push(timer);
+            });
+
+            session.rentExpireTimer = setTimeout(() => {
+                if (!session.rentedVehicle || !mp.vehicles.exists(session.rentedVehicle)) return;
+                const rentedVeh = session.rentedVehicle;
+                rentedVeh.cargoRentExpired = true;
+                rentedVeh.engine = false;
+                rentedVeh.engineStatus = false;
+                rentedVeh.setVariable('engine', false);
+                if (mp.players.exists(player)) {
+                    notifs.error(player, 'Время аренды истекло. Машина заблокирована и будет убрана через 2 минуты.', 'Грузоперевозка');
+                }
+                session.rentDestroyTimer = setTimeout(() => {
+                    if (rentedVeh && mp.vehicles.exists(rentedVeh)) rentedVeh.destroy();
+                    session.rentedVehicle = null;
+                    session.rentedVehicleDbId = null;
+                    session.rentedVehiclePlate = null;
+                    session.rentExpiresAt = null;
+                    clearRentTimers(session);
+                    if (mp.players.exists(player)) updateBoardData(player);
+                }, RENT_DESTROY_DELAY_SECONDS * 1000);
+            }, RENT_SECONDS * 1000);
 
             player.call('cargo.rent.data', [JSON.stringify({
                 rentPrice: MULE_RENT_COST,
@@ -502,7 +554,9 @@ module.exports = {
         if (!player || !player.character || !vehicle) return false;
         if (vehicle.key !== 'job' || vehicle.owner !== CARGO_JOB_OWNER_ID) return false;
         const session = getSession(player);
-        if (!session || !session.contract) return false;
+        if (!session) return false;
+        if (vehicle.cargoRentExpired) return false;
+        if (session.rentExpiresAt && Date.now() > session.rentExpiresAt) return false;
         if (session.rentedVehicle && mp.vehicles.exists(session.rentedVehicle) && session.rentedVehicle === vehicle) return true;
         if (vehicle.cargoOwnerId != null && vehicle.cargoOwnerId == player.id) return true;
         if (session.rentedVehicleDbId != null && vehicle.db && vehicle.db.id == session.rentedVehicleDbId) return true;
@@ -511,7 +565,12 @@ module.exports = {
     },
 
     cleanupPlayer(player) {
+        const session = getSession(player);
+        if (!session) return;
         clearSessionProgress(player);
+        // Сохраняем сессию, если аренда еще активна: таймеры аренды должны продолжать работу
+        if (session.rentedVehicle && mp.vehicles.exists(session.rentedVehicle) && !session.rentedVehicle.cargoRentExpired) return;
+        clearRentTimers(session);
         sessions.delete(player.id);
     },
 };
