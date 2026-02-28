@@ -115,6 +115,23 @@ function getSession(player) {
     return sessions.get(player.id);
 }
 
+
+function isPlayerInRentedMule(player, session) {
+    if (!player || !session) return false;
+    if (!player.vehicle || player.vehicle.driver !== player) return false;
+
+    const vehicle = player.vehicle;
+    if (session.rentedVehicle && mp.vehicles.exists(session.rentedVehicle) && vehicle === session.rentedVehicle) {
+        return true;
+    }
+
+    // fallback: после некоторых пересозданий/стриминга ссылка объекта может отличаться,
+    // поэтому проверяем ownership-маркер арендованного транспорта
+    if (vehicle.cargoOwnerId && vehicle.cargoOwnerId === player.id) return true;
+
+    return false;
+}
+
 function clearColshape(colshape) {
     if (!colshape) return;
     try {
@@ -376,8 +393,7 @@ module.exports = {
         if (shape === session.pickupColshape) {
             session.pickupInside = true;
             player.call('cargo.pickup.zone.state', [true]);
-            if (!player.vehicle || player.vehicle.driver !== player) return;
-            if (!session.rentedVehicle || player.vehicle !== session.rentedVehicle) return;
+            if (!isPlayerInRentedMule(player, session)) return;
             if (session.cargoLoaded) return;
             player.call('cargo.pickup.hint.show');
             return;
@@ -385,7 +401,7 @@ module.exports = {
 
         if (shape === session.dropoffColshape) {
             if (!session.cargoLoaded) return;
-            if (!player.vehicle || player.vehicle.driver !== player || player.vehicle !== session.rentedVehicle) return;
+            if (!isPlayerInRentedMule(player, session)) return;
 
             const vehicle = session.rentedVehicle;
             const currentHealth = Math.max(0, vehicle.bodyHealth || 0);
@@ -419,8 +435,7 @@ module.exports = {
         if (!session || !session.contract) return;
         if (!session.pickupColshape || !session.pickupInside) return notifs.error(player, 'Подъедьте к зоне погрузки', 'Грузоперевозка');
         if (session.cargoLoaded) return notifs.error(player, 'Груз уже загружен', 'Грузоперевозка');
-        if (!player.vehicle || player.vehicle.driver !== player) return notifs.error(player, 'Вы должны быть за рулём Mule', 'Грузоперевозка');
-        if (!session.rentedVehicle || player.vehicle !== session.rentedVehicle) {
+        if (!isPlayerInRentedMule(player, session)) {
             return notifs.error(player, 'Загрузка доступна только на арендованном Mule', 'Грузоперевозка');
         }
 
