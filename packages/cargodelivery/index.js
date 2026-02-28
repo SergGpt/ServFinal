@@ -2,14 +2,15 @@
 
 let notifs;
 let money;
+let vehiclesModule;
 
-const BOARD_POS = new mp.Vector3(118.629, -3104.442, 5.701);
-const RENT_POS = new mp.Vector3(133.807, -3239.399, 5.857);
+const BOARD_POS = new mp.Vector3(109.629, -3247.442, 5.701);
+const RENT_POS = new mp.Vector3(109.23, -3255.38, 5.857);
 const RENT_SPAWN_POS = new mp.Vector3(140.917, -3234.474, 5.857);
 const SHOWCASE_MULES = [
-    { x: 133.58, y: -3244.29, z: 5.86, h: 270 },
-    { x: 133.64, y: -3250.66, z: 5.86, h: 270 },
-    { x: 133.72, y: -3257.03, z: 5.86, h: 270 },
+    { x: 112.10, y: -3257.00, z: 5.86, h: 90 },
+    { x: 112.10, y: -3253.30, z: 5.86, h: 90 },
+    { x: 112.10, y: -3249.60, z: 5.86, h: 90 },
 ];
 const PICKUP_RADIUS = 6;
 const DROP_RADIUS = 8;
@@ -53,7 +54,8 @@ const boardState = {
 function ensureModules() {
     if (!notifs) notifs = call('notifications');
     if (!money) money = call('money');
-    return !!(notifs && money);
+    if (!vehiclesModule) vehiclesModule = call('vehicles');
+    return !!(notifs && money && vehiclesModule);
 }
 
 function cloneContractData(template) {
@@ -241,6 +243,7 @@ module.exports = {
                 engine: false,
                 dimension: 0,
             });
+            veh.properties = vehiclesModule.getVehiclePropertiesByModel('mule');
             veh.setVariable('static', true);
             this.showcaseVehicles.push(veh);
         });
@@ -323,6 +326,7 @@ module.exports = {
                 dimension: player.dimension,
             });
 
+            veh.properties = vehiclesModule.getVehiclePropertiesByModel('mule');
             veh.cargoOwnerId = player.id;
             session.rentedVehicle = veh;
             session.startBodyHealth = 1000;

@@ -2,6 +2,18 @@
 -- Run this once in your MySQL database.
 -- NOTE: table name is expected to be `Vehicles` (Sequelize default for model Vehicle).
 
+-- Ensure vehicle properties for Mule exist (prevents undefined vehicle.properties errors)
+INSERT INTO `VehicleProperties` (`model`, `name`, `vehType`, `price`, `maxFuel`, `consumption`, `license`, `isElectric`, `trunkType`)
+VALUES ('mule', 'Mule', 1, 48000, 120, 3, 2, 0, 3)
+ON DUPLICATE KEY UPDATE
+`name` = VALUES(`name`),
+`vehType` = VALUES(`vehType`),
+`maxFuel` = VALUES(`maxFuel`),
+`consumption` = VALUES(`consumption`),
+`license` = VALUES(`license`),
+`isElectric` = VALUES(`isElectric`),
+`trunkType` = VALUES(`trunkType`);
+
 INSERT INTO `Vehicles`
 (`key`, `owner`, `modelName`, `plate`, `regDate`, `owners`, `color1`, `color2`, `x`, `y`, `z`, `h`, `fuel`, `health`, `destroys`, `engineState`, `steeringState`, `fuelState`, `brakeState`, `dimension`, `mileage`, `parkingId`, `parkingDate`)
 VALUES

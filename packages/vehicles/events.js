@@ -8,6 +8,17 @@ var timer = call('timer');
 let money = call('money');
 let houses = call('houses');
 
+
+function ensureVehicleProperties(vehicle) {
+    if (!vehicle) return null;
+    if (vehicle.properties) return vehicle.properties;
+    const modelName = vehicle.modelName || (vehicle.db && vehicle.db.modelName) || 'blista';
+    const fallback = vehicles.getVehiclePropertiesByModel(modelName);
+    vehicle.properties = fallback;
+    return fallback;
+}
+
+
 module.exports = {
     "init": async () => {
         await vehicles.init();
@@ -40,20 +51,21 @@ module.exports = {
         }
         player.call('vehicles.enter.private', [isPrivate]);
 
-        let enableAutopilot = vehicle.properties.isElectric;
+        const vehProps = ensureVehicleProperties(vehicle);
+        let enableAutopilot = vehProps.isElectric;
         player.call('vehicles.autopilot.enable', [enableAutopilot]);
         
         let isState = vehicle.key == 'faction' && ((vehicle.owner >= 1 && vehicle.owner <= 7) || vehicle.owner == 15);
         player.call('vehicles.state.enter', [isState]);
 
-        if (!vehicle.engineStatus && seat == 0 && !vehicle.isInGarage && vehicle.properties.vehType != 2) {
+        if (!vehicle.engineStatus && seat == 0 && !vehicle.isInGarage && vehProps.vehType != 2) {
             player.call('prompt.showByName', ['vehicle_engine']);
         }
         if (seat == 0) {
-            let enabled = vehicle.properties.vehType == 2 ? false : true;
+            let enabled = vehProps.vehType == 2 ? false : true;
             player.call('vehicles.speedometer.enabled', [enabled]);
-            player.call('vehicles.speedometer.show', [true, vehicle.properties.isElectric]);
-            player.call('vehicles.speedometer.max.update', [vehicle.properties.maxFuel]);
+            player.call('vehicles.speedometer.show', [true, vehProps.isElectric]);
+            player.call('vehicles.speedometer.max.update', [vehProps.maxFuel]);
             player.call('vehicles.speedometer.sync');
             timer.remove(player.indicatorsUpdateTimer);
 
@@ -115,17 +127,18 @@ module.exports = {
         if (player.vehicle.key == "job" && player.vehicle.owner == 3 && !player.vehicle.isActiveBus) return;
         if (player.vehicle.key == "job" && player.vehicle.owner == 4 && !player.vehicle.driver) return;
         if (player.vehicle.key === 'faction' && player.vehicle.owner !== player.character.factionId) return;
-        if (player.vehicle.properties.vehType == 2) return;
+        const vehProps = ensureVehicleProperties(player.vehicle);
+        if (vehProps.vehType == 2) return;
         if (player.vehicle.isBeingRepaired) return player.call('notifications.push.warning', ['Двигатель завести нельзя', 'Ремонт']);
         if (player.vehicle.isBeingTuned) return;
-        if (player.vehicle.fuel <= 0) return player.call('notifications.push.error', [player.vehicle.properties.isElectric ? 'Нет зарядки' :'Нет топлива', 'Транспорт']);
+        if (player.vehicle.fuel <= 0) return player.call('notifications.push.error', [vehProps.isElectric ? 'Нет зарядки' :'Нет топлива', 'Транспорт']);
         if (player.vehicle.engineStatus == true) {
             player.vehicle.engineStatus = false;
             player.vehicle.engine = false;
             player.call('vehicles.engine.toggle', [false]);
             player.vehicle.setVariable("engine", false);
         } else {
-            if (player.vehicle.key == 'private' && !vehicles.haveKeys(player, player.vehicle)) return notifs.error(player, `Вы не имеете ключи`, player.vehicle.properties.name);
+            if (player.vehicle.key == 'private' && !vehicles.haveKeys(player, player.vehicle)) return notifs.error(player, `Вы не имеете ключи`, vehProps.name);
             player.vehicle.engineStatus = true;
             player.vehicle.engine = true;
             player.call('vehicles.engine.toggle', [true]);
