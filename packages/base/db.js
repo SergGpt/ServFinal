@@ -50,6 +50,11 @@ module.exports = {
     loadModels: async function() {
         console.log("[DATABASE] load models...");
         try {
+            // Важно для ретраев подключения: очищаем реестр моделей,
+            // иначе при повторном вызове loadModels() ассоциации могут регистрироваться повторно
+            // и выбрасывать ошибку вида "Aliased associations must have unique aliases".
+            this.Models = {};
+
             fs.readdirSync(path.dirname(__dirname)).forEach(dir => {
                 if (dir != 'base' && !ignoreModules.includes(dir) && fs.existsSync(path.dirname(__dirname)+ "/" + dir + '/db')) {
                     console.log(`[DATABASE] --${dir}`);
