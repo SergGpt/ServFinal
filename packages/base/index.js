@@ -89,7 +89,12 @@ db.connect(function() {
         !['base', 'index.js', '.listcache', 'browser', 'utils'].includes(file) && !ignoreClientModules.includes(file) && activeClientModules.push(file);
     });
 
-    mp.events.call('init');
+    try {
+        mp.events.call('init');
+    } catch (initErr) {
+        console.error(`[BASE] init event failed: ${initErr.message}`);
+        if (initErr && initErr.stack) console.error(initErr.stack);
+    }
 });
 
 mp.events.add("playerJoin", (player) => {
