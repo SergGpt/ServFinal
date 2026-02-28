@@ -27,5 +27,26 @@ module.exports = {
             weather.resetCustomTemperature();
             out.info(`${player.name} возобновил обновление температуры`);
         }
+    },
+    '/setweather': {
+        args: '[тип]',
+        description: 'Принудительно установить погоду (clear, partly-cloudy, cloudy, overcast, rain, thunderstorm)',
+        access: 6,
+        handler: (player, args, out) => {
+            const weatherIcon = args[0];
+            if (!weather.forceWeather(weatherIcon)) {
+                return out.error(`Неизвестная погода. Доступно: ${weather.getAvailableWeatherIcons().join(', ')}`, player);
+            }
+            out.info(`${player.name} установил погоду ${weatherIcon}`);
+        }
+    },
+    '/nextweather': {
+        args: '',
+        description: 'Сразу переключить погоду по ротации',
+        access: 6,
+        handler: (player, args, out) => {
+            weather.setWeatherFromRotation();
+            out.info(`${player.name} запустил принудительную смену погоды`);
+        }
     }
 }
