@@ -193,14 +193,10 @@ function clearSessionProgress(player, reason = null) {
 
     if (session.rentedVehicle && mp.vehicles.exists(session.rentedVehicle)) {
         const veh = session.rentedVehicle;
-        if (veh.key === 'job' && veh.owner === CARGO_JOB_OWNER_ID) {
-            if (veh.cargoOwnerId === player.id) veh.cargoOwnerId = null;
-            veh.engine = false;
-            veh.engineStatus = false;
-            veh.setVariable('engine', false);
-        } else {
-            veh.destroy();
-        }
+        if (veh.cargoOwnerId === player.id) veh.cargoOwnerId = null;
+        veh.engine = false;
+        veh.engineStatus = false;
+        veh.setVariable('engine', false);
     }
 
     session.contract = null;
