@@ -109,6 +109,7 @@ function getSession(player) {
             dropoffColshape: null,
             timer: null,
             startBodyHealth: 1000,
+            pickupInside: false,
         });
     }
     return sessions.get(player.id);
@@ -146,7 +147,9 @@ function clearSessionProgress(player, reason = null) {
     session.cargoLoaded = false;
     session.deliveryEndsAt = null;
     session.startBodyHealth = 1000;
+    session.pickupInside = false;
 
+    player.call('cargo.pickup.zone.state', [false]);
     player.call('cargo.delivery.clear', [reason]);
 }
 
@@ -327,6 +330,7 @@ module.exports = {
             session.pickupColshape = shape;
 
             player.call('cargo.delivery.pickup.set', [pickup.x, pickup.y, pickup.z]);
+            player.call('cargo.delivery.pickup.marker', [pickup.x, pickup.y, pickup.z]);
             updateBoardData(player);
             notifs.success(player, `Контракт куплен за $${contract.deposit}. Арендуйте Mule и заберите груз.`, 'Грузоперевозка');
         }, 'Покупка контракта на перевозку груза');
@@ -370,21 +374,12 @@ module.exports = {
         if (!session || !session.contract) return;
 
         if (shape === session.pickupColshape) {
+            session.pickupInside = true;
+            player.call('cargo.pickup.zone.state', [true]);
             if (!player.vehicle || player.vehicle.driver !== player) return;
-            if (!session.rentedVehicle || player.vehicle !== session.rentedVehicle) {
-                return notifs.error(player, 'Забрать груз можно только на арендованном Mule', 'Грузоперевозка');
-            }
+            if (!session.rentedVehicle || player.vehicle !== session.rentedVehicle) return;
             if (session.cargoLoaded) return;
-
-            session.cargoLoaded = true;
-            session.startBodyHealth = Math.max(300, player.vehicle.bodyHealth || 1000);
-            clearColshape(session.pickupColshape);
-            session.pickupColshape = null;
-
-            createDeliveryColshape(player);
-            startDeliveryTimer(player);
-            notifs.success(player, 'Груз загружен. Доставьте его в пункт назначения за 30 минут.', 'Грузоперевозка');
-            updateBoardData(player);
+            player.call('cargo.pickup.hint.show');
             return;
         }
 
@@ -406,6 +401,40 @@ module.exports = {
                 clearSessionProgress(player, 'success');
             }, 'Выплата за доставку груза');
         }
+    },
+
+
+    onPlayerExitColshape(player, shape) {
+        const session = getSession(player);
+        if (!session) return;
+        if (shape === session.pickupColshape) {
+            session.pickupInside = false;
+            player.call('cargo.pickup.zone.state', [false]);
+        }
+    },
+
+    loadCargo(player) {
+        if (!ensureModules()) return;
+        const session = getSession(player);
+        if (!session || !session.contract) return;
+        if (!session.pickupColshape || !session.pickupInside) return notifs.error(player, 'Подъедьте к зоне погрузки', 'Грузоперевозка');
+        if (session.cargoLoaded) return notifs.error(player, 'Груз уже загружен', 'Грузоперевозка');
+        if (!player.vehicle || player.vehicle.driver !== player) return notifs.error(player, 'Вы должны быть за рулём Mule', 'Грузоперевозка');
+        if (!session.rentedVehicle || player.vehicle !== session.rentedVehicle) {
+            return notifs.error(player, 'Загрузка доступна только на арендованном Mule', 'Грузоперевозка');
+        }
+
+        session.cargoLoaded = true;
+        session.startBodyHealth = Math.max(300, player.vehicle.bodyHealth || 1000);
+        clearColshape(session.pickupColshape);
+        session.pickupColshape = null;
+        session.pickupInside = false;
+
+        player.call('cargo.pickup.zone.state', [false]);
+        createDeliveryColshape(player);
+        startDeliveryTimer(player);
+        notifs.success(player, 'Груз загружен. Доставьте его в пункт назначения за 30 минут.', 'Грузоперевозка');
+        updateBoardData(player);
     },
 
     cleanupPlayer(player) {

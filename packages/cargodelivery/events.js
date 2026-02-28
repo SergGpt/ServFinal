@@ -35,12 +35,16 @@ module.exports = {
         const mod = getCargo();
         if (shape === mod.boardColshape) mod.onBoardExit(player);
         if (shape === mod.rentColshape) mod.onRentExit(player);
+        mod.onPlayerExitColshape(player, shape);
     },
     'cargo.contract.accept': (player) => {
         getCargo().acceptContract(player);
     },
     'cargo.mule.rent': (player) => {
         getCargo().rentMule(player);
+    },
+    'cargo.pickup.load': (player) => {
+        getCargo().loadCargo(player);
     },
     playerQuit: (player) => {
         getCargo().cleanupPlayer(player);

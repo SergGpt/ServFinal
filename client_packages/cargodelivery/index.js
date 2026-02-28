@@ -7,13 +7,21 @@ let boardData = null;
 let rentData = null;
 let deliveryState = {
     pickupBlip: null,
+    pickupMarker: null,
     dropoffBlip: null,
     timerEndAt: null,
 };
+let isInPickupZone = false;
 
 function destroyBlip(blip) {
     if (blip && mp.blips.exists(blip)) blip.destroy();
 }
+
+
+function destroyMarker(marker) {
+    if (marker && mp.markers.exists(marker)) marker.destroy();
+}
+
 
 function closeTerminal() {
     mp.callCEFV('acceptWindow.show = false;');
@@ -124,6 +132,14 @@ mp.events.add('cargo.delivery.pickup.set', (x, y, z) => {
     deliveryState.pickupBlip.setRoute(true);
 });
 
+mp.events.add('cargo.delivery.pickup.marker', (x, y, z) => {
+    destroyMarker(deliveryState.pickupMarker);
+    deliveryState.pickupMarker = mp.markers.new(1, new mp.Vector3(x, y, z - 1), 4, {
+        color: [255, 180, 0, 120],
+        visible: true,
+    });
+});
+
 mp.events.add('cargo.delivery.dropoff.set', (x, y, z) => {
     destroyBlip(deliveryState.dropoffBlip);
     destroyBlip(deliveryState.pickupBlip);
@@ -136,18 +152,36 @@ mp.events.add('cargo.delivery.timer.start', (seconds) => {
     deliveryState.timerEndAt = Date.now() + (seconds * 1000);
 });
 
+
+mp.events.add('cargo.pickup.zone.state', (state) => {
+    isInPickupZone = !!state;
+    if (!isInPickupZone && mp.prompt && mp.prompt.hide) mp.prompt.hide();
+});
+
+mp.events.add('cargo.pickup.hint.show', () => {
+    if (mp.prompt && mp.prompt.show) mp.prompt.show('Нажмите <span>E</span>, чтобы загрузить товар');
+});
+
 mp.events.add('cargo.delivery.clear', () => {
     destroyBlip(deliveryState.pickupBlip);
+    destroyMarker(deliveryState.pickupMarker);
     destroyBlip(deliveryState.dropoffBlip);
     deliveryState.pickupBlip = null;
+    deliveryState.pickupMarker = null;
     deliveryState.dropoffBlip = null;
     deliveryState.timerEndAt = null;
+    isInPickupZone = false;
+    if (mp.prompt && mp.prompt.hide) mp.prompt.hide();
 });
 
 mp.keys.bind(0x45, true, () => {
     if (mp.busy.includes()) return;
     if (mp.game.ui.isPauseMenuActive()) return;
 
+    if (isInPickupZone) {
+        mp.events.callRemote('cargo.pickup.load');
+        return;
+    }
     if (boardAvailable) {
         openBoardTerminal();
         return;
