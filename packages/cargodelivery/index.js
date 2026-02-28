@@ -4,13 +4,13 @@ let notifs;
 let money;
 let vehiclesModule;
 
-const BOARD_POS = new mp.Vector3(109.629, -3247.442, 5.701);
-const RENT_POS = new mp.Vector3(109.23, -3255.38, 5.857);
-const RENT_SPAWN_POS = new mp.Vector3(140.917, -3234.474, 5.857);
+const BOARD_POS = new mp.Vector3(600.2911376953125, -3010.956298828125, 6.045215606689453);
+const RENT_POS = new mp.Vector3(590.1309814453125, -3029.9951171875, 6.0692925453186035);
+const RENT_SPAWN_POS = new mp.Vector3(590.1309814453125, -3029.9951171875, 6.0692925453186035);
 const SHOWCASE_MULES = [
-    { x: 112.10, y: -3257.00, z: 5.86, h: 90 },
-    { x: 112.10, y: -3253.30, z: 5.86, h: 90 },
-    { x: 112.10, y: -3249.60, z: 5.86, h: 90 },
+    { x: 590.13, y: -3029.99, z: 6.07, h: 269 },
+    { x: 590.13, y: -3023.99, z: 6.07, h: 269 },
+    { x: 590.13, y: -3017.99, z: 6.07, h: 269 },
 ];
 const PICKUP_RADIUS = 6;
 const DROP_RADIUS = 8;

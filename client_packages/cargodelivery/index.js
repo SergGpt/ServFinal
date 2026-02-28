@@ -73,14 +73,14 @@ function openRentTerminal() {
 mp.events.add('characterInit.done', () => {
     mp.events.call('NPC.create', {
         model: 's_m_m_dockwork_01',
-        position: { x: 109.629, y: -3247.442, z: 5.701 },
+        position: { x: 600.2911376953125, y: -3010.956298828125, z: 6.045215606689453 },
         heading: 90,
         defaultScenario: 'WORLD_HUMAN_CLIPBOARD',
     });
 
     mp.events.call('NPC.create', {
         model: 's_m_m_dockwork_01',
-        position: { x: 109.23, y: -3255.38, z: 5.857 },
+        position: { x: 590.1309814453125, y: -3029.9951171875, z: 6.0692925453186035 },
         heading: 90,
         defaultScenario: 'WORLD_HUMAN_STAND_IMPATIENT',
     });
