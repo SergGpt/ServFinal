@@ -111,6 +111,8 @@ function getSession(player) {
             timer: null,
             startBodyHealth: 1000,
             pickupInside: false,
+            rentedVehicleDbId: null,
+            rentedVehiclePlate: null,
         });
     }
     return sessions.get(player.id);
@@ -151,16 +153,17 @@ function findNearestFreeJobMule(player, radius = 120) {
 
 function isPlayerInRentedMule(player, session) {
     if (!player || !session) return false;
-    if (!player.vehicle || player.vehicle.driver !== player) return false;
+    if (!player.vehicle) return false;
 
     const vehicle = player.vehicle;
     if (session.rentedVehicle && mp.vehicles.exists(session.rentedVehicle) && vehicle === session.rentedVehicle) {
         return true;
     }
 
-    // fallback: после некоторых пересозданий/стриминга ссылка объекта может отличаться,
-    // поэтому проверяем ownership-маркер арендованного транспорта
-    if (vehicle.cargoOwnerId && vehicle.cargoOwnerId === player.id) return true;
+    if (vehicle.cargoOwnerId != null && vehicle.cargoOwnerId == player.id) return true;
+
+    if (session.rentedVehicleDbId != null && vehicle.db && vehicle.db.id == session.rentedVehicleDbId) return true;
+    if (session.rentedVehiclePlate && vehicle.plate && vehicle.plate === session.rentedVehiclePlate) return true;
 
     return false;
 }
@@ -420,6 +423,8 @@ module.exports = {
             veh.cargoOwnerId = player.id;
             session.rentedVehicle = veh;
             session.startBodyHealth = 1000;
+            session.rentedVehicleDbId = veh.db ? veh.db.id : null;
+            session.rentedVehiclePlate = veh.plate || null;
 
             player.call('cargo.rent.data', [JSON.stringify({
                 rentPrice: MULE_RENT_COST,
@@ -503,7 +508,9 @@ module.exports = {
         const session = getSession(player);
         if (!session || !session.contract) return false;
         if (session.rentedVehicle && mp.vehicles.exists(session.rentedVehicle) && session.rentedVehicle === vehicle) return true;
-        if (vehicle.cargoOwnerId && vehicle.cargoOwnerId === player.id) return true;
+        if (vehicle.cargoOwnerId != null && vehicle.cargoOwnerId == player.id) return true;
+        if (session.rentedVehicleDbId != null && vehicle.db && vehicle.db.id == session.rentedVehicleDbId) return true;
+        if (session.rentedVehiclePlate && vehicle.plate && vehicle.plate === session.rentedVehiclePlate) return true;
         return false;
     },
 
