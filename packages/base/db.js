@@ -8,6 +8,7 @@ global.Op = Sequelize.Op;
 module.exports = {
     sequelize: null,
     Models: {},
+    modelsLoaded: false,
     /// Подключение к БД
     connect: function(callback) {
         console.log("[DATABASE] db connect...");
@@ -32,7 +33,11 @@ module.exports = {
                 await this.sequelize.authenticate();
                 console.log(`[DATABASE] connection established (attempt ${attempt})`);
                 await this.loadModels();
-                callback();
+                try {
+                    callback();
+                } catch (callbackErr) {
+                    console.error(`[DATABASE] startup callback failed: ${callbackErr.message}`);
+                }
             }
             catch (err) {
                 console.error(`[DATABASE] connection attempt ${attempt} failed: ${err.message}`);
@@ -50,6 +55,10 @@ module.exports = {
     loadModels: async function() {
         console.log("[DATABASE] load models...");
         try {
+            if (this.modelsLoaded) {
+                console.log("[DATABASE] models already loaded, skip reload.");
+                return;
+            }
             // Важно для ретраев подключения: очищаем реестр моделей,
             // иначе при повторном вызове loadModels() ассоциации могут регистрироваться повторно
             // и выбрасывать ошибку вида "Aliased associations must have unique aliases".
@@ -70,6 +79,7 @@ module.exports = {
                 if (model.associate) model.associate(this.Models);
             }
             await this.sequelize.sync();
+            this.modelsLoaded = true;
             console.log("[DATABASE] loaded.");
         }
         catch (err) {
