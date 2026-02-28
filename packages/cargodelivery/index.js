@@ -118,6 +118,13 @@ function getSession(player) {
 
 
 
+function distance3d(posA, posB) {
+    const dx = (posA.x || 0) - (posB.x || 0);
+    const dy = (posA.y || 0) - (posB.y || 0);
+    const dz = (posA.z || 0) - (posB.z || 0);
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
 function findNearestFreeJobMule(player, radius = 120) {
     if (!player || !mp.players.exists(player)) return null;
     const pos = player.position;
@@ -131,7 +138,7 @@ function findNearestFreeJobMule(player, radius = 120) {
         if (modelName !== 'mule') return;
         if (veh.cargoOwnerId && veh.cargoOwnerId !== player.id) return;
 
-        const dist = mp.Vector3.Distance(pos, veh.position);
+        const dist = distance3d(pos, veh.position);
         if (dist > radius) return;
         if (dist < nearestDist) {
             nearest = veh;

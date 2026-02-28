@@ -4,6 +4,7 @@ let fs = require('fs');
 let path = require('path');
 
 let isInited = false;
+let initedModules = new Set();
 
 global.db = require('./db');
 global.ignoreModules = require('./ignoreModules');
@@ -44,9 +45,21 @@ global.call = (moduleName) => {
 global.inited = (dirname) => {
     let path = dirname.split("\\");
     let moduleName = path[path.length - 1];
-    modulesToLoad.splice(modulesToLoad.findIndex(x => x === moduleName), 1);
+
+    if (initedModules.has(moduleName)) {
+        console.log(`[BASE] duplicate inited ignored for module ${moduleName}`);
+        return;
+    }
+    initedModules.add(moduleName);
+
+    let idx = modulesToLoad.findIndex(x => x === moduleName);
+    if (idx !== -1) modulesToLoad.splice(idx, 1);
+
     if (modulesToLoad.length === 0) {
-        if (isInited) throw new Error(`Сервер уже был проинициализирован. Попытка повторной инициализации от модуля ${moduleName}`);
+        if (isInited) {
+            console.log(`[BASE] global init already completed, skip duplicate signal from ${moduleName}`);
+            return;
+        }
         isInited = true;
         console.log("[BASE] Все модули загружены")
         playersJoinPool.forEach(player => {
