@@ -12,6 +12,7 @@ let ticks = 0;
 module.exports = {
     minutesForBonus: 180,
     bonusChips: 500,
+    timeRate: 2,
     init() {
         this.initPayDayTimer();
         this.updateWorldTime();
@@ -57,11 +58,19 @@ module.exports = {
         });
     },
     updateWorldTime() {
-        if (!CUSTOM_TIME) {
-            let date = new Date();
-            mp.world.time.hour = utils.getMoscowHours();
-            mp.world.time.minute = date.getMinutes();
+        if (CUSTOM_TIME != null) {
+            mp.world.time.hour = CUSTOM_TIME;
+            mp.world.time.minute = 0;
+            return;
         }
+
+        const date = new Date();
+        const moscowHours = utils.getMoscowHours();
+        const totalRealMinutes = moscowHours * 60 + date.getMinutes();
+        const totalGameMinutes = Math.floor((totalRealMinutes * this.timeRate) % 1440);
+
+        mp.world.time.hour = Math.floor(totalGameMinutes / 60);
+        mp.world.time.minute = totalGameMinutes % 60;
     },
     factionPay() {
         mp.players.forEach((rec) => {
@@ -79,10 +88,15 @@ module.exports = {
     },
     setCustomTime(hours) {
         mp.world.time.hour = hours;
+        mp.world.time.minute = 0;
         CUSTOM_TIME = hours;
     },
     resetCustomTime() {
         CUSTOM_TIME = null;
+        this.updateWorldTime();
+    },
+    setTimeRate(rate) {
+        this.timeRate = rate;
         this.updateWorldTime();
     },
     giveBonus(player) {
