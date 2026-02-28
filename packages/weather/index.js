@@ -33,6 +33,17 @@ function pickRandomWeather() {
     return nonSunny[utils.randomInteger(0, nonSunny.length - 1)];
 }
 
+function normalizeWeather(weather) {
+    if (!weather || typeof weather !== 'object') {
+        return WEATHER_SEQUENCE[0];
+    }
+
+    return {
+        ...WEATHER_SEQUENCE[0],
+        ...weather
+    };
+}
+
 module.exports = {
     customWeather: false,
     customWeatherType: 'winter',
@@ -61,6 +72,8 @@ module.exports = {
             currentWeather = this.generateCustomWeather();
         }
 
+        currentWeather = normalizeWeather(currentWeather);
+
         this.currentWeatherName = currentWeather.gameWeather || 'CLEAR';
         mp.world.weather = this.currentWeatherName;
 
@@ -81,6 +94,8 @@ module.exports = {
     },
 
     getCurrentWeather() {
+        currentWeather = normalizeWeather(currentWeather);
+
         const weatherInfo = {
             summary: currentWeather.summary,
             icon: currentWeather.icon,
