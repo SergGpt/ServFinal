@@ -7227,6 +7227,7 @@ var selectMenu = new Vue({
                     { text: "Награда", values: ["$0"] },
                     { text: "Цена контракта (10%)", values: ["$0"] },
                     { text: "Статус", values: ["Нет контракта"] },
+                    { text: "Обновление доски", values: ["00:00"] },
                     { text: "Взять контракт" },
                     { text: "Закрыть" },
                 ],
@@ -7260,8 +7261,15 @@ var selectMenu = new Vue({
                     else if (d.hasActiveContract) statusText = 'Нужно арендовать Mule';
                     items[4].values = [statusText];
 
-                    if (d.hasActiveContract) items[5].values = ['У вас уже активен контракт'];
-                    else items[5].values = [''];
+                    var refreshSeconds = d.refreshInSeconds != null ? d.refreshInSeconds : 0;
+                    var mm = Math.floor(refreshSeconds / 60);
+                    var ss = refreshSeconds % 60;
+                    var timeLabel = `${mm < 10 ? '0' : ''}${mm}:${ss < 10 ? '0' : ''}${ss}`;
+                    var routesCount = d.routesCount != null ? d.routesCount : 0;
+                    items[5].values = [`${timeLabel} • маршрутов: ${routesCount}`];
+
+                    if (d.hasActiveContract) items[6].values = ['У вас уже активен контракт'];
+                    else items[6].values = [''];
 
                     this.items = items;
                     selectMenu.loader = false;

@@ -26,6 +26,12 @@ var acceptWindow = new Vue({
                 mp.trigger('callRemote', 'busdriver.rent.accept', 1);
                 mp.trigger('busdriver.rent.close');
             }
+            if (this.name == 'cargo_board') {
+                mp.trigger('cargo.board.accept');
+            }
+            if (this.name == 'cargo_rent') {
+                mp.trigger('cargo.rent.accept');
+            }
         },
         decline() {
             if (this.name == 'carsell') {
@@ -39,6 +45,9 @@ var acceptWindow = new Vue({
             if (this.name == 'taxi_rent') {
                 mp.trigger('callRemote', 'taxi.rent.accept', 0);
                 mp.trigger('taxi.rent.close');
+            }
+            if (this.name == 'cargo_board' || this.name == 'cargo_rent') {
+                mp.trigger('cargo.board.close');
             }
         },
     }

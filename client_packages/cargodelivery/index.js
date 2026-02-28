@@ -1,5 +1,5 @@
-const BOARD_BUSY = 'cargo.board.menu';
-const RENT_BUSY = 'cargo.rent.menu';
+const BOARD_BUSY = 'cargo.board.window';
+const RENT_BUSY = 'cargo.rent.window';
 
 let boardAvailable = false;
 let rentAvailable = false;
@@ -7,41 +7,88 @@ let boardData = null;
 let rentData = null;
 let deliveryState = {
     pickupBlip: null,
+    pickupMarker: null,
     dropoffBlip: null,
     timerEndAt: null,
 };
+let isInPickupZone = false;
 
 function destroyBlip(blip) {
     if (blip && mp.blips.exists(blip)) blip.destroy();
 }
 
-function closeBoardMenu() {
-    mp.events.call('selectMenu.hide');
-    mp.busy.remove(BOARD_BUSY);
+
+function destroyMarker(marker) {
+    if (marker && mp.markers.exists(marker)) marker.destroy();
 }
 
-function closeRentMenu() {
-    mp.events.call('selectMenu.hide');
+
+function closeTerminal() {
+    mp.callCEFV('acceptWindow.show = false;');
+    mp.busy.remove(BOARD_BUSY);
     mp.busy.remove(RENT_BUSY);
 }
 
-function openBoardMenu() {
+function openBoardTerminal() {
     if (!boardAvailable || !boardData) return;
-    if (!mp.busy.add(BOARD_BUSY, false)) return;
-    const payload = JSON.stringify(boardData);
-    mp.callCEFV(`(function(){var menu = selectMenu.menus['cargoBoardMenu']; if(!menu) return; if(!menu.baseItems) menu.init(${payload}); else menu.update(${payload}); selectMenu.showByName('cargoBoardMenu');})()`);
+    if (!mp.busy.add(BOARD_BUSY, true)) return;
+
+    const refreshSeconds = boardData.refreshInSeconds != null ? boardData.refreshInSeconds : 0;
+    const mm = Math.floor(refreshSeconds / 60);
+    const ss = refreshSeconds % 60;
+    const timeLabel = `${mm < 10 ? '0' : ''}${mm}:${ss < 10 ? '0' : ''}${ss}`;
+
+    const text =
+        `Погрузка: <span>${boardData.pickupName || '-'}</span><br>` +
+        `Доставка: <span>${boardData.dropoffName || '-'}</span><br>` +
+        `Награда: <span>$${boardData.reward || 0}</span><br>` +
+        `Цена контракта (10%): <span>$${boardData.deposit || 0}</span><br>` +
+        `Обновление: <span>${timeLabel}</span> | Маршрутов: <span>${boardData.routesCount || 0}</span>`;
+
+    mp.callCEFV(`acceptWindow.name = 'cargo_board';`);
+    mp.callCEFV(`acceptWindow.header = 'Терминал грузоперевозок';`);
+    mp.callCEFV(`acceptWindow.text = '${text.replace(/'/g, "\\'")}';`);
+    mp.callCEFV(`acceptWindow.leftWord = '${boardData.hasActiveContract ? 'Контракт активен' : 'Взять контракт'}';`);
+    mp.callCEFV(`acceptWindow.rightWord = 'Закрыть';`);
+    mp.callCEFV('acceptWindow.show = true;');
 }
 
-function openRentMenu() {
+function openRentTerminal() {
     if (!rentAvailable || !rentData) return;
-    if (!mp.busy.add(RENT_BUSY, false)) return;
-    const payload = JSON.stringify(rentData);
-    mp.callCEFV(`(function(){var menu = selectMenu.menus['cargoRentMenu']; if(!menu) return; if(!menu.baseItems) menu.init(${payload}); else menu.update(${payload}); selectMenu.showByName('cargoRentMenu');})()`);
+    if (!mp.busy.add(RENT_BUSY, true)) return;
+
+    const text =
+        `Стоимость аренды Mule: <span>$${rentData.rentPrice || 1000}</span><br>` +
+        `Контракт: <span>${rentData.hasActiveContract ? 'Активен' : 'Нет'}</span><br>` +
+        `Mule: <span>${rentData.hasVehicle ? 'Уже арендован' : 'Свободен'}</span>`;
+
+    mp.callCEFV(`acceptWindow.name = 'cargo_rent';`);
+    mp.callCEFV(`acceptWindow.header = 'Терминал аренды Mule';`);
+    mp.callCEFV(`acceptWindow.text = '${text.replace(/'/g, "\\'")}';`);
+    mp.callCEFV(`acceptWindow.leftWord = '${(!rentData.hasActiveContract || rentData.hasVehicle) ? 'Недоступно' : 'Арендовать'}';`);
+    mp.callCEFV(`acceptWindow.rightWord = 'Закрыть';`);
+    mp.callCEFV('acceptWindow.show = true;');
 }
+
+mp.events.add('characterInit.done', () => {
+    mp.events.call('NPC.create', {
+        model: 's_m_m_dockwork_01',
+        position: { x: 600.2911376953125, y: -3010.956298828125, z: 6.045215606689453 },
+        heading: 90,
+        defaultScenario: 'WORLD_HUMAN_CLIPBOARD',
+    });
+
+    mp.events.call('NPC.create', {
+        model: 's_m_m_dockwork_01',
+        position: { x: 590.1309814453125, y: -3029.9951171875, z: 6.0692925453186035 },
+        heading: 90,
+        defaultScenario: 'WORLD_HUMAN_STAND_IMPATIENT',
+    });
+});
 
 mp.events.add('cargo.board.state', (state) => {
     boardAvailable = !!state;
-    if (!boardAvailable) closeBoardMenu();
+    if (!boardAvailable) closeTerminal();
 });
 
 mp.events.add('cargo.board.data', (json) => {
@@ -54,7 +101,7 @@ mp.events.add('cargo.board.data', (json) => {
 
 mp.events.add('cargo.rent.state', (state) => {
     rentAvailable = !!state;
-    if (!rentAvailable) closeRentMenu();
+    if (!rentAvailable) closeTerminal();
 });
 
 mp.events.add('cargo.rent.data', (json) => {
@@ -66,27 +113,31 @@ mp.events.add('cargo.rent.data', (json) => {
 });
 
 mp.events.add('cargo.board.accept', () => {
-    closeBoardMenu();
+    closeTerminal();
     mp.events.callRemote('cargo.contract.accept');
 });
 
-mp.events.add('cargo.board.close', () => {
-    closeBoardMenu();
-});
-
 mp.events.add('cargo.rent.accept', () => {
-    closeRentMenu();
+    closeTerminal();
     mp.events.callRemote('cargo.mule.rent');
 });
 
-mp.events.add('cargo.rent.close', () => {
-    closeRentMenu();
+mp.events.add('cargo.board.close', () => {
+    closeTerminal();
 });
 
 mp.events.add('cargo.delivery.pickup.set', (x, y, z) => {
     destroyBlip(deliveryState.pickupBlip);
     deliveryState.pickupBlip = mp.blips.new(478, new mp.Vector3(x, y, z), { color: 5, shortRange: false, name: 'Погрузка' });
     deliveryState.pickupBlip.setRoute(true);
+});
+
+mp.events.add('cargo.delivery.pickup.marker', (x, y, z) => {
+    destroyMarker(deliveryState.pickupMarker);
+    deliveryState.pickupMarker = mp.markers.new(1, new mp.Vector3(x, y, z - 1), 4, {
+        color: [255, 180, 0, 120],
+        visible: true,
+    });
 });
 
 mp.events.add('cargo.delivery.dropoff.set', (x, y, z) => {
@@ -101,24 +152,42 @@ mp.events.add('cargo.delivery.timer.start', (seconds) => {
     deliveryState.timerEndAt = Date.now() + (seconds * 1000);
 });
 
+
+mp.events.add('cargo.pickup.zone.state', (state) => {
+    isInPickupZone = !!state;
+    if (!isInPickupZone && mp.prompt && mp.prompt.hide) mp.prompt.hide();
+});
+
+mp.events.add('cargo.pickup.hint.show', () => {
+    if (mp.prompt && mp.prompt.show) mp.prompt.show('Нажмите <span>E</span>, чтобы загрузить товар');
+});
+
 mp.events.add('cargo.delivery.clear', () => {
     destroyBlip(deliveryState.pickupBlip);
+    destroyMarker(deliveryState.pickupMarker);
     destroyBlip(deliveryState.dropoffBlip);
     deliveryState.pickupBlip = null;
+    deliveryState.pickupMarker = null;
     deliveryState.dropoffBlip = null;
     deliveryState.timerEndAt = null;
+    isInPickupZone = false;
+    if (mp.prompt && mp.prompt.hide) mp.prompt.hide();
 });
 
 mp.keys.bind(0x45, true, () => {
     if (mp.busy.includes()) return;
     if (mp.game.ui.isPauseMenuActive()) return;
 
+    if (isInPickupZone) {
+        mp.events.callRemote('cargo.pickup.load');
+        return;
+    }
     if (boardAvailable) {
-        openBoardMenu();
+        openBoardTerminal();
         return;
     }
     if (rentAvailable) {
-        openRentMenu();
+        openRentTerminal();
     }
 });
 
