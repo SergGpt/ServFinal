@@ -58,6 +58,31 @@ function ensureModules() {
     return !!(notifs && money && vehiclesModule);
 }
 
+
+function resolveVehicleProperties(modelName) {
+    const fallback = {
+        name: modelName,
+        maxFuel: 80,
+        consumption: 2,
+        license: 2,
+        price: 50000,
+        vehType: 1,
+        isElectric: 0,
+        trunkType: 3,
+    };
+
+    if (!vehiclesModule || typeof vehiclesModule.getVehiclePropertiesByModel !== 'function') {
+        return fallback;
+    }
+
+    try {
+        const props = vehiclesModule.getVehiclePropertiesByModel(modelName);
+        return props || fallback;
+    } catch (err) {
+        return fallback;
+    }
+}
+
 function cloneContractData(template) {
     return {
         pickup: { ...template.pickup },
@@ -243,7 +268,7 @@ module.exports = {
                 engine: false,
                 dimension: 0,
             });
-            veh.properties = vehiclesModule.getVehiclePropertiesByModel('mule');
+            veh.properties = resolveVehicleProperties('mule');
             veh.setVariable('static', true);
             this.showcaseVehicles.push(veh);
         });
@@ -326,7 +351,7 @@ module.exports = {
                 dimension: player.dimension,
             });
 
-            veh.properties = vehiclesModule.getVehiclePropertiesByModel('mule');
+            veh.properties = resolveVehicleProperties('mule');
             veh.cargoOwnerId = player.id;
             session.rentedVehicle = veh;
             session.startBodyHealth = 1000;
