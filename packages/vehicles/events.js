@@ -34,9 +34,16 @@ module.exports = {
         }
 
         if (vehicle.key == 'job' && vehicle.owner != player.character.job && seat == 0) {
-            player.removeFromVehicle();
-            player.call('notifications.push.error', ["Это рабочий транспорт", "Нет доступа"]);
-            return;
+            let allowed = false;
+            const cargo = call('cargodelivery');
+            if (cargo && !cargo.isEmpty && typeof cargo.canUseJobVehicle === 'function') {
+                allowed = !!cargo.canUseJobVehicle(player, vehicle);
+            }
+            if (!allowed) {
+                player.removeFromVehicle();
+                player.call('notifications.push.error', ["Это рабочий транспорт", "Нет доступа"]);
+                return;
+            }
         }
 
         if ((vehicle.key == 'newbierent' || vehicle.key == 'boatsrent' || vehicle.key == 'motorent') && vehicle.rentCharacterId != player.character.id && seat == 0) {

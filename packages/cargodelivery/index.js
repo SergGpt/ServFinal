@@ -19,6 +19,7 @@ const CONTRACT_DEPOSIT_K = 0.1;
 const MULE_RENT_COST = 1000;
 const DELIVERY_SECONDS = 30 * 60;
 const CONTRACT_REFRESH_SECONDS = 20 * 60;
+const CARGO_JOB_OWNER_ID = 13;
 
 // Полный список маршрутов (для разнообразия)
 const CARGO_ROUTES = [
@@ -116,6 +117,31 @@ function getSession(player) {
 }
 
 
+
+function findNearestFreeJobMule(player, radius = 120) {
+    if (!player || !mp.players.exists(player)) return null;
+    const pos = player.position;
+    let nearest = null;
+    let nearestDist = Number.MAX_VALUE;
+
+    mp.vehicles.forEach((veh) => {
+        if (!veh || !mp.vehicles.exists(veh)) return;
+        if (veh.key !== 'job' || veh.owner !== CARGO_JOB_OWNER_ID) return;
+        const modelName = (veh.modelName || (veh.db && veh.db.modelName) || '').toLowerCase();
+        if (modelName !== 'mule') return;
+        if (veh.cargoOwnerId && veh.cargoOwnerId !== player.id) return;
+
+        const dist = mp.Vector3.Distance(pos, veh.position);
+        if (dist > radius) return;
+        if (dist < nearestDist) {
+            nearest = veh;
+            nearestDist = dist;
+        }
+    });
+
+    return nearest;
+}
+
 function isPlayerInRentedMule(player, session) {
     if (!player || !session) return false;
     if (!player.vehicle || player.vehicle.driver !== player) return false;
@@ -156,7 +182,15 @@ function clearSessionProgress(player, reason = null) {
     }
 
     if (session.rentedVehicle && mp.vehicles.exists(session.rentedVehicle)) {
-        session.rentedVehicle.destroy();
+        const veh = session.rentedVehicle;
+        if (veh.key === 'job' && veh.owner === CARGO_JOB_OWNER_ID) {
+            if (veh.cargoOwnerId === player.id) veh.cargoOwnerId = null;
+            veh.engine = false;
+            veh.engineStatus = false;
+            veh.setVariable('engine', false);
+        } else {
+            veh.destroy();
+        }
     }
 
     session.contract = null;
@@ -364,15 +398,18 @@ module.exports = {
         money.removeCash(player, MULE_RENT_COST, (result) => {
             if (!result) return notifs.error(player, 'Недостаточно наличных для аренды Mule', 'Грузоперевозка');
 
-            const veh = mp.vehicles.new(mp.joaat('mule'), RENT_SPAWN_POS, {
-                heading: 269,
-                numberPlate: 'CARGO',
-                locked: false,
-                engine: false,
-                dimension: player.dimension,
-            });
+            let veh = findNearestFreeJobMule(player);
+            if (!veh) {
+                veh = mp.vehicles.new(mp.joaat('mule'), RENT_SPAWN_POS, {
+                    heading: 269,
+                    numberPlate: 'CARGO',
+                    locked: false,
+                    engine: false,
+                    dimension: player.dimension,
+                });
+                veh.properties = resolveVehicleProperties('mule');
+            }
 
-            veh.properties = resolveVehicleProperties('mule');
             veh.cargoOwnerId = player.id;
             session.rentedVehicle = veh;
             session.startBodyHealth = 1000;
@@ -382,7 +419,7 @@ module.exports = {
                 hasActiveContract: true,
                 hasVehicle: true,
             })]);
-            notifs.success(player, 'Mule арендован. Езжайте на точку погрузки.', 'Грузоперевозка');
+            notifs.success(player, `Mule арендован (${veh.plate || 'без номера'}). Езжайте на точку погрузки.`, 'Грузоперевозка');
         }, 'Аренда Mule для грузоперевозки');
     },
 
@@ -450,6 +487,17 @@ module.exports = {
         startDeliveryTimer(player);
         notifs.success(player, 'Груз загружен. Доставьте его в пункт назначения за 30 минут.', 'Грузоперевозка');
         updateBoardData(player);
+    },
+
+
+    canUseJobVehicle(player, vehicle) {
+        if (!player || !player.character || !vehicle) return false;
+        if (vehicle.key !== 'job' || vehicle.owner !== CARGO_JOB_OWNER_ID) return false;
+        const session = getSession(player);
+        if (!session || !session.contract) return false;
+        if (session.rentedVehicle && mp.vehicles.exists(session.rentedVehicle) && session.rentedVehicle === vehicle) return true;
+        if (vehicle.cargoOwnerId && vehicle.cargoOwnerId === player.id) return true;
+        return false;
     },
 
     cleanupPlayer(player) {
