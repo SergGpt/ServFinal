@@ -295,6 +295,67 @@ module.exports = {
             clothes.updateClientList();
         }
     },
+
+    '/setbag': {
+        args: '[variation]:n [texture]:n',
+        description: 'Дебаг рюкзака (component 5).',
+        access: 6,
+        handler: (player, args, out) => {
+            let variation = parseInt(args[0]);
+            let texture = parseInt(args[1] || 0);
+            if (!Number.isFinite(variation) || variation < 0) return out.error('Укажите корректный variation (>= 0)', player);
+            if (!Number.isFinite(texture) || texture < 0) texture = 0;
+
+            player.setClothes(5, variation, texture, 0);
+            player.debugBagVariation = variation;
+            player.debugBagTexture = texture;
+            out.info(`Рюкзак установлен: variation=${variation}, texture=${texture}`, player);
+        }
+    },
+    '/nextbag': {
+        args: '[step]:n [texture]:n',
+        description: 'Перебор рюкзаков вперёд (component 5).',
+        access: 6,
+        handler: (player, args, out) => {
+            let step = parseInt(args[0] || 1);
+            let texture = parseInt(args[1]);
+            if (!Number.isFinite(step) || step <= 0) step = 1;
+
+            let variation = parseInt(player.debugBagVariation || 0) + step;
+            if (variation < 0) variation = 0;
+
+            if (!Number.isFinite(texture) || texture < 0) {
+                texture = Number.isFinite(parseInt(player.debugBagTexture)) ? parseInt(player.debugBagTexture) : 0;
+            }
+
+            player.setClothes(5, variation, texture, 0);
+            player.debugBagVariation = variation;
+            player.debugBagTexture = texture;
+            out.info(`Рюкзак: variation=${variation}, texture=${texture}`, player);
+        }
+    },
+    '/prevbag': {
+        args: '[step]:n [texture]:n',
+        description: 'Перебор рюкзаков назад (component 5).',
+        access: 6,
+        handler: (player, args, out) => {
+            let step = parseInt(args[0] || 1);
+            let texture = parseInt(args[1]);
+            if (!Number.isFinite(step) || step <= 0) step = 1;
+
+            let variation = parseInt(player.debugBagVariation || 0) - step;
+            if (variation < 0) variation = 0;
+
+            if (!Number.isFinite(texture) || texture < 0) {
+                texture = Number.isFinite(parseInt(player.debugBagTexture)) ? parseInt(player.debugBagTexture) : 0;
+            }
+
+            player.setClothes(5, variation, texture, 0);
+            player.debugBagVariation = variation;
+            player.debugBagTexture = texture;
+            out.info(`Рюкзак: variation=${variation}, texture=${texture}`, player);
+        }
+    },
     '/setclothes': {
         args: '[componentNumber]:n [drawable]:n [texture]:n [palette]:n',
         description: 'Дебаг одежды и причесок',
