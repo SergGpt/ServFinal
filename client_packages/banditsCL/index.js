@@ -6,7 +6,7 @@ const DEBUG = true;
 let VERBOSE = true;
 
 const me = mp.players.local;
-const zombies = new Map(); // zid -> { ped, followRid, lastFollowAt }
+const zombies = new Map(); // zid -> { ped, followRid, lastFollowAt, lastNudgeAt }
 
 const STEP_SPEED = 1.35;
 const STOP_DIST  = 1.6;
@@ -84,6 +84,28 @@ function findPlayerById(rid){
     return found;
 }
 
+
+function applyFollowTask(obj, ped, target, now) {
+    try {
+        if (!obj || !ped || !target) return;
+
+        const dist = target.position.distanceTo(ped.position);
+        if (dist <= STOP_DIST) return;
+
+        if (!obj.lastFollowAt || (now - obj.lastFollowAt) >= FOLLOW_CD) {
+            obj.lastFollowAt = now;
+            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
+        }
+
+        // мягкий "пинок" навигации, если ped визуально завис
+        if (!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= 1200) {
+            obj.lastNudgeAt = now;
+            ped.taskGoStraightToCoord(target.position.x, target.position.y, target.position.z, STEP_SPEED, 1200, 0.0, 0.0);
+            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
+        }
+    } catch {}
+}
+
 // ====== события от сервера ======
 
 // сервер говорит: "ты контроллер вот этого педа"
@@ -109,7 +131,7 @@ mp.events.add('z:assignController', (zid, ver, pedHandle) => {
             if (obj && cmd === 'follow') {
                 obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
                 const target = findPlayerById(obj.followRid) || me;
-                ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
+                applyFollowTask(obj, ped, target, Date.now());
             }
         } catch {}
 
@@ -133,7 +155,7 @@ mp.events.add('z:executeCommand', (zid, cmd, extraJson) => {
             case 'follow': {
                 obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
                 const target = findPlayerById(obj.followRid) || me;
-                try { ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true); } catch {}
+                applyFollowTask(obj, ped, target, Date.now());
                 break;
             }
             case 'goMe': {
@@ -207,14 +229,7 @@ setInterval(() => {
         try {
             const targetRid = typeof obj.followRid === 'number' ? obj.followRid : me.id;
             const target = findPlayerById(targetRid) || me;
-            const dist = target.position.distanceTo(ped.position);
-            const now = Date.now();
-
-            if (dist <= STOP_DIST) return;
-            if (obj.lastFollowAt && (now - obj.lastFollowAt) < FOLLOW_CD) return;
-
-            obj.lastFollowAt = now;
-            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
+            applyFollowTask(obj, ped, target, Date.now());
         } catch {}
     });
 }, 300);
