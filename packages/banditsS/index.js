@@ -93,8 +93,6 @@ function replayDesiredIfReady(zid) {
     if (!mp.peds.exists(ped)) return;
     const st = desiredCmd.get(zid);
     if (!st) return;
-    if (ped.getVariable('ctrlState') === 'switching') return;
-
     const ctrl = ped.controller;
     if (ctrl && mp.players.exists(ctrl)) {
         try { ctrl.call('z:executeCommand', [zid, st.name, JSON.stringify(st.extra || {})]); } catch {}
@@ -413,7 +411,7 @@ setInterval(() => {
             reassignControllerIfNeeded(ped);
         });
     });
-}, 800);
+}, 500);
 
 // прокс-удар
 setInterval(() => {

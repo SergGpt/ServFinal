@@ -94,10 +94,24 @@ mp.events.add('z:assignController', (zid, ver, pedHandle) => {
 
         attachIfZombie(ped);
 
-        // подтвердить серверу
-        setTimeout(() => {
+        const ack = () => {
             try { mp.events.callRemote('z:ctrlAck', zid, ver); } catch {}
-        }, 100);
+        };
+        ack();
+        setTimeout(ack, 150);
+        setTimeout(ack, 500);
+
+        // если сервер уже держит follow в переменных педа — применим сразу, не ждём реплея
+        try {
+            const obj = zombies.get(zid);
+            const cmd = ped.getVariable('command');
+            const extra = ped.getVariable('commandExtra') || {};
+            if (obj && cmd === 'follow') {
+                obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
+                const target = findPlayerById(obj.followRid) || me;
+                ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
+            }
+        } catch {}
 
     }catch{}
 });
