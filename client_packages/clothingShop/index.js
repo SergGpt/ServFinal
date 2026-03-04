@@ -3,6 +3,7 @@ let playerIsFrozen = false;
 
 let clothesLoaded = 0;
 let clothesList = {
+    "bags": [],
     "bracelets": [],
     "ears": [],
     "glasses": [],
@@ -26,6 +27,10 @@ let hairInfo = {};
 let input = {
     clothes: {
         4: {
+            drawable: 0,
+            texture: 0
+        },
+        5: {
             drawable: 0,
             texture: 0
         },
@@ -75,6 +80,11 @@ let input = {
 }
 
 let clothesInfo = {
+    "bags": {
+        component: 5,
+        menuName: 'Bags',
+        name: 'Рюкзаки'
+    },
     "bracelets": {
         prop: 7,
         menuName: 'Bracelets',
@@ -186,9 +196,10 @@ mp.events.add({
         }
     },
     'clothingShop.list.get': (key, list) => {
+        if (!clothesList.hasOwnProperty(key)) return;
         clothesList[key] = list;
         clothesLoaded++;
-        if (clothesLoaded == 9) {
+        if (clothesLoaded >= Object.keys(clothesList).length) {
             clothesLoaded = 0;
             mp.events.callRemote('clothingShop.enter');
         }
@@ -308,7 +319,7 @@ function setHeaders(type) {
             img = 'ponsonbys';
             break;
     }
-    ['Main', 'Tops', 'Bracelets', 'Ears', 'Glasses', 'Watches', 'Ties', 'Hats', 'Pants', 'Shoes']
+    ['Main', 'Tops', 'Bags', 'Bracelets', 'Ears', 'Glasses', 'Watches', 'Ties', 'Hats', 'Pants', 'Shoes']
     .forEach(name => mp.callCEFV(`selectMenu.menus["clothing${name}"].headerImg = '${img}.png'`));
 }
 
@@ -316,6 +327,7 @@ function initMainMenu() {
     let items = [];
     for (let key in clothesList) {
         let sortedList = clothesList[key].filter(x => x.class == shopClass);
+        if (!clothesInfo[key]) continue;
         if (sortedList.length > 0) {
             items.push({
                 text: clothesInfo[key].name
@@ -360,10 +372,11 @@ function setClothes(group, item, textureIndex) {
         player.setComponentVariation(8, item.undershirt, 0, 0);
     }
 
+    let texture = item.textures && item.textures[textureIndex] != null ? item.textures[textureIndex] : 0;
     if (info.component != null) {
-        player.setComponentVariation(info.component, item.variation, item.textures[textureIndex], 0);
+        player.setComponentVariation(info.component, item.variation, texture, 0);
     } else {
-        player.setPropIndex(info.prop, item.variation, item.textures[textureIndex], true);
+        player.setPropIndex(info.prop, item.variation, texture, true);
     }
 }
 

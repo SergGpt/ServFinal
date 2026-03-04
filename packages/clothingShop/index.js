@@ -13,6 +13,7 @@ module.exports = {
     productPrice: 20,
     itemIds: {
         "bracelets": 12,
+        "bags": 13,
         "ears": 10,
         "glasses": 1,
         "watches": 11,

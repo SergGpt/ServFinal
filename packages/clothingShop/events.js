@@ -2,6 +2,17 @@ let clothingShop = require('./index.js');
 let money = call('money');
 let inventory = call('inventory');
 let clothes = call('clothes');
+
+
+function capacityToPockets(capacity) {
+    capacity = parseInt(capacity);
+    if (!Number.isFinite(capacity) || capacity <= 0) return null;
+
+    // Ограничиваем до разумного размера кармана для UI.
+    const cols = Math.max(1, Math.min(10, Math.ceil(Math.sqrt(capacity))));
+    const rows = Math.max(1, Math.ceil(capacity / cols));
+    return [cols, rows];
+}
 module.exports = {
     "init": async () => {
         await clothingShop.init();
@@ -63,8 +74,14 @@ module.exports = {
         let params = {
             sex: parseInt(gender),
             variation: item.variation,
-            texture: item.textures[textureIndex],
+            texture: (Array.isArray(item.textures) ? item.textures[textureIndex] : null),
             name: item.name
+        }
+
+        if (params.texture == null) params.texture = 0;
+        if (group === 'bags' && item.capacity != null) {
+            const bagPockets = capacityToPockets(item.capacity);
+            if (bagPockets) params.pockets = JSON.stringify(bagPockets);
         }
 
         if (item.torso != null) params.torso = item.torso;

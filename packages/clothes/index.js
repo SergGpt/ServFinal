@@ -4,6 +4,7 @@ function ensureSex(sex, list) {
     if (!list[sex]) {
         list[sex] = {
             "bracelets": [],
+            "bags": [],
             "ears": [],
             "glasses": [],
             "hats": [],
@@ -23,6 +24,7 @@ module.exports = {
         // жен.
         "0": {
             "bracelets": [],
+            "bags": [],
             "ears": [],
             "glasses": [],
             "hats": [],
@@ -35,6 +37,7 @@ module.exports = {
         // муж.
         "1": {
             "bracelets": [],
+            "bags": [],
             "ears": [],
             "glasses": [],
             "hats": [],
@@ -51,6 +54,12 @@ module.exports = {
         bracelets.forEach(el => {
             ensureSex(el.sex, this.list);
             this.list[el.sex]["bracelets"].push(el);
+        });
+
+        var bags = await db.Models.ClothesBag.findAll();
+        bags.forEach(el => {
+            ensureSex(el.sex, this.list);
+            this.list[el.sex]["bags"].push(el);
         });
 
         var ears = await db.Models.ClothesEar.findAll();
@@ -101,7 +110,7 @@ module.exports = {
             this.list[el.sex]["watches"].push(el);
         });
 
-        var count = bracelets.length + ears.length + glasses.length + hats.length +
+        var count = bracelets.length + bags.length + ears.length + glasses.length + hats.length +
                     pants.length + shoes.length + ties.length + tops.length + watches.length;
         console.log(`[CLOTHES] Одежда загружена (${count} шт.)`);
     },

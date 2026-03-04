@@ -1,3 +1,62 @@
+const scanIntervals = new Map();
+
+
+function stopPlayerScan(playerId) {
+    if (!scanIntervals.has(playerId)) return false;
+    const obj = scanIntervals.get(playerId);
+    clearInterval(obj.interval);
+    scanIntervals.delete(playerId);
+    return true;
+}
+
+function startClothesScan(player, out, options) {
+    const { from, to, component, texture, key, title } = options;
+
+    if (scanIntervals.has(player.id)) {
+        stopPlayerScan(player.id);
+        out.info('Предыдущий перебор остановлен.', player);
+    }
+
+    out.info(`Начинаю перебор ${title} с ${from} по ${to}`, player);
+    console.log(`[CMD] ${player.name} started ${key} ${from}-${to}`);
+
+    let current = from;
+    const interval = setInterval(() => {
+        try {
+            if (!player || !player.handle) {
+                clearInterval(interval);
+                scanIntervals.delete(player.id);
+                console.log(`[CMD] ${key} stopped: player disconnected`);
+                return;
+            }
+
+            try {
+                player.setClothes(component, current, texture, 0);
+            } catch (errSet) {
+                console.log(`[CMD_ERROR] setClothes failed for ${player.name} ${key} variation=${current}:`, errSet);
+            }
+
+            player.outputChatBox(`~y~[SCAN]~s~ Проверка variation: ${current}`);
+            console.log(`[SCAN:${key}] ${player.name} variation=${current}`);
+
+            current++;
+            if (current > to) {
+                clearInterval(interval);
+                scanIntervals.delete(player.id);
+                out.info(`Перебор завершён (${from}-${to})`, player);
+                console.log(`[CMD] ${player.name} finished ${key} ${from}-${to}`);
+            }
+        } catch (e) {
+            console.log(`[CMD_ERROR] ${key} loop`, e);
+            clearInterval(interval);
+            scanIntervals.delete(player.id);
+            out.error(`Ошибка во время перебора: ${e.message}`, player);
+        }
+    }, 1200);
+
+    scanIntervals.set(player.id, { interval, from, to, key, current: from });
+}
+
 module.exports = {
     '/loadcshops': {
         args: '',
@@ -77,7 +136,7 @@ module.exports = {
         }
     },
 
-        '/scantops': {
+    '/scantops': {
         args: '[from] [to]',
         description: 'Перебор топов (компонент 11)',
         access: 6,
@@ -86,58 +145,71 @@ module.exports = {
             let to = parseInt(args[1]);
 
             if (isNaN(from) || isNaN(to) || from > to) {
-                return out.error("Используй: /scantops [from] [to]", player);
+                return out.error('Используй: /scantops [from] [to]', player);
             }
 
-            // если уже идет перебор — предупредим и остановим старый
-            if (scanIntervals.has(player.id)) {
-                let old = scanIntervals.get(player.id);
-                clearInterval(old.interval);
-                scanIntervals.delete(player.id);
-                out.info("Предыдущий перебор остановлен.", player);
+            startClothesScan(player, out, {
+                from,
+                to,
+                component: 11,
+                texture: 0,
+                key: 'scantops',
+                title: 'топов'
+            });
+        }
+    },
+
+    '/testbags': {
+        args: '[variation] [texture]',
+        description: 'Тест рюкзаков (компонент 5)',
+        access: 6,
+        handler: (player, args, out) => {
+            let variation = parseInt(args[0]);
+            let texture = parseInt(args[1] || 0);
+            if (isNaN(variation) || variation < 0) {
+                return out.error('Используй: /testbags [variation] [texture]', player);
             }
+            if (isNaN(texture) || texture < 0) texture = 0;
 
-            out.info(`Начинаю перебор топов с ${from} по ${to}`, player);
-            console.log(`[CMD] ${player.name} started scantops ${from}-${to}`);
+            player.setClothes(5, variation, texture, 0);
+            out.info(`Установлен рюкзак variation=${variation}, texture=${texture}`, player);
+        }
+    },
 
-            let current = from;
-            const interval = setInterval(() => {
-                try {
-                    if (!player || !player.handle) {
-                        clearInterval(interval);
-                        scanIntervals.delete(player.id);
-                        console.log(`[CMD] scantops stopped: player disconnected`);
-                        return;
-                    }
+    '/scanbags': {
+        args: '[from] [to] [texture]',
+        description: 'Перебор рюкзаков (компонент 5)',
+        access: 6,
+        handler: (player, args, out) => {
+            let from = parseInt(args[0]);
+            let to = parseInt(args[1]);
+            let texture = parseInt(args[2] || 0);
 
-                    // ставим одежду
-                    try {
-                        player.setClothes(11, current, 0, 0);
-                    } catch (errSet) {
-                        // лог ошибки, но не прерываем перебор
-                        console.log(`[CMD_ERROR] setClothes failed for ${player.name} variation=${current}:`, errSet);
-                    }
+            if (isNaN(from) || isNaN(to) || from > to) {
+                return out.error('Используй: /scanbags [from] [to] [texture]', player);
+            }
+            if (isNaN(texture) || texture < 0) texture = 0;
 
-                    player.outputChatBox(`~y~[SCAN]~s~ Проверка variation: ${current}`);
-                    // также логируем в серверную консоль
-                    console.log(`[SCAN] ${player.name} variation=${current}`);
+            startClothesScan(player, out, {
+                from,
+                to,
+                component: 5,
+                texture,
+                key: 'scanbags',
+                title: 'рюкзаков'
+            });
+        }
+    },
 
-                    current++;
-                    if (current > to) {
-                        clearInterval(interval);
-                        scanIntervals.delete(player.id);
-                        out.info(`Перебор завершён (${from}-${to})`, player);
-                        console.log(`[CMD] ${player.name} finished scantops ${from}-${to}`);
-                    }
-                } catch (e) {
-                    console.log(`[CMD_ERROR] scantops loop`, e);
-                    clearInterval(interval);
-                    scanIntervals.delete(player.id);
-                    out.error(`Ошибка во время перебора: ${e.message}`, player);
-                }
-            }, 1200); // 1.2s между сменами
-
-            scanIntervals.set(player.id, { interval, from, to, current: from });
+    '/stopscanbags': {
+        args: '',
+        description: 'Остановить перебор рюкзаков',
+        access: 6,
+        handler: (player, args, out) => {
+            if (!scanIntervals.has(player.id)) return out.info('Перебор не запущен', player);
+            stopPlayerScan(player.id);
+            out.info('Перебор рюкзаков остановлен', player);
+            console.log(`[CMD] ${player.name} stopped scanbags`);
         }
     },
 
@@ -147,9 +219,7 @@ module.exports = {
         access: 6,
         handler: (player, args, out) => {
             if (!scanIntervals.has(player.id)) return out.info('Перебор не запущен', player);
-            let obj = scanIntervals.get(player.id);
-            clearInterval(obj.interval);
-            scanIntervals.delete(player.id);
+            stopPlayerScan(player.id);
             out.info('Перебор остановлен', player);
             console.log(`[CMD] ${player.name} stopped scantops`);
         }

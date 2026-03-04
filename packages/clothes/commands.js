@@ -3,7 +3,7 @@ let clothes = call('clothes');
 module.exports = {
     "/cllist": {
         access: 1,
-        description: "Список одежды на сервере.<br/>Типы:<br/>bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
+        description: "Список одежды на сервере.<br/>Типы:<br/>bags, bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
         args: "[тип_одежды]",
         handler: (player, args, out) => {
             if (!clothes.getTypes().includes(args[0])) return out.error(`Неверный тип одежды`, player);
@@ -21,7 +21,7 @@ module.exports = {
     },
     "/clname": {
         access: 1,
-        description: "Изменить название одежды.<br/>Типы:<br/>bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
+        description: "Изменить название одежды.<br/>Типы:<br/>bags, bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
         args: "[тип_одежды] [ид_одежды]:n [название]",
         handler: (player, args, out) => {
             if (!clothes.getTypes().includes(args[0])) return out.error(`Неверный тип одежды`, player);
@@ -41,7 +41,7 @@ module.exports = {
     },
     "/clvar": {
         access: 1,
-        description: "Изменить variation одежды.<br/>Типы:<br/>bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
+        description: "Изменить variation одежды.<br/>Типы:<br/>bags, bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
         args: "[тип_одежды] [ид_одежды]:n [variation]:n",
         handler: (player, args, out) => {
             if (!clothes.getTypes().includes(args[0])) return out.error(`Неверный тип одежды`, player);
@@ -58,7 +58,7 @@ module.exports = {
     },
     "/clprice": {
         access: 1,
-        description: "Изменить цену одежды.<br/>Типы:<br/>bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
+        description: "Изменить цену одежды.<br/>Типы:<br/>bags, bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
         args: "[тип_одежды] [ид_одежды]:n [цена]:n",
         handler: (player, args, out) => {
             if (!clothes.getTypes().includes(args[0])) return out.error(`Неверный тип одежды`, player);
@@ -75,7 +75,7 @@ module.exports = {
     },
     "/clclass": {
         access: 1,
-        description: "Изменить класс одежды.<br/>Типы:<br/>bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
+        description: "Изменить класс одежды.<br/>Типы:<br/>bags, bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
         args: "[тип_одежды] [ид_одежды]:n [класс]:n",
         handler: (player, args, out) => {
             if (!clothes.getTypes().includes(args[0])) return out.error(`Неверный тип одежды`, player);
@@ -92,7 +92,7 @@ module.exports = {
     },
     "/claddtext": {
         access: 1,
-        description: "Добавить текстуру одежды.<br/>Типы:<br/>bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
+        description: "Добавить текстуру одежды.<br/>Типы:<br/>bags, bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
         args: "[тип_одежды] [ид_одежды]:n [текстура]:n",
         handler: (player, args, out) => {
             if (!clothes.getTypes().includes(args[0])) return out.error(`Неверный тип одежды`, player);
@@ -118,7 +118,7 @@ module.exports = {
     },
     "/cldeltext": {
         access: 1,
-        description: "Удалить текстуру одежды.<br/>Типы:<br/>bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
+        description: "Удалить текстуру одежды.<br/>Типы:<br/>bags, bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
         args: "[тип_одежды] [ид_одежды]:n [текстура]:n",
         handler: (player, args, out) => {
             if (!clothes.getTypes().includes(args[0])) return out.error(`Неверный тип одежды`, player);
@@ -196,7 +196,7 @@ module.exports = {
     },
     "/cldelutext": {
         access: 1,
-        description: "Удалить текстуру undershirt одежды.<br/>Типы:<br/>bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
+        description: "Удалить текстуру undershirt одежды.<br/>Типы:<br/>bags, bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
         args: "[ид_одежды]:n [текстура]:n",
         handler: (player, args, out) => {
             var el = clothes.getClothes("tops", args[0]);
@@ -275,7 +275,7 @@ module.exports = {
     },
     "/cltexts": {
         access: 3,
-        description: "Изменить кол-во текстур одежды.<br/>Типы:<br/>bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
+        description: "Изменить кол-во текстур одежды.<br/>Типы:<br/>bags, bracelets, ears, glasses, hats, masks, pants, shoes, ties, tops, watches",
         args: "[тип_одежды] [ид_одежды]:n [кол-во_текстур]:n",
         handler: (player, args, out) => {
             if (!clothes.getTypes().includes(args[0])) return out.error(`Неверный тип одежды`, player);
@@ -293,6 +293,67 @@ module.exports = {
 
             out.info(`${player.name} изменил кол-во текстур у одежды типа ${args[0]} #${args[1]} (${args[2]} шт.)`);
             clothes.updateClientList();
+        }
+    },
+
+    '/setbag': {
+        args: '[variation]:n [texture]:n',
+        description: 'Дебаг рюкзака (component 5).',
+        access: 6,
+        handler: (player, args, out) => {
+            let variation = parseInt(args[0]);
+            let texture = parseInt(args[1] || 0);
+            if (!Number.isFinite(variation) || variation < 0) return out.error('Укажите корректный variation (>= 0)', player);
+            if (!Number.isFinite(texture) || texture < 0) texture = 0;
+
+            player.setClothes(5, variation, texture, 0);
+            player.debugBagVariation = variation;
+            player.debugBagTexture = texture;
+            out.info(`Рюкзак установлен: variation=${variation}, texture=${texture}`, player);
+        }
+    },
+    '/nextbag': {
+        args: '[step]:n [texture]:n',
+        description: 'Перебор рюкзаков вперёд (component 5).',
+        access: 6,
+        handler: (player, args, out) => {
+            let step = parseInt(args[0] || 1);
+            let texture = parseInt(args[1]);
+            if (!Number.isFinite(step) || step <= 0) step = 1;
+
+            let variation = parseInt(player.debugBagVariation || 0) + step;
+            if (variation < 0) variation = 0;
+
+            if (!Number.isFinite(texture) || texture < 0) {
+                texture = Number.isFinite(parseInt(player.debugBagTexture)) ? parseInt(player.debugBagTexture) : 0;
+            }
+
+            player.setClothes(5, variation, texture, 0);
+            player.debugBagVariation = variation;
+            player.debugBagTexture = texture;
+            out.info(`Рюкзак: variation=${variation}, texture=${texture}`, player);
+        }
+    },
+    '/prevbag': {
+        args: '[step]:n [texture]:n',
+        description: 'Перебор рюкзаков назад (component 5).',
+        access: 6,
+        handler: (player, args, out) => {
+            let step = parseInt(args[0] || 1);
+            let texture = parseInt(args[1]);
+            if (!Number.isFinite(step) || step <= 0) step = 1;
+
+            let variation = parseInt(player.debugBagVariation || 0) - step;
+            if (variation < 0) variation = 0;
+
+            if (!Number.isFinite(texture) || texture < 0) {
+                texture = Number.isFinite(parseInt(player.debugBagTexture)) ? parseInt(player.debugBagTexture) : 0;
+            }
+
+            player.setClothes(5, variation, texture, 0);
+            player.debugBagVariation = variation;
+            player.debugBagTexture = texture;
+            out.info(`Рюкзак: variation=${variation}, texture=${texture}`, player);
         }
     },
     '/setclothes': {
