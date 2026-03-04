@@ -65,31 +65,6 @@ function getPlayerById(id) {
     return found;
 }
 
-
-function forceServerChase(ped, target, stopDist = 1.9) {
-    try {
-        if (!ped || !target) return;
-        if (!mp.peds.exists(ped) || !mp.players.exists(target)) return;
-
-        if (ped.dimension !== target.dimension) {
-            ped.dimension = target.dimension;
-        }
-
-        const dx = target.position.x - ped.position.x;
-        const dy = target.position.y - ped.position.y;
-        const dz = target.position.z - ped.position.z;
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (!isFinite(dist) || dist <= stopDist) return;
-
-        const step = Math.min(0.9, Math.max(0.25, dist - stopDist));
-        const nx = ped.position.x + (dx / dist) * step;
-        const ny = ped.position.y + (dy / dist) * step;
-        const nz = ped.position.z;
-
-        ped.position = new mp.Vector3(nx, ny, nz);
-        ped.heading = (Math.atan2(dy, dx) * 180.0 / Math.PI) - 90.0;
-    } catch {}
-}
 function nextZid() {
     let zid = (Math.random() * 1e9 | 0);
     while (zombies.has(zid)) zid = (Math.random() * 1e9 | 0);
@@ -433,7 +408,6 @@ setInterval(() => {
             if (owner) {
                 setDesired(zid, 'follow', { rid: owner.id });
                 replayDesiredIfReady(zid);
-                forceServerChase(ped, owner, 1.9);
             }
 
             reassignControllerIfNeeded(ped);
@@ -490,8 +464,8 @@ setInterval(() => {
 }, 5000);
 
 // ---- 11. TTL ДЛЯ КАЖДОГО ЗОМБИ ----
-// если за 12 секунд зомби не умер "нормально" → сервер сам его убирает
-const ZOMBIE_TTL = 12000;
+// аварийный TTL: удаляем зомби только при долгом зависании
+const ZOMBIE_TTL = 180000;
 setInterval(() => {
     const now = Date.now();
     zombies.forEach((z, zid) => {

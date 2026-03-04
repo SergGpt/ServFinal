@@ -6,7 +6,7 @@ const DEBUG = true;
 let VERBOSE = true;
 
 const me = mp.players.local;
-const zombies = new Map(); // zid -> { ped, followRid, lastMoveAt }
+const zombies = new Map(); // zid -> { ped, followRid, lastFollowAt }
 
 const STEP_SPEED = 1.35;
 const STOP_DIST  = 1.6;
@@ -99,11 +99,6 @@ mp.events.add('z:assignController', (zid, ver, pedHandle) => {
             try { mp.events.callRemote('z:ctrlAck', zid, ver); } catch {}
         }, 100);
 
-        // чуть толкнуть
-        try {
-            const p = me.position;
-            ped.taskGoStraightToCoord(p.x, p.y, p.z, STEP_SPEED, 500, 0.0, 0.0);
-        } catch {}
     }catch{}
 });
 
@@ -202,14 +197,13 @@ setInterval(() => {
             const now = Date.now();
 
             if (dist <= STOP_DIST) return;
-            if (obj.lastMoveAt && (now - obj.lastMoveAt) < 250) return;
+            if (obj.lastFollowAt && (now - obj.lastFollowAt) < FOLLOW_CD) return;
 
-            obj.lastMoveAt = now;
-            ped.taskGoStraightToCoord(target.position.x, target.position.y, target.position.z, STEP_SPEED, 600, 0.0, 0.0);
+            obj.lastFollowAt = now;
             ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
         } catch {}
     });
-}, 200);
+}, 300);
 
 // ====== HIT: raycast по выстрелу ======
 
