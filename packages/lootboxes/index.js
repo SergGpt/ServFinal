@@ -37,13 +37,55 @@ module.exports = {
     crowbarItemId: 67,
 
     /**
-     * Таблица наград. Количество берётся случайным образом в диапазоне [min, max].
+     * Таблица наград.
+     * Из списка выбирается ОДИН предмет с учётом weight, после чего его количество
+     * берётся случайным образом в диапазоне [min, max].
      * params будут записаны в предмет.
      */
     lootTable: [
-        { itemId: 34, min: 1, max: 2, params: { count: 1 } }, // вода
-        { itemId: 126, min: 0, max: 1, params: { count: 1 } }, // бургер
-        { itemId: 129, min: 0, max: 3, params: { count: 1 } }, // чипсы
+        { itemId: 34, min: 1, max: 2, weight: 18, params: { count: 1 } }, // вода
+        { itemId: 126, min: 1, max: 1, weight: 14, params: { count: 1 } }, // бургер
+        { itemId: 129, min: 1, max: 3, weight: 16, params: { count: 1 } }, // чипсы
+
+        { itemId: 205, min: 1, max: 1, weight: 6, params: { count: 1 } }, // золотая цепь
+        { itemId: 206, min: 1, max: 1, weight: 6, params: { count: 1 } }, // золотые часы
+        { itemId: 207, min: 1, max: 1, weight: 6, params: { count: 1 } }, // золотой браслет
+        { itemId: 208, min: 1, max: 1, weight: 5, params: { count: 1 } }, // старая картина
+        { itemId: 209, min: 1, max: 1, weight: 5, params: { count: 1 } }, // набор инструментов
+        { itemId: 210, min: 1, max: 1, weight: 4, params: { count: 1 } }, // старый паспорт
+        { itemId: 211, min: 1, max: 1, weight: 4, params: { count: 1 } }, // старое фото
+        { itemId: 212, min: 1, max: 1, weight: 4, params: { count: 1 } }, // разбитый телефон
+        { itemId: 213, min: 1, max: 1, weight: 4, params: { count: 1 } }, // фотоаппарат
+        { itemId: 214, min: 1, max: 1, weight: 4, params: { count: 1 } }, // разбитый планшет
+        { itemId: 215, min: 1, max: 1, weight: 5, params: { count: 1 } }, // серебряная цепь
+        { itemId: 216, min: 1, max: 1, weight: 5, params: { count: 1 } }, // серебряное кольцо
+        { itemId: 217, min: 1, max: 1, weight: 5, params: { count: 1 } }, // зажигалка
+        { itemId: 218, min: 1, max: 1, weight: 4, params: { count: 1 } }, // золотой браслет
+        { itemId: 219, min: 1, max: 1, weight: 3, params: { count: 1 } }, // золотая монета
+        { itemId: 221, min: 1, max: 1, weight: 5, params: { count: 1 } }, // будильник
+        { itemId: 222, min: 1, max: 1, weight: 5, params: { count: 1 } }, // фонарик
+        { itemId: 223, min: 1, max: 1, weight: 4, params: { count: 1 } }, // радиоприёмник
+        { itemId: 224, min: 1, max: 1, weight: 4, params: { count: 1 } }, // видеокамера
+        { itemId: 225, min: 1, max: 1, weight: 4, params: { count: 1 } }, // виниловая пластинка
+        { itemId: 226, min: 1, max: 1, weight: 4, params: { count: 1 } }, // старая книга
+        { itemId: 227, min: 1, max: 1, weight: 4, params: { count: 1 } }, // дискета
+        { itemId: 228, min: 1, max: 1, weight: 3, params: { count: 1 } }, // игровая приставка
+        { itemId: 229, min: 1, max: 1, weight: 4, params: { count: 1 } }, // старая камера
+        { itemId: 230, min: 1, max: 1, weight: 3, params: { count: 1 } }, // старый телевизор
+        { itemId: 231, min: 1, max: 1, weight: 3, params: { count: 1 } }, // старый компьютер
+        { itemId: 232, min: 1, max: 1, weight: 4, params: { count: 1 } }, // кастрюля
+        { itemId: 233, min: 1, max: 1, weight: 4, params: { count: 1 } }, // кофеварка
+        { itemId: 234, min: 1, max: 1, weight: 5, params: { count: 1 } }, // тряпка
+        { itemId: 235, min: 1, max: 1, weight: 5, params: { count: 1 } }, // жестяная банка
+        { itemId: 237, min: 1, max: 1, weight: 5, params: { count: 1 } }, // пустой кошелёк
+        { itemId: 238, min: 1, max: 1, weight: 3, params: { count: 1 } }, // чемодан
+        { itemId: 239, min: 1, max: 1, weight: 4, params: { count: 1 } }, // сломанный фотоаппарат
+        { itemId: 240, min: 1, max: 1, weight: 4, params: { count: 1 } }, // сломанные очки
+        { itemId: 241, min: 1, max: 1, weight: 5, params: { count: 1 } }, // брелок
+        { itemId: 242, min: 1, max: 1, weight: 5, params: { count: 1 } }, // кулон
+        { itemId: 243, min: 1, max: 1, weight: 5, params: { count: 1 } }, // пачка сигарет
+        { itemId: 244, min: 1, max: 1, weight: 5, params: { count: 1 } }, // ржавые ключи
+        { itemId: 245, min: 1, max: 1, weight: 5, params: { count: 1 } }, // игрушка
     ],
 
     init() {
@@ -149,23 +191,39 @@ module.exports = {
     },
 
     async rewardPlayer(player, colshape) {
-        for (const loot of this.lootTable) {
-            const count = this.randomInt(loot.min, loot.max);
-            if (count <= 0) continue;
+        const loot = this.pickLootByWeight(this.lootTable);
+        if (!loot) return;
 
-            const params = Object.assign({}, loot.params || {});
-            if (count > 1) params.count = count;
+        const count = this.randomInt(loot.min, loot.max);
+        if (count <= 0) return;
 
-            const error = await this.tryGiveItem(player, loot.itemId, params);
-            if (error) {
-                notifications.error(player, `${error}. Предмет оставлен на земле`, 'Инвентарь');
-                const dropPos = Object.assign({}, colshape.db.pos);
-                dropPos.z -= 0.7;
-                await inventory.addGroundItem(loot.itemId, params, dropPos);
-            } else {
-                notifications.success(player, `Получен ${this.getItemName(loot.itemId, params)}`, 'Инвентарь');
-            }
+        const params = Object.assign({}, loot.params || {});
+        if (count > 1) params.count = count;
+
+        const error = await this.tryGiveItem(player, loot.itemId, params);
+        if (error) {
+            notifications.error(player, `${error}. Предмет оставлен на земле`, 'Инвентарь');
+            const dropPos = Object.assign({}, colshape.db.pos);
+            dropPos.z -= 0.7;
+            await inventory.addGroundItem(loot.itemId, params, dropPos);
+        } else {
+            notifications.success(player, `Получен ${this.getItemName(loot.itemId, params)}`, 'Инвентарь');
         }
+    },
+
+    pickLootByWeight(table) {
+        if (!Array.isArray(table) || !table.length) return null;
+
+        const totalWeight = table.reduce((acc, loot) => acc + Math.max(0, loot?.weight ?? 1), 0);
+        if (totalWeight <= 0) return null;
+
+        let roll = Math.random() * totalWeight;
+        for (const loot of table) {
+            roll -= Math.max(0, loot?.weight ?? 1);
+            if (roll <= 0) return loot;
+        }
+
+        return table[table.length - 1];
     },
 
     async tryGiveItem(player, itemId, params) {
