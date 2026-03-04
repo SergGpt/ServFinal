@@ -6,7 +6,7 @@ const DEBUG = true;
 let VERBOSE = true;
 
 const me = mp.players.local;
-const zombies = new Map(); // zid -> { ped }
+const zombies = new Map(); // zid -> { ped, followRid, lastMoveAt }
 
 const STEP_SPEED = 1.35;
 const STOP_DIST  = 1.6;
@@ -77,6 +77,13 @@ function isController(ped){
     return typeof rid === 'number' && rid === me.id;
 }
 
+function findPlayerById(rid){
+    if (typeof rid !== 'number') return null;
+    let found = null;
+    try { mp.players.forEach(p => { if (!found && p.id === rid) found = p; }); } catch {}
+    return found;
+}
+
 // ====== события от сервера ======
 
 // сервер говорит: "ты контроллер вот этого педа"
@@ -115,10 +122,8 @@ mp.events.add('z:executeCommand', (zid, cmd, extraJson) => {
                 try { ped.taskStandStill(500); } catch {}
                 break;
             case 'follow': {
-                let target = me;
-                if (extra && typeof extra.rid === 'number') {
-                    mp.players.forEach(p => { if (p.id === extra.rid) target = p; });
-                }
+                obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
+                const target = findPlayerById(obj.followRid) || me;
                 try { ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true); } catch {}
                 break;
             }
@@ -183,23 +188,28 @@ mp.events.add('z:dead', (zid) => {
     // дальше сервер сам его удалит через z:forceRemove
 });
 
-// ====== ДВИЖЕНИЕ У КОНТРОЛЛЕРА (как было) ======
+// ====== ДВИЖЕНИЕ У КОНТРОЛЛЕРА ======
 setInterval(() => {
-    zombies.forEach((obj, zid) => {
+    zombies.forEach((obj) => {
         const ped = obj.ped;
         if (!mp.peds.exists(ped)) return;
         if (!isController(ped)) return;
 
-        // простое “иди ко мне”
         try {
-            const dist = me.position.distanceTo(ped.position);
+            const targetRid = typeof obj.followRid === 'number' ? obj.followRid : me.id;
+            const target = findPlayerById(targetRid) || me;
+            const dist = target.position.distanceTo(ped.position);
             const now = Date.now();
-            if (dist > STOP_DIST) {
-                ped.taskFollowToOffsetOfEntity(me.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
-            }
+
+            if (dist <= STOP_DIST) return;
+            if (obj.lastMoveAt && (now - obj.lastMoveAt) < 250) return;
+
+            obj.lastMoveAt = now;
+            ped.taskGoStraightToCoord(target.position.x, target.position.y, target.position.z, STEP_SPEED, 600, 0.0, 0.0);
+            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
         } catch {}
     });
-}, 400);
+}, 200);
 
 // ====== HIT: raycast по выстрелу ======
 
