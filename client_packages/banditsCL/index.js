@@ -16,6 +16,8 @@ const STUCK_CD   = 1000;
 const MIN_STEP   = 0.04;
 const HIT_REPORT_CD = 250;
 const hitReportAt = new Map(); // zid -> ts
+const DEAD_REPORT_CD = 1000;
+const deadReportAt = new Map(); // zid -> ts
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
@@ -29,6 +31,17 @@ function reportHit(zid, dmg, reason = 'unknown') {
         hitReportAt.set(zid, now);
         mp.events.callRemote('z:hit', zid, dmg);
         dlog(`→ reportHit zid=${zid} dmg=${dmg} reason=${reason}`);
+    } catch {}
+}
+
+function reportDead(zid, reason = 'unknown') {
+    try {
+        const now = Date.now();
+        const last = deadReportAt.get(zid) || 0;
+        if (now - last < DEAD_REPORT_CD) return;
+        deadReportAt.set(zid, now);
+        mp.events.callRemote('z:deadSignal', zid, reason);
+        dlog(`→ reportDead zid=${zid} reason=${reason}`);
     } catch {}
 }
 
@@ -232,6 +245,8 @@ mp.events.add('z:forceRemove', (zid) => {
         }
         zombies.delete(zid);
         pendingControllerAssign.delete(zid);
+        deadReportAt.delete(zid);
+        hitReportAt.delete(zid);
         dlog(`🗑 forceRemove zid=${zid}`);
     } catch {}
 });
@@ -264,10 +279,27 @@ mp.events.add('z:dead', (zid) => {
     if(!obj) return;
     const ped = obj.ped;
     if(!mp.peds.exists(ped)) return;
+    reportDead(zid, 'server-dead-event');
     try { ped.clearTasksImmediately(); } catch {}
+    try { ped.setHealth(0); } catch {}
     try { mp.game.ped.setPedToRagdoll(ped.handle, 5000, 5000, 0, false, false, false); } catch {}
     // дальше сервер сам его удалит через z:forceRemove
 });
+
+setInterval(() => {
+    zombies.forEach((obj, zid) => {
+        try {
+            const ped = obj.ped;
+            if (!mp.peds.exists(ped)) return;
+            const hp = Number(ped.getHealth ? ped.getHealth() : ped.health) || 0;
+            const deadOrDying = mp.game.entity.isEntityDead(ped.handle, false)
+                || mp.game.ped.isPedDeadOrDying(ped.handle, true)
+                || hp <= 0;
+            if (!deadOrDying) return;
+            reportDead(zid, `client-loop hp=${hp}`);
+        } catch {}
+    });
+}, 500);
 
 // ====== ДВИЖЕНИЕ У КОНТРОЛЛЕРА ======
 setInterval(() => {
@@ -339,6 +371,11 @@ mp.events.add('entityDamaged', (entity, attacker, weapon, damage) => {
 
         const dmg = Math.max(1, parseInt(damage) || 25);
         reportHit(zid, dmg, `entityDamaged-w=${weapon}`);
+
+        try {
+            const hp = Number(entity.getHealth ? entity.getHealth() : entity.health) || 0;
+            if (hp <= 0) reportDead(zid, `entityDamaged-kill w=${weapon}`);
+        } catch {}
     } catch {}
 });
 

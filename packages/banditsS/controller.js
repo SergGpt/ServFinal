@@ -1,5 +1,6 @@
 const DEBUG = true;
 const DEAD_REMOVE_DELAY_MS = 5000;
+const DEAD_SIGNAL_COOLDOWN_MS = 700;
 
 const zones = new Map();
 const zombies = new Map(); // zid -> state
@@ -186,6 +187,7 @@ function spawnZombie(zone, owner) {
         ownerRid: owner && mp.players.exists(owner) ? owner.id : null,
         dead: false,
         deadAt: 0,
+        deadSignalAt: 0,
         lastFollowSyncAt: 0,
         lastAttackAt: 0,
     };
@@ -251,6 +253,16 @@ function markDeadByHit(zid, killer) {
 
     st.dead = true;
     st.deadAt = Date.now();
+    st.deadSignalAt = st.deadAt;
+
+    try {
+        if (mp.peds.exists(st.ped)) {
+            st.ped.health = 0;
+            st.ped.setVariable('deadFlag', true);
+            st.ped.setVariable('command', 'idle');
+            st.ped.setVariable('commandExtra', null);
+        }
+    } catch {}
 
     mp.players.forEach((p) => {
         try {
@@ -259,6 +271,31 @@ function markDeadByHit(zid, killer) {
     });
 
     zlog(`dead zid=${zid} killer=${killer}`);
+}
+
+function markDeadBySignal(zid, source = 'unknown') {
+    const st = zombies.get(zid);
+    if (!st || st.dead) return;
+    markDeadByHit(zid, source);
+}
+
+function syncDeadStateFromPed() {
+    zombies.forEach((st) => {
+        if (!st || st.dead) return;
+
+        if (!mp.peds.exists(st.ped)) {
+            markDeadBySignal(st.zid, 'ped-missing');
+            zlog(`dead-sync zid=${st.zid}: ped missing`);
+            return;
+        }
+
+        const hp = Number(st.ped.health) || 0;
+        const deadFlag = !!st.ped.getVariable('deadFlag');
+        if (hp <= 0 || deadFlag) {
+            markDeadBySignal(st.zid, hp <= 0 ? 'ped-health' : 'ped-flag');
+            zlog(`dead-sync zid=${st.zid}: hp=${hp} deadFlag=${deadFlag}`);
+        }
+    });
 }
 
 function updateZoneEntryState() {
@@ -407,6 +444,31 @@ function registerEvents() {
         }
     });
 
+    mp.events.add('z:deadSignal', (player, zidRaw, reasonRaw) => {
+        try {
+            const zid = parseInt(zidRaw, 10);
+            const st = zombies.get(zid);
+            if (!st) {
+                zlog(`deadSignal ignored zid=${zid}: not found`);
+                return;
+            }
+            if (st.dead) {
+                zlog(`deadSignal ignored zid=${zid}: already dead`);
+                return;
+            }
+
+            const now = Date.now();
+            if (now - (st.deadSignalAt || 0) < DEAD_SIGNAL_COOLDOWN_MS) return;
+            st.deadSignalAt = now;
+
+            const reason = typeof reasonRaw === 'string' ? reasonRaw : 'client-signal';
+            markDeadBySignal(zid, `${reason}:rid=${player ? player.id : -1}`);
+            zlog(`deadSignal accepted zid=${zid} by=${player ? player.id : -1} reason=${reason}`);
+        } catch (e) {
+            zlog(`z:deadSignal error ${e.message}`);
+        }
+    });
+
     mp.events.add('zombies:respawn', (player) => {
         zones.forEach((zone) => {
             zone.zombieIds.slice().forEach((zid) => destroyZombie(zid, 'manual-reset'));
@@ -445,6 +507,12 @@ function registerLoops() {
             processZombieAttacks();
         } catch {}
     }, 200);
+
+    setInterval(() => {
+        try {
+            syncDeadStateFromPed();
+        } catch {}
+    }, 450);
 
     setInterval(() => {
         try {
