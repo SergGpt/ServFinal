@@ -38,10 +38,14 @@ const ZOMBIE_CONFIG = {
         sleepWakeDistance: 45,
         controllerMaxDistance: 90,
         emptyZoneBehavior: 'idle', // idle | destroy
-        stuckDistanceEps: 0.25,
-        stuckTimeoutMs: 1500,
-        maxStuckBeforeReassign: 2,
+        stuckDistanceEps: 0.45,
+        stuckTimeoutMs: 3200,
+        maxStuckBeforeReassign: 4,
         skipDuplicateFollowMs: 500,
+        stuckGraceAfterSpawnMs: 4000,
+        stuckGraceAfterAckMs: 2500,
+        stuckGraceAfterFollowMs: 1800,
+        stuckRecoveryBursts: 2,
     },
 
     zones: [

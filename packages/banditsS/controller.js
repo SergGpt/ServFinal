@@ -125,6 +125,8 @@ function setTaskFollow(st, reason = 'chase') {
 
     st.lastFollowTargetRid = owner.id;
     st.lastFollowSentAt = Date.now();
+    st.lastFollowIssueAt = st.lastFollowSentAt;
+    st.stuckGraceUntil = Math.max(st.stuckGraceUntil || 0, st.lastFollowIssueAt + (ZOMBIE_CONFIG.ai.stuckGraceAfterFollowMs || 1800));
     saveTask(st, 'follow', payload);
 
     const now = Date.now();
@@ -193,6 +195,9 @@ function spawnZombie(zone, owner, spawnIndex = 0) {
         lastTaskData: null,
         lastTaskAt: 0,
         deadDestroyScheduled: false,
+        lastFollowIssueAt: 0,
+        lastControllerAckAt: 0,
+        stuckGraceUntil: now + (ZOMBIE_CONFIG.ai.stuckGraceAfterSpawnMs || 4000),
     };
 
     zombies.set(zid, st);
@@ -381,10 +386,15 @@ function spawnZonesByPresenceCheck() {
 function processStuck(st) {
     if (!mp.peds.exists(st.ped)) return;
     if (st.switching) return;
+    if (!(st.state === ZOMBIE_STATE.CHASE || st.state === ZOMBIE_STATE.ATTACK)) return;
+
+    const now = Date.now();
+    if (now < (st.stuckGraceUntil || 0)) return;
+    if (now - (st.lastFollowIssueAt || 0) < (ZOMBIE_CONFIG.ai.stuckGraceAfterFollowMs || 1800)) return;
+    if (now - (st.lastControllerAckAt || 0) < (ZOMBIE_CONFIG.ai.stuckGraceAfterAckMs || 2500)) return;
 
     const pos = st.ped.position;
     const moved = dist3(pos, st.lastPos || pos);
-    const now = Date.now();
 
     if (moved >= ZOMBIE_CONFIG.ai.stuckDistanceEps) {
         st.lastPos = { x: pos.x, y: pos.y, z: pos.z };
@@ -397,19 +407,57 @@ function processStuck(st) {
 
     st.stuckCount = (st.stuckCount || 0) + 1;
     st.lastMoveAt = now;
-    zlog(`stuck zid=${st.zid} count=${st.stuckCount}`);
+    zlog(`stuck zid=${st.zid} count=${st.stuckCount} controller=${st.controllerRid}`);
 
-    const restored = restoreTask(st, {
-        follow: (state) => setTaskFollow(state, 'stuck-restore'),
-        idle: (state, data) => setTaskIdle(state, data.reason || 'stuck-idle'),
+    const reassignThreshold = Math.max(
+        ZOMBIE_CONFIG.ai.maxStuckBeforeReassign || 4,
+        ZOMBIE_CONFIG.ai.stuckRecoveryBursts || 2,
+    );
+
+    // 1) мягкое восстановление без смены контроллера
+    if (st.stuckCount < reassignThreshold) {
+        const restored = restoreTask(st, {
+            follow: (state) => setTaskFollow(state, 'stuck-recover-follow'),
+            idle: (state, data) => setTaskIdle(state, data.reason || 'stuck-recover-idle'),
+            attack: (state) => setTaskFollow(state, 'stuck-recover-attack-follow'),
+        });
+        if (!restored) setTaskFollow(st, 'stuck-recover-fallback');
+        st.stuckGraceUntil = now + (ZOMBIE_CONFIG.ai.stuckGraceAfterFollowMs || 1800);
+        return;
+    }
+
+    // 2) reassign только если это действительно другой/невалидный контроллер
+    const zone = zones.get(st.zoneId);
+    if (!zone) return;
+
+    const hbAlive = st.controllerRid && (now - (st.lastHeartbeatAt || 0) <= ZOMBIE_CONFIG.timers.heartbeatTimeoutMs);
+    const currentCtrlObj = getPlayerById(mp, st.controllerRid);
+    const currentCtrlValid = currentCtrlObj && isPlayerValidTarget(mp, currentCtrlObj, zone, {
+        maxDistance: ZOMBIE_CONFIG.ai.controllerMaxDistance,
+        fromPos: st.ped.position,
+        dimension: st.ped.dimension,
     });
 
-    if (!restored) setTaskFollow(st, 'stuck-fallback');
+    const preferred = getPlayerById(mp, st.ownerRid);
+    const nextCtrl = chooseController(zone, st.ped, preferred);
+    const sameController = nextCtrl && st.controllerRid && nextCtrl.id === st.controllerRid;
 
-    if (st.stuckCount >= ZOMBIE_CONFIG.ai.maxStuckBeforeReassign) {
+    if (sameController && hbAlive && currentCtrlValid) {
+        zlog(`stuck same-controller zid=${st.zid}: skip switch, do recovery`);
+        setTaskFollow(st, 'stuck-same-controller-recover');
+        st.stuckGraceUntil = now + (ZOMBIE_CONFIG.ai.stuckGraceAfterFollowMs || 1800);
+        return;
+    }
+
+    if (!hbAlive || !currentCtrlValid || (nextCtrl && !sameController)) {
         st.stuckCount = 0;
         controllerManager.beginSwitch(st, 'stuck-reassign');
+        return;
     }
+
+    // fallback: мягкое восстановление
+    setTaskFollow(st, 'stuck-final-recover');
+    st.stuckGraceUntil = now + (ZOMBIE_CONFIG.ai.stuckGraceAfterFollowMs || 1800);
 }
 
 function syncAllZombieFollow() {
@@ -577,6 +625,8 @@ function registerEvents() {
 
             st.controllerRid = player.id;
             st.lastHeartbeatAt = Date.now();
+            st.lastControllerAckAt = Date.now();
+            st.stuckGraceUntil = Math.max(st.stuckGraceUntil || 0, st.lastControllerAckAt + (ZOMBIE_CONFIG.ai.stuckGraceAfterAckMs || 2500));
             st.ctrlVer = ver;
             controllerManager.onControllerAck(st, player.id, ver);
             zlog(`ctrlAck zid=${zid} by=${player.id} ver=${ver}`);
