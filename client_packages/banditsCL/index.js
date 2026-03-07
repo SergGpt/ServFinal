@@ -7,6 +7,7 @@ let VERBOSE = true;
 
 const me = mp.players.local;
 const zombies = new Map(); // zid -> { ped, followRid, lastFollowAt, lastNudgeAt }
+const pendingControllerAssign = new Map(); // zid -> { ver, at }
 
 const STEP_SPEED = 1.35;
 const STOP_DIST  = 1.6;
@@ -52,8 +53,47 @@ function detachIfZombie(ped){
     }
 }
 
+function ackController(zid, ver) {
+    try { mp.events.callRemote('z:ctrlAck', zid, ver); } catch {}
+}
+
+function hydrateFollowFromPed(obj, ped) {
+    try {
+        const cmd = ped.getVariable('command');
+        const extra = ped.getVariable('commandExtra') || {};
+        if (cmd !== 'follow') return;
+
+        obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
+        const target = findPlayerById(obj.followRid) || me;
+        applyFollowTask(obj, ped, target, Date.now());
+    } catch {}
+}
+
+function tryResolvePendingAssignByPed(ped) {
+    try {
+        if (!ped || ped.type !== 'ped') return;
+        const zid = ped.getVariable('zid');
+        if (typeof zid !== 'number') return;
+
+        const pending = pendingControllerAssign.get(zid);
+        if (!pending) return;
+
+        attachIfZombie(ped);
+        const obj = zombies.get(zid);
+        if (obj) {
+            hydrateFollowFromPed(obj, ped);
+        }
+
+        ackController(zid, pending.ver);
+        setTimeout(() => ackController(zid, pending.ver), 150);
+        setTimeout(() => ackController(zid, pending.ver), 500);
+
+        pendingControllerAssign.delete(zid);
+    } catch {}
+}
+
 mp.events.add('entityStreamIn', (ent) => {
-    try { if (ent && ent.type === 'ped') attachIfZombie(ent); } catch {}
+    try { if (ent && ent.type === 'ped') { attachIfZombie(ent); tryResolvePendingAssignByPed(ent); } } catch {}
 });
 mp.events.add('entityStreamOut', (ent) => {
     try { if (ent && ent.type === 'ped') detachIfZombie(ent); } catch {}
@@ -63,7 +103,7 @@ mp.events.add('entityStreamOut', (ent) => {
 setTimeout(() => {
     try {
         mp.peds.forEach(ped => {
-            try { attachIfZombie(ped); } catch {}
+            try { attachIfZombie(ped); tryResolvePendingAssignByPed(ped); } catch {}
         });
         chat(`✅ Zombies client loaded (${zombies.size} peds)`, '#aaffaa');
     } catch (e) {
@@ -111,30 +151,26 @@ function applyFollowTask(obj, ped, target, now) {
 // сервер говорит: "ты контроллер вот этого педа"
 mp.events.add('z:assignController', (zid, ver, pedHandle) => {
     try{
+        zid = parseInt(zid);
+        ver = parseInt(ver);
+
         const ped = mp.peds.atHandle(pedHandle);
-        if(!ped || !mp.peds.exists(ped)) return;
+        if(!ped || !mp.peds.exists(ped)) {
+            pendingControllerAssign.set(zid, { ver, at: Date.now() });
+            return;
+        }
 
         attachIfZombie(ped);
+        const obj = zombies.get(zid);
+        if (obj) {
+            hydrateFollowFromPed(obj, ped);
+        }
 
-        const ack = () => {
-            try { mp.events.callRemote('z:ctrlAck', zid, ver); } catch {}
-        };
-        ack();
-        setTimeout(ack, 150);
-        setTimeout(ack, 500);
+        ackController(zid, ver);
+        setTimeout(() => ackController(zid, ver), 150);
+        setTimeout(() => ackController(zid, ver), 500);
 
-        // если сервер уже держит follow в переменных педа — применим сразу, не ждём реплея
-        try {
-            const obj = zombies.get(zid);
-            const cmd = ped.getVariable('command');
-            const extra = ped.getVariable('commandExtra') || {};
-            if (obj && cmd === 'follow') {
-                obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
-                const target = findPlayerById(obj.followRid) || me;
-                applyFollowTask(obj, ped, target, Date.now());
-            }
-        } catch {}
-
+        pendingControllerAssign.delete(zid);
     }catch{}
 });
 
@@ -182,6 +218,7 @@ mp.events.add('z:forceRemove', (zid) => {
             try { ped.destroy(); } catch {}
         }
         zombies.delete(zid);
+        pendingControllerAssign.delete(zid);
         dlog(`🗑 forceRemove zid=${zid}`);
     } catch {}
 });
