@@ -18,6 +18,7 @@ const HIT_REPORT_CD = 250;
 const hitReportAt = new Map(); // zid -> ts
 const DEAD_REPORT_CD = 1000;
 const deadReportAt = new Map(); // zid -> ts
+const CTRL_HEARTBEAT_MS = 700;
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
@@ -106,6 +107,8 @@ function hydrateFollowFromPed(obj, ped) {
         if (cmd !== 'follow') return;
 
         obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
+        obj.followSpeed = (extra && typeof extra.speed === 'number') ? extra.speed : STEP_SPEED;
+        obj.stopDist = (extra && typeof extra.stopDist === 'number') ? extra.stopDist : STOP_DIST;
         const target = findPlayerById(obj.followRid) || me;
         applyFollowTask(obj, ped, target, Date.now());
     } catch {}
@@ -171,14 +174,16 @@ function applyFollowTask(obj, ped, target, now) {
     try {
         if (!obj || !ped || !target) return;
 
+        const speed = (obj && typeof obj.followSpeed === 'number') ? obj.followSpeed : STEP_SPEED;
+        const stopDist = (obj && typeof obj.stopDist === 'number') ? obj.stopDist : STOP_DIST;
         const dist = target.position.distanceTo(ped.position);
-        if (dist <= STOP_DIST) return;
+        if (dist <= stopDist) return;
 
         if (!obj.lastFollowAt || (now - obj.lastFollowAt) >= FOLLOW_CD) {
             obj.lastFollowAt = now;
             try { ped.clearTasks(); } catch {}
             forceAggroPedState(ped);
-            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
+            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, speed, -1, stopDist, true);
         }
 
         // мягкий "пинок" навигации, если ped визуально завис
@@ -187,7 +192,7 @@ function applyFollowTask(obj, ped, target, now) {
             try { ped.clearTasks(); } catch {}
             forceAggroPedState(ped);
             ped.taskGoStraightToCoord(target.position.x, target.position.y, target.position.z, STEP_SPEED, 1200, 0.0, 0.0);
-            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
+            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, speed, -1, stopDist, true);
         }
     } catch {}
 }
@@ -236,6 +241,8 @@ mp.events.add('z:executeCommand', (zid, cmd, extraJson) => {
                 break;
             case 'follow': {
                 obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
+                obj.followSpeed = (extra && typeof extra.speed === 'number') ? extra.speed : STEP_SPEED;
+                obj.stopDist = (extra && typeof extra.stopDist === 'number') ? extra.stopDist : STOP_DIST;
                 const target = findPlayerById(obj.followRid) || me;
                 applyFollowTask(obj, ped, target, Date.now());
                 break;
@@ -335,6 +342,18 @@ setInterval(() => {
         } catch {}
     });
 }, 300);
+
+setInterval(() => {
+    zombies.forEach((obj, zid) => {
+        try {
+            const ped = obj.ped;
+            if (!mp.peds.exists(ped)) return;
+            if (!isController(ped)) return;
+            const ver = parseInt(ped.getVariable('ctrlVer')) || 0;
+            mp.events.callRemote('z:ctrlHeartbeat', zid, ver);
+        } catch {}
+    });
+}, CTRL_HEARTBEAT_MS);
 
 // ====== HIT: raycast по выстрелу ======
 
