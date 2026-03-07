@@ -22,7 +22,6 @@ function dlog(msg){ if(DEBUG && VERBOSE) chat(`[ZDBG] ${msg}`,'#99ccff'); }
 
 // ====== подготовка педа ======
 function prepPed(ped){
-    try{ mp.game.entity.setEntityAsMissionEntity(ped.handle,true,true);}catch{}
     try{ ped.setInvincible(false); }catch{}
     try{ ped.setCollision(true,true); }catch{}
     try{ ped.setBlockingOfNonTemporaryEvents(true); }catch{}
@@ -228,21 +227,22 @@ mp.events.add('z:executeCommand', (zid, cmd, extraJson) => {
 mp.events.add('z:forceRemove', (zid) => {
     try {
         zid = parseInt(zid);
-        const obj = zombies.get(zid);
-        let ped = obj ? obj.ped : null;
-        if (!ped || !mp.peds.exists(ped)) {
-            ped = findPedByZid(zid);
-        }
 
+        const obj = zombies.get(zid);
+        const ped = obj ? obj.ped : findPedByZid(zid);
+
+        // Клиент НЕ удаляет server-side ped, только чистит локальное состояние/задачи
         if (ped && mp.peds.exists(ped)) {
-            try { ped.destroy(); } catch {}
+            try { ped.clearTasksImmediately(); } catch {}
+            try { ped.freezePosition(false); } catch {}
         }
 
         const t = corpseCleanupTimers.get(zid);
         if (t) { clearTimeout(t); corpseCleanupTimers.delete(zid); }
+
         zombies.delete(zid);
         pendingControllerAssign.delete(zid);
-        dlog(`🗑 forceRemove zid=${zid}`);
+        dlog(`🧹 forceRemove state cleared zid=${zid}`);
     } catch {}
 });
 
@@ -270,29 +270,21 @@ mp.events.add('npc:animHit', (zid, targetId) => {
 // сервер: "упал"
 mp.events.add('z:dead', (zid) => {
     zid = parseInt(zid);
+
     const obj = zombies.get(zid);
-    let ped = obj ? obj.ped : null;
-    if (!ped || !mp.peds.exists(ped)) {
-        ped = findPedByZid(zid);
+    const ped = obj ? obj.ped : findPedByZid(zid);
+
+    if (ped && mp.peds.exists(ped)) {
+        try { ped.clearTasksImmediately(); } catch {}
+        try { mp.game.ped.setPedToRagdoll(ped.handle, 5000, 5000, 0, false, false, false); } catch {}
     }
-    if(!ped || !mp.peds.exists(ped)) return;
 
-    try { ped.clearTasksImmediately(); } catch {}
-    try { mp.game.ped.setPedToRagdoll(ped.handle, 5000, 5000, 0, false, false, false); } catch {}
-
-    // fallback: если серверный forceRemove не дошёл, убираем труп локально
+    // fallback: даже если ped сейчас не найден, по таймеру чистим локальное состояние
     const oldTimer = corpseCleanupTimers.get(zid);
     if (oldTimer) clearTimeout(oldTimer);
+
     const timer = setTimeout(() => {
         try {
-            const cur = zombies.get(zid);
-            let corpsePed = cur ? cur.ped : null;
-            if (!corpsePed || !mp.peds.exists(corpsePed)) {
-                corpsePed = findPedByZid(zid);
-            }
-            if (corpsePed && mp.peds.exists(corpsePed)) {
-                try { corpsePed.destroy(); } catch {}
-            }
             zombies.delete(zid);
             pendingControllerAssign.delete(zid);
         } catch {}
