@@ -7,6 +7,12 @@ const zones = new Map();
 const zombies = new Map();          // zid -> { ped, zoneId, spawnAt, dead }
 const desiredCmd = new Map();       // zid -> { name, extra }
 const ctrlVerMap = new Map();       // zid -> number
+const DEBUG_LOG = true;
+
+function zlog(msg) {
+    if (!DEBUG_LOG) return;
+    console.log(`[ZDBG:S] ${msg}`);
+}
 
 // ---- 1. зона ----
 const ZONE_1 = {
@@ -43,6 +49,11 @@ function playersInZone(zone) {
     const list = [];
     try { mp.players.forEach(p => { if (isPlayerInZone(p, zone)) list.push(p); }); } catch {}
     return list;
+}
+function hasPlayersInZone(zoneId) {
+    const zone = zones.get(zoneId);
+    if (!zone) return false;
+    return playersInZone(zone).length > 0;
 }
 function getZoneDataSafe(id) {
     const z = zones.get(id);
@@ -135,6 +146,7 @@ function assignControllerStrict(ped, zone, preferred = null) {
             ped.setVariable('controllerRid', -1);
             ped.setVariable('ctrlVer', nextVer);
             ped.setVariable('ctrlState', 'switching');
+            zlog(`assignController zid=${zid}: no controller in zone=${zone.id}`);
             return;
         }
 
@@ -147,6 +159,7 @@ function assignControllerStrict(ped, zone, preferred = null) {
         try {
             controller.call('z:assignController', [zid, nextVer, ped.handle]);
         } catch {}
+        zlog(`assignController zid=${zid}: controller=${controller.id} zone=${zone.id} ver=${nextVer}`);
     } catch {}
 }
 
@@ -211,7 +224,39 @@ function spawnServerZombie(zoneId, x, y, z, model = pickModel(), targetPlayer = 
     }
 
     console.log(`[Z] spawn zid=${zid} in zone=${zoneId}`);
+    zlog(`spawn details zid=${zid} model=${model} owner=${tgt ? tgt.id : 'none'} pos=${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}`);
     return zid;
+}
+
+function destroyZombieWithReason(zid, reason = 'unknown') {
+    zlog(`destroy request zid=${zid} reason=${reason}`);
+    destroyZombie(zid);
+}
+
+function finalizeDeadZombie(zid, reason = 'dead') {
+    const z = zombies.get(zid);
+    if (!z) {
+        zlog(`finalizeDeadZombie skip zid=${zid}: zombie not found`);
+        return false;
+    }
+    if (!z.dead) {
+        zlog(`finalizeDeadZombie skip zid=${zid}: zombie alive`);
+        return false;
+    }
+
+    const zone = zones.get(z.zoneId);
+    const inZoneCount = zone ? playersInZone(zone).length : 0;
+    zlog(`finalizeDeadZombie zid=${zid} zone=${z.zoneId} playersInZone=${inZoneCount} reason=${reason}`);
+
+    if (inZoneCount <= 0) {
+        zlog(`finalizeDeadZombie postpone zid=${zid}: no players in zone`);
+        return false;
+    }
+
+    const zoneId = z.zoneId;
+    destroyZombieWithReason(zid, `${reason}|in-zone`);
+    setTimeout(() => respawnIfPlayers(zoneId), 3000);
+    return true;
 }
 
 function destroyZombie(zid) {
@@ -330,6 +375,7 @@ mp.events.add('z:ctrlAck', (player, zid, ver) => {
         if (ped.getVariable('controllerRid') !== player.id) return;
         if (ped.getVariable('ctrlVer') !== ver) return;
         ped.setVariable('ctrlState', 'ready');
+        zlog(`ctrlAck zid=${zid} by player=${player.id} ver=${ver}`);
         replayDesiredIfReady(zid);
     } catch {}
 });
@@ -338,20 +384,22 @@ mp.events.add('z:ctrlAck', (player, zid, ver) => {
 mp.events.add('z:hit', (player, zidRaw, dmgRaw) => {
     try {
         const zid = parseInt(zidRaw);
+        const dmg = parseInt(dmgRaw) || 0;
+        zlog(`hit event zid=${zid} by=${player ? player.id : 'n/a'} dmg=${dmg}`);
         const z = zombies.get(zid);
         if (!z) { console.log(`[Z] hit: no zid=${zid}`); return; }
         if (!mp.peds.exists(z.ped)) { console.log(`[Z] hit: ped gone zid=${zid}`); return; }
         if (z.dead) return;
 
         z.dead = true;
+        z.deadAt = Date.now();
+        z.killerRid = player && mp.players.exists(player) ? player.id : null;
+        zlog(`zombie marked dead zid=${zid} zone=${z.zoneId} killer=${z.killerRid}`);
 
         // всем сказать "упал"
         mp.players.forEach(p => { try { p.call('z:dead', [zid]); } catch {} });
 
-        const zoneId = z.zoneId;
-        destroyZombie(zid);
-        // подождём чуть и заспавним новый
-        setTimeout(() => respawnIfPlayers(zoneId), 3000);
+        finalizeDeadZombie(zid, 'hit');
 
         console.log(`[Z] hit kill zid=${zid} by ${player && player.name}`);
     } catch (e) {
@@ -372,11 +420,13 @@ setInterval(() => {
 
                 if (inZone && !was) {
                     player.setVariable(key, true);
+                    zlog(`player ${player.id} entered zone=${zoneId}`);
                     if (!zone.active || !zone.zombieIds || zone.zombieIds.length === 0) {
                         spawnZoneZombies(zoneId, zone, player);
                     }
                 } else if (!inZone && was) {
                     player.setVariable(key, false);
+                    zlog(`player ${player.id} left zone=${zoneId}`);
                 }
             });
         });
@@ -439,6 +489,14 @@ setInterval(() => {
     });
 }, 200);
 
+// чистим мёртвых только когда игроки в зоне (важно для корректного стриминга)
+setInterval(() => {
+    zombies.forEach((z, zid) => {
+        if (!z || !z.dead) return;
+        finalizeDeadZombie(zid, 'dead-cleaner');
+    });
+}, 1000);
+
 // КУЛЛИНГ
 setInterval(() => {
     zones.forEach(zone => {
@@ -471,15 +529,19 @@ setInterval(() => {
         if (!mp.peds.exists(z.ped)) {
             console.log(`[Z] ttl: ped missing, drop zid=${zid}`);
             z.dead = true;
-            destroyZombie(zid);
-            setTimeout(() => respawnIfPlayers(z.zoneId), 3000);
+            z.deadAt = Date.now();
+            finalizeDeadZombie(zid, 'ttl-ped-missing');
+            return;
+        }
+        if (!hasPlayersInZone(z.zoneId)) {
+            zlog(`ttl skip zid=${zid}: no players in zone=${z.zoneId}`);
             return;
         }
         if (now - z.spawnAt >= ZOMBIE_TTL) {
             console.log(`[Z] ttl: time is up → kill zid=${zid}`);
             z.dead = true;
-            destroyZombie(zid);
-            setTimeout(() => respawnIfPlayers(z.zoneId), 3000);
+            z.deadAt = Date.now();
+            finalizeDeadZombie(zid, 'ttl-expired');
         }
     });
 }, 1000);
