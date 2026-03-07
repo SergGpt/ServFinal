@@ -71,6 +71,8 @@ function setTaskIdle(st, reason = 'idle') {
     if (!mp.peds.exists(st.ped)) return;
     if (st.switching) return;
 
+    if (st.lastTaskType === 'idle' && st.lastTaskData && st.lastTaskData.reason === reason) return;
+
     const ctrl = st.ped.controller;
     if (!ctrl || !mp.players.exists(ctrl)) return;
 
@@ -219,6 +221,7 @@ function destroyZombie(zid, reason = 'unknown') {
     const st = zombies.get(zid);
     if (!st) return;
 
+    zlog(`destroy-start zid=${zid} reason=${reason}`);
     const zone = zones.get(st.zoneId);
 
     try {
@@ -241,20 +244,21 @@ function destroyZombie(zid, reason = 'unknown') {
         } catch {}
     });
 
-    zlog(`destroy zid=${zid} reason=${reason}`);
+    zlog(`destroy done zid=${zid} reason=${reason} zone=${st.zoneId}`);
 }
 
 function markDeadByHit(zid, killer) {
     const st = zombies.get(zid);
     if (!st || st.dead) return;
 
+    zlog(`mark-dead zid=${zid} by=${killer}`);
     st.dead = true;
     st.deadAt = Date.now();
     st.deadSignalAt = st.deadAt;
     st.hp = 0;
     st.ownerRid = null;
     st.switching = false;
-    st.deadDestroyScheduled = false;
+    st.deadDestroyScheduled = true;
 
     setZombieState(st, ZOMBIE_STATE.DEAD, zlog, killer);
 
@@ -281,6 +285,7 @@ function markDeadByHit(zid, killer) {
 function markDeadBySignal(zid, source = 'unknown') {
     const st = zombies.get(zid);
     if (!st || st.dead) return;
+    zlog(`dead signal accepted zid=${zid} source=${source}`);
     markDeadByHit(zid, source);
 }
 
@@ -289,8 +294,8 @@ function syncDeadStateFromPed() {
         if (!st || st.dead) return;
 
         if (!mp.peds.exists(st.ped)) {
+            zlog(`dead-sync zid=${st.zid}: ped missing -> mark dead`);
             markDeadBySignal(st.zid, 'ped-missing');
-            zlog(`dead-sync zid=${st.zid}: ped missing`);
             return;
         }
 
@@ -305,11 +310,6 @@ function syncDeadStateFromPed() {
         if (isPedDead) {
             markDeadBySignal(st.zid, hp <= 0 ? 'ped-health' : 'ped-flag');
             zlog(`dead-sync zid=${st.zid}: hp=${hp} deadFlag=${deadFlag}`);
-            const deadState = zombies.get(st.zid);
-            if (deadState && deadState.dead && !deadState.deadDestroyScheduled) {
-                deadState.deadDestroyScheduled = true;
-                setTimeout(() => destroyZombie(deadState.zid, 'dead-sync-timeout'), ZOMBIE_CONFIG.timers.deadRemoveDelayMs);
-            }
         }
     });
 }
@@ -430,16 +430,20 @@ function syncAllZombieFollow() {
 
         if (!target) {
             st.ownerRid = null;
-            setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, 'no-valid-target');
-            setTaskIdle(st, 'sleep-no-target');
+            if (st.state !== ZOMBIE_STATE.SLEEP) {
+                setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, 'no-valid-target');
+                setTaskIdle(st, 'sleep-no-target');
+            }
             return;
         }
 
         const distToTarget = dist3(st.ped.position, target.position);
         if (distToTarget > ZOMBIE_CONFIG.ai.sleepWakeDistance) {
             st.ownerRid = null;
-            setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, `far-target=${distToTarget.toFixed(1)}`);
-            setTaskIdle(st, 'sleep-far-target');
+            if (st.state !== ZOMBIE_STATE.SLEEP) {
+                setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, `far-target=${distToTarget.toFixed(1)}`);
+                setTaskIdle(st, 'sleep-far-target');
+            }
             return;
         }
 
@@ -468,6 +472,7 @@ function syncAllZombieFollow() {
 function processZombieAttacks() {
     zombies.forEach((st) => {
         if (st.dead || st.switching) return;
+        if (st.state === ZOMBIE_STATE.SLEEP || st.state === ZOMBIE_STATE.IDLE || st.state === ZOMBIE_STATE.SWITCH_CONTROLLER) return;
         if (!mp.peds.exists(st.ped)) return;
 
         const zone = zones.get(st.zoneId);
@@ -479,7 +484,11 @@ function processZombieAttacks() {
             maxDistance: ZOMBIE_CONFIG.ai.maxTargetDistance,
             fromPos: st.ped.position,
         })) {
-            setZombieState(st, ZOMBIE_STATE.LOST_TARGET, zlog, 'invalid-target-before-attack');
+            st.ownerRid = null;
+            if (st.state !== ZOMBIE_STATE.SLEEP) {
+                setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, 'invalid-target-before-attack');
+                setTaskIdle(st, 'invalid-target-before-attack');
+            }
             return;
         }
 
@@ -516,7 +525,10 @@ function cleanupDeadZombies() {
 
     zombies.forEach((st) => {
         if (!st.dead) return;
-        if (now - st.deadAt < ZOMBIE_CONFIG.timers.deadRemoveDelayMs) return;
+        const elapsed = now - st.deadAt;
+        zlog(`cleanup-check zid=${st.zid} deadAt=${st.deadAt} elapsed=${elapsed}`);
+        if (elapsed < ZOMBIE_CONFIG.timers.deadRemoveDelayMs) return;
+        zlog(`cleanup-destroy zid=${st.zid} reason=dead-delay`);
         destroyZombie(st.zid, 'dead-delay');
     });
 }

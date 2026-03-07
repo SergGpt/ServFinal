@@ -198,26 +198,35 @@ function applyFollowTask(obj, ped, target, now) {
 
         const speed = (obj && typeof obj.followSpeed === 'number') ? obj.followSpeed : STEP_SPEED;
         const stopDist = (obj && typeof obj.stopDist === 'number') ? obj.stopDist : STOP_DIST;
+        const targetRid = typeof obj.followRid === 'number' ? obj.followRid : me.id;
         const dist = target.position.distanceTo(ped.position);
         if (dist <= stopDist) return;
 
+        const lastPos = obj.lastPos || ped.position;
+        const moved = ped.position.distanceTo(lastPos);
+        obj.lastPos = ped.position;
+        const moving = moved > 0.02;
+
         if (!obj.lastFollowAt || (now - obj.lastFollowAt) >= FOLLOW_CD) {
-            obj.lastFollowAt = now;
-            const targetRid = typeof obj.followRid === 'number' ? obj.followRid : me.id;
-            if (obj.lastTaskTargetRid !== targetRid) {
-                obj.lastTaskTargetRid = targetRid;
-                try { ped.clearTasks(); } catch {}
+            const targetChanged = obj.lastTaskTargetRid !== targetRid;
+            const needReissue = targetChanged || !moving || !obj.lastFollowAt;
+            if (needReissue) {
+                obj.lastFollowAt = now;
+                if (targetChanged) {
+                    obj.lastTaskTargetRid = targetRid;
+                    try { ped.clearTasks(); } catch {}
+                }
+                forceAggroPedState(ped);
+                ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, speed, -1, stopDist, true);
             }
-            forceAggroPedState(ped);
-            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, speed, -1, stopDist, true);
         }
 
         // мягкий "пинок" навигации, если ped визуально завис
-        if (!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= 1200) {
+        if ((!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= 1200) && !moving) {
             obj.lastNudgeAt = now;
             try { ped.clearTasks(); } catch {}
             forceAggroPedState(ped);
-            ped.taskGoStraightToCoord(target.position.x, target.position.y, target.position.z, STEP_SPEED, 1200, 0.0, 0.0);
+            ped.taskGoStraightToCoord(target.position.x, target.position.y, target.position.z, speed, 1200, 0.0, 0.0);
             ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, speed, -1, stopDist, true);
         }
     } catch {}
