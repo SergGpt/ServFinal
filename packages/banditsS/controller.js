@@ -1,6 +1,5 @@
 const DEBUG = true;
-const ZOMBIE_TTL = 180000;
-const DEAD_CLEANUP_DELAY = 1200;
+const DEAD_REMOVE_DELAY_MS = 5000;
 
 const zones = new Map();
 const zombies = new Map(); // zid -> state
@@ -16,8 +15,7 @@ const ZONE_1 = {
     zombieCount: 3,
     zombieIds: [],
     active: false,
-    spawnedAt: 0,
-    lastEmptyTs: 0,
+    activatorRid: null,
 };
 zones.set(ZONE_1.id, ZONE_1);
 
@@ -61,6 +59,17 @@ function playersInZone(zone) {
     return list;
 }
 
+function getPlayerById(rid) {
+    if (typeof rid !== 'number') return null;
+    let found = null;
+    try {
+        mp.players.forEach((p) => {
+            if (!found && p.id === rid) found = p;
+        });
+    } catch {}
+    return found;
+}
+
 function randomModel() {
     const arr = ['u_m_y_zombie_01', 'a_m_m_tramp_01', 's_m_y_cop_01'];
     return arr[(Math.random() * arr.length) | 0];
@@ -72,16 +81,19 @@ function nextZid() {
     return zid;
 }
 
-function chooseController(zone, ped) {
+function chooseController(zone, ped, preferredPlayer = null) {
+    if (preferredPlayer && mp.players.exists(preferredPlayer) && isPlayerInZone(preferredPlayer, zone)) {
+        return preferredPlayer;
+    }
+
     const plist = playersInZone(zone);
     if (!plist.length) return null;
 
-    let best = plist[0];
+    let best = null;
     let bestDist = Infinity;
 
     plist.forEach((p) => {
         if (!mp.players.exists(p)) return;
-        if (typeof p.dimension !== 'number') return;
         const d = dist3(p.position, ped.position);
         if (d < bestDist) {
             bestDist = d;
@@ -92,80 +104,61 @@ function chooseController(zone, ped) {
     return best;
 }
 
-function assignController(z) {
-    if (!z || z.dead) return;
-    if (!mp.peds.exists(z.ped)) return;
+function assignController(st) {
+    if (!st || st.dead) return;
+    if (!mp.peds.exists(st.ped)) return;
 
-    const zone = zones.get(z.zoneId);
+    const zone = zones.get(st.zoneId);
     if (!zone) return;
 
-    const controller = chooseController(zone, z.ped);
-    const zid = z.zid;
-    const nextVer = (ctrlVerMap.get(zid) || 0) + 1;
-    ctrlVerMap.set(zid, nextVer);
+    const owner = getPlayerById(st.ownerRid);
+    const controller = chooseController(zone, st.ped, owner);
+    const zid = st.zid;
+    const ver = (ctrlVerMap.get(zid) || 0) + 1;
+    ctrlVerMap.set(zid, ver);
 
     if (!controller) {
-        z.ped.controller = undefined;
-        z.ped.setVariable('controllerRid', -1);
-        z.ped.setVariable('ctrlVer', nextVer);
-        z.ped.setVariable('ctrlState', 'no-controller');
-        z.controllerRid = -1;
-        zlog(`assignController zid=${zid} none zone=${zone.id}`);
+        st.ped.controller = undefined;
+        st.ped.setVariable('controllerRid', -1);
+        st.ped.setVariable('ctrlVer', ver);
+        st.ped.setVariable('ctrlState', 'no-controller');
+        zlog(`assignController zid=${zid}: no controller`);
         return;
     }
 
-    z.ped.dimension = controller.dimension;
-    z.ped.controller = controller;
-    z.ped.setVariable('controllerRid', controller.id);
-    z.ped.setVariable('ctrlVer', nextVer);
-    z.ped.setVariable('ctrlState', 'ready');
-    z.controllerRid = controller.id;
+    st.ped.dimension = controller.dimension;
+    st.ped.controller = controller;
+    st.ped.setVariable('controllerRid', controller.id);
+    st.ped.setVariable('ctrlVer', ver);
+    st.ped.setVariable('ctrlState', 'ready');
 
     try {
-        controller.call('z:assignController', [zid, nextVer, z.ped.handle]);
+        controller.call('z:assignController', [zid, ver, st.ped.handle]);
     } catch {}
 
-    zlog(`assignController zid=${zid} controller=${controller.id} ver=${nextVer}`);
+    zlog(`assignController zid=${zid}: controller=${controller.id} ver=${ver}`);
 }
 
-function sendFollow(z, target) {
-    if (!z || z.dead || !target) return;
-    if (!mp.peds.exists(z.ped)) return;
+function sendFollowToOwner(st) {
+    if (!st || st.dead) return;
+    if (!mp.peds.exists(st.ped)) return;
 
-    const ctrl = z.ped.controller;
+    const owner = getPlayerById(st.ownerRid);
+    if (!owner || !mp.players.exists(owner)) return;
+
+    const ctrl = st.ped.controller;
     if (!ctrl || !mp.players.exists(ctrl)) return;
 
-    const payload = { rid: target.id };
+    const payload = { rid: owner.id };
+
     try {
-        ctrl.call('z:executeCommand', [z.zid, 'follow', JSON.stringify(payload)]);
+        ctrl.call('z:executeCommand', [st.zid, 'follow', JSON.stringify(payload)]);
     } catch {}
 
     try {
-        z.ped.setVariable('command', 'follow');
-        z.ped.setVariable('commandExtra', payload);
+        st.ped.setVariable('command', 'follow');
+        st.ped.setVariable('commandExtra', payload);
     } catch {}
-}
-
-function nearestTargetInZone(z) {
-    const zone = zones.get(z.zoneId);
-    if (!zone) return null;
-    const plist = playersInZone(zone);
-    if (!plist.length) return null;
-
-    let best = null;
-    let bestDist = Infinity;
-
-    plist.forEach((p) => {
-        if (!mp.players.exists(p)) return;
-        if (p.dimension !== z.ped.dimension) return;
-        const d = dist3(p.position, z.ped.position);
-        if (d < bestDist) {
-            bestDist = d;
-            best = p;
-        }
-    });
-
-    return best;
 }
 
 function spawnZombie(zone, owner) {
@@ -186,31 +179,39 @@ function spawnZombie(zone, owner) {
     ped.setVariable('command', 'idle');
     ped.setVariable('commandExtra', null);
 
-    const state = {
+    const st = {
         zid,
         ped,
         zoneId: zone.id,
+        ownerRid: owner && mp.players.exists(owner) ? owner.id : null,
         dead: false,
-        spawnedAt: Date.now(),
         deadAt: 0,
-        controllerRid: -1,
-        lastSyncAt: 0,
+        lastFollowSyncAt: 0,
         lastAttackAt: 0,
-        ownerRid: owner && mp.players.exists(owner) ? owner.id : -1,
     };
 
-    zombies.set(zid, state);
+    zombies.set(zid, st);
     zone.zombieIds.push(zid);
 
-    assignController(state);
-
-    const target = nearestTargetInZone(state) || owner;
-    if (target && mp.players.exists(target)) {
-        sendFollow(state, target);
-    }
+    assignController(st);
+    sendFollowToOwner(st);
 
     console.log(`[Z] spawn zid=${zid} in zone=${zone.id}`);
-    zlog(`spawn zid=${zid} zone=${zone.id} owner=${state.ownerRid} pos=${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}`);
+    zlog(`spawn zid=${zid} owner=${st.ownerRid} pos=${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}`);
+}
+
+function spawnZoneOnEnter(zone, activator) {
+    if (!zone || !activator || !mp.players.exists(activator)) return;
+    if (zone.active && zone.zombieIds.length) return;
+
+    zone.active = true;
+    zone.activatorRid = activator.id;
+    zone.zombieIds = [];
+
+    console.log(`[ZONE] Spawning ${zone.zombieCount} zombies in "${zone.name}"`);
+    for (let i = 0; i < zone.zombieCount; i++) {
+        setTimeout(() => spawnZombie(zone, activator), i * 200);
+    }
 }
 
 function destroyZombie(zid, reason = 'unknown') {
@@ -230,6 +231,9 @@ function destroyZombie(zid, reason = 'unknown') {
 
     if (zone) {
         zone.zombieIds = zone.zombieIds.filter((id) => id !== zid);
+        if (!zone.zombieIds.length) {
+            zone.active = false;
+        }
     }
 
     mp.players.forEach((p) => {
@@ -241,42 +245,9 @@ function destroyZombie(zid, reason = 'unknown') {
     zlog(`destroy zid=${zid} reason=${reason}`);
 }
 
-function spawnZoneZombies(zone, owner = null) {
-    const plist = playersInZone(zone);
-    if (!plist.length) return;
-
-    if (zone.active && zone.zombieIds.length) return;
-
-    zone.active = true;
-    zone.spawnedAt = Date.now();
-    zone.lastEmptyTs = 0;
-    zone.zombieIds = [];
-
-    console.log(`[ZONE] Spawning ${zone.zombieCount} zombies in "${zone.name}"`);
-
-    for (let i = 0; i < zone.zombieCount; i++) {
-        setTimeout(() => spawnZombie(zone, owner || plist[0]), i * 200);
-    }
-}
-
-function respawnIfNeeded(zoneId) {
-    const zone = zones.get(zoneId);
-    if (!zone) return;
-
-    const plist = playersInZone(zone);
-    if (!plist.length) {
-        zone.active = false;
-        return;
-    }
-
-    if (zone.zombieIds.length >= zone.zombieCount) return;
-    spawnZombie(zone, plist[0]);
-}
-
-function markZombieDead(zid, killerName = 'unknown') {
+function markDeadByHit(zid, killer) {
     const st = zombies.get(zid);
-    if (!st) return;
-    if (st.dead) return;
+    if (!st || st.dead) return;
 
     st.dead = true;
     st.deadAt = Date.now();
@@ -287,44 +258,21 @@ function markZombieDead(zid, killerName = 'unknown') {
         } catch {}
     });
 
-    zlog(`dead zid=${zid} killer=${killerName}`);
+    zlog(`dead zid=${zid} killer=${killer}`);
 }
 
-function tryFinalizeDead(st) {
-    if (!st || !st.dead) return;
-
-    const zone = zones.get(st.zoneId);
-    if (!zone) {
-        destroyZombie(st.zid, 'zone-missing');
-        return;
-    }
-
-    const plist = playersInZone(zone);
-    if (!plist.length) {
-        zlog(`dead-wait zid=${st.zid} zone=${zone.id} no players`);
-        return;
-    }
-
-    if (Date.now() - st.deadAt < DEAD_CLEANUP_DELAY) return;
-
-    const zoneId = st.zoneId;
-    const zid = st.zid;
-    destroyZombie(zid, 'dead-finalize');
-    setTimeout(() => respawnIfNeeded(zoneId), 2500);
-}
-
-function ensureZonePresenceState() {
+function updateZoneEntryState() {
     mp.players.forEach((player) => {
         zones.forEach((zone, zoneId) => {
             const key = `inZone_${zoneId}`;
             const inZone = isPlayerInZone(player, zone);
-            const was = !!player.getVariable(key);
+            const wasInZone = !!player.getVariable(key);
 
-            if (inZone && !was) {
+            if (inZone && !wasInZone) {
                 player.setVariable(key, true);
                 zlog(`player ${player.id} entered zone=${zoneId}`);
-                spawnZoneZombies(zone, player);
-            } else if (!inZone && was) {
+                spawnZoneOnEnter(zone, player);
+            } else if (!inZone && wasInZone) {
                 player.setVariable(key, false);
                 zlog(`player ${player.id} left zone=${zoneId}`);
             }
@@ -332,19 +280,24 @@ function ensureZonePresenceState() {
     });
 }
 
-function syncControllersAndFollow() {
+function syncAllZombieFollow() {
     zombies.forEach((st) => {
         if (st.dead) return;
-        if (!mp.peds.exists(st.ped)) {
-            markZombieDead(st.zid, 'ped-missing');
-            return;
-        }
+        if (!mp.peds.exists(st.ped)) return;
 
         const zone = zones.get(st.zoneId);
         if (!zone) return;
 
-        const plist = playersInZone(zone);
-        if (!plist.length) return;
+        const owner = getPlayerById(st.ownerRid);
+        if (!owner || !mp.players.exists(owner) || !isPlayerInZone(owner, zone)) {
+            // если инициатор вышел, оставляем прежнюю цель (не перекидываем на других),
+            // но контроллер педа всё равно должен быть валиден в зоне
+            const currentCtrl = st.ped.controller;
+            if (!currentCtrl || !mp.players.exists(currentCtrl) || !isPlayerInZone(currentCtrl, zone)) {
+                assignController(st);
+            }
+            return;
+        }
 
         const currentCtrl = st.ped.controller;
         if (!currentCtrl || !mp.players.exists(currentCtrl) || !isPlayerInZone(currentCtrl, zone)) {
@@ -352,11 +305,9 @@ function syncControllersAndFollow() {
         }
 
         const now = Date.now();
-        if (now - st.lastSyncAt < 500) return;
-        st.lastSyncAt = now;
-
-        const target = nearestTargetInZone(st);
-        if (target) sendFollow(st, target);
+        if (now - st.lastFollowSyncAt < 350) return;
+        st.lastFollowSyncAt = now;
+        sendFollowToOwner(st);
     });
 }
 
@@ -365,99 +316,41 @@ function processZombieAttacks() {
         if (st.dead) return;
         if (!mp.peds.exists(st.ped)) return;
 
-        const zone = zones.get(st.zoneId);
-        if (!zone) return;
+        const owner = getPlayerById(st.ownerRid);
+        if (!owner || !mp.players.exists(owner)) return;
+        if (owner.dimension !== st.ped.dimension) return;
 
-        const plist = playersInZone(zone);
-        if (!plist.length) return;
-
-        let best = null;
-        let bestDist = Infinity;
-
-        plist.forEach((p) => {
-            if (p.dimension !== st.ped.dimension) return;
-            const d = dist3(st.ped.position, p.position);
-            if (d < bestDist) {
-                bestDist = d;
-                best = p;
-            }
-        });
-
-        if (!best || bestDist > 2.8) return;
+        const d = dist3(st.ped.position, owner.position);
+        if (d > 2.8) return;
 
         const now = Date.now();
         if (now - st.lastAttackAt < 800) return;
         st.lastAttackAt = now;
 
-        const before = Number(best.health) || 0;
+        const before = Number(owner.health) || 0;
         const after = Math.max(0, before - 5);
         try {
-            best.health = after;
+            owner.health = after;
         } catch {}
 
         mp.players.forEach((p) => {
-            if (p.dimension !== best.dimension) return;
+            if (p.dimension !== owner.dimension) return;
             try {
-                p.call('npc:animHit', [st.zid, best.id]);
+                p.call('npc:animHit', [st.zid, owner.id]);
             } catch {}
         });
 
-        zlog(`attack zid=${st.zid} target=${best.id} hp=${before}->${after}`);
+        zlog(`attack zid=${st.zid} target=${owner.id} hp=${before}->${after}`);
     });
 }
 
-function cleanupDeadAndTTL() {
+function cleanupDeadZombies() {
     const now = Date.now();
 
     zombies.forEach((st) => {
-        if (st.dead) {
-            tryFinalizeDead(st);
-            return;
-        }
-
-        if (!mp.peds.exists(st.ped)) {
-            markZombieDead(st.zid, 'ttl-ped-missing');
-            return;
-        }
-
-        const zone = zones.get(st.zoneId);
-        if (!zone) {
-            destroyZombie(st.zid, 'ttl-zone-missing');
-            return;
-        }
-
-        if (!playersInZone(zone).length) return;
-
-        if (now - st.spawnedAt >= ZOMBIE_TTL) {
-            markZombieDead(st.zid, 'ttl-expired');
-        }
-    });
-}
-
-function cullEmptyZones() {
-    zones.forEach((zone) => {
-        const plist = playersInZone(zone);
-        if (plist.length) {
-            zone.lastEmptyTs = 0;
-            return;
-        }
-
-        if (!zone.active || !zone.zombieIds.length) return;
-
-        if (!zone.lastEmptyTs) {
-            zone.lastEmptyTs = Date.now();
-            return;
-        }
-
-        if (Date.now() - zone.lastEmptyTs < 30000) return;
-
-        zone.zombieIds.slice().forEach((zid) => destroyZombie(zid, 'zone-empty-cull'));
-        zone.zombieIds = [];
-        zone.active = false;
-        zone.spawnedAt = 0;
-        zone.lastEmptyTs = 0;
-
-        console.log(`[ZONE] Deactivated "${zone.name}" (empty 30s)`);
+        if (!st.dead) return;
+        if (now - st.deadAt < DEAD_REMOVE_DELAY_MS) return;
+        destroyZombie(st.zid, 'dead-5s');
     });
 }
 
@@ -482,15 +375,15 @@ function registerEvents() {
             const dmg = parseInt(dmgRaw, 10) || 0;
             const st = zombies.get(zid);
             if (!st) {
-                zlog(`hit ignored zid=${zid} no zombie`);
+                zlog(`hit ignored zid=${zid}: not found`);
                 return;
             }
             if (st.dead) {
-                zlog(`hit ignored zid=${zid} already dead`);
+                zlog(`hit ignored zid=${zid}: already dead`);
                 return;
             }
 
-            markZombieDead(zid, player && player.name ? player.name : `rid:${player ? player.id : -1}`);
+            markDeadByHit(zid, player && player.name ? player.name : `rid:${player ? player.id : -1}`);
             zlog(`hit accepted zid=${zid} by=${player ? player.id : -1} dmg=${dmg}`);
         } catch (e) {
             zlog(`z:hit error ${e.message}`);
@@ -499,15 +392,14 @@ function registerEvents() {
 
     mp.events.add('zombies:respawn', (player) => {
         zones.forEach((zone) => {
-            zone.zombieIds.slice().forEach((zid) => destroyZombie(zid, 'manual-respawn'));
+            zone.zombieIds.slice().forEach((zid) => destroyZombie(zid, 'manual-reset'));
             zone.zombieIds = [];
             zone.active = false;
-            zone.spawnedAt = 0;
-            zone.lastEmptyTs = 0;
+            zone.activatorRid = null;
         });
 
         if (player && player.outputChatBox) {
-            player.outputChatBox('!{#66ff66}[Z] Перезапуск зомби выполнен.');
+            player.outputChatBox('!{#66ff66}[Z] Зомби очищены. Войдите в зону для нового спавна.');
         }
     });
 }
@@ -515,15 +407,15 @@ function registerEvents() {
 function registerLoops() {
     setInterval(() => {
         try {
-            ensureZonePresenceState();
+            updateZoneEntryState();
         } catch {}
     }, 1000);
 
     setInterval(() => {
         try {
-            syncControllersAndFollow();
+            syncAllZombieFollow();
         } catch {}
-    }, 350);
+    }, 300);
 
     setInterval(() => {
         try {
@@ -533,15 +425,9 @@ function registerLoops() {
 
     setInterval(() => {
         try {
-            cleanupDeadAndTTL();
+            cleanupDeadZombies();
         } catch {}
-    }, 1000);
-
-    setInterval(() => {
-        try {
-            cullEmptyZones();
-        } catch {}
-    }, 5000);
+    }, 500);
 }
 
 function initZombieController() {
