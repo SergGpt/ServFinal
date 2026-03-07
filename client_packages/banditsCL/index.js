@@ -6,7 +6,7 @@ const DEBUG = true;
 let VERBOSE = true;
 
 const me = mp.players.local;
-const zombies = new Map(); // zid -> { ped, followRid, lastFollowAt, lastNudgeAt }
+const zombies = new Map(); // zid -> { ped, followRid, lastFollowAt, lastNudgeAt, slot }
 const pendingControllerAssign = new Map(); // zid -> { ver, at }
 const corpseCleanupTimers = new Map(); // zid -> timeout
 
@@ -15,6 +15,8 @@ const STOP_DIST  = 1.6;
 const FOLLOW_CD  = 350;
 const STUCK_CD   = 1000;
 const MIN_STEP   = 0.04;
+const RING_RADIUS = 1.35;
+const RING_SLOTS = 8;
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
@@ -26,7 +28,13 @@ function prepPed(ped){
     try{ ped.setCollision(true,true); }catch{}
     try{ ped.setBlockingOfNonTemporaryEvents(true); }catch{}
     try{ ped.setKeepTask(true); }catch{}
-    try{ ped.setCanRagdoll(true); }catch{}
+    try{ ped.setCanRagdoll(false); }catch{}
+    // анти-паника/анти-flee для зомби
+    try{ mp.game.ped.setPedFleeAttributes(ped.handle, 0, false); }catch{}
+    try{ mp.game.ped.setPedCombatAttributes(ped.handle, 5, true); }catch{}
+    try{ mp.game.ped.setPedCombatAttributes(ped.handle, 46, true); }catch{}
+    try{ mp.game.ped.setPedCombatMovement(ped.handle, 2); }catch{}
+    try{ mp.game.ped.setPedCombatRange(ped.handle, 2); }catch{}
 }
 
 // ====== attach / detach ======
@@ -37,7 +45,7 @@ function attachIfZombie(ped){
     if (typeof zid !== 'number' || !zoneId) return false;
 
     if (!zombies.has(zid)) {
-        zombies.set(zid, { ped });
+        zombies.set(zid, { ped, slot: Math.abs(zid) % RING_SLOTS });
         dlog(`✅ streamIn zid=${zid} total=${zombies.size}`);
     }
     prepPed(ped);
@@ -141,23 +149,36 @@ function findPedByZid(zid){
 }
 
 
+function getFollowOffset(obj){
+    const slot = typeof obj.slot === 'number' ? obj.slot : 0;
+    const angle = (slot / Math.max(1, RING_SLOTS)) * Math.PI * 2;
+    return {
+        x: Math.cos(angle) * RING_RADIUS,
+        y: Math.sin(angle) * RING_RADIUS,
+    };
+}
+
+
 function applyFollowTask(obj, ped, target, now) {
     try {
         if (!obj || !ped || !target) return;
 
+        prepPed(ped);
+
+        const off = getFollowOffset(obj);
         const dist = target.position.distanceTo(ped.position);
-        if (dist <= STOP_DIST) return;
+        const stopWithRing = Math.max(STOP_DIST, RING_RADIUS * 0.75);
 
         if (!obj.lastFollowAt || (now - obj.lastFollowAt) >= FOLLOW_CD) {
             obj.lastFollowAt = now;
-            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
+            ped.taskFollowToOffsetOfEntity(target.handle, off.x, off.y, 0.0, STEP_SPEED, -1, stopWithRing, true);
         }
 
-        // мягкий "пинок" навигации, если ped визуально завис
-        if (!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= 1200) {
+        // мягкий re-path к точке на кольце, чтобы зомби не стопорились в одной точке
+        if (dist > stopWithRing && (!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= 900)) {
             obj.lastNudgeAt = now;
-            ped.taskGoStraightToCoord(target.position.x, target.position.y, target.position.z, STEP_SPEED, 1200, 0.0, 0.0);
-            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
+            ped.taskGoStraightToCoord(target.position.x + off.x, target.position.y + off.y, target.position.z, STEP_SPEED, 900, 0.0, 0.0);
+            ped.taskFollowToOffsetOfEntity(target.handle, off.x, off.y, 0.0, STEP_SPEED, -1, stopWithRing, true);
         }
     } catch {}
 }
@@ -235,6 +256,8 @@ mp.events.add('z:forceRemove', (zid) => {
         if (ped && mp.peds.exists(ped)) {
             try { ped.clearTasksImmediately(); } catch {}
             try { ped.freezePosition(false); } catch {}
+            try { ped.setCollision(false, false); } catch {}
+            try { mp.game.entity.setEntityAlpha(ped.handle, 0, false); } catch {}
         }
 
         const t = corpseCleanupTimers.get(zid);
