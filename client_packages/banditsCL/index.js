@@ -23,6 +23,21 @@ function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
 function dlog(msg){ if(DEBUG && VERBOSE) chat(`[ZDBG] ${msg}`,'#99ccff'); }
 
+function forceAggroPedState(ped){
+    try { if (!ped || !mp.peds.exists(ped)) return; } catch { return; }
+
+    try { ped.setCanRagdoll(true); } catch {}
+    try { ped.setBlockingOfNonTemporaryEvents(true); } catch {}
+    try { ped.setKeepTask(true); } catch {}
+
+    try { mp.game.ped.setPedFleeAttributes(ped.handle, 0, false); } catch {}
+    try { mp.game.ped.setPedCombatAttributes(ped.handle, 17, true); } catch {} // always fight
+    try { mp.game.ped.setPedCombatAttributes(ped.handle, 46, true); } catch {} // BF_CanFightArmedPedsWhenNotArmed
+    try { mp.game.ped.setPedCombatMovement(ped.handle, 2); } catch {}
+    try { mp.game.ped.setPedCombatRange(ped.handle, 0); } catch {}
+    try { mp.game.ped.setPedAlertness(ped.handle, 3); } catch {}
+}
+
 function reportHit(zid, dmg, reason = 'unknown') {
     try {
         const now = Date.now();
@@ -53,6 +68,7 @@ function prepPed(ped){
     try{ ped.setBlockingOfNonTemporaryEvents(true); }catch{}
     try{ ped.setKeepTask(true); }catch{}
     try{ ped.setCanRagdoll(true); }catch{}
+    forceAggroPedState(ped);
 }
 
 // ====== attach / detach ======
@@ -160,12 +176,16 @@ function applyFollowTask(obj, ped, target, now) {
 
         if (!obj.lastFollowAt || (now - obj.lastFollowAt) >= FOLLOW_CD) {
             obj.lastFollowAt = now;
+            try { ped.clearTasks(); } catch {}
+            forceAggroPedState(ped);
             ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
         }
 
         // мягкий "пинок" навигации, если ped визуально завис
         if (!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= 1200) {
             obj.lastNudgeAt = now;
+            try { ped.clearTasks(); } catch {}
+            forceAggroPedState(ped);
             ped.taskGoStraightToCoord(target.position.x, target.position.y, target.position.z, STEP_SPEED, 1200, 0.0, 0.0);
             ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
         }

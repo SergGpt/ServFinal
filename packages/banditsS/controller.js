@@ -76,8 +76,7 @@ function getPlayerById(rid) {
 }
 
 function randomModel() {
-    const arr = ['u_m_y_zombie_01', 'a_m_m_tramp_01', 's_m_y_cop_01'];
-    return arr[(Math.random() * arr.length) | 0];
+    return 'u_m_y_zombie_01';
 }
 
 function nextZid() {
@@ -99,6 +98,32 @@ function chooseController(zone, ped, preferredPlayer = null) {
 
     plist.forEach((p) => {
         if (!mp.players.exists(p)) return;
+        const d = dist3(p.position, ped.position);
+        if (d < bestDist) {
+            bestDist = d;
+            best = p;
+        }
+    });
+
+    return best;
+}
+
+
+function chooseTargetPlayer(zone, ped) {
+    const plist = playersInZone(zone).filter((p) => {
+        try {
+            return mp.players.exists(p) && (Number(p.health) || 0) > 0;
+        } catch {
+            return false;
+        }
+    });
+
+    if (!plist.length) return null;
+
+    let best = null;
+    let bestDist = Infinity;
+
+    plist.forEach((p) => {
         const d = dist3(p.position, ped.position);
         if (d < bestDist) {
             bestDist = d;
@@ -172,6 +197,30 @@ function sendFollowToOwner(st) {
     }
 }
 
+
+function sendIdleToController(st, reason = 'no-target') {
+    if (!st || st.dead) return;
+    if (!mp.peds.exists(st.ped)) return;
+
+    const ctrl = st.ped.controller;
+    if (!ctrl || !mp.players.exists(ctrl)) return;
+
+    try {
+        ctrl.call('z:executeCommand', [st.zid, 'idle', JSON.stringify({ reason })]);
+    } catch {}
+
+    try {
+        st.ped.setVariable('command', 'idle');
+        st.ped.setVariable('commandExtra', { reason });
+    } catch {}
+
+    const now = Date.now();
+    if (!st.lastCmdLogAt || now - st.lastCmdLogAt >= CMD_DEBUG_INTERVAL_MS) {
+        st.lastCmdLogAt = now;
+        zlog(`cmd idle zid=${st.zid} reason=${reason}`);
+    }
+}
+
 function spawnZombie(zone, owner) {
     const zid = nextZid();
     const angle = Math.random() * Math.PI * 2;
@@ -219,7 +268,7 @@ function spawnZombie(zone, owner) {
     sendFollowToOwner(st);
 
     console.log(`[Z] spawn zid=${zid} in zone=${zone.id}`);
-    zlog(`spawn zid=${zid} owner=${st.ownerRid} pos=${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}`);
+    zlog(`spawn zid=${zid} owner=${st.ownerRid} pos=${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)} attackInMs=${ATTACK_WARMUP_MS}`);
 }
 
 function spawnZoneOnEnter(zone, activator) {
@@ -369,12 +418,15 @@ function syncAllZombieFollow() {
         const zone = zones.get(st.zoneId);
         if (!zone) return;
 
-        let owner = getPlayerById(st.ownerRid);
-        if (!owner || !mp.players.exists(owner) || !isPlayerInZone(owner, zone)) {
-            const plist = playersInZone(zone);
-            if (!plist.length) return;
-            owner = plist[0];
-            st.ownerRid = owner.id;
+        const target = chooseTargetPlayer(zone, st.ped);
+        if (!target) {
+            st.ownerRid = null;
+            sendIdleToController(st, 'zone-empty');
+            return;
+        }
+
+        if (st.ownerRid !== target.id) {
+            st.ownerRid = target.id;
             zlog(`retarget zid=${st.zid} -> owner=${st.ownerRid}`);
         }
 
@@ -397,6 +449,8 @@ function processZombieAttacks() {
 
         const owner = getPlayerById(st.ownerRid);
         if (!owner || !mp.players.exists(owner)) return;
+        if (!isPlayerInZone(owner, zones.get(st.zoneId))) return;
+        if ((Number(owner.health) || 0) <= 0) return;
         if (owner.dimension !== st.ped.dimension) return;
 
         const now = Date.now();
