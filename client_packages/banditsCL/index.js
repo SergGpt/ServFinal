@@ -12,7 +12,7 @@ const corpseCleanupTimers = new Map(); // zid -> timeout
 
 const STEP_SPEED = 1.35;
 const STOP_DIST  = 1.6;
-const FOLLOW_CD  = 350;
+const FOLLOW_CD  = 650;
 const STUCK_CD   = 1000;
 const MIN_STEP   = 0.04;
 const RING_RADIUS = 1.35;
@@ -166,18 +166,11 @@ function applyFollowTask(obj, ped, target, now) {
         prepPed(ped);
 
         const off = getFollowOffset(obj);
-        const dist = target.position.distanceTo(ped.position);
         const stopWithRing = Math.max(STOP_DIST, RING_RADIUS * 0.75);
 
+        // только одна AI-задача, без конфликтующего goStraight — меньше рывков
         if (!obj.lastFollowAt || (now - obj.lastFollowAt) >= FOLLOW_CD) {
             obj.lastFollowAt = now;
-            ped.taskFollowToOffsetOfEntity(target.handle, off.x, off.y, 0.0, STEP_SPEED, -1, stopWithRing, true);
-        }
-
-        // мягкий re-path к точке на кольце, чтобы зомби не стопорились в одной точке
-        if (dist > stopWithRing && (!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= 900)) {
-            obj.lastNudgeAt = now;
-            ped.taskGoStraightToCoord(target.position.x + off.x, target.position.y + off.y, target.position.z, STEP_SPEED, 900, 0.0, 0.0);
             ped.taskFollowToOffsetOfEntity(target.handle, off.x, off.y, 0.0, STEP_SPEED, -1, stopWithRing, true);
         }
     } catch {}
@@ -308,6 +301,13 @@ mp.events.add('z:dead', (zid) => {
 
     const timer = setTimeout(() => {
         try {
+            const corpsePed = findPedByZid(zid);
+            if (corpsePed && mp.peds.exists(corpsePed)) {
+                try { corpsePed.clearTasksImmediately(); } catch {}
+                try { corpsePed.freezePosition(true); } catch {}
+                try { corpsePed.setCollision(false, false); } catch {}
+                try { mp.game.entity.setEntityAlpha(corpsePed.handle, 0, false); } catch {}
+            }
             zombies.delete(zid);
             pendingControllerAssign.delete(zid);
         } catch {}
