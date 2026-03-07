@@ -2,6 +2,7 @@ const DEBUG = true;
 const DEAD_REMOVE_DELAY_MS = 5000;
 const DEAD_SIGNAL_COOLDOWN_MS = 700;
 const ZOMBIE_SPAWN_HP = 100;
+const ATTACK_WARMUP_MS = 3000;
 
 const zones = new Map();
 const zombies = new Map(); // zid -> state
@@ -196,6 +197,7 @@ function spawnZombie(zone, owner) {
         deadAt: 0,
         deadSignalAt: 0,
         hp: ZOMBIE_SPAWN_HP,
+        attackEnabledAt: Date.now() + ATTACK_WARMUP_MS,
         lastFollowSyncAt: 0,
         lastAttackAt: 0,
     };
@@ -262,6 +264,8 @@ function markDeadByHit(zid, killer) {
     st.dead = true;
     st.deadAt = Date.now();
     st.deadSignalAt = st.deadAt;
+    st.hp = 0;
+    st.ownerRid = null;
 
     try {
         if (mp.peds.exists(st.ped)) {
@@ -350,15 +354,13 @@ function syncAllZombieFollow() {
         const zone = zones.get(st.zoneId);
         if (!zone) return;
 
-        const owner = getPlayerById(st.ownerRid);
+        let owner = getPlayerById(st.ownerRid);
         if (!owner || !mp.players.exists(owner) || !isPlayerInZone(owner, zone)) {
-            // если инициатор вышел, оставляем прежнюю цель (не перекидываем на других),
-            // но контроллер педа всё равно должен быть валиден в зоне
-            const currentCtrl = st.ped.controller;
-            if (!currentCtrl || !mp.players.exists(currentCtrl) || !isPlayerInZone(currentCtrl, zone)) {
-                assignController(st);
-            }
-            return;
+            const plist = playersInZone(zone);
+            if (!plist.length) return;
+            owner = plist[0];
+            st.ownerRid = owner.id;
+            zlog(`retarget zid=${st.zid} -> owner=${st.ownerRid}`);
         }
 
         const currentCtrl = st.ped.controller;
@@ -382,10 +384,11 @@ function processZombieAttacks() {
         if (!owner || !mp.players.exists(owner)) return;
         if (owner.dimension !== st.ped.dimension) return;
 
+        const now = Date.now();
+        if (now < (st.attackEnabledAt || 0)) return;
+
         const d = dist3(st.ped.position, owner.position);
         if (d > 2.8) return;
-
-        const now = Date.now();
         if (now - st.lastAttackAt < 800) return;
         st.lastAttackAt = now;
 
@@ -445,8 +448,22 @@ function registerEvents() {
                 return;
             }
 
-            markDeadByHit(zid, player && player.name ? player.name : `rid:${player ? player.id : -1}`);
-            zlog(`hit accepted zid=${zid} by=${player ? player.id : -1} dmg=${dmg}`);
+            const oldHp = Math.max(0, parseInt(st.hp, 10) || ZOMBIE_SPAWN_HP);
+            const newHp = Math.max(0, oldHp - Math.max(1, dmg));
+            st.hp = newHp;
+
+            try {
+                if (mp.peds.exists(st.ped)) {
+                    st.ped.health = newHp;
+                }
+            } catch {}
+
+            if (newHp <= 0) {
+                markDeadByHit(zid, player && player.name ? player.name : `rid:${player ? player.id : -1}`);
+                zlog(`hit accepted zid=${zid} by=${player ? player.id : -1} dmg=${dmg} hp=${oldHp}->0 DEAD`);
+            } else {
+                zlog(`hit accepted zid=${zid} by=${player ? player.id : -1} dmg=${dmg} hp=${oldHp}->${newHp}`);
+            }
         } catch (e) {
             zlog(`z:hit error ${e.message}`);
         }
