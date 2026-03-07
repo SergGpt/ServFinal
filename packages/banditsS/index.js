@@ -150,6 +150,14 @@ function nearestPlayerForPedInZone(ped, zone) {
     return best;
 }
 
+
+function pickTargetForZombieInZone(ped, zone, fallbackPlayer = null) {
+    const near = nearestPlayerForPedInZone(ped, zone);
+    if (near && mp.players.exists(near)) return near;
+    if (fallbackPlayer && mp.players.exists(fallbackPlayer) && isPlayerInZone(fallbackPlayer, zone)) return fallbackPlayer;
+    return null;
+}
+
 function assignControllerStrict(ped, zone, preferred = null) {
     try {
         const zid = ped.getVariable('zid');
@@ -431,7 +439,8 @@ setInterval(() => {
             const ped = z.ped;
             if (!mp.peds.exists(ped)) return;
 
-            const owner = getPlayerById(zone.activatorId) || plist[0];
+            const activator = getPlayerById(zone.activatorId) || plist[0];
+            const owner = pickTargetForZombieInZone(ped, zone, activator);
             z.ownerRid = owner ? owner.id : null;
             if (owner) {
                 setDesired(zid, 'follow', { rid: owner.id });
@@ -469,27 +478,8 @@ setInterval(() => {
     });
 }, 200);
 
-// КУЛЛИНГ
-setInterval(() => {
-    zones.forEach(zone => {
-        const plist = playersInZone(zone);
-        if (plist.length) { zone.lastEmptyTs = 0; return; }
-
-        if (!zone.active || !zone.zombieIds || zone.zombieIds.length === 0) return;
-
-        const now = Date.now();
-        if (!zone.lastEmptyTs) zone.lastEmptyTs = now;
-        if (now - zone.lastEmptyTs >= 30000) {
-            zone.zombieIds.slice().forEach(zid => destroyZombie(zid));
-            zone.zombieIds = [];
-            zone.active = false;
-            zone.activatorId = null;
-            zone.spawnedAt = 0;
-            zone.lastEmptyTs = 0;
-            console.log(`[ZONE] Deactivated "${zone.name}" (empty 30s)`);
-        }
-    });
-}, 5000);
+// КУЛЛИНГ (отключён): не удаляем зомби, когда в зоне нет игроков
+// При необходимости можно вернуть авто-очистку отдельным флагом.
 
 // reaper: гарантированная очистка трупов, даже если timeout потерялся
 setInterval(() => {
