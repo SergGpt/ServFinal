@@ -126,6 +126,22 @@ function findPlayerById(rid){
 }
 
 
+function findPedByZid(zid){
+    let found = null;
+    try {
+        mp.peds.forEach(ped => {
+            if (found) return;
+            try {
+                if (ped && mp.peds.exists(ped) && ped.getVariable('zid') === zid) {
+                    found = ped;
+                }
+            } catch {}
+        });
+    } catch {}
+    return found;
+}
+
+
 function applyFollowTask(obj, ped, target, now) {
     try {
         if (!obj || !ped || !target) return;
@@ -213,11 +229,15 @@ mp.events.add('z:forceRemove', (zid) => {
     try {
         zid = parseInt(zid);
         const obj = zombies.get(zid);
-        if(!obj) return;
-        const ped = obj.ped;
+        let ped = obj ? obj.ped : null;
+        if (!ped || !mp.peds.exists(ped)) {
+            ped = findPedByZid(zid);
+        }
+
         if (ped && mp.peds.exists(ped)) {
             try { ped.destroy(); } catch {}
         }
+
         const t = corpseCleanupTimers.get(zid);
         if (t) { clearTimeout(t); corpseCleanupTimers.delete(zid); }
         zombies.delete(zid);
@@ -251,9 +271,12 @@ mp.events.add('npc:animHit', (zid, targetId) => {
 mp.events.add('z:dead', (zid) => {
     zid = parseInt(zid);
     const obj = zombies.get(zid);
-    if(!obj) return;
-    const ped = obj.ped;
-    if(!mp.peds.exists(ped)) return;
+    let ped = obj ? obj.ped : null;
+    if (!ped || !mp.peds.exists(ped)) {
+        ped = findPedByZid(zid);
+    }
+    if(!ped || !mp.peds.exists(ped)) return;
+
     try { ped.clearTasksImmediately(); } catch {}
     try { mp.game.ped.setPedToRagdoll(ped.handle, 5000, 5000, 0, false, false, false); } catch {}
 
@@ -263,9 +286,12 @@ mp.events.add('z:dead', (zid) => {
     const timer = setTimeout(() => {
         try {
             const cur = zombies.get(zid);
-            if (!cur) return;
-            if (cur.ped && mp.peds.exists(cur.ped)) {
-                try { cur.ped.destroy(); } catch {}
+            let corpsePed = cur ? cur.ped : null;
+            if (!corpsePed || !mp.peds.exists(corpsePed)) {
+                corpsePed = findPedByZid(zid);
+            }
+            if (corpsePed && mp.peds.exists(corpsePed)) {
+                try { corpsePed.destroy(); } catch {}
             }
             zombies.delete(zid);
             pendingControllerAssign.delete(zid);
