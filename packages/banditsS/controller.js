@@ -1,6 +1,7 @@
 const DEBUG = true;
 const DEAD_REMOVE_DELAY_MS = 5000;
 const DEAD_SIGNAL_COOLDOWN_MS = 700;
+const ZOMBIE_SPAWN_HP = 100;
 
 const zones = new Map();
 const zombies = new Map(); // zid -> state
@@ -179,6 +180,12 @@ function spawnZombie(zone, owner) {
     ped.setVariable('zid', zid);
     ped.setVariable('command', 'idle');
     ped.setVariable('commandExtra', null);
+    ped.setVariable('deadFlag', false);
+
+    try {
+        ped.health = ZOMBIE_SPAWN_HP;
+        if (typeof ped.setHealth === 'function') ped.setHealth(ZOMBIE_SPAWN_HP);
+    } catch {}
 
     const st = {
         zid,
@@ -188,6 +195,7 @@ function spawnZombie(zone, owner) {
         dead: false,
         deadAt: 0,
         deadSignalAt: 0,
+        hp: ZOMBIE_SPAWN_HP,
         lastFollowSyncAt: 0,
         lastAttackAt: 0,
     };
