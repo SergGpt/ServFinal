@@ -9,7 +9,7 @@ const desiredCmd = new Map();       // zid -> { name, extra }
 const ctrlVerMap = new Map();       // zid -> number
 
 const ZOMBIES_PER_PLAYER = 3;
-const WAVE_INTERVAL_MS = 15000;
+const WAVE_INTERVAL_MS = 5000; // настраиваемо
 const CORPSE_LIFETIME_MS = 5000;
 
 // ---- 1. зона ----
@@ -392,6 +392,7 @@ setInterval(() => {
 }, 1000);
 
 // волны: каждые N мс добавляем недостающее количество зомби по формуле players * ZOMBIES_PER_PLAYER
+// если игроков в зоне нет — спавн не выполняется
 setInterval(() => {
     zones.forEach((zone, zoneId) => {
         const plist = playersInZone(zone);
