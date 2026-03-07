@@ -271,12 +271,29 @@ function updateZoneEntryState() {
             if (inZone && !wasInZone) {
                 player.setVariable(key, true);
                 zlog(`player ${player.id} entered zone=${zoneId}`);
-                spawnZoneOnEnter(zone, player);
             } else if (!inZone && wasInZone) {
                 player.setVariable(key, false);
                 zlog(`player ${player.id} left zone=${zoneId}`);
             }
         });
+    });
+}
+
+function spawnZonesByPresenceCheck() {
+    zones.forEach((zone) => {
+        const plist = playersInZone(zone);
+        if (!plist.length) {
+            zlog(`presence-check zone=${zone.id}: empty, skip spawn`);
+            return;
+        }
+
+        if (zone.active && zone.zombieIds.length) {
+            zlog(`presence-check zone=${zone.id}: already active (${zone.zombieIds.length} zombies)`);
+            return;
+        }
+
+        zlog(`presence-check zone=${zone.id}: players=${plist.length}, spawn start`);
+        spawnZoneOnEnter(zone, plist[0]);
     });
 }
 
@@ -410,6 +427,12 @@ function registerLoops() {
             updateZoneEntryState();
         } catch {}
     }, 1000);
+
+    setInterval(() => {
+        try {
+            spawnZonesByPresenceCheck();
+        } catch {}
+    }, 20000);
 
     setInterval(() => {
         try {
