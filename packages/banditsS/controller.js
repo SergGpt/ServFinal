@@ -132,7 +132,7 @@ function setTaskFollow(st, reason = 'chase') {
     }
 }
 
-function spawnZombie(zone, owner) {
+function spawnZombie(zone, owner, spawnIndex = 0) {
     const zid = nextZid();
     const angle = Math.random() * Math.PI * 2;
     const d = 8 + Math.random() * Math.max(4, zone.radius - 10);
@@ -182,6 +182,7 @@ function spawnZombie(zone, owner) {
         switchStartAt: 0,
         switchReason: null,
         switchAttempts: 0,
+        switchAssignDelayMs: Math.max(0, parseInt(spawnIndex, 10) || 0) * (ZOMBIE_CONFIG.timers.switchAssignJitterMs || 0),
         ctrlVer: 0,
         state: ZOMBIE_STATE.SLEEP,
         lastFollowSentAt: 0,
@@ -209,7 +210,7 @@ function spawnZoneOnEnter(zone, activator) {
 
     console.log(`[ZONE] Spawning ${zone.zombieCount} zombies in "${zone.name}"`);
     for (let i = 0; i < zone.zombieCount; i++) {
-        setTimeout(() => spawnZombie(zone, activator), i * 200);
+        setTimeout(() => spawnZombie(zone, activator, i), i * 200);
     }
 }
 

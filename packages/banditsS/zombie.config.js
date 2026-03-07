@@ -23,9 +23,10 @@ const ZOMBIE_CONFIG = {
         deadRemoveDelayMs: 5000,
         deadSignalCooldownMs: 700,
         heartbeatTimeoutMs: 2500,
-        switchAckTimeoutMs: 2200,
+        switchAckTimeoutMs: 5000,
         switchCooldownMs: 200,
-        maxSwitchAttempts: 2,
+        maxSwitchAttempts: 3,
+        switchAssignJitterMs: 120,
     },
 
     network: {

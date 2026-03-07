@@ -45,6 +45,13 @@ function createControllerManager(deps) {
             st.ped.setVariable('commandExtra', { reason: 'switching' });
         } catch {}
 
+        try {
+            const prevCtrl = st.ped.controller;
+            if (prevCtrl && mp.players.exists(prevCtrl)) {
+                prevCtrl.call('z:executeCommand', [st.zid, 'idle', JSON.stringify({ reason: 'switching' })]);
+            }
+        } catch {}
+
         const ver = (st.ctrlVer || 0) + 1;
         st.ctrlVer = ver;
         st.ped.setVariable('ctrlVer', ver);
@@ -56,11 +63,15 @@ function createControllerManager(deps) {
         st.lastControllerSwitchAt = Date.now();
         st.lastHeartbeatAt = 0;
 
-        try {
-            nextController.call('z:assignController', [st.zid, ver, st.ped.handle]);
-        } catch {}
+        const sendAssign = () => {
+            try {
+                nextController.call('z:assignController', [st.zid, ver]);
+            } catch {}
+            zlog(`switch start zid=${st.zid} -> controller=${nextController.id} ver=${ver} reason=${reason}`);
+        };
 
-        zlog(`switch start zid=${st.zid} -> controller=${nextController.id} ver=${ver} reason=${reason}`);
+        const jitter = Number(st.switchAssignDelayMs || 0);
+        if (jitter > 0) setTimeout(sendAssign, jitter); else sendAssign();
         return true;
     }
 

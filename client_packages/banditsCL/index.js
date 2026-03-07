@@ -162,6 +162,22 @@ function isController(ped){
     return typeof rid === 'number' && rid === me.id;
 }
 
+function findZombiePedByZid(zid){
+    const obj = zombies.get(zid);
+    if (obj && obj.ped && mp.peds.exists(obj.ped)) return obj.ped;
+
+    let found = null;
+    try {
+        mp.peds.forEach((ped) => {
+            if (found) return;
+            if (!ped || !mp.peds.exists(ped)) return;
+            if (ped.getVariable('zid') === zid) found = ped;
+        });
+    } catch {}
+
+    return found;
+}
+
 function findPlayerById(rid){
     if (typeof rid !== 'number') return null;
     let found = null;
@@ -200,12 +216,12 @@ function applyFollowTask(obj, ped, target, now) {
 // ====== события от сервера ======
 
 // сервер говорит: "ты контроллер вот этого педа"
-mp.events.add('z:assignController', (zid, ver, pedHandle) => {
+mp.events.add('z:assignController', (zid, ver) => {
     try{
         zid = parseInt(zid);
         ver = parseInt(ver);
 
-        const ped = mp.peds.atHandle(pedHandle);
+        const ped = findZombiePedByZid(zid);
         if(!ped || !mp.peds.exists(ped)) {
             pendingControllerAssign.set(zid, { ver, at: Date.now() });
             return;
