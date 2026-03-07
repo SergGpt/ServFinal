@@ -11,6 +11,7 @@ const ctrlVerMap = new Map();       // zid -> number
 const ZOMBIES_PER_PLAYER = 3;
 const WAVE_INTERVAL_MS = 5000; // настраиваемо
 const CORPSE_LIFETIME_MS = 5000;
+const ZOMBIE_MAX_HEALTH = 100;
 
 // ---- 1. зона ----
 const ZONE_1 = {
@@ -227,6 +228,7 @@ function spawnServerZombie(zoneId, x, y, z, model = pickModel(), targetPlayer = 
     ped.setVariable('commandExtra', null);
     ped.setVariable('ctrlState', 'ready');
     ped.setVariable('ctrlVer', 0);
+    ped.setVariable('zHealth', ZOMBIE_MAX_HEALTH);
 
     const zone = zones.get(zoneId);
     const plist = playersInZone(zone);
@@ -238,6 +240,7 @@ function spawnServerZombie(zoneId, x, y, z, model = pickModel(), targetPlayer = 
         ped,
         zoneId,
         ownerRid: targetPlayer && mp.players.exists(targetPlayer) ? targetPlayer.id : (plist[0] ? plist[0].id : null),
+        health: ZOMBIE_MAX_HEALTH,
         spawnAt: Date.now(),
         dead: false,
     });
@@ -352,6 +355,15 @@ mp.events.add('z:hit', (player, zidRaw, dmgRaw) => {
         if (!z) { console.log(`[Z] hit: no zid=${zid}`); return; }
         if (!mp.peds.exists(z.ped)) { console.log(`[Z] hit: ped gone zid=${zid}`); return; }
         if (z.dead) return;
+
+        const dmg = Math.max(0, parseInt(dmgRaw) || 0);
+        z.health = Math.max(0, (Number(z.health) || ZOMBIE_MAX_HEALTH) - dmg);
+
+        try { z.ped.setVariable('zHealth', z.health); } catch {}
+
+        if (z.health > 0) {
+            return;
+        }
 
         z.dead = true;
         z.deadAt = Date.now();
