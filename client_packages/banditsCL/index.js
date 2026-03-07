@@ -6,7 +6,8 @@ const DEBUG = true;
 let VERBOSE = true;
 
 const me = mp.players.local;
-const zombies = new Map(); // zid -> { ped }
+const zombies = new Map(); // zid -> { ped, followRid, lastFollowAt, lastNudgeAt }
+const pendingControllerAssign = new Map(); // zid -> { ver, at }
 
 const STEP_SPEED = 1.35;
 const STOP_DIST  = 1.6;
@@ -52,8 +53,47 @@ function detachIfZombie(ped){
     }
 }
 
+function ackController(zid, ver) {
+    try { mp.events.callRemote('z:ctrlAck', zid, ver); } catch {}
+}
+
+function hydrateFollowFromPed(obj, ped) {
+    try {
+        const cmd = ped.getVariable('command');
+        const extra = ped.getVariable('commandExtra') || {};
+        if (cmd !== 'follow') return;
+
+        obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
+        const target = findPlayerById(obj.followRid) || me;
+        applyFollowTask(obj, ped, target, Date.now());
+    } catch {}
+}
+
+function tryResolvePendingAssignByPed(ped) {
+    try {
+        if (!ped || ped.type !== 'ped') return;
+        const zid = ped.getVariable('zid');
+        if (typeof zid !== 'number') return;
+
+        const pending = pendingControllerAssign.get(zid);
+        if (!pending) return;
+
+        attachIfZombie(ped);
+        const obj = zombies.get(zid);
+        if (obj) {
+            hydrateFollowFromPed(obj, ped);
+        }
+
+        ackController(zid, pending.ver);
+        setTimeout(() => ackController(zid, pending.ver), 150);
+        setTimeout(() => ackController(zid, pending.ver), 500);
+
+        pendingControllerAssign.delete(zid);
+    } catch {}
+}
+
 mp.events.add('entityStreamIn', (ent) => {
-    try { if (ent && ent.type === 'ped') attachIfZombie(ent); } catch {}
+    try { if (ent && ent.type === 'ped') { attachIfZombie(ent); tryResolvePendingAssignByPed(ent); } } catch {}
 });
 mp.events.add('entityStreamOut', (ent) => {
     try { if (ent && ent.type === 'ped') detachIfZombie(ent); } catch {}
@@ -63,7 +103,7 @@ mp.events.add('entityStreamOut', (ent) => {
 setTimeout(() => {
     try {
         mp.peds.forEach(ped => {
-            try { attachIfZombie(ped); } catch {}
+            try { attachIfZombie(ped); tryResolvePendingAssignByPed(ped); } catch {}
         });
         chat(`✅ Zombies client loaded (${zombies.size} peds)`, '#aaffaa');
     } catch (e) {
@@ -77,26 +117,60 @@ function isController(ped){
     return typeof rid === 'number' && rid === me.id;
 }
 
+function findPlayerById(rid){
+    if (typeof rid !== 'number') return null;
+    let found = null;
+    try { mp.players.forEach(p => { if (!found && p.id === rid) found = p; }); } catch {}
+    return found;
+}
+
+
+function applyFollowTask(obj, ped, target, now) {
+    try {
+        if (!obj || !ped || !target) return;
+
+        const dist = target.position.distanceTo(ped.position);
+        if (dist <= STOP_DIST) return;
+
+        if (!obj.lastFollowAt || (now - obj.lastFollowAt) >= FOLLOW_CD) {
+            obj.lastFollowAt = now;
+            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
+        }
+
+        // мягкий "пинок" навигации, если ped визуально завис
+        if (!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= 1200) {
+            obj.lastNudgeAt = now;
+            ped.taskGoStraightToCoord(target.position.x, target.position.y, target.position.z, STEP_SPEED, 1200, 0.0, 0.0);
+            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
+        }
+    } catch {}
+}
+
 // ====== события от сервера ======
 
 // сервер говорит: "ты контроллер вот этого педа"
 mp.events.add('z:assignController', (zid, ver, pedHandle) => {
     try{
+        zid = parseInt(zid);
+        ver = parseInt(ver);
+
         const ped = mp.peds.atHandle(pedHandle);
-        if(!ped || !mp.peds.exists(ped)) return;
+        if(!ped || !mp.peds.exists(ped)) {
+            pendingControllerAssign.set(zid, { ver, at: Date.now() });
+            return;
+        }
 
         attachIfZombie(ped);
+        const obj = zombies.get(zid);
+        if (obj) {
+            hydrateFollowFromPed(obj, ped);
+        }
 
-        // подтвердить серверу
-        setTimeout(() => {
-            try { mp.events.callRemote('z:ctrlAck', zid, ver); } catch {}
-        }, 100);
+        ackController(zid, ver);
+        setTimeout(() => ackController(zid, ver), 150);
+        setTimeout(() => ackController(zid, ver), 500);
 
-        // чуть толкнуть
-        try {
-            const p = me.position;
-            ped.taskGoStraightToCoord(p.x, p.y, p.z, STEP_SPEED, 500, 0.0, 0.0);
-        } catch {}
+        pendingControllerAssign.delete(zid);
     }catch{}
 });
 
@@ -115,11 +189,9 @@ mp.events.add('z:executeCommand', (zid, cmd, extraJson) => {
                 try { ped.taskStandStill(500); } catch {}
                 break;
             case 'follow': {
-                let target = me;
-                if (extra && typeof extra.rid === 'number') {
-                    mp.players.forEach(p => { if (p.id === extra.rid) target = p; });
-                }
-                try { ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true); } catch {}
+                obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
+                const target = findPlayerById(obj.followRid) || me;
+                applyFollowTask(obj, ped, target, Date.now());
                 break;
             }
             case 'goMe': {
@@ -146,6 +218,7 @@ mp.events.add('z:forceRemove', (zid) => {
             try { ped.destroy(); } catch {}
         }
         zombies.delete(zid);
+        pendingControllerAssign.delete(zid);
         dlog(`🗑 forceRemove zid=${zid}`);
     } catch {}
 });
@@ -183,23 +256,20 @@ mp.events.add('z:dead', (zid) => {
     // дальше сервер сам его удалит через z:forceRemove
 });
 
-// ====== ДВИЖЕНИЕ У КОНТРОЛЛЕРА (как было) ======
+// ====== ДВИЖЕНИЕ У КОНТРОЛЛЕРА ======
 setInterval(() => {
-    zombies.forEach((obj, zid) => {
+    zombies.forEach((obj) => {
         const ped = obj.ped;
         if (!mp.peds.exists(ped)) return;
         if (!isController(ped)) return;
 
-        // простое “иди ко мне”
         try {
-            const dist = me.position.distanceTo(ped.position);
-            const now = Date.now();
-            if (dist > STOP_DIST) {
-                ped.taskFollowToOffsetOfEntity(me.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
-            }
+            const targetRid = typeof obj.followRid === 'number' ? obj.followRid : me.id;
+            const target = findPlayerById(targetRid) || me;
+            applyFollowTask(obj, ped, target, Date.now());
         } catch {}
     });
-}, 400);
+}, 300);
 
 // ====== HIT: raycast по выстрелу ======
 

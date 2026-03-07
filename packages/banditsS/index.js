@@ -20,6 +20,7 @@ const ZONE_1 = {
     zombieIds: [],
     active: false,
     spawnedAt: 0,
+    activatorId: null,
 };
 zones.set(ZONE_1.id, ZONE_1);
 
@@ -53,6 +54,17 @@ function pickModel() {
     const arr = ['u_m_y_zombie_01', 'a_m_m_tramp_01', 's_m_y_cop_01'];
     return arr[(Math.random() * arr.length) | 0];
 }
+function getPlayerById(id) {
+    if (typeof id !== 'number') return null;
+    let found = null;
+    try {
+        mp.players.forEach(p => {
+            if (!found && p.id === id) found = p;
+        });
+    } catch {}
+    return found;
+}
+
 function nextZid() {
     let zid = (Math.random() * 1e9 | 0);
     while (zombies.has(zid)) zid = (Math.random() * 1e9 | 0);
@@ -81,8 +93,6 @@ function replayDesiredIfReady(zid) {
     if (!mp.peds.exists(ped)) return;
     const st = desiredCmd.get(zid);
     if (!st) return;
-    if (ped.getVariable('ctrlState') === 'switching') return;
-
     const ctrl = ped.controller;
     if (ctrl && mp.players.exists(ctrl)) {
         try { ctrl.call('z:executeCommand', [zid, st.name, JSON.stringify(st.extra || {})]); } catch {}
@@ -154,7 +164,10 @@ function reassignControllerIfNeeded(ped) {
             if (inZone && !far) return;
         }
 
-        assignControllerStrict(ped, zone, null);
+        const zid = ped.getVariable('zid');
+        const z = zombies.get(zid);
+        const preferred = z ? getPlayerById(z.ownerRid) : null;
+        assignControllerStrict(ped, zone, preferred);
     } catch {}
 }
 
@@ -183,6 +196,7 @@ function spawnServerZombie(zoneId, x, y, z, model = pickModel(), targetPlayer = 
     zombies.set(zid, {
         ped,
         zoneId,
+        ownerRid: targetPlayer && mp.players.exists(targetPlayer) ? targetPlayer.id : (plist[0] ? plist[0].id : null),
         spawnAt: Date.now(),
         dead: false,
     });
@@ -257,6 +271,8 @@ function spawnZoneZombies(zoneId, zone, targetPlayer = null) {
     const plist = playersInZone(zone);
     if (!plist.length) return;
 
+    zone.activatorId = targetPlayer && mp.players.exists(targetPlayer) ? targetPlayer.id : plist[0].id;
+
     zone.zombieIds = [];
     for (let i = 0; i < zone.zombieCount; i++) {
         setTimeout(() => {
@@ -264,7 +280,8 @@ function spawnZoneZombies(zoneId, zone, targetPlayer = null) {
             const d = 10 + Math.random() * Math.max(5, zone.radius - 12);
             const x = zone.x + Math.cos(ang) * d;
             const y = zone.y + Math.sin(ang) * d;
-            spawnServerZombie(zoneId, x, y, zone.z, pickModel(), targetPlayer || plist[0]);
+            const owner = getPlayerById(zone.activatorId) || targetPlayer || plist[0];
+            spawnServerZombie(zoneId, x, y, zone.z, pickModel(), owner);
         }, i * 200);
     }
     zone.active = true;
@@ -372,16 +389,29 @@ setInterval(() => {
         const plist = playersInZone(zone);
         if (!plist.length) return;
 
+        const activator = getPlayerById(zone.activatorId);
+        if (!activator || !isPlayerInZone(activator, zone)) {
+            zone.activatorId = plist[0].id;
+        }
+
         (zone.zombieIds || []).forEach(zid => {
             const z = zombies.get(zid);
             if (!z) return;
             if (z.dead) return;
             const ped = z.ped;
             if (!mp.peds.exists(ped)) return;
+
+            const owner = getPlayerById(zone.activatorId) || plist[0];
+            z.ownerRid = owner ? owner.id : null;
+            if (owner) {
+                setDesired(zid, 'follow', { rid: owner.id });
+                replayDesiredIfReady(zid);
+            }
+
             reassignControllerIfNeeded(ped);
         });
     });
-}, 2000);
+}, 500);
 
 // прокс-удар
 setInterval(() => {
@@ -423,6 +453,7 @@ setInterval(() => {
             zone.zombieIds.slice().forEach(zid => destroyZombie(zid));
             zone.zombieIds = [];
             zone.active = false;
+            zone.activatorId = null;
             zone.spawnedAt = 0;
             zone.lastEmptyTs = 0;
             console.log(`[ZONE] Deactivated "${zone.name}" (empty 30s)`);
@@ -431,8 +462,8 @@ setInterval(() => {
 }, 5000);
 
 // ---- 11. TTL ДЛЯ КАЖДОГО ЗОМБИ ----
-// если за 12 секунд зомби не умер "нормально" → сервер сам его убирает
-const ZOMBIE_TTL = 12000;
+// аварийный TTL: удаляем зомби только при долгом зависании
+const ZOMBIE_TTL = 180000;
 setInterval(() => {
     const now = Date.now();
     zombies.forEach((z, zid) => {
@@ -460,6 +491,7 @@ mp.events.add('zombies:respawn', (player) => {
         (zone.zombieIds || []).slice().forEach(zid => destroyZombie(zid));
         zone.zombieIds = [];
         zone.active = false;
+        zone.activatorId = null;
         zone.spawnedAt = 0;
     });
     if (player && player.outputChatBox)
