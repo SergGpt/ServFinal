@@ -504,8 +504,8 @@ setInterval(() => {
 }, 1000);
 
 // ---- 11. TTL ДЛЯ КАЖДОГО ЗОМБИ ----
-// аварийный TTL: удаляем зомби только при долгом зависании
-const ZOMBIE_TTL = 180000;
+// аварийный TTL (опционально): 0 = отключено
+const ZOMBIE_TTL = 0; // 0 = отключено
 setInterval(() => {
     const now = Date.now();
     zombies.forEach((z, zid) => {
@@ -516,7 +516,7 @@ setInterval(() => {
             destroyZombie(zid);
             return;
         }
-        if (now - z.spawnAt >= ZOMBIE_TTL) {
+        if (ZOMBIE_TTL > 0 && Number.isFinite(z.spawnAt) && (now - z.spawnAt >= ZOMBIE_TTL)) {
             console.log(`[Z] ttl: time is up → kill zid=${zid}`);
             z.dead = true;
             destroyZombie(zid);
