@@ -3,6 +3,8 @@ const DEAD_REMOVE_DELAY_MS = 5000;
 const DEAD_SIGNAL_COOLDOWN_MS = 700;
 const ZOMBIE_SPAWN_HP = 100;
 const ATTACK_WARMUP_MS = 3000;
+const HP_DEBUG_INTERVAL_MS = 2000;
+const CMD_DEBUG_INTERVAL_MS = 1200;
 
 const zones = new Map();
 const zombies = new Map(); // zid -> state
@@ -162,6 +164,12 @@ function sendFollowToOwner(st) {
         st.ped.setVariable('command', 'follow');
         st.ped.setVariable('commandExtra', payload);
     } catch {}
+
+    const now = Date.now();
+    if (!st.lastCmdLogAt || now - st.lastCmdLogAt >= CMD_DEBUG_INTERVAL_MS) {
+        st.lastCmdLogAt = now;
+        zlog(`cmd attack/follow zid=${st.zid} -> targetRid=${owner.id}`);
+    }
 }
 
 function spawnZombie(zone, owner) {
@@ -200,6 +208,8 @@ function spawnZombie(zone, owner) {
         attackEnabledAt: Date.now() + ATTACK_WARMUP_MS,
         lastFollowSyncAt: 0,
         lastAttackAt: 0,
+        lastHpLogAt: 0,
+        lastCmdLogAt: 0,
     };
 
     zombies.set(zid, st);
@@ -303,6 +313,11 @@ function syncDeadStateFromPed() {
 
         const hp = Number(st.ped.health) || 0;
         const deadFlag = !!st.ped.getVariable('deadFlag');
+        const now = Date.now();
+        if (!st.lastHpLogAt || now - st.lastHpLogAt >= HP_DEBUG_INTERVAL_MS) {
+            st.lastHpLogAt = now;
+            zlog(`hp-check zid=${st.zid} hp=${hp} deadFlag=${deadFlag}`);
+        }
         if (hp <= 0 || deadFlag) {
             markDeadBySignal(st.zid, hp <= 0 ? 'ped-health' : 'ped-flag');
             zlog(`dead-sync zid=${st.zid}: hp=${hp} deadFlag=${deadFlag}`);
