@@ -190,6 +190,7 @@ function spawnZombie(zone, owner, spawnIndex = 0) {
         lastTaskType: null,
         lastTaskData: null,
         lastTaskAt: 0,
+        deadDestroyScheduled: false,
     };
 
     zombies.set(zid, st);
@@ -210,7 +211,7 @@ function spawnZoneOnEnter(zone, activator) {
 
     console.log(`[ZONE] Spawning ${zone.zombieCount} zombies in "${zone.name}"`);
     for (let i = 0; i < zone.zombieCount; i++) {
-        setTimeout(() => spawnZombie(zone, activator, i), i * 200);
+        setTimeout(() => spawnZombie(zone, activator, i), i * 400);
     }
 }
 
@@ -253,6 +254,7 @@ function markDeadByHit(zid, killer) {
     st.hp = 0;
     st.ownerRid = null;
     st.switching = false;
+    st.deadDestroyScheduled = false;
 
     setZombieState(st, ZOMBIE_STATE.DEAD, zlog, killer);
 
@@ -294,14 +296,20 @@ function syncDeadStateFromPed() {
 
         const hp = Number(st.ped.health) || 0;
         const deadFlag = !!st.ped.getVariable('deadFlag');
+        const isPedDead = hp <= 0 || deadFlag;
         const now = Date.now();
         if (!st.lastHpLogAt || now - st.lastHpLogAt >= ZOMBIE_CONFIG.timers.hpDebugMs) {
             st.lastHpLogAt = now;
-            zlog(`hp-check zid=${st.zid} hp=${hp} deadFlag=${deadFlag} state=${st.state} switching=${st.switching}`);
+            zlog(`hp-check zid=${st.zid} hp=${hp} deadFlag=${deadFlag} dead=${isPedDead} state=${st.state} switching=${st.switching}`);
         }
-        if (hp <= 0 || deadFlag) {
+        if (isPedDead) {
             markDeadBySignal(st.zid, hp <= 0 ? 'ped-health' : 'ped-flag');
             zlog(`dead-sync zid=${st.zid}: hp=${hp} deadFlag=${deadFlag}`);
+            const deadState = zombies.get(st.zid);
+            if (deadState && deadState.dead && !deadState.deadDestroyScheduled) {
+                deadState.deadDestroyScheduled = true;
+                setTimeout(() => destroyZombie(deadState.zid, 'dead-sync-timeout'), ZOMBIE_CONFIG.timers.deadRemoveDelayMs);
+            }
         }
     });
 }

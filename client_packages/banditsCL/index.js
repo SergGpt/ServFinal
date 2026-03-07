@@ -138,7 +138,13 @@ function tryResolvePendingAssignByPed(ped) {
 }
 
 mp.events.add('entityStreamIn', (ent) => {
-    try { if (ent && ent.type === 'ped') { attachIfZombie(ent); tryResolvePendingAssignByPed(ent); } } catch {}
+    try {
+        if (ent && ent.type === 'ped') {
+            attachIfZombie(ent);
+            forceAggroPedState(ent);
+            tryResolvePendingAssignByPed(ent);
+        }
+    } catch {}
 });
 mp.events.add('entityStreamOut', (ent) => {
     try { if (ent && ent.type === 'ped') detachIfZombie(ent); } catch {}
@@ -197,7 +203,11 @@ function applyFollowTask(obj, ped, target, now) {
 
         if (!obj.lastFollowAt || (now - obj.lastFollowAt) >= FOLLOW_CD) {
             obj.lastFollowAt = now;
-            try { ped.clearTasks(); } catch {}
+            const targetRid = typeof obj.followRid === 'number' ? obj.followRid : me.id;
+            if (obj.lastTaskTargetRid !== targetRid) {
+                obj.lastTaskTargetRid = targetRid;
+                try { ped.clearTasks(); } catch {}
+            }
             forceAggroPedState(ped);
             ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, speed, -1, stopDist, true);
         }
