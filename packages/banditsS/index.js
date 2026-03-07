@@ -146,6 +146,7 @@ function assignControllerStrict(ped, zone, preferred = null) {
             ped.setVariable('controllerRid', -1);
             ped.setVariable('ctrlVer', nextVer);
             ped.setVariable('ctrlState', 'switching');
+            ped.setVariable('ctrlReqAt', Date.now());
             zlog(`assignController zid=${zid}: no controller in zone=${zone.id}`);
             return;
         }
@@ -155,6 +156,7 @@ function assignControllerStrict(ped, zone, preferred = null) {
         ped.setVariable('controllerRid', controller.id);
         ped.setVariable('ctrlVer', nextVer);
         ped.setVariable('ctrlState', 'switching');
+        ped.setVariable('ctrlReqAt', Date.now());
 
         try {
             controller.call('z:assignController', [zid, nextVer, ped.handle]);
@@ -169,12 +171,16 @@ function reassignControllerIfNeeded(ped) {
         const zone = zones.get(zoneId);
         if (!zone) return;
 
+        const state = ped.getVariable('ctrlState');
+        const reqAt = Number(ped.getVariable('ctrlReqAt')) || 0;
+        if (state === 'switching' && reqAt && (Date.now() - reqAt) < 3000) {
+            return;
+        }
+
         const c = ped.controller;
         if (c && mp.players.exists(c)) {
             const inZone = isPlayerInZone(c, zone);
-            let far = true;
-            try { far = dist3(ped.position, c.position) > 150; } catch { far = true; }
-            if (inZone && !far) return;
+            if (inZone) return;
         }
 
         const zid = ped.getVariable('zid');

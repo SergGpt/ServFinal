@@ -14,10 +14,23 @@ const STOP_DIST  = 1.6;
 const FOLLOW_CD  = 350;
 const STUCK_CD   = 1000;
 const MIN_STEP   = 0.04;
+const HIT_REPORT_CD = 250;
+const hitReportAt = new Map(); // zid -> ts
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
 function dlog(msg){ if(DEBUG && VERBOSE) chat(`[ZDBG] ${msg}`,'#99ccff'); }
+
+function reportHit(zid, dmg, reason = 'unknown') {
+    try {
+        const now = Date.now();
+        const last = hitReportAt.get(zid) || 0;
+        if (now - last < HIT_REPORT_CD) return;
+        hitReportAt.set(zid, now);
+        mp.events.callRemote('z:hit', zid, dmg);
+        dlog(`→ reportHit zid=${zid} dmg=${dmg} reason=${reason}`);
+    } catch {}
+}
 
 // ====== подготовка педа ======
 function prepPed(ped){
@@ -308,11 +321,25 @@ mp.events.add('playerWeaponShot', () => {
 
         // пока ставим фиксированный урон
         const dmg = 35;
-        mp.events.callRemote('z:hit', zid, dmg);
-        dlog(`→ shot raycast hit zid=${zid}, dmg=${dmg}`);
+        reportHit(zid, dmg, 'weaponShot-raycast');
     } catch (e) {
         // ignore
     }
+});
+
+// дополнительный надежный канал: срабатывает при реальном уроне ped
+mp.events.add('entityDamaged', (entity, attacker, weapon, damage) => {
+    try {
+        if (!entity || entity.type !== 'ped') return;
+        const zid = entity.getVariable('zid');
+        if (typeof zid !== 'number') return;
+
+        if (!attacker || attacker.type !== 'player') return;
+        if (attacker.handle !== me.handle) return;
+
+        const dmg = Math.max(1, parseInt(damage) || 25);
+        reportHit(zid, dmg, `entityDamaged-w=${weapon}`);
+    } catch {}
 });
 
 // ===== КЛАВИША: убить ближайшего зомби (для теста)
