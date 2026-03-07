@@ -346,6 +346,7 @@ mp.events.add('z:hit', (player, zidRaw, dmgRaw) => {
         if (z.dead) return;
 
         z.dead = true;
+        z.deadAt = Date.now();
 
         // всем сказать "упал"
         mp.players.forEach(p => { try { p.call('z:dead', [zid]); } catch {} });
@@ -489,6 +490,18 @@ setInterval(() => {
         }
     });
 }, 5000);
+
+// reaper: гарантированная очистка трупов, даже если timeout потерялся
+setInterval(() => {
+    const now = Date.now();
+    zombies.forEach((z, zid) => {
+        if (!z || !z.dead) return;
+        const deadAt = z.deadAt || z.spawnAt || now;
+        if (now - deadAt >= CORPSE_LIFETIME_MS + 500) {
+            destroyZombie(zid);
+        }
+    });
+}, 1000);
 
 // ---- 11. TTL ДЛЯ КАЖДОГО ЗОМБИ ----
 // аварийный TTL: удаляем зомби только при долгом зависании

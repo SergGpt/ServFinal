@@ -8,6 +8,7 @@ let VERBOSE = true;
 const me = mp.players.local;
 const zombies = new Map(); // zid -> { ped, followRid, lastFollowAt, lastNudgeAt }
 const pendingControllerAssign = new Map(); // zid -> { ver, at }
+const corpseCleanupTimers = new Map(); // zid -> timeout
 
 const STEP_SPEED = 1.35;
 const STOP_DIST  = 1.6;
@@ -217,6 +218,8 @@ mp.events.add('z:forceRemove', (zid) => {
         if (ped && mp.peds.exists(ped)) {
             try { ped.destroy(); } catch {}
         }
+        const t = corpseCleanupTimers.get(zid);
+        if (t) { clearTimeout(t); corpseCleanupTimers.delete(zid); }
         zombies.delete(zid);
         pendingControllerAssign.delete(zid);
         dlog(`🗑 forceRemove zid=${zid}`);
@@ -253,7 +256,23 @@ mp.events.add('z:dead', (zid) => {
     if(!mp.peds.exists(ped)) return;
     try { ped.clearTasksImmediately(); } catch {}
     try { mp.game.ped.setPedToRagdoll(ped.handle, 5000, 5000, 0, false, false, false); } catch {}
-    // дальше сервер сам его удалит через z:forceRemove
+
+    // fallback: если серверный forceRemove не дошёл, убираем труп локально
+    const oldTimer = corpseCleanupTimers.get(zid);
+    if (oldTimer) clearTimeout(oldTimer);
+    const timer = setTimeout(() => {
+        try {
+            const cur = zombies.get(zid);
+            if (!cur) return;
+            if (cur.ped && mp.peds.exists(cur.ped)) {
+                try { cur.ped.destroy(); } catch {}
+            }
+            zombies.delete(zid);
+            pendingControllerAssign.delete(zid);
+        } catch {}
+        corpseCleanupTimers.delete(zid);
+    }, 6500);
+    corpseCleanupTimers.set(zid, timer);
 });
 
 // ====== ДВИЖЕНИЕ У КОНТРОЛЛЕРА ======
