@@ -1,9 +1,11 @@
 const ZOMBIE_STATE = {
+    SLEEP: 'sleep',
     IDLE: 'idle',
     CHASE: 'chase',
     ATTACK: 'attack',
     DEAD: 'dead',
     LOST_TARGET: 'lostTarget',
+    SWITCH_CONTROLLER: 'switch_controller',
 };
 
 function setZombieState(st, nextState, zlog, reason = '') {

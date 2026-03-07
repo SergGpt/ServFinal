@@ -9,12 +9,13 @@ const {
     chooseNearestTarget,
 } = require('./zombie.utils');
 const { ZOMBIE_STATE, setZombieState } = require('./zombie.state');
+const { saveTask, clearTask, restoreTask } = require('./zombieTaskMemory');
+const { createControllerManager } = require('./zombieControllerManager');
 
 const zlog = createLogger(ZOMBIE_CONFIG.debug, 'ZCTRL');
 
 const zones = new Map();
 const zombies = new Map();
-const ctrlVerMap = new Map();
 
 ZOMBIE_CONFIG.zones.forEach((z) => {
     zones.set(z.id, {
@@ -37,18 +38,24 @@ function nextZid() {
 }
 
 function chooseController(zone, ped, preferredPlayer = null) {
-    if (preferredPlayer && isPlayerValidTarget(mp, preferredPlayer, zone)) {
-        return preferredPlayer;
-    }
+    const preferredValid = preferredPlayer && isPlayerValidTarget(mp, preferredPlayer, zone, {
+        maxDistance: ZOMBIE_CONFIG.ai.controllerMaxDistance,
+        fromPos: ped.position,
+        dimension: ped.dimension,
+    });
+    if (preferredValid) return preferredPlayer;
 
-    const plist = playersInZone(mp, zone);
+    const plist = playersInZone(mp, zone).filter((p) => isPlayerValidTarget(mp, p, zone, {
+        maxDistance: ZOMBIE_CONFIG.ai.controllerMaxDistance,
+        fromPos: ped.position,
+        dimension: ped.dimension,
+    }));
+
     if (!plist.length) return null;
 
     let best = null;
     let bestDist = Infinity;
-
     plist.forEach((p) => {
-        if (!mp.players.exists(p)) return;
         const d = dist3(p.position, ped.position);
         if (d < bestDist) {
             bestDist = d;
@@ -59,86 +66,10 @@ function chooseController(zone, ped, preferredPlayer = null) {
     return best;
 }
 
-function assignController(st, reason = 'periodic') {
+function setTaskIdle(st, reason = 'idle') {
     if (!st || st.dead) return;
     if (!mp.peds.exists(st.ped)) return;
-
-    const zone = zones.get(st.zoneId);
-    if (!zone) return;
-
-    const target = getPlayerById(mp, st.ownerRid);
-    const controller = chooseController(zone, st.ped, target);
-    const zid = st.zid;
-
-    if (!controller) {
-        st.ped.controller = undefined;
-        st.ped.setVariable('controllerRid', -1);
-        st.ped.setVariable('ctrlState', 'no-controller');
-        return;
-    }
-
-    const currentRid = Number(st.ped.getVariable('controllerRid'));
-    if (currentRid === controller.id && st.controllerRid === controller.id) {
-        return;
-    }
-
-    const ver = (ctrlVerMap.get(zid) || 0) + 1;
-    ctrlVerMap.set(zid, ver);
-
-    st.ped.dimension = controller.dimension;
-    st.ped.controller = controller;
-    st.ped.setVariable('controllerRid', controller.id);
-    st.ped.setVariable('ctrlVer', ver);
-    st.ped.setVariable('ctrlState', 'ready');
-
-    st.controllerRid = controller.id;
-    st.lastHeartbeatAt = Date.now();
-
-    try {
-        controller.call('z:assignController', [zid, ver, st.ped.handle]);
-    } catch {}
-
-    zlog(`assignController zid=${zid}: controller=${controller.id} ver=${ver} reason=${reason}`);
-}
-
-function sendFollowToOwner(st) {
-    if (!st || st.dead) return;
-    if (!mp.peds.exists(st.ped)) return;
-
-    const owner = getPlayerById(mp, st.ownerRid);
-    if (!owner || !mp.players.exists(owner)) return;
-
-    const ctrl = st.ped.controller;
-    if (!ctrl || !mp.players.exists(ctrl)) return;
-
-    if (st.lastFollowTargetRid === owner.id && Date.now() - (st.lastFollowSentAt || 0) < ZOMBIE_CONFIG.ai.skipDuplicateFollowMs) {
-        return;
-    }
-
-    const payload = { rid: owner.id, speed: ZOMBIE_CONFIG.stats.moveSpeed, stopDist: ZOMBIE_CONFIG.stats.stopDistance };
-
-    try {
-        ctrl.call('z:executeCommand', [st.zid, 'follow', JSON.stringify(payload)]);
-    } catch {}
-
-    try {
-        st.ped.setVariable('command', 'follow');
-        st.ped.setVariable('commandExtra', payload);
-    } catch {}
-
-    st.lastFollowTargetRid = owner.id;
-    st.lastFollowSentAt = Date.now();
-
-    const now = Date.now();
-    if (!st.lastCmdLogAt || now - st.lastCmdLogAt >= ZOMBIE_CONFIG.timers.cmdDebugMs) {
-        st.lastCmdLogAt = now;
-        zlog(`cmd attack/follow zid=${st.zid} -> targetRid=${owner.id}`);
-    }
-}
-
-function sendIdleToController(st, reason = 'no-target') {
-    if (!st || st.dead) return;
-    if (!mp.peds.exists(st.ped)) return;
+    if (st.switching) return;
 
     const ctrl = st.ped.controller;
     if (!ctrl || !mp.players.exists(ctrl)) return;
@@ -152,10 +83,52 @@ function sendIdleToController(st, reason = 'no-target') {
         st.ped.setVariable('commandExtra', { reason });
     } catch {}
 
+    saveTask(st, 'idle', { reason });
     const now = Date.now();
     if (!st.lastCmdLogAt || now - st.lastCmdLogAt >= ZOMBIE_CONFIG.timers.cmdDebugMs) {
         st.lastCmdLogAt = now;
         zlog(`cmd idle zid=${st.zid} reason=${reason}`);
+    }
+}
+
+function setTaskFollow(st, reason = 'chase') {
+    if (!st || st.dead) return;
+    if (!mp.peds.exists(st.ped)) return;
+    if (st.switching) return;
+
+    const owner = getPlayerById(mp, st.ownerRid);
+    if (!owner || !mp.players.exists(owner)) return;
+
+    const ctrl = st.ped.controller;
+    if (!ctrl || !mp.players.exists(ctrl)) return;
+
+    if (st.lastFollowTargetRid === owner.id && Date.now() - (st.lastFollowSentAt || 0) < ZOMBIE_CONFIG.ai.skipDuplicateFollowMs) {
+        return;
+    }
+
+    const payload = {
+        rid: owner.id,
+        speed: ZOMBIE_CONFIG.stats.moveSpeed,
+        stopDist: ZOMBIE_CONFIG.stats.stopDistance,
+    };
+
+    try {
+        ctrl.call('z:executeCommand', [st.zid, 'follow', JSON.stringify(payload)]);
+    } catch {}
+
+    try {
+        st.ped.setVariable('command', 'follow');
+        st.ped.setVariable('commandExtra', payload);
+    } catch {}
+
+    st.lastFollowTargetRid = owner.id;
+    st.lastFollowSentAt = Date.now();
+    saveTask(st, 'follow', payload);
+
+    const now = Date.now();
+    if (!st.lastCmdLogAt || now - st.lastCmdLogAt >= ZOMBIE_CONFIG.timers.cmdDebugMs) {
+        st.lastCmdLogAt = now;
+        zlog(`cmd follow zid=${st.zid} targetRid=${owner.id} reason=${reason}`);
     }
 }
 
@@ -177,13 +150,14 @@ function spawnZombie(zone, owner) {
     ped.setVariable('command', 'idle');
     ped.setVariable('commandExtra', null);
     ped.setVariable('deadFlag', false);
-    ped.setVariable('zState', ZOMBIE_STATE.IDLE);
+    ped.setVariable('zState', ZOMBIE_STATE.SLEEP);
 
     try {
         ped.health = ZOMBIE_CONFIG.stats.hp;
         if (typeof ped.setHealth === 'function') ped.setHealth(ZOMBIE_CONFIG.stats.hp);
     } catch {}
 
+    const now = Date.now();
     const st = {
         zid,
         ped,
@@ -193,29 +167,37 @@ function spawnZombie(zone, owner) {
         deadAt: 0,
         deadSignalAt: 0,
         hp: ZOMBIE_CONFIG.stats.hp,
-        attackEnabledAt: Date.now() + ZOMBIE_CONFIG.stats.attackWarmupMs,
+        attackEnabledAt: now + ZOMBIE_CONFIG.stats.attackWarmupMs,
         lastFollowSyncAt: 0,
         lastAttackAt: 0,
         lastHpLogAt: 0,
         lastCmdLogAt: 0,
         lastPos: { x, y, z },
-        lastMoveAt: Date.now(),
+        lastMoveAt: now,
         stuckCount: 0,
         controllerRid: null,
         lastHeartbeatAt: 0,
-        state: ZOMBIE_STATE.IDLE,
+        lastControllerSwitchAt: 0,
+        switching: false,
+        switchStartAt: 0,
+        switchReason: null,
+        switchAttempts: 0,
+        ctrlVer: 0,
+        state: ZOMBIE_STATE.SLEEP,
         lastFollowSentAt: 0,
         lastFollowTargetRid: null,
+        lastTaskType: null,
+        lastTaskData: null,
+        lastTaskAt: 0,
     };
 
     zombies.set(zid, st);
     zone.zombieIds.push(zid);
 
-    assignController(st, 'spawn');
-    sendFollowToOwner(st);
+    controllerManager.beginSwitch(st, 'spawn');
 
     console.log(`[Z] spawn zid=${zid} in zone=${zone.id}`);
-    zlog(`spawn zid=${zid} owner=${st.ownerRid} pos=${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)} attackInMs=${ZOMBIE_CONFIG.stats.attackWarmupMs}`);
+    zlog(`spawn zid=${zid} owner=${st.ownerRid} pos=${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}`);
 }
 
 function spawnZoneOnEnter(zone, activator) {
@@ -242,7 +224,6 @@ function destroyZombie(zid, reason = 'unknown') {
     } catch {}
 
     zombies.delete(zid);
-    ctrlVerMap.delete(zid);
 
     if (zone) {
         zone.zombieIds = zone.zombieIds.filter((id) => id !== zid);
@@ -270,6 +251,7 @@ function markDeadByHit(zid, killer) {
     st.deadSignalAt = st.deadAt;
     st.hp = 0;
     st.ownerRid = null;
+    st.switching = false;
 
     setZombieState(st, ZOMBIE_STATE.DEAD, zlog, killer);
 
@@ -281,6 +263,8 @@ function markDeadByHit(zid, killer) {
             st.ped.setVariable('commandExtra', null);
         }
     } catch {}
+
+    clearTask(st);
 
     mp.players.forEach((p) => {
         try {
@@ -312,7 +296,7 @@ function syncDeadStateFromPed() {
         const now = Date.now();
         if (!st.lastHpLogAt || now - st.lastHpLogAt >= ZOMBIE_CONFIG.timers.hpDebugMs) {
             st.lastHpLogAt = now;
-            zlog(`hp-check zid=${st.zid} hp=${hp} deadFlag=${deadFlag} state=${st.state}`);
+            zlog(`hp-check zid=${st.zid} hp=${hp} deadFlag=${deadFlag} state=${st.state} switching=${st.switching}`);
         }
         if (hp <= 0 || deadFlag) {
             markDeadBySignal(st.zid, hp <= 0 ? 'ped-health' : 'ped-flag');
@@ -350,12 +334,15 @@ function cleanupEmptyZones() {
         zone.zombieIds.forEach((zid) => {
             const st = zombies.get(zid);
             if (!st || st.dead) return;
+
             st.ownerRid = null;
-            setZombieState(st, ZOMBIE_STATE.IDLE, zlog, 'zone-empty');
+            if (st.switching) return;
+
+            setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, 'zone-empty');
             if (ZOMBIE_CONFIG.ai.emptyZoneBehavior === 'destroy') {
                 destroyZombie(zid, 'zone-empty');
             } else {
-                sendIdleToController(st, 'zone-empty');
+                setTaskIdle(st, 'zone-empty');
             }
         });
     });
@@ -382,8 +369,9 @@ function spawnZonesByPresenceCheck() {
     });
 }
 
-function processStuck(st, zone) {
+function processStuck(st) {
     if (!mp.peds.exists(st.ped)) return;
+    if (st.switching) return;
 
     const pos = st.ped.position;
     const moved = dist3(pos, st.lastPos || pos);
@@ -402,11 +390,16 @@ function processStuck(st, zone) {
     st.lastMoveAt = now;
     zlog(`stuck zid=${st.zid} count=${st.stuckCount}`);
 
-    sendFollowToOwner(st);
+    const restored = restoreTask(st, {
+        follow: (state) => setTaskFollow(state, 'stuck-restore'),
+        idle: (state, data) => setTaskIdle(state, data.reason || 'stuck-idle'),
+    });
+
+    if (!restored) setTaskFollow(st, 'stuck-fallback');
 
     if (st.stuckCount >= ZOMBIE_CONFIG.ai.maxStuckBeforeReassign) {
         st.stuckCount = 0;
-        assignController(st, 'stuck-reassign');
+        controllerManager.beginSwitch(st, 'stuck-reassign');
     }
 }
 
@@ -418,6 +411,9 @@ function syncAllZombieFollow() {
         const zone = zones.get(st.zoneId);
         if (!zone) return;
 
+        controllerManager.checkTimeout(st);
+        if (st.switching) return;
+
         const target = chooseNearestTarget(mp, zone, st.ped.position, {
             maxDistance: ZOMBIE_CONFIG.ai.maxTargetDistance,
             dimension: st.ped.dimension,
@@ -425,8 +421,16 @@ function syncAllZombieFollow() {
 
         if (!target) {
             st.ownerRid = null;
-            setZombieState(st, ZOMBIE_STATE.LOST_TARGET, zlog, 'no-valid-target');
-            sendIdleToController(st, 'zone-empty-or-invalid-target');
+            setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, 'no-valid-target');
+            setTaskIdle(st, 'sleep-no-target');
+            return;
+        }
+
+        const distToTarget = dist3(st.ped.position, target.position);
+        if (distToTarget > ZOMBIE_CONFIG.ai.sleepWakeDistance) {
+            st.ownerRid = null;
+            setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, `far-target=${distToTarget.toFixed(1)}`);
+            setTaskIdle(st, 'sleep-far-target');
             return;
         }
 
@@ -438,7 +442,8 @@ function syncAllZombieFollow() {
         const hbDead = st.controllerRid && Date.now() - (st.lastHeartbeatAt || 0) > ZOMBIE_CONFIG.timers.heartbeatTimeoutMs;
         const currentCtrl = st.ped.controller;
         if (hbDead || !currentCtrl || !mp.players.exists(currentCtrl) || !isPlayerInZone(currentCtrl, zone)) {
-            assignController(st, hbDead ? 'heartbeat-timeout' : 'invalid-controller');
+            controllerManager.beginSwitch(st, hbDead ? 'heartbeat-timeout' : 'invalid-controller');
+            return;
         }
 
         const now = Date.now();
@@ -446,14 +451,14 @@ function syncAllZombieFollow() {
         st.lastFollowSyncAt = now;
 
         setZombieState(st, ZOMBIE_STATE.CHASE, zlog, `target=${target.id}`);
-        sendFollowToOwner(st);
-        processStuck(st, zone);
+        setTaskFollow(st, 'sync-chase');
+        processStuck(st);
     });
 }
 
 function processZombieAttacks() {
     zombies.forEach((st) => {
-        if (st.dead) return;
+        if (st.dead || st.switching) return;
         if (!mp.peds.exists(st.ped)) return;
 
         const zone = zones.get(st.zoneId);
@@ -484,6 +489,7 @@ function processZombieAttacks() {
         } catch {}
 
         setZombieState(st, ZOMBIE_STATE.ATTACK, zlog, `target=${owner.id}`);
+        saveTask(st, 'attack', { rid: owner.id, dist: d });
 
         mp.players.forEach((p) => {
             if (p.dimension !== owner.dimension) return;
@@ -506,6 +512,37 @@ function cleanupDeadZombies() {
     });
 }
 
+const controllerManager = createControllerManager({
+    zlog,
+    chooseController,
+    setTaskIdle,
+    restoreTask: (st) => restoreTask(st, {
+        follow: (state) => {
+            const owner = getPlayerById(mp, state.lastTaskData && state.lastTaskData.rid);
+            if (owner && mp.players.exists(owner)) state.ownerRid = owner.id;
+            setZombieState(state, ZOMBIE_STATE.CHASE, zlog, 'restore-follow');
+            setTaskFollow(state, 'restore-follow');
+        },
+        attack: (state, data) => {
+            const owner = getPlayerById(mp, data && data.rid);
+            if (!owner || !mp.players.exists(owner)) {
+                setTaskIdle(state, 'restore-attack-invalid-target');
+                setZombieState(state, ZOMBIE_STATE.IDLE, zlog, 'restore-attack-invalid-target');
+                return;
+            }
+            state.ownerRid = owner.id;
+            setZombieState(state, ZOMBIE_STATE.ATTACK, zlog, 'restore-attack');
+            setTaskFollow(state, 'restore-attack-as-follow');
+        },
+        idle: (state, data) => {
+            setZombieState(state, ZOMBIE_STATE.IDLE, zlog, 'restore-idle');
+            setTaskIdle(state, (data && data.reason) || 'restore-idle');
+        },
+    }),
+    getZone: (id) => zones.get(id),
+    timers: ZOMBIE_CONFIG.timers,
+});
+
 function registerEvents() {
     mp.events.add('z:ctrlAck', (player, zid, ver) => {
         try {
@@ -516,9 +553,11 @@ function registerEvents() {
             if (!mp.peds.exists(st.ped)) return;
             if (st.ped.getVariable('controllerRid') !== player.id) return;
             if (st.ped.getVariable('ctrlVer') !== ver) return;
-            st.ped.setVariable('ctrlState', 'ready');
+
             st.controllerRid = player.id;
             st.lastHeartbeatAt = Date.now();
+            st.ctrlVer = ver;
+            controllerManager.onControllerAck(st, player.id, ver);
             zlog(`ctrlAck zid=${zid} by=${player.id} ver=${ver}`);
         } catch {}
     });
@@ -534,6 +573,7 @@ function registerEvents() {
             if (st.ped.getVariable('ctrlVer') !== ver) return;
             st.lastHeartbeatAt = Date.now();
             st.controllerRid = player.id;
+            st.ctrlVer = ver;
         } catch {}
     });
 

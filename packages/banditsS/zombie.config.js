@@ -23,6 +23,9 @@ const ZOMBIE_CONFIG = {
         deadRemoveDelayMs: 5000,
         deadSignalCooldownMs: 700,
         heartbeatTimeoutMs: 2500,
+        switchAckTimeoutMs: 2200,
+        switchCooldownMs: 200,
+        maxSwitchAttempts: 2,
     },
 
     network: {
@@ -31,6 +34,8 @@ const ZOMBIE_CONFIG = {
 
     ai: {
         maxTargetDistance: 80,
+        sleepWakeDistance: 45,
+        controllerMaxDistance: 90,
         emptyZoneBehavior: 'idle', // idle | destroy
         stuckDistanceEps: 0.25,
         stuckTimeoutMs: 1500,
