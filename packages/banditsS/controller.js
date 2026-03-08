@@ -11,6 +11,7 @@ const {
 const { ZOMBIE_STATE, setZombieState } = require('./zombie.state');
 const { saveTask, clearTask, restoreTask } = require('./zombieTaskMemory');
 const { createControllerManager } = require('./zombieControllerManager');
+const damageSystem = require('../damageSystem/index.js');
 
 const zlog = createLogger(ZOMBIE_CONFIG.debug, 'ZCTRL');
 
@@ -35,6 +36,19 @@ function nextZid() {
     let zid = (Math.random() * 1e9) | 0;
     while (zombies.has(zid)) zid = (Math.random() * 1e9) | 0;
     return zid;
+}
+
+function resolveZombieHitDamage(player, dmgRaw) {
+    const parsed = parseInt(dmgRaw, 10) || 0;
+    if (parsed > 0) return parsed;
+
+    try {
+        const weaponHash = player ? player.weapon : null;
+        const byWeapon = damageSystem.findDamageValue(weaponHash);
+        if (typeof byWeapon === 'number' && byWeapon > 0) return byWeapon;
+    } catch {}
+
+    return damageSystem.defaultDamage || 10;
 }
 
 function chooseController(zone, ped, preferredPlayer = null) {
@@ -654,7 +668,7 @@ function registerEvents() {
     mp.events.add('z:hit', (player, zidRaw, dmgRaw) => {
         try {
             const zid = parseInt(zidRaw, 10);
-            const dmg = parseInt(dmgRaw, 10) || 0;
+            const dmg = resolveZombieHitDamage(player, dmgRaw);
             zlog(`z:hit raw player=${player ? player.id : -1} zidRaw=${zidRaw} dmgRaw=${dmgRaw}`);
             zlog(`z:hit parsed player=${player ? player.id : -1} zid=${zid} dmg=${dmg}`);
             const st = zombies.get(zid);

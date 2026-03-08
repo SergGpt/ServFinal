@@ -494,37 +494,53 @@ function raycastFromCam(dist){
     return ray;
 }
 
-// ловим выстрел
-mp.events.add('playerWeaponShot', () => {
+function resolveShotEntity(targetEntity, targetPosition) {
+    if (targetEntity && (targetEntity.type === 'ped' || targetEntity.type === 'player')) {
+        return targetEntity;
+    }
+    if (targetPosition) {
+        const ray = raycastFromCam(60.0);
+        if (ray && ray.entity) return ray.entity;
+    }
+    return null;
+}
+
+// ловим выстрел (кастомный weapon pipeline)
+mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
     try {
         lastWeaponShotAt = Date.now();
-        const hit = raycastFromCam(60.0);
-        if (!hit || !hit.entity || hit.entity.type !== 'ped') {
-            dlog('playerWeaponShot no ped hit');
+        const hitEntity = resolveShotEntity(targetEntity, targetPosition);
+        if (!hitEntity) {
+            dlog('playerWeaponShot npc-skip entity-not-ped');
             return;
         }
 
-        const zid = hit.entity.getVariable('zid');
+        if (hitEntity.type === 'player') {
+            return; // урон по игрокам обрабатывается существующим damageSystem
+        }
+
+        if (hitEntity.type !== 'ped') {
+            dlog('playerWeaponShot npc-skip entity-not-ped');
+            return;
+        }
+
+        const zid = hitEntity.getVariable('zid');
         if (typeof zid !== 'number') {
-            dlog('playerWeaponShot ped hit but zid not found');
+            dlog('playerWeaponShot npc-skip no-zid');
             return;
         }
 
-        // пока ставим фиксированный урон
-        const dmg = 35;
-        dlog(`playerWeaponShot zid=${zid} dmg=${dmg}`);
-        const lastEntityTs = lastEntityDamagedAt.get(zid) || 0;
-        if (Date.now() - lastEntityTs <= 700) {
-            dlog(`playerWeaponShot fallback skipped zid=${zid} reason=recent-entityDamaged`);
-            return;
-        }
-        reportHit(zid, dmg, 'weaponShot-raycast-fallback', true);
+        const weaponHash = me.weapon || 0;
+        const dmg = 0; // фактический damage рассчитывается сервером по тому же weapon hash pipeline
+        dlog(`playerWeaponShot npc-hit zid=${zid} weapon=${weaponHash} damage=${dmg}`);
+        dlog(`sending z:hit from custom damage pipeline zid=${zid} damage=${dmg}`);
+        reportHit(zid, dmg, `custom-weapon-shot w=${weaponHash}`, true);
     } catch (e) {
         dlog(`playerWeaponShot err=${e.message}`);
     }
 });
 
-// дополнительный надежный канал: срабатывает при реальном уроне ped
+// fallback/debug канал (НЕ основной) на случай, если кастомный weapon-shot пайплайн не сработал
 mp.events.add('entityDamaged', (entity, attacker, weapon, damage) => {
     try {
         if (!entity || entity.type !== 'ped') {
@@ -548,9 +564,9 @@ mp.events.add('entityDamaged', (entity, attacker, weapon, damage) => {
 
         const dmg = Math.max(1, parseInt(damage) || 25);
         lastEntityDamagedAt.set(zid, Date.now());
-        dlog(`entityDamaged zid=${zid} weapon=${weapon} damage=${damage} resolvedDmg=${dmg}`);
-        const sent = reportHit(zid, dmg, `entityDamaged-w=${weapon}`, true);
-        dlog(`entityDamaged reportHitResult zid=${zid} sent=${sent}`);
+        dlog(`entityDamaged fallback zid=${zid} weapon=${weapon} damage=${damage} resolvedDmg=${dmg}`);
+        const sent = reportHit(zid, dmg, `entityDamaged-fallback w=${weapon}`, false);
+        dlog(`entityDamaged fallback reportHitResult zid=${zid} sent=${sent}`);
 
         if (dmg >= 100) {
             reportDead(zid, `entityDamaged-lethal-dmg w=${weapon} dmg=${dmg}`, true);
