@@ -1,9 +1,10 @@
 "use strict";
 
 const DEBUG_ZOMBIE_DAMAGE = false;
+const ENABLE_RAYCAST_FALLBACK = false;
 
 const ZOMBIE_IMPACT_RADIUS = 1.6;
-const ZOMBIE_HIT_DEDUP_MS = 15;
+const ZOMBIE_HIT_DEDUP_MS = 5;
 const DEFAULT_ZOMBIE_DAMAGE = 12;
 const ZOMBIE_RAYCAST_DIST = 120.0;
 const ZOMBIE_STRICT_RAY_DIST_MAX = 1.05;
@@ -13,6 +14,7 @@ const ZOMBIE_MULTIPLIER_HEAD = 1.8;
 const ZOMBIE_MULTIPLIER_BODY = 1.0;
 const ZOMBIE_MULTIPLIER_LIMB = 0.65;
 const zombieHitAt = new Map(); // zid -> ts
+const zombieHitSignature = new Map(); // zid -> { ts, weaponHash, zone }
 const zombieWeaponDamage = new Map();
 const unknownZombieWeapons = new Set();
 
@@ -77,6 +79,13 @@ function findZombieNearPosition(pos, radius = ZOMBIE_IMPACT_RADIUS) {
         } catch {}
     });
     return best;
+}
+
+function resolveZombieFromPed(ped) {
+    if (!ped || ped.type !== 'ped' || !mp.peds.exists(ped)) return null;
+    const zid = ped.getVariable('zid');
+    if (typeof zid !== 'number') return null;
+    return { ped, zid };
 }
 
 function dot(a, b) {
@@ -239,11 +248,21 @@ function findZombieAlongRay(ray, step = 4.0, radius = ZOMBIE_IMPACT_RADIUS) {
     return null;
 }
 
-function trySendZombieHit(zid, damage, weaponHash) {
+function trySendZombieHit(zid, damage, weaponHash, zone = 'body') {
     const now = Date.now();
     const last = zombieHitAt.get(zid) || 0;
     if (now - last < ZOMBIE_HIT_DEDUP_MS) return false;
+
+    const signature = zombieHitSignature.get(zid);
+    if (signature
+        && signature.weaponHash === weaponHash
+        && signature.zone === zone
+        && (now - signature.ts) < ZOMBIE_HIT_DEDUP_MS) {
+        return false;
+    }
+
     zombieHitAt.set(zid, now);
+    zombieHitSignature.set(zid, { ts: now, weaponHash, zone });
     zlog(`sending z:hit zid=${zid} damage=${damage} weapon=${weaponHash}`);
     try { mp.events.callRemote('z:hit', zid, damage); } catch (e) { zerr(`z:hit send error zid=${zid} err=${e.message}`); }
     return true;
@@ -276,7 +295,21 @@ function sendZombieHitWithZone(ped, zid, baseDamage, weaponHash, impactPos, sour
         zlog(`${sourceLog} zid=${zid} zone=${zone}`);
     }
     zlog(`final damage after multiplier=${finalDamage}`);
-    trySendZombieHit(zid, finalDamage, weaponHash);
+    trySendZombieHit(zid, finalDamage, weaponHash, zone);
+}
+
+function consumeZombieDamageFlag(ped) {
+    try {
+        if (!ped || !mp.peds.exists(ped)) return false;
+        const me = mp.players.local;
+        if (!me || !me.handle) return false;
+        const damaged = mp.game.entity.hasEntityBeenDamagedByEntity(ped.handle, me.handle, true);
+        if (!damaged) return false;
+        try { mp.game.entity.clearEntityLastDamageEntity(ped.handle); } catch {}
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 let parts = [
@@ -379,22 +412,39 @@ mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
         return;
     }
 
-    const { ray, hit } = runAimRaycast();
-    const directImpactPos = targetPosition || (hit && hit.position ? hit.position : null);
+    const directImpactPos = targetPosition || null;
 
     if (targetEntity && targetEntity.type === 'ped') {
-        const zid = targetEntity.getVariable('zid');
+        const zombie = resolveZombieFromPed(targetEntity);
         zlog('hit entity type=ped');
-        if (typeof zid === 'number') {
-            sendZombieHitWithZone(targetEntity, zid, damage, weaponHash, directImpactPos, 'direct zombie hit');
+        if (zombie) {
+            sendZombieHitWithZone(zombie.ped, zombie.zid, damage, weaponHash, directImpactPos, 'direct zombie hit');
             return;
         }
-        zlog('zid not found on ped, trying fallback');
+        zlog('zid not found on ped, skipping zombie processing');
     } else if (targetEntity) {
         zlog(`hit entity type=${targetEntity.type}`);
     } else {
         zlog('hit entity type=none');
     }
+
+    // Primary zombie hit source: real ped damage registration.
+    // This keeps the behavior close to native ped hit detection and avoids "nearest zombie" smearing.
+    let damageDelivered = false;
+    mp.peds.forEach((ped) => {
+        if (damageDelivered) return;
+        try {
+            const zombie = resolveZombieFromPed(ped);
+            if (!zombie) return;
+            if (!consumeZombieDamageFlag(zombie.ped)) return;
+            sendZombieHitWithZone(zombie.ped, zombie.zid, damage, weaponHash, null, 'native ped damage hit');
+            damageDelivered = true;
+        } catch {}
+    });
+
+    if (damageDelivered || !ENABLE_RAYCAST_FALLBACK) return;
+
+    const { ray, hit } = runAimRaycast();
 
     const strictFromTargetPos = findStrictZombieCandidate(targetPosition, ray);
     if (strictFromTargetPos) {
