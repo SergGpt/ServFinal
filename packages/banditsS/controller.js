@@ -168,6 +168,7 @@ function spawnZombie(zone, owner, spawnIndex = 0) {
         zoneId: zone.id,
         ownerRid: owner && mp.players.exists(owner) ? owner.id : null,
         dead: false,
+        deadFlag: false,
         deadAt: 0,
         deadSignalAt: 0,
         hp: ZOMBIE_CONFIG.stats.hp,
@@ -258,6 +259,7 @@ function markDeadByHit(zid, killer) {
 
     zlog(`mark-dead zid=${zid} by=${killer}`);
     st.dead = true;
+    st.deadFlag = true;
     st.deadAt = Date.now();
     st.deadSignalAt = st.deadAt;
     st.hp = 0;
@@ -306,15 +308,16 @@ function syncDeadStateFromPed() {
 
         const hp = Number(st.ped.health) || 0;
         const deadFlag = !!st.ped.getVariable('deadFlag');
-        const isPedDead = hp <= 0 || deadFlag;
+        const isPedDead = hp <= 0 || deadFlag || st.deadFlag === true;
         const now = Date.now();
         if (!st.lastHpLogAt || now - st.lastHpLogAt >= ZOMBIE_CONFIG.timers.hpDebugMs) {
             st.lastHpLogAt = now;
-            zlog(`hp-check zid=${st.zid} hp=${hp} deadFlag=${deadFlag} dead=${isPedDead} state=${st.state} switching=${st.switching}`);
+            zlog(`hp-check zid=${st.zid} hp=${hp} pedDeadFlag=${deadFlag} stDeadFlag=${st.deadFlag === true} dead=${isPedDead} state=${st.state} switching=${st.switching}`);
         }
         if (isPedDead) {
-            markDeadBySignal(st.zid, hp <= 0 ? 'ped-health' : 'ped-flag');
-            zlog(`dead-sync zid=${st.zid}: hp=${hp} deadFlag=${deadFlag}`);
+            const source = hp <= 0 ? 'ped-health' : (deadFlag ? 'ped-flag' : 'state-flag');
+            markDeadBySignal(st.zid, source);
+            zlog(`dead-sync zid=${st.zid}: hp=${hp} pedDeadFlag=${deadFlag} stDeadFlag=${st.deadFlag === true} source=${source}`);
         }
     });
 }
@@ -652,6 +655,7 @@ function registerEvents() {
         try {
             const zid = parseInt(zidRaw, 10);
             const dmg = parseInt(dmgRaw, 10) || 0;
+            zlog(`z:hit event by=${player ? player.id : -1} zidRaw=${zidRaw} zid=${zid} dmgRaw=${dmgRaw} dmg=${dmg}`);
             const st = zombies.get(zid);
             if (!st) {
                 zlog(`z:hit ignored by=${player ? player.id : -1} zid=${zid} dmg=${dmg} reason=no-state`);
@@ -667,9 +671,13 @@ function registerEvents() {
             const oldHp = Math.max(0, parseInt(st.hp, 10) || ZOMBIE_CONFIG.stats.hp);
             const newHp = Math.max(0, oldHp - Math.max(1, dmg));
             st.hp = newHp;
+            if (newHp <= 0) st.deadFlag = true;
 
             try {
-                if (mp.peds.exists(st.ped)) st.ped.health = newHp;
+                if (mp.peds.exists(st.ped)) {
+                    st.ped.health = newHp;
+                    if (newHp <= 0) st.ped.setVariable('deadFlag', true);
+                }
             } catch {}
 
             if (newHp <= 0) {
@@ -686,6 +694,8 @@ function registerEvents() {
     mp.events.add('z:deadSignal', (player, zidRaw, reasonRaw) => {
         try {
             const zid = parseInt(zidRaw, 10);
+            const reason = typeof reasonRaw === 'string' ? reasonRaw : 'client-signal';
+            zlog(`z:deadSignal event by=${player ? player.id : -1} zidRaw=${zidRaw} zid=${zid} reason=${reason}`);
             const st = zombies.get(zid);
             if (!st) {
                 zlog(`z:deadSignal ignored by=${player ? player.id : -1} zid=${zid} reason=no-state`);
@@ -703,7 +713,6 @@ function registerEvents() {
             }
             st.deadSignalAt = now;
 
-            const reason = typeof reasonRaw === 'string' ? reasonRaw : 'client-signal';
             zlog(`z:deadSignal recv by=${player ? player.id : -1} zid=${zid} reason=${reason}`);
             markDeadBySignal(zid, `${reason}:rid=${player ? player.id : -1}`);
             zlog(`deadSignal accepted zid=${zid} by=${player ? player.id : -1} reason=${reason}`);

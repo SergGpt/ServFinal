@@ -19,6 +19,7 @@ const HIT_REPORT_CD = 250;
 const hitReportAt = new Map(); // zid -> ts
 const DEAD_REPORT_CD = 1000;
 const deadReportAt = new Map(); // zid -> ts
+const lastEntityDamagedAt = new Map(); // zid -> ts
 const CTRL_HEARTBEAT_MS = 700;
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
@@ -40,26 +41,38 @@ function forceAggroPedState(ped){
     try { mp.game.ped.setPedAlertness(ped.handle, 3); } catch {}
 }
 
-function reportHit(zid, dmg, reason = 'unknown') {
+function reportHit(zid, dmg, reason = 'unknown', force = false) {
     try {
         const now = Date.now();
         const last = hitReportAt.get(zid) || 0;
-        if (now - last < HIT_REPORT_CD) return;
+        if (!force && (now - last < HIT_REPORT_CD)) {
+            dlog(`reportHit skip zid=${zid} reason=${reason} cooldown=${now - last}`);
+            return false;
+        }
         hitReportAt.set(zid, now);
+        dlog(`reportHit send zid=${zid} dmg=${dmg} reason=${reason} force=${force}`);
         mp.events.callRemote('z:hit', zid, dmg);
-        dlog(`→ reportHit zid=${zid} dmg=${dmg} reason=${reason}`);
+        dlog(`→ reportHit sent zid=${zid} dmg=${dmg} reason=${reason}`);
+        return true;
     } catch {}
+    return false;
 }
 
-function reportDead(zid, reason = 'unknown') {
+function reportDead(zid, reason = 'unknown', force = false) {
     try {
         const now = Date.now();
         const last = deadReportAt.get(zid) || 0;
-        if (now - last < DEAD_REPORT_CD) return;
+        if (!force && (now - last < DEAD_REPORT_CD)) {
+            dlog(`reportDead skip zid=${zid} reason=${reason} cooldown=${now - last}`);
+            return false;
+        }
         deadReportAt.set(zid, now);
+        dlog(`reportDead send zid=${zid} reason=${reason} force=${force}`);
         mp.events.callRemote('z:deadSignal', zid, reason);
-        dlog(`→ reportDead zid=${zid} reason=${reason}`);
+        dlog(`→ reportDead sent zid=${zid} reason=${reason}`);
+        return true;
     } catch {}
+    return false;
 }
 
 // ====== подготовка педа ======
@@ -395,12 +408,14 @@ setInterval(() => {
             const ped = obj.ped;
             if (!mp.peds.exists(ped)) return;
             const hp = Number(ped.getHealth ? ped.getHealth() : ped.health) || 0;
+            const deadFlag = !!ped.getVariable('deadFlag');
             const deadOrDying = mp.game.entity.isEntityDead(ped.handle, false)
                 || mp.game.ped.isPedDeadOrDying(ped.handle, true)
+                || deadFlag
                 || hp <= 0;
             if (!deadOrDying) return;
-            dlog(`dead-loop zid=${zid} hp=${hp} deadOrDying=${deadOrDying}`);
-            reportDead(zid, `client-loop hp=${hp}`);
+            dlog(`dead-loop zid=${zid} hp=${hp} deadFlag=${deadFlag} deadOrDying=${deadOrDying}`);
+            reportDead(zid, `client-loop hp=${hp} deadFlag=${deadFlag}`, hp <= 0 || deadFlag);
         } catch {}
     });
 }, 500);
@@ -476,7 +491,12 @@ mp.events.add('playerWeaponShot', () => {
         // пока ставим фиксированный урон
         const dmg = 35;
         dlog(`playerWeaponShot zid=${zid} dmg=${dmg}`);
-        reportHit(zid, dmg, 'weaponShot-raycast');
+        const lastEntityTs = lastEntityDamagedAt.get(zid) || 0;
+        if (Date.now() - lastEntityTs <= 700) {
+            dlog(`playerWeaponShot fallback skipped zid=${zid} reason=recent-entityDamaged`);
+            return;
+        }
+        reportHit(zid, dmg, 'weaponShot-raycast-fallback');
     } catch (e) {
         dlog(`playerWeaponShot err=${e.message}`);
     }
@@ -493,14 +513,20 @@ mp.events.add('entityDamaged', (entity, attacker, weapon, damage) => {
         if (attacker.handle !== me.handle) return;
 
         const dmg = Math.max(1, parseInt(damage) || 25);
+        lastEntityDamagedAt.set(zid, Date.now());
         dlog(`entityDamaged zid=${zid} weapon=${weapon} damage=${damage} resolvedDmg=${dmg}`);
-        reportHit(zid, dmg, `entityDamaged-w=${weapon}`);
+        const sent = reportHit(zid, dmg, `entityDamaged-w=${weapon}`, true);
+        dlog(`entityDamaged reportHitResult zid=${zid} sent=${sent}`);
+
+        if (dmg >= 100) {
+            reportDead(zid, `entityDamaged-lethal-dmg w=${weapon} dmg=${dmg}`, true);
+        }
 
         try {
             const hp = Number(entity.getHealth ? entity.getHealth() : entity.health) || 0;
             if (hp <= 0) {
                 dlog(`entityDamaged dead zid=${zid} weapon=${weapon}`);
-                reportDead(zid, `entityDamaged-kill w=${weapon}`);
+                reportDead(zid, `entityDamaged-kill w=${weapon}`, true);
             }
         } catch {}
     } catch {}
