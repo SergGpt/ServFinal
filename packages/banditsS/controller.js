@@ -24,6 +24,8 @@ ZOMBIE_CONFIG.zones.forEach((z) => {
         zombieIds: [],
         active: false,
         activatorRid: null,
+        lastWaveSpawnAt: 0,
+        emptySince: 0,
     });
 });
 
@@ -224,17 +226,53 @@ function spawnZombie(zone, owner, spawnIndex = 0) {
     zlog(`spawn zid=${zid} owner=${st.ownerRid} pos=${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}`);
 }
 
+
+function countAliveInZone(zone) {
+    if (!zone || !Array.isArray(zone.zombieIds)) return 0;
+    let alive = 0;
+    zone.zombieIds.forEach((zid) => {
+        const st = zombies.get(zid);
+        if (st && !st.dead) alive += 1;
+    });
+    return alive;
+}
+
+function spawnZombieWave(zone, activator, count) {
+    if (!zone || !count || count <= 0) return 0;
+
+    const now = Date.now();
+    const alive = countAliveInZone(zone);
+    const maxAlive = Math.max(1, parseInt(ZOMBIE_CONFIG.maxAlivePerZone, 10) || 12);
+    if (alive >= maxAlive) {
+        zlog(`wave-skip zone=${zone.id} reason=max-alive alive=${alive} max=${maxAlive}`);
+        return 0;
+    }
+
+    const available = Math.max(0, maxAlive - alive);
+    const spawnCount = Math.min(count, available);
+    if (spawnCount <= 0) return 0;
+
+    zone.active = true;
+    if (activator && mp.players.exists(activator)) zone.activatorRid = activator.id;
+    zone.lastWaveSpawnAt = now;
+
+    zlog(`wave-spawn zone=${zone.id} alive=${alive} spawnCount=${spawnCount}`);
+    for (let i = 0; i < spawnCount; i++) {
+        setTimeout(() => spawnZombie(zone, activator, i), i * 400);
+    }
+
+    return spawnCount;
+}
+
 function spawnZoneOnEnter(zone, activator) {
     if (!zone || !activator || !mp.players.exists(activator)) return;
-    if (zone.zombieIds.length) return;
 
     zone.active = true;
     zone.activatorRid = activator.id;
+    zone.emptySince = 0;
 
-    console.log(`[ZONE] Spawning ${zone.zombieCount} zombies in "${zone.name}"`);
-    for (let i = 0; i < zone.zombieCount; i++) {
-        setTimeout(() => spawnZombie(zone, activator, i), i * 400);
-    }
+    console.log(`[ZONE] Activate wave spawning in "${zone.name}"`);
+    spawnZombieWave(zone, activator, Math.max(1, parseInt(ZOMBIE_CONFIG.waveZombieCount, 10) || 3));
 }
 
 function destroyZombie(zid, reason = 'unknown') {
@@ -255,6 +293,8 @@ function destroyZombie(zid, reason = 'unknown') {
         if (!zone.zombieIds.length) {
             zone.active = false;
             zone.activatorRid = null;
+            zone.lastWaveSpawnAt = 0;
+            zone.emptySince = 0;
         }
     }
 
@@ -357,25 +397,29 @@ function updateZoneEntryState() {
 function cleanupEmptyZones() {
     zones.forEach((zone) => {
         const plist = playersInZone(mp, zone);
-        if (plist.length) return;
+        const now = Date.now();
 
+        if (plist.length) {
+            zone.emptySince = 0;
+            return;
+        }
+
+        if (!zone.emptySince) {
+            zone.emptySince = now;
+            zlog(`zone-empty-start zone=${zone.id}`);
+            return;
+        }
+
+        const cleanupMs = Math.max(1, parseInt(ZOMBIE_CONFIG.emptyZoneCleanupMs, 10) || 60000);
+        if (now - zone.emptySince < cleanupMs) return;
+
+        zlog(`zone-empty-cleanup zone=${zone.id} zombies=${zone.zombieIds.length}`);
+        zone.zombieIds.slice().forEach((zid) => destroyZombie(zid, 'zone-empty-timeout'));
+        zone.zombieIds = [];
         zone.active = false;
         zone.activatorRid = null;
-
-        zone.zombieIds.forEach((zid) => {
-            const st = zombies.get(zid);
-            if (!st || st.dead) return;
-
-            st.ownerRid = null;
-            if (st.switching) return;
-
-            setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, 'zone-empty');
-            if (ZOMBIE_CONFIG.ai.emptyZoneBehavior === 'destroy') {
-                destroyZombie(zid, 'zone-empty');
-            } else {
-                setTaskIdle(st, 'zone-empty');
-            }
-        });
+        zone.emptySince = 0;
+        zone.lastWaveSpawnAt = 0;
     });
 }
 
@@ -383,20 +427,31 @@ function spawnZonesByPresenceCheck() {
     zones.forEach((zone) => {
         const plist = playersInZone(mp, zone);
         if (!plist.length) {
-            zlog(`presence-check zone=${zone.id}: empty, skip spawn`);
+            zlog(`presence-check zone=${zone.id}: empty, skip wave`);
             return;
         }
 
-        if (zone.zombieIds.length) {
-            zlog(`presence-check zone=${zone.id}: already active (${zone.zombieIds.length} zombies)`);
-            return;
-        }
+        zone.emptySince = 0;
+        zone.active = true;
 
         const target = chooseNearestTarget(mp, zone, { x: zone.x, y: zone.y, z: zone.z });
-        if (!target) return;
+        if (target && mp.players.exists(target)) {
+            zone.activatorRid = target.id;
+        }
 
-        zlog(`presence-check zone=${zone.id}: players=${plist.length}, spawn start`);
-        spawnZoneOnEnter(zone, target);
+        const now = Date.now();
+        const intervalMs = Math.max(1, parseInt(ZOMBIE_CONFIG.waveIntervalMs, 10) || 60000);
+        const due = !zone.lastWaveSpawnAt || (now - zone.lastWaveSpawnAt >= intervalMs);
+        if (!due) return;
+
+        const spawned = spawnZombieWave(zone, target || null, Math.max(1, parseInt(ZOMBIE_CONFIG.waveZombieCount, 10) || 3));
+        if (spawned > 0) {
+            zlog(`presence-check zone=${zone.id}: wave spawned=${spawned}`);
+        } else {
+            // avoid tight retry loops when cap reached
+            zone.lastWaveSpawnAt = now;
+            zlog(`presence-check zone=${zone.id}: wave skipped by cap`);
+        }
     });
 }
 
@@ -735,6 +790,8 @@ function registerEvents() {
             zone.zombieIds = [];
             zone.active = false;
             zone.activatorRid = null;
+            zone.lastWaveSpawnAt = 0;
+            zone.emptySince = 0;
         });
 
         if (player && player.outputChatBox) {

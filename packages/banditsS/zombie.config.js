@@ -2,6 +2,11 @@ const ZOMBIE_CONFIG = {
     debug: false,
     models: ['u_m_y_zombie_01'],
 
+    waveIntervalMs: 60000,
+    waveZombieCount: 3,
+    maxAlivePerZone: 12,
+    emptyZoneCleanupMs: 60000,
+
     stats: {
         hp: 100,
         damage: 5,
