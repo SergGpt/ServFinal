@@ -20,6 +20,7 @@ const hitReportAt = new Map(); // zid -> ts
 const DEAD_REPORT_CD = 1000;
 const deadReportAt = new Map(); // zid -> ts
 const lastEntityDamagedAt = new Map(); // zid -> ts
+let lastWeaponShotAt = 0;
 const CTRL_HEARTBEAT_MS = 700;
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
@@ -41,6 +42,28 @@ function forceAggroPedState(ped){
     try { mp.game.ped.setPedAlertness(ped.handle, 3); } catch {}
 }
 
+function sendHitRemote(zid, dmg, reason = 'unknown') {
+    try {
+        dlog(`sending z:hit zid=${zid} dmg=${dmg} reason=${reason}`);
+        mp.events.callRemote('z:hit', zid, dmg);
+        return true;
+    } catch (e) {
+        dlog(`z:hit send error zid=${zid} reason=${reason} err=${e.message}`);
+    }
+    return false;
+}
+
+function sendDeadRemote(zid, reason = 'unknown') {
+    try {
+        dlog(`sending z:deadSignal zid=${zid} reason=${reason}`);
+        mp.events.callRemote('z:deadSignal', zid, reason);
+        return true;
+    } catch (e) {
+        dlog(`z:deadSignal send error zid=${zid} reason=${reason} err=${e.message}`);
+    }
+    return false;
+}
+
 function reportHit(zid, dmg, reason = 'unknown', force = false) {
     try {
         const now = Date.now();
@@ -50,11 +73,10 @@ function reportHit(zid, dmg, reason = 'unknown', force = false) {
             return false;
         }
         hitReportAt.set(zid, now);
-        dlog(`reportHit send zid=${zid} dmg=${dmg} reason=${reason} force=${force}`);
-        mp.events.callRemote('z:hit', zid, dmg);
-        dlog(`→ reportHit sent zid=${zid} dmg=${dmg} reason=${reason}`);
-        return true;
-    } catch {}
+        return sendHitRemote(zid, dmg, reason);
+    } catch (e) {
+        dlog(`reportHit error zid=${zid} reason=${reason} err=${e.message}`);
+    }
     return false;
 }
 
@@ -67,11 +89,10 @@ function reportDead(zid, reason = 'unknown', force = false) {
             return false;
         }
         deadReportAt.set(zid, now);
-        dlog(`reportDead send zid=${zid} reason=${reason} force=${force}`);
-        mp.events.callRemote('z:deadSignal', zid, reason);
-        dlog(`→ reportDead sent zid=${zid} reason=${reason}`);
-        return true;
-    } catch {}
+        return sendDeadRemote(zid, reason);
+    } catch (e) {
+        dlog(`reportDead error zid=${zid} reason=${reason} err=${e.message}`);
+    }
     return false;
 }
 
@@ -476,6 +497,7 @@ function raycastFromCam(dist){
 // ловим выстрел
 mp.events.add('playerWeaponShot', () => {
     try {
+        lastWeaponShotAt = Date.now();
         const hit = raycastFromCam(60.0);
         if (!hit || !hit.entity || hit.entity.type !== 'ped') {
             dlog('playerWeaponShot no ped hit');
@@ -484,7 +506,7 @@ mp.events.add('playerWeaponShot', () => {
 
         const zid = hit.entity.getVariable('zid');
         if (typeof zid !== 'number') {
-            dlog('playerWeaponShot ped hit but no zid');
+            dlog('playerWeaponShot ped hit but zid not found');
             return;
         }
 
@@ -496,7 +518,7 @@ mp.events.add('playerWeaponShot', () => {
             dlog(`playerWeaponShot fallback skipped zid=${zid} reason=recent-entityDamaged`);
             return;
         }
-        reportHit(zid, dmg, 'weaponShot-raycast-fallback');
+        reportHit(zid, dmg, 'weaponShot-raycast-fallback', true);
     } catch (e) {
         dlog(`playerWeaponShot err=${e.message}`);
     }
@@ -505,12 +527,24 @@ mp.events.add('playerWeaponShot', () => {
 // дополнительный надежный канал: срабатывает при реальном уроне ped
 mp.events.add('entityDamaged', (entity, attacker, weapon, damage) => {
     try {
-        if (!entity || entity.type !== 'ped') return;
+        if (!entity || entity.type !== 'ped') {
+            dlog('entityDamaged skip reason=entity-not-ped');
+            return;
+        }
         const zid = entity.getVariable('zid');
-        if (typeof zid !== 'number') return;
+        if (typeof zid !== 'number') {
+            dlog('entityDamaged skip reason=zid-not-found');
+            return;
+        }
 
-        if (!attacker || attacker.type !== 'player') return;
-        if (attacker.handle !== me.handle) return;
+        if (!attacker || attacker.type !== 'player') {
+            dlog(`entityDamaged skip zid=${zid} reason=attacker-not-player`);
+            return;
+        }
+        if (attacker.handle !== me.handle) {
+            dlog(`entityDamaged skip zid=${zid} reason=attacker-not-local`);
+            return;
+        }
 
         const dmg = Math.max(1, parseInt(damage) || 25);
         lastEntityDamagedAt.set(zid, Date.now());
@@ -532,17 +566,54 @@ mp.events.add('entityDamaged', (entity, attacker, weapon, damage) => {
     } catch {}
 });
 
+setInterval(() => {
+    try {
+        if (!lastWeaponShotAt) return;
+        if (Date.now() - lastWeaponShotAt < 550) return;
+        let hadDamageAfterShot = false;
+        lastEntityDamagedAt.forEach((ts) => {
+            if (ts >= lastWeaponShotAt) hadDamageAfterShot = true;
+        });
+        if (!hadDamageAfterShot) {
+            dlog('entityDamaged not triggered after recent playerWeaponShot');
+        }
+        lastWeaponShotAt = 0;
+    } catch {}
+}, 250);
+
+function getNearestZombieZid() {
+    let best = null;
+    let bestD = Infinity;
+    zombies.forEach((obj, zid) => {
+        try {
+            if (!obj || !obj.ped || !mp.peds.exists(obj.ped)) return;
+            const d = me.position.distanceTo(obj.ped.position);
+            if (d < bestD) {
+                bestD = d;
+                best = zid;
+            }
+        } catch {}
+    });
+    return best;
+}
+
 // ===== КЛАВИША: убить ближайшего зомби (для теста)
 mp.keys.bind(0x6B, true, () => { // NumPad +
-    let best = null, bestD = Infinity;
-    zombies.forEach((obj, zid) => {
-        if (!mp.peds.exists(obj.ped)) return;
-        const d = me.position.distanceTo(obj.ped.position);
-        if (d < bestD) { bestD = d; best = zid; }
-    });
+    const best = getNearestZombieZid();
     if (best !== null) {
-        chat(`→ kill request zid=${best}`, '#ffcc00');
-        mp.events.callRemote('z:hit', best, 200); // гарантированно убьём
+        chat(`→ debug force z:hit zid=${best}`, '#ffcc00');
+        sendHitRemote(best, 200, 'debug-key');
+    } else {
+        chat('нет зомби рядом', '#ff6666');
+    }
+});
+
+// NumPad -: принудительный тест deadSignal pipeline
+mp.keys.bind(0x6D, true, () => {
+    const best = getNearestZombieZid();
+    if (best !== null) {
+        chat(`→ debug force z:deadSignal zid=${best}`, '#ffcc00');
+        sendDeadRemote(best, 'debug-force');
     } else {
         chat('нет зомби рядом', '#ff6666');
     }

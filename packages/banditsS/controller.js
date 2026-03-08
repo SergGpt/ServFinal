@@ -655,7 +655,8 @@ function registerEvents() {
         try {
             const zid = parseInt(zidRaw, 10);
             const dmg = parseInt(dmgRaw, 10) || 0;
-            zlog(`z:hit event by=${player ? player.id : -1} zidRaw=${zidRaw} zid=${zid} dmgRaw=${dmgRaw} dmg=${dmg}`);
+            zlog(`z:hit raw player=${player ? player.id : -1} zidRaw=${zidRaw} dmgRaw=${dmgRaw}`);
+            zlog(`z:hit parsed player=${player ? player.id : -1} zid=${zid} dmg=${dmg}`);
             const st = zombies.get(zid);
             if (!st) {
                 zlog(`z:hit ignored by=${player ? player.id : -1} zid=${zid} dmg=${dmg} reason=no-state`);
@@ -695,7 +696,8 @@ function registerEvents() {
         try {
             const zid = parseInt(zidRaw, 10);
             const reason = typeof reasonRaw === 'string' ? reasonRaw : 'client-signal';
-            zlog(`z:deadSignal event by=${player ? player.id : -1} zidRaw=${zidRaw} zid=${zid} reason=${reason}`);
+            zlog(`z:deadSignal raw player=${player ? player.id : -1} zidRaw=${zidRaw} reasonRaw=${reasonRaw}`);
+            zlog(`z:deadSignal parsed player=${player ? player.id : -1} zid=${zid} reason=${reason}`);
             const st = zombies.get(zid);
             if (!st) {
                 zlog(`z:deadSignal ignored by=${player ? player.id : -1} zid=${zid} reason=no-state`);
