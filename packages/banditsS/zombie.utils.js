@@ -1,6 +1,7 @@
 function createLogger(enabled, tag = 'ZCTRL') {
+    const importantRe = /(error|exception|fatal|spawn failed|switch failed|destroy error)/i;
     return (msg) => {
-        if (!enabled) return;
+        if (!enabled && !importantRe.test(String(msg || ''))) return;
         console.log(`[${tag}] ${msg}`);
     };
 }
