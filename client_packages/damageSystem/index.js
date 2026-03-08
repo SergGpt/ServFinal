@@ -158,7 +158,7 @@ function findStrictZombieCandidate(impactPos, ray) {
     return best;
 }
 
-function getAimRay(dist = ZOMBIE_RAYCAST_DIST) {
+function getAimRay(dist = ZOMBIE_RAYCAST_DIST, aimedPoint = null) {
     let camPos = null;
     let originSource = 'unknown';
 
@@ -182,23 +182,42 @@ function getAimRay(dist = ZOMBIE_RAYCAST_DIST) {
         originSource = 'player-pos-fallback';
     }
 
-    let camRot = { x: 0, y: 0, z: 0 };
-    try {
-        if (mp.game.cam && typeof mp.game.cam.getGameplayCamRot === 'function') {
-            camRot = mp.game.cam.getGameplayCamRot(2) || camRot;
+    let dir = null;
+    let dirSource = 'cam-rot';
+
+    if (aimedPoint && Number.isFinite(aimedPoint.x) && Number.isFinite(aimedPoint.y) && Number.isFinite(aimedPoint.z)) {
+        const delta = {
+            x: aimedPoint.x - camPos.x,
+            y: aimedPoint.y - camPos.y,
+            z: aimedPoint.z - camPos.z,
+        };
+        const len = length(delta);
+        if (len > 0.001) {
+            dir = { x: delta.x / len, y: delta.y / len, z: delta.z / len };
+            dirSource = 'cam-to-targetPosition';
         }
-    } catch (e) {
-        zlog(`raycast cam rot fallback err=${e.message}`);
     }
 
-    const pitch = camRot.x * Math.PI / 180.0;
-    const yaw = camRot.z * Math.PI / 180.0;
+    if (!dir) {
+        let camRot = { x: 0, y: 0, z: 0 };
+        try {
+            if (mp.game.cam && typeof mp.game.cam.getGameplayCamRot === 'function') {
+                camRot = mp.game.cam.getGameplayCamRot(2) || camRot;
+            }
+        } catch (e) {
+            zlog(`raycast cam rot fallback err=${e.message}`);
+        }
 
-    const dir = {
-        x: -Math.sin(yaw) * Math.cos(pitch),
-        y: Math.cos(yaw) * Math.cos(pitch),
-        z: Math.sin(pitch),
-    };
+        const pitch = camRot.x * Math.PI / 180.0;
+        const yaw = camRot.z * Math.PI / 180.0;
+        const cosPitch = Math.abs(Math.cos(pitch));
+
+        dir = {
+            x: -Math.sin(yaw) * cosPitch,
+            y: Math.cos(yaw) * cosPitch,
+            z: Math.sin(pitch),
+        };
+    }
 
     const to = {
         x: camPos.x + dir.x * dist,
@@ -206,26 +225,42 @@ function getAimRay(dist = ZOMBIE_RAYCAST_DIST) {
         z: camPos.z + dir.z * dist,
     };
 
-    zlog(`ray origin source=${originSource} origin=${camPos.x.toFixed(2)},${camPos.y.toFixed(2)},${camPos.z.toFixed(2)}`);
+    zlog(`ray origin source=${originSource} dirSource=${dirSource} origin=${camPos.x.toFixed(2)},${camPos.y.toFixed(2)},${camPos.z.toFixed(2)} dir=${dir.x.toFixed(4)},${dir.y.toFixed(4)},${dir.z.toFixed(4)}`);
 
-    return { from: camPos, to, dir, originSource };
+    return { from: camPos, to, dir, originSource, dirSource };
 }
 
-function runAimRaycast() {
+function runAimRaycast(aimedPoint = null) {
     try {
-        const ray = getAimRay(ZOMBIE_RAYCAST_DIST);
+        const ray = getAimRay(ZOMBIE_RAYCAST_DIST, aimedPoint);
         const hit = mp.raycasting.testPointToPoint(ray.from, ray.to, [1, 16]);
-        zlog(`raycast success=${!!hit} originSource=${ray.originSource || 'n/a'}`);
+        zlog(`raycast success=${!!hit} originSource=${ray.originSource || 'n/a'} dirSource=${ray.dirSource || 'n/a'}`);
         return { ray, hit };
     } catch (e) {
         zerr(`raycast fail reason=${e.message}`);
         try {
-            return { ray: getAimRay(ZOMBIE_RAYCAST_DIST), hit: null };
+            return { ray: getAimRay(ZOMBIE_RAYCAST_DIST, aimedPoint), hit: null };
         } catch (e2) {
             zerr(`raycast fallback fail reason=${e2.message}`);
             return { ray: null, hit: null };
         }
     }
+}
+
+function logRayAlignmentDebug(ray, impactPos, candidate, label) {
+    if (!ray || !impactPos) return;
+    try {
+        const base = `[${label}] impact=${impactPos.x.toFixed(2)},${impactPos.y.toFixed(2)},${impactPos.z.toFixed(2)} rayFrom=${ray.from.x.toFixed(2)},${ray.from.y.toFixed(2)},${ray.from.z.toFixed(2)} dir=${ray.dir.x.toFixed(4)},${ray.dir.y.toFixed(4)},${ray.dir.z.toFixed(4)}`;
+        if (!candidate || !candidate.ped || !mp.peds.exists(candidate.ped)) {
+            zlog(`${base} candidate=none`);
+            return;
+        }
+
+        const pedPos = candidate.ped.position;
+        const impactToPed = pedPos.distanceTo(impactPos);
+        const metrics = candidate.metrics || evaluateZombieCandidateByRay(candidate.ped, ray, impactPos);
+        zlog(`${base} candidateZid=${candidate.zid} ped=${pedPos.x.toFixed(2)},${pedPos.y.toFixed(2)},${pedPos.z.toFixed(2)} impactToPed=${impactToPed.toFixed(3)} rayDist=${metrics ? metrics.distToRay.toFixed(3) : 'n/a'} angle=${metrics ? metrics.angle.toFixed(3) : 'n/a'}`);
+    } catch {}
 }
 
 function findZombieAlongRay(ray, step = 4.0, radius = ZOMBIE_IMPACT_RADIUS) {
@@ -440,9 +475,10 @@ mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
 
     if (!ENABLE_RAYCAST_FALLBACK) return;
 
-    const { ray, hit } = runAimRaycast();
+    const { ray, hit } = runAimRaycast(targetPosition || null);
 
     const strictFromTargetPos = findStrictZombieCandidate(targetPosition, ray);
+    logRayAlignmentDebug(ray, targetPosition || null, strictFromTargetPos, 'targetPosition-strict');
     if (strictFromTargetPos) {
         sendZombieHitWithZone(strictFromTargetPos.ped, strictFromTargetPos.zid, damage, weaponHash, targetPosition, 'fallback targetPosition zombie hit', strictFromTargetPos.metrics);
         return;
@@ -461,6 +497,7 @@ mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
 
     const rayImpactPos = hit && hit.position ? hit.position : null;
     const strictFromRayImpact = findStrictZombieCandidate(rayImpactPos, ray);
+    logRayAlignmentDebug(ray, rayImpactPos, strictFromRayImpact, 'rayImpact-strict');
     if (strictFromRayImpact) {
         sendZombieHitWithZone(strictFromRayImpact.ped, strictFromRayImpact.zid, damage, weaponHash, rayImpactPos, 'raycast impact fallback zombie hit', strictFromRayImpact.metrics);
         return;
@@ -469,6 +506,7 @@ mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
     const nearAlongRay = findZombieAlongRay(ray, 4.0, ZOMBIE_IMPACT_RADIUS);
     if (nearAlongRay) {
         const metrics = evaluateZombieCandidateByRay(nearAlongRay.ped, ray, rayImpactPos);
+        logRayAlignmentDebug(ray, rayImpactPos, { zid: nearAlongRay.zid, ped: nearAlongRay.ped, metrics }, 'rayImpact-nearAlongRay');
         if (metrics && metrics.distToRay <= ZOMBIE_STRICT_RAY_DIST_MAX && metrics.angle <= ZOMBIE_STRICT_ANGLE_MAX_DEG) {
             sendZombieHitWithZone(nearAlongRay.ped, nearAlongRay.zid, damage, weaponHash, rayImpactPos, 'raycast impact fallback zombie hit', metrics);
             return;
