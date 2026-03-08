@@ -3,7 +3,7 @@
 // ============================
 
 const DEBUG = false;
-let VERBOSE = true;
+let VERBOSE = false;
 
 const me = mp.players.local;
 const zombies = new Map(); // zid -> { ped, followRid, lastFollowAt, lastNudgeAt }

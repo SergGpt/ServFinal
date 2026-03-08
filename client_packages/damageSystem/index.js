@@ -44,13 +44,14 @@ function zlog(msg) {
     try { mp.gui.chat.push(`!{#99ccff}[DMG-Z] ${msg}`); } catch {}
 }
 
+function zerr(msg) {
+    try { mp.gui.chat.push(`!{#ff6666}[DMG-Z:ERR] ${msg}`); } catch {}
+}
+
 function resolveZombieDamage(weaponHash) {
     const dmg = zombieWeaponDamage.get(weaponHash);
     if (typeof dmg === 'number' && dmg > 0) return dmg;
-    if (!unknownZombieWeapons.has(weaponHash)) {
-        unknownZombieWeapons.add(weaponHash);
-        zlog(`unknown weapon hash, using default damage hash=${weaponHash}`);
-    }
+    if (!unknownZombieWeapons.has(weaponHash)) unknownZombieWeapons.add(weaponHash);
     return DEFAULT_ZOMBIE_DAMAGE;
 }
 
@@ -206,11 +207,11 @@ function runAimRaycast() {
         zlog(`raycast success=${!!hit} originSource=${ray.originSource || 'n/a'}`);
         return { ray, hit };
     } catch (e) {
-        zlog(`raycast fail reason=${e.message}`);
+        zerr(`raycast fail reason=${e.message}`);
         try {
             return { ray: getAimRay(ZOMBIE_RAYCAST_DIST), hit: null };
         } catch (e2) {
-            zlog(`raycast fallback fail reason=${e2.message}`);
+            zerr(`raycast fallback fail reason=${e2.message}`);
             return { ray: null, hit: null };
         }
     }
@@ -244,7 +245,7 @@ function trySendZombieHit(zid, damage, weaponHash) {
     if (now - last < ZOMBIE_HIT_DEDUP_MS) return false;
     zombieHitAt.set(zid, now);
     zlog(`sending z:hit zid=${zid} damage=${damage} weapon=${weaponHash}`);
-    try { mp.events.callRemote('z:hit', zid, damage); } catch (e) { zlog(`z:hit send error zid=${zid} err=${e.message}`); }
+    try { mp.events.callRemote('z:hit', zid, damage); } catch (e) { zerr(`z:hit send error zid=${zid} err=${e.message}`); }
     return true;
 }
 
