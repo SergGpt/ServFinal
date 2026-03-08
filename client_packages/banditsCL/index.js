@@ -11,13 +11,13 @@ const pendingControllerAssign = new Map(); // zid -> { ver, at }
 
 const STEP_SPEED = 1.35;
 const STOP_DIST  = 1.6;
-const FOLLOW_CD  = 350;
+const FOLLOW_CD  = 700;
+const FOLLOW_COORD_REFRESH_MS = 700;
 const STUCK_CD   = 1000;
 const MIN_STEP   = 0.04;
-const HIT_REPORT_CD = 250;
-const hitReportAt = new Map(); // zid -> ts
 const DEAD_REPORT_CD = 1000;
 const deadReportAt = new Map(); // zid -> ts
+const deadConfirmedAt = new Map(); // zid -> ts
 const CTRL_HEARTBEAT_MS = 700;
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
@@ -39,32 +39,49 @@ function forceAggroPedState(ped){
     try { mp.game.ped.setPedAlertness(ped.handle, 3); } catch {}
 }
 
-function reportHit(zid, dmg, reason = 'unknown') {
+function sendHitRemote(zid, dmg, reason = 'unknown') {
     try {
-        const now = Date.now();
-        const last = hitReportAt.get(zid) || 0;
-        if (now - last < HIT_REPORT_CD) return;
-        hitReportAt.set(zid, now);
+        dlog(`sending z:hit zid=${zid} dmg=${dmg} reason=${reason}`);
         mp.events.callRemote('z:hit', zid, dmg);
-        dlog(`→ reportHit zid=${zid} dmg=${dmg} reason=${reason}`);
-    } catch {}
+        return true;
+    } catch (e) {
+        dlog(`z:hit send error zid=${zid} reason=${reason} err=${e.message}`);
+    }
+    return false;
 }
 
-function reportDead(zid, reason = 'unknown') {
+function sendDeadRemote(zid, reason = 'unknown') {
+    try {
+        dlog(`sending z:deadSignal zid=${zid} reason=${reason}`);
+        mp.events.callRemote('z:deadSignal', zid, reason);
+        return true;
+    } catch (e) {
+        dlog(`z:deadSignal send error zid=${zid} reason=${reason} err=${e.message}`);
+    }
+    return false;
+}
+
+function reportDead(zid, reason = 'unknown', force = false) {
     try {
         const now = Date.now();
         const last = deadReportAt.get(zid) || 0;
-        if (now - last < DEAD_REPORT_CD) return;
+        if (!force && (now - last < DEAD_REPORT_CD)) {
+            dlog(`reportDead skip zid=${zid} reason=${reason} cooldown=${now - last}`);
+            return false;
+        }
         deadReportAt.set(zid, now);
-        mp.events.callRemote('z:deadSignal', zid, reason);
-        dlog(`→ reportDead zid=${zid} reason=${reason}`);
-    } catch {}
+        return sendDeadRemote(zid, reason);
+    } catch (e) {
+        dlog(`reportDead error zid=${zid} reason=${reason} err=${e.message}`);
+    }
+    return false;
 }
 
 // ====== подготовка педа ======
 function prepPed(ped){
     try{ mp.game.entity.setEntityAsMissionEntity(ped.handle,true,true);}catch{}
-    try{ ped.setInvincible(false); }catch{}
+    try{ ped.setInvincible(true); }catch{}
+    try{ mp.game.entity.setEntityProofs(ped.handle, true, true, true, true, true, true, true, true); }catch{}
     try{ ped.setCollision(true,true); }catch{}
     try{ ped.setBlockingOfNonTemporaryEvents(true); }catch{}
     try{ ped.setKeepTask(true); }catch{}
@@ -109,8 +126,9 @@ function hydrateFollowFromPed(obj, ped) {
         obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
         obj.followSpeed = (extra && typeof extra.speed === 'number') ? extra.speed : STEP_SPEED;
         obj.stopDist = (extra && typeof extra.stopDist === 'number') ? extra.stopDist : STOP_DIST;
-        const target = findPlayerById(obj.followRid) || me;
-        applyFollowTask(obj, ped, target, Date.now());
+        const target = findPlayerById(obj.followRid);
+        dlog(`hydrateFollowFromPed zid=${ped.getVariable('zid')} ctrl=${isController(ped)} rid=${obj.followRid} target=${target ? target.id : 'none'}`);
+        applyFollowTask(obj, ped, target, Date.now(), 'hydrateFollowFromPed');
     } catch {}
 }
 
@@ -192,42 +210,73 @@ function findPlayerById(rid){
 }
 
 
-function applyFollowTask(obj, ped, target, now) {
+function applyFollowTask(obj, ped, target, now, source = 'unknown') {
     try {
-        if (!obj || !ped || !target) return;
+        if (!obj || !ped) return;
+
+        const zid = ped.getVariable('zid');
+        const ctrl = isController(ped);
+        if (!ctrl) {
+            dlog(`follow skip zid=${zid} source=${source} reason=not-controller`);
+            return;
+        }
 
         const speed = (obj && typeof obj.followSpeed === 'number') ? obj.followSpeed : STEP_SPEED;
         const stopDist = (obj && typeof obj.stopDist === 'number') ? obj.stopDist : STOP_DIST;
         const targetRid = typeof obj.followRid === 'number' ? obj.followRid : me.id;
-        const dist = target.position.distanceTo(ped.position);
-        if (dist <= stopDist) return;
+        const actualTarget = target || findPlayerById(targetRid) || me;
+        if (!actualTarget || !actualTarget.handle) {
+            dlog(`follow skip zid=${zid} source=${source} rid=${targetRid} reason=target-invalid`);
+            return;
+        }
+
+        const dist = actualTarget.position.distanceTo(ped.position);
+        const targetPos = actualTarget.position;
+        dlog(`follow tick zid=${zid} source=${source} ctrl=${ctrl} rid=${targetRid} target=${actualTarget.id} dist=${dist.toFixed(2)}`);
+        if (dist <= stopDist) {
+            if (!obj.wasInStopRange) {
+                obj.wasInStopRange = true;
+                dlog(`follow stop zid=${zid} dist=${dist.toFixed(2)} <= ${stopDist}`);
+            }
+            return;
+        }
+        obj.wasInStopRange = false;
 
         const lastPos = obj.lastPos || ped.position;
         const moved = ped.position.distanceTo(lastPos);
         obj.lastPos = ped.position;
-        const moving = moved > 0.02;
+        const moving = moved > MIN_STEP;
+
+        const lastTargetPos = obj.lastTaskTargetPos;
+        const targetMoved = !lastTargetPos || Math.abs(targetPos.x - lastTargetPos.x) > 0.8 || Math.abs(targetPos.y - lastTargetPos.y) > 0.8 || Math.abs(targetPos.z - lastTargetPos.z) > 1.5;
+        const targetChanged = obj.lastTaskTargetRid !== targetRid;
+        const coordRefreshDue = !obj.lastCoordTaskAt || (now - obj.lastCoordTaskAt) >= FOLLOW_COORD_REFRESH_MS;
+        const needReissueCoord = targetChanged || targetMoved || !moving || coordRefreshDue;
 
         if (!obj.lastFollowAt || (now - obj.lastFollowAt) >= FOLLOW_CD) {
-            const targetChanged = obj.lastTaskTargetRid !== targetRid;
-            const needReissue = targetChanged || !moving || !obj.lastFollowAt;
-            if (needReissue) {
+            if (needReissueCoord) {
                 obj.lastFollowAt = now;
-                if (targetChanged) {
-                    obj.lastTaskTargetRid = targetRid;
-                    try { ped.clearTasks(); } catch {}
-                }
+                obj.lastCoordTaskAt = now;
+                obj.lastTaskTargetRid = targetRid;
+                obj.lastTaskTargetPos = { x: targetPos.x, y: targetPos.y, z: targetPos.z };
+                try { ped.clearTasks(); } catch {}
                 forceAggroPedState(ped);
-                ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, speed, -1, stopDist, true);
+                ped.taskGoToCoordAnyMeans(targetPos.x, targetPos.y, targetPos.z, speed, 0, false, 0, 0.0);
+                dlog(`follow taskGoToCoordAnyMeans zid=${zid} target=${actualTarget.id} dist=${dist.toFixed(2)} moving=${moving}`);
+
+                try {
+                    ped.taskFollowToOffsetOfEntity(actualTarget.handle, 0, 0, 0, speed, 2000, stopDist, true);
+                    dlog(`follow fallback taskFollowToOffsetOfEntity zid=${zid} target=${actualTarget.id}`);
+                } catch {}
             }
         }
 
-        // мягкий "пинок" навигации, если ped визуально завис
-        if ((!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= 1200) && !moving) {
+        if ((!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= STUCK_CD) && !moving) {
             obj.lastNudgeAt = now;
             try { ped.clearTasks(); } catch {}
             forceAggroPedState(ped);
-            ped.taskGoStraightToCoord(target.position.x, target.position.y, target.position.z, speed, 1200, 0.0, 0.0);
-            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, speed, -1, stopDist, true);
+            ped.taskGoStraightToCoord(targetPos.x, targetPos.y, targetPos.z, speed, 1200, 0.0, 0.0);
+            dlog(`follow nudge taskGoStraightToCoord zid=${zid} dist=${dist.toFixed(2)}`);
         }
     } catch {}
 }
@@ -264,11 +313,18 @@ mp.events.add('z:assignController', (zid, ver) => {
 mp.events.add('z:executeCommand', (zid, cmd, extraJson) => {
     try{
         const obj = zombies.get(zid);
-        if(!obj) return;
+        if(!obj) {
+            dlog(`executeCommand skip zid=${zid} cmd=${cmd} reason=no-obj`);
+            return;
+        }
         const ped = obj.ped;
-        if(!mp.peds.exists(ped)) return;
+        if(!mp.peds.exists(ped)) {
+            dlog(`executeCommand skip zid=${zid} cmd=${cmd} reason=ped-missing`);
+            return;
+        }
 
         const extra = extraJson ? JSON.parse(extraJson) : {};
+        dlog(`executeCommand zid=${zid} cmd=${cmd} ctrl=${isController(ped)} extra=${JSON.stringify(extra)}`);
 
         switch (cmd) {
             case 'idle':
@@ -278,8 +334,9 @@ mp.events.add('z:executeCommand', (zid, cmd, extraJson) => {
                 obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
                 obj.followSpeed = (extra && typeof extra.speed === 'number') ? extra.speed : STEP_SPEED;
                 obj.stopDist = (extra && typeof extra.stopDist === 'number') ? extra.stopDist : STOP_DIST;
-                const target = findPlayerById(obj.followRid) || me;
-                applyFollowTask(obj, ped, target, Date.now());
+                const target = findPlayerById(obj.followRid);
+                dlog(`execute follow zid=${zid} rid=${obj.followRid} target=${target ? target.id : 'none'} ped=${mp.peds.exists(ped)}`);
+                applyFollowTask(obj, ped, target, Date.now(), 'z:executeCommand');
                 break;
             }
             case 'goMe': {
@@ -308,7 +365,7 @@ mp.events.add('z:forceRemove', (zid) => {
         zombies.delete(zid);
         pendingControllerAssign.delete(zid);
         deadReportAt.delete(zid);
-        hitReportAt.delete(zid);
+        deadConfirmedAt.delete(zid);
         dlog(`🗑 forceRemove zid=${zid}`);
     } catch {}
 });
@@ -341,7 +398,9 @@ mp.events.add('z:dead', (zid) => {
     if(!obj) return;
     const ped = obj.ped;
     if(!mp.peds.exists(ped)) return;
-    reportDead(zid, 'server-dead-event');
+    deadConfirmedAt.set(zid, Date.now());
+    try { ped.setInvincible(false); } catch {}
+    try { mp.game.entity.setEntityProofs(ped.handle, false, false, false, false, false, false, false, false); }catch{}
     try { ped.clearTasksImmediately(); } catch {}
     try { ped.setHealth(0); } catch {}
     try { mp.game.ped.setPedToRagdoll(ped.handle, 5000, 5000, 0, false, false, false); } catch {}
@@ -354,11 +413,11 @@ setInterval(() => {
             const ped = obj.ped;
             if (!mp.peds.exists(ped)) return;
             const hp = Number(ped.getHealth ? ped.getHealth() : ped.health) || 0;
-            const deadOrDying = mp.game.entity.isEntityDead(ped.handle, false)
-                || mp.game.ped.isPedDeadOrDying(ped.handle, true)
-                || hp <= 0;
-            if (!deadOrDying) return;
-            reportDead(zid, `client-loop hp=${hp}`);
+            const deadFlag = !!ped.getVariable('deadFlag');
+            if (!deadFlag) return;
+            if (deadConfirmedAt.has(zid)) return;
+            const sent = reportDead(zid, `client-loop deadFlag=${deadFlag} hp=${hp}`, false);
+            if (sent) deadConfirmedAt.set(zid, Date.now());
         } catch {}
     });
 }, 500);
@@ -372,8 +431,8 @@ setInterval(() => {
 
         try {
             const targetRid = typeof obj.followRid === 'number' ? obj.followRid : me.id;
-            const target = findPlayerById(targetRid) || me;
-            applyFollowTask(obj, ped, target, Date.now());
+            const target = findPlayerById(targetRid);
+            applyFollowTask(obj, ped, target, Date.now(), 'controller-loop');
         } catch {}
     });
 }, 300);
@@ -390,80 +449,39 @@ setInterval(() => {
     });
 }, CTRL_HEARTBEAT_MS);
 
-// ====== HIT: raycast по выстрелу ======
-
-// вспомогательная — пуск луча
-function raycastFromCam(dist){
-    const camPos = mp.game.cam.getGameplayCamCoord();
-    const camRot = mp.game.cam.getGameplayCamRot(2);
-    const pitch = camRot.x * Math.PI / 180.0;
-    const yaw   = camRot.z * Math.PI / 180.0;
-
-    const dir = {
-        x: -Math.sin(yaw) * Math.cos(pitch),
-        y:  Math.cos(yaw) * Math.cos(pitch),
-        z:  Math.sin(pitch)
-    };
-
-    const to = {
-        x: camPos.x + dir.x * dist,
-        y: camPos.y + dir.y * dist,
-        z: camPos.z + dir.z * dist
-    };
-
-    // shapeTestRay
-    const ray = mp.raycasting.testPointToPoint(camPos, to, [1, 16]); // 8 - ped?, но чаще берут вот так
-    return ray;
-}
-
-// ловим выстрел
-mp.events.add('playerWeaponShot', () => {
-    try {
-        const hit = raycastFromCam(60.0);
-        if (!hit || !hit.entity || hit.entity.type !== 'ped') return;
-
-        const zid = hit.entity.getVariable('zid');
-        if (typeof zid !== 'number') return; // не наш
-
-        // пока ставим фиксированный урон
-        const dmg = 35;
-        reportHit(zid, dmg, 'weaponShot-raycast');
-    } catch (e) {
-        // ignore
-    }
-});
-
-// дополнительный надежный канал: срабатывает при реальном уроне ped
-mp.events.add('entityDamaged', (entity, attacker, weapon, damage) => {
-    try {
-        if (!entity || entity.type !== 'ped') return;
-        const zid = entity.getVariable('zid');
-        if (typeof zid !== 'number') return;
-
-        if (!attacker || attacker.type !== 'player') return;
-        if (attacker.handle !== me.handle) return;
-
-        const dmg = Math.max(1, parseInt(damage) || 25);
-        reportHit(zid, dmg, `entityDamaged-w=${weapon}`);
-
+function getNearestZombieZid() {
+    let best = null;
+    let bestD = Infinity;
+    zombies.forEach((obj, zid) => {
         try {
-            const hp = Number(entity.getHealth ? entity.getHealth() : entity.health) || 0;
-            if (hp <= 0) reportDead(zid, `entityDamaged-kill w=${weapon}`);
+            if (!obj || !obj.ped || !mp.peds.exists(obj.ped)) return;
+            const d = me.position.distanceTo(obj.ped.position);
+            if (d < bestD) {
+                bestD = d;
+                best = zid;
+            }
         } catch {}
-    } catch {}
-});
+    });
+    return best;
+}
 
 // ===== КЛАВИША: убить ближайшего зомби (для теста)
 mp.keys.bind(0x6B, true, () => { // NumPad +
-    let best = null, bestD = Infinity;
-    zombies.forEach((obj, zid) => {
-        if (!mp.peds.exists(obj.ped)) return;
-        const d = me.position.distanceTo(obj.ped.position);
-        if (d < bestD) { bestD = d; best = zid; }
-    });
+    const best = getNearestZombieZid();
     if (best !== null) {
-        chat(`→ kill request zid=${best}`, '#ffcc00');
-        mp.events.callRemote('z:hit', best, 200); // гарантированно убьём
+        chat(`→ debug force z:hit zid=${best}`, '#ffcc00');
+        sendHitRemote(best, 200, 'debug-key');
+    } else {
+        chat('нет зомби рядом', '#ff6666');
+    }
+});
+
+// NumPad -: принудительный тест deadSignal pipeline
+mp.keys.bind(0x6D, true, () => {
+    const best = getNearestZombieZid();
+    if (best !== null) {
+        chat(`→ debug force z:deadSignal zid=${best}`, '#ffcc00');
+        sendDeadRemote(best, 'debug-force');
     } else {
         chat('нет зомби рядом', '#ff6666');
     }
