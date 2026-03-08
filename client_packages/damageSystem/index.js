@@ -3,6 +3,7 @@
 const ZOMBIE_IMPACT_RADIUS = 1.6;
 const ZOMBIE_HIT_DEDUP_MS = 15;
 const DEFAULT_ZOMBIE_DAMAGE = 12;
+const ZOMBIE_RAYCAST_DIST = 120.0;
 const zombieHitAt = new Map(); // zid -> ts
 const zombieWeaponDamage = new Map();
 const unknownZombieWeapons = new Set();
@@ -66,6 +67,59 @@ function findZombieNearPosition(pos, radius = ZOMBIE_IMPACT_RADIUS) {
         } catch {}
     });
     return best;
+}
+
+function getAimRay(dist = ZOMBIE_RAYCAST_DIST) {
+    const camPos = mp.game.cam.getGameplayCamCoord();
+    const camRot = mp.game.cam.getGameplayCamRot(2);
+    const pitch = camRot.x * Math.PI / 180.0;
+    const yaw = camRot.z * Math.PI / 180.0;
+
+    const dir = {
+        x: -Math.sin(yaw) * Math.cos(pitch),
+        y: Math.cos(yaw) * Math.cos(pitch),
+        z: Math.sin(pitch),
+    };
+
+    const to = {
+        x: camPos.x + dir.x * dist,
+        y: camPos.y + dir.y * dist,
+        z: camPos.z + dir.z * dist,
+    };
+
+    return { from: camPos, to, dir };
+}
+
+function runAimRaycast() {
+    try {
+        const ray = getAimRay(ZOMBIE_RAYCAST_DIST);
+        const hit = mp.raycasting.testPointToPoint(ray.from, ray.to, [1, 16]);
+        return { ray, hit };
+    } catch {
+        return { ray: getAimRay(ZOMBIE_RAYCAST_DIST), hit: null };
+    }
+}
+
+function findZombieAlongRay(ray, step = 4.0, radius = ZOMBIE_IMPACT_RADIUS) {
+    if (!ray || !ray.from || !ray.to) return null;
+    const dx = ray.to.x - ray.from.x;
+    const dy = ray.to.y - ray.from.y;
+    const dz = ray.to.z - ray.from.z;
+    const len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0;
+    if (len <= 0.001) return null;
+    const dir = { x: dx / len, y: dy / len, z: dz / len };
+
+    for (let t = step; t <= len; t += step) {
+        const point = {
+            x: ray.from.x + dir.x * t,
+            y: ray.from.y + dir.y * t,
+            z: ray.from.z + dir.z * t,
+        };
+        const near = findZombieNearPosition(point, radius);
+        if (near) return near;
+    }
+
+    return null;
 }
 
 function trySendZombieHit(zid, damage, weaponHash) {
@@ -193,10 +247,38 @@ mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
         zlog('hit entity type=none');
     }
 
-    const near = findZombieNearPosition(targetPosition, ZOMBIE_IMPACT_RADIUS);
-    if (near) {
-        zlog(`fallback zombie hit zid=${near.zid} dist=${near.dist.toFixed(2)}`);
-        trySendZombieHit(near.zid, damage, weaponHash);
+    const nearFromTargetPos = findZombieNearPosition(targetPosition, ZOMBIE_IMPACT_RADIUS);
+    if (nearFromTargetPos) {
+        zlog(`fallback targetPosition zombie hit zid=${nearFromTargetPos.zid} dist=${nearFromTargetPos.dist.toFixed(2)}`);
+        trySendZombieHit(nearFromTargetPos.zid, damage, weaponHash);
+        return;
+    }
+
+    const { ray, hit } = runAimRaycast();
+    const rayEntityType = (hit && hit.entity && hit.entity.type) ? hit.entity.type : 'none';
+    zlog(`raycast entity type=${rayEntityType}`);
+
+    if (hit && hit.entity && hit.entity.type === 'ped') {
+        const zid = hit.entity.getVariable('zid');
+        if (typeof zid === 'number') {
+            zlog(`raycast zombie hit zid=${zid}`);
+            trySendZombieHit(zid, damage, weaponHash);
+            return;
+        }
+    }
+
+    const rayImpactPos = hit && hit.position ? hit.position : null;
+    const nearFromRayImpact = findZombieNearPosition(rayImpactPos, ZOMBIE_IMPACT_RADIUS);
+    if (nearFromRayImpact) {
+        zlog(`raycast impact fallback zombie hit zid=${nearFromRayImpact.zid} dist=${nearFromRayImpact.dist.toFixed(2)}`);
+        trySendZombieHit(nearFromRayImpact.zid, damage, weaponHash);
+        return;
+    }
+
+    const nearAlongRay = findZombieAlongRay(ray, 4.0, ZOMBIE_IMPACT_RADIUS);
+    if (nearAlongRay) {
+        zlog(`raycast impact fallback zombie hit zid=${nearAlongRay.zid} dist=${nearAlongRay.dist.toFixed(2)}`);
+        trySendZombieHit(nearAlongRay.zid, damage, weaponHash);
         return;
     }
 
