@@ -1,7 +1,7 @@
 "use strict";
 
 const DEBUG_ZOMBIE_DAMAGE = false;
-const ENABLE_RAYCAST_FALLBACK = false;
+const ENABLE_RAYCAST_FALLBACK = true;
 
 const ZOMBIE_IMPACT_RADIUS = 1.6;
 const ZOMBIE_HIT_DEDUP_MS = 5;
@@ -17,6 +17,8 @@ const zombieHitAt = new Map(); // zid -> ts
 const zombieHitSignature = new Map(); // zid -> { ts, weaponHash, zone }
 const zombieWeaponDamage = new Map();
 const unknownZombieWeapons = new Set();
+const HIT_FEEDBACK_MS = 550;
+const hitFeedbackState = { value: null, until: 0 };
 
 function addZombieWeaponDamage(name, value) {
     try { zombieWeaponDamage.set(mp.game.joaat(name), value); } catch {}
@@ -86,44 +88,6 @@ function resolveZombieFromPed(ped) {
     const zid = ped.getVariable('zid');
     if (typeof zid !== 'number') return null;
     return { ped, zid };
-}
-
-function resolveZombieFromAimTarget() {
-    try {
-        const me = mp.players.local;
-        if (!me || !me.handle) return null;
-
-        let aimedHandle = 0;
-        try {
-            if (mp.game.player && typeof mp.game.player.getEntityPlayerIsFreeAimingAt === 'function') {
-                const out = mp.game.player.getEntityPlayerIsFreeAimingAt(me.handle);
-                if (Array.isArray(out)) {
-                    if (out[0] === true) aimedHandle = Number(out[1]) || 0;
-                } else if (typeof out === 'number') {
-                    aimedHandle = out;
-                } else if (out && typeof out === 'object') {
-                    if (typeof out.entity === 'number') aimedHandle = out.entity;
-                    else if (typeof out.handle === 'number') aimedHandle = out.handle;
-                }
-            }
-        } catch {}
-
-        if (!aimedHandle) return null;
-
-        let found = null;
-        mp.peds.forEach((ped) => {
-            if (found) return;
-            try {
-                const zombie = resolveZombieFromPed(ped);
-                if (!zombie) return;
-                if (ped.handle !== aimedHandle) return;
-                found = zombie;
-            } catch {}
-        });
-        return found;
-    } catch {
-        return null;
-    }
 }
 
 function dot(a, b) {
@@ -333,22 +297,30 @@ function sendZombieHitWithZone(ped, zid, baseDamage, weaponHash, impactPos, sour
         zlog(`${sourceLog} zid=${zid} zone=${zone}`);
     }
     zlog(`final damage after multiplier=${finalDamage}`);
-    trySendZombieHit(zid, finalDamage, weaponHash, zone);
+    const sent = trySendZombieHit(zid, finalDamage, weaponHash, zone);
+    const registeredDamage = sent ? finalDamage : 0;
+    showZombieHitFeedback(registeredDamage);
+    return registeredDamage;
 }
 
-function consumeZombieDamageFlag(ped) {
-    try {
-        if (!ped || !mp.peds.exists(ped)) return false;
-        const me = mp.players.local;
-        if (!me || !me.handle) return false;
-        const damaged = mp.game.entity.hasEntityBeenDamagedByEntity(ped.handle, me.handle, true);
-        if (!damaged) return false;
-        try { mp.game.entity.clearEntityLastDamageEntity(ped.handle); } catch {}
-        return true;
-    } catch {
-        return false;
-    }
+function showZombieHitFeedback(value) {
+    hitFeedbackState.value = Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+    hitFeedbackState.until = Date.now() + HIT_FEEDBACK_MS;
 }
+
+mp.events.add('render', () => {
+    try {
+        if (!hitFeedbackState.until || Date.now() > hitFeedbackState.until) return;
+        const color = hitFeedbackState.value > 0 ? [255, 80, 80, 230] : [180, 180, 180, 220];
+        mp.game.graphics.drawText(`${hitFeedbackState.value}`, [0.506, 0.465], {
+            font: 4,
+            color,
+            scale: [0.42, 0.42],
+            outline: true,
+            centre: true
+        });
+    } catch {}
+});
 
 let parts = [
     {
@@ -466,27 +438,7 @@ mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
         zlog('hit entity type=none');
     }
 
-    // Primary zombie hit source when targetEntity is empty: exact ped under native aim target.
-    const aimZombie = resolveZombieFromAimTarget();
-    if (aimZombie) {
-        sendZombieHitWithZone(aimZombie.ped, aimZombie.zid, damage, weaponHash, directImpactPos, 'native aim-target zombie hit');
-        return;
-    }
-
-    // Secondary source: real ped damage registration for edge cases where aim target isn't available.
-    let damageDelivered = false;
-    mp.peds.forEach((ped) => {
-        if (damageDelivered) return;
-        try {
-            const zombie = resolveZombieFromPed(ped);
-            if (!zombie) return;
-            if (!consumeZombieDamageFlag(zombie.ped)) return;
-            sendZombieHitWithZone(zombie.ped, zombie.zid, damage, weaponHash, null, 'native ped damage hit');
-            damageDelivered = true;
-        } catch {}
-    });
-
-    if (damageDelivered || !ENABLE_RAYCAST_FALLBACK) return;
+    if (!ENABLE_RAYCAST_FALLBACK) return;
 
     const { ray, hit } = runAimRaycast();
 
