@@ -17,6 +17,7 @@ const STUCK_CD   = 1000;
 const MIN_STEP   = 0.04;
 const DEAD_REPORT_CD = 1000;
 const deadReportAt = new Map(); // zid -> ts
+const deadConfirmedAt = new Map(); // zid -> ts
 const CTRL_HEARTBEAT_MS = 700;
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
@@ -364,6 +365,7 @@ mp.events.add('z:forceRemove', (zid) => {
         zombies.delete(zid);
         pendingControllerAssign.delete(zid);
         deadReportAt.delete(zid);
+        deadConfirmedAt.delete(zid);
         dlog(`🗑 forceRemove zid=${zid}`);
     } catch {}
 });
@@ -396,7 +398,7 @@ mp.events.add('z:dead', (zid) => {
     if(!obj) return;
     const ped = obj.ped;
     if(!mp.peds.exists(ped)) return;
-    reportDead(zid, 'server-dead-event');
+    deadConfirmedAt.set(zid, Date.now());
     try { ped.setInvincible(false); } catch {}
     try { mp.game.entity.setEntityProofs(ped.handle, false, false, false, false, false, false, false, false); }catch{}
     try { ped.clearTasksImmediately(); } catch {}
@@ -413,8 +415,9 @@ setInterval(() => {
             const hp = Number(ped.getHealth ? ped.getHealth() : ped.health) || 0;
             const deadFlag = !!ped.getVariable('deadFlag');
             if (!deadFlag) return;
-            dlog(`dead-loop zid=${zid} hp=${hp} deadFlag=${deadFlag}`);
-            reportDead(zid, `client-loop deadFlag=${deadFlag}`, true);
+            if (deadConfirmedAt.has(zid)) return;
+            const sent = reportDead(zid, `client-loop deadFlag=${deadFlag} hp=${hp}`, false);
+            if (sent) deadConfirmedAt.set(zid, Date.now());
         } catch {}
     });
 }, 500);

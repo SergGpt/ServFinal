@@ -30,8 +30,15 @@ function createControllerManager(deps) {
             return false;
         }
 
+        const now = Date.now();
+        const sameController = st.controllerRid === nextController.id;
+        const recentlySwitched = now - (st.lastControllerSwitchAt || 0) < (timers.switchCooldownMs || 200);
+        if (sameController && recentlySwitched) {
+            return false;
+        }
+
         st.switching = true;
-        st.switchStartAt = Date.now();
+        st.switchStartAt = now;
         st.switchReason = reason;
         st.switchAttempts = (st.switchAttempts || 0) + 1;
 
@@ -60,7 +67,7 @@ function createControllerManager(deps) {
         st.ped.setVariable('controllerRid', nextController.id);
 
         st.controllerRid = nextController.id;
-        st.lastControllerSwitchAt = Date.now();
+        st.lastControllerSwitchAt = now;
         st.lastHeartbeatAt = 0;
 
         const sendAssign = () => {

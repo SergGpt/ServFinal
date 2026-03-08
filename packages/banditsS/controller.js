@@ -591,7 +591,6 @@ function cleanupDeadZombies() {
     zombies.forEach((st) => {
         if (!st.dead) return;
         const elapsed = now - st.deadAt;
-        zlog(`cleanup-check zid=${st.zid} deadAt=${st.deadAt} elapsed=${elapsed}`);
         if (elapsed < ZOMBIE_CONFIG.timers.deadRemoveDelayMs) return;
         zlog(`cleanup-destroy zid=${st.zid} reason=dead-delay`);
         destroyZombie(st.zid, 'dead-delay');
@@ -606,6 +605,9 @@ const controllerManager = createControllerManager({
         follow: (state) => {
             const owner = getPlayerById(mp, state.lastTaskData && state.lastTaskData.rid);
             if (owner && mp.players.exists(owner)) state.ownerRid = owner.id;
+            if (state.state === ZOMBIE_STATE.CHASE && state.lastFollowTargetRid === state.ownerRid && Date.now() - (state.lastFollowSentAt || 0) < ZOMBIE_CONFIG.ai.skipDuplicateFollowMs) {
+                return;
+            }
             setZombieState(state, ZOMBIE_STATE.CHASE, zlog, 'restore-follow');
             setTaskFollow(state, 'restore-follow');
         },
@@ -646,7 +648,6 @@ function registerEvents() {
             st.stuckGraceUntil = Math.max(st.stuckGraceUntil || 0, st.lastControllerAckAt + (ZOMBIE_CONFIG.ai.stuckGraceAfterAckMs || 2500));
             st.ctrlVer = ver;
             controllerManager.onControllerAck(st, player.id, ver);
-            zlog(`ctrlAck zid=${zid} by=${player.id} ver=${ver}`);
         } catch {}
     });
 
@@ -713,20 +714,11 @@ function registerEvents() {
             zlog(`z:deadSignal raw player=${player ? player.id : -1} zidRaw=${zidRaw} reasonRaw=${reasonRaw}`);
             zlog(`z:deadSignal parsed player=${player ? player.id : -1} zid=${zid} reason=${reason}`);
             const st = zombies.get(zid);
-            if (!st) {
-                zlog(`z:deadSignal ignored by=${player ? player.id : -1} zid=${zid} reason=no-state`);
-                return;
-            }
-            if (st.dead) {
-                zlog(`z:deadSignal ignored by=${player ? player.id : -1} zid=${zid} reason=already-dead`);
-                return;
-            }
+            if (!st) return;
+            if (st.dead) return;
 
             const now = Date.now();
-            if (now - (st.deadSignalAt || 0) < ZOMBIE_CONFIG.timers.deadSignalCooldownMs) {
-                zlog(`z:deadSignal ignored by=${player ? player.id : -1} zid=${zid} reason=cooldown`);
-                return;
-            }
+            if (now - (st.deadSignalAt || 0) < ZOMBIE_CONFIG.timers.deadSignalCooldownMs) return;
             st.deadSignalAt = now;
 
             zlog(`z:deadSignal recv by=${player ? player.id : -1} zid=${zid} reason=${reason}`);
