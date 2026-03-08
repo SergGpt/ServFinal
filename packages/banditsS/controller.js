@@ -653,7 +653,16 @@ function registerEvents() {
             const zid = parseInt(zidRaw, 10);
             const dmg = parseInt(dmgRaw, 10) || 0;
             const st = zombies.get(zid);
-            if (!st || st.dead) return;
+            if (!st) {
+                zlog(`z:hit ignored by=${player ? player.id : -1} zid=${zid} dmg=${dmg} reason=no-state`);
+                return;
+            }
+            if (st.dead) {
+                zlog(`z:hit ignored by=${player ? player.id : -1} zid=${zid} dmg=${dmg} reason=already-dead`);
+                return;
+            }
+
+            zlog(`z:hit recv by=${player ? player.id : -1} zid=${zid} dmg=${dmg} hp=${st.hp}`);
 
             const oldHp = Math.max(0, parseInt(st.hp, 10) || ZOMBIE_CONFIG.stats.hp);
             const newHp = Math.max(0, oldHp - Math.max(1, dmg));
@@ -678,13 +687,24 @@ function registerEvents() {
         try {
             const zid = parseInt(zidRaw, 10);
             const st = zombies.get(zid);
-            if (!st || st.dead) return;
+            if (!st) {
+                zlog(`z:deadSignal ignored by=${player ? player.id : -1} zid=${zid} reason=no-state`);
+                return;
+            }
+            if (st.dead) {
+                zlog(`z:deadSignal ignored by=${player ? player.id : -1} zid=${zid} reason=already-dead`);
+                return;
+            }
 
             const now = Date.now();
-            if (now - (st.deadSignalAt || 0) < ZOMBIE_CONFIG.timers.deadSignalCooldownMs) return;
+            if (now - (st.deadSignalAt || 0) < ZOMBIE_CONFIG.timers.deadSignalCooldownMs) {
+                zlog(`z:deadSignal ignored by=${player ? player.id : -1} zid=${zid} reason=cooldown`);
+                return;
+            }
             st.deadSignalAt = now;
 
             const reason = typeof reasonRaw === 'string' ? reasonRaw : 'client-signal';
+            zlog(`z:deadSignal recv by=${player ? player.id : -1} zid=${zid} reason=${reason}`);
             markDeadBySignal(zid, `${reason}:rid=${player ? player.id : -1}`);
             zlog(`deadSignal accepted zid=${zid} by=${player ? player.id : -1} reason=${reason}`);
         } catch (e) {

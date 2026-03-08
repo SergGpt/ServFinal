@@ -11,7 +11,8 @@ const pendingControllerAssign = new Map(); // zid -> { ver, at }
 
 const STEP_SPEED = 1.35;
 const STOP_DIST  = 1.6;
-const FOLLOW_CD  = 350;
+const FOLLOW_CD  = 700;
+const FOLLOW_COORD_REFRESH_MS = 700;
 const STUCK_CD   = 1000;
 const MIN_STEP   = 0.04;
 const HIT_REPORT_CD = 250;
@@ -109,8 +110,9 @@ function hydrateFollowFromPed(obj, ped) {
         obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
         obj.followSpeed = (extra && typeof extra.speed === 'number') ? extra.speed : STEP_SPEED;
         obj.stopDist = (extra && typeof extra.stopDist === 'number') ? extra.stopDist : STOP_DIST;
-        const target = findPlayerById(obj.followRid) || me;
-        applyFollowTask(obj, ped, target, Date.now());
+        const target = findPlayerById(obj.followRid);
+        dlog(`hydrateFollowFromPed zid=${ped.getVariable('zid')} ctrl=${isController(ped)} rid=${obj.followRid} target=${target ? target.id : 'none'}`);
+        applyFollowTask(obj, ped, target, Date.now(), 'hydrateFollowFromPed');
     } catch {}
 }
 
@@ -192,42 +194,73 @@ function findPlayerById(rid){
 }
 
 
-function applyFollowTask(obj, ped, target, now) {
+function applyFollowTask(obj, ped, target, now, source = 'unknown') {
     try {
-        if (!obj || !ped || !target) return;
+        if (!obj || !ped) return;
+
+        const zid = ped.getVariable('zid');
+        const ctrl = isController(ped);
+        if (!ctrl) {
+            dlog(`follow skip zid=${zid} source=${source} reason=not-controller`);
+            return;
+        }
 
         const speed = (obj && typeof obj.followSpeed === 'number') ? obj.followSpeed : STEP_SPEED;
         const stopDist = (obj && typeof obj.stopDist === 'number') ? obj.stopDist : STOP_DIST;
         const targetRid = typeof obj.followRid === 'number' ? obj.followRid : me.id;
-        const dist = target.position.distanceTo(ped.position);
-        if (dist <= stopDist) return;
+        const actualTarget = target || findPlayerById(targetRid) || me;
+        if (!actualTarget || !actualTarget.handle) {
+            dlog(`follow skip zid=${zid} source=${source} rid=${targetRid} reason=target-invalid`);
+            return;
+        }
+
+        const dist = actualTarget.position.distanceTo(ped.position);
+        const targetPos = actualTarget.position;
+        dlog(`follow tick zid=${zid} source=${source} ctrl=${ctrl} rid=${targetRid} target=${actualTarget.id} dist=${dist.toFixed(2)}`);
+        if (dist <= stopDist) {
+            if (!obj.wasInStopRange) {
+                obj.wasInStopRange = true;
+                dlog(`follow stop zid=${zid} dist=${dist.toFixed(2)} <= ${stopDist}`);
+            }
+            return;
+        }
+        obj.wasInStopRange = false;
 
         const lastPos = obj.lastPos || ped.position;
         const moved = ped.position.distanceTo(lastPos);
         obj.lastPos = ped.position;
-        const moving = moved > 0.02;
+        const moving = moved > MIN_STEP;
+
+        const lastTargetPos = obj.lastTaskTargetPos;
+        const targetMoved = !lastTargetPos || Math.abs(targetPos.x - lastTargetPos.x) > 0.8 || Math.abs(targetPos.y - lastTargetPos.y) > 0.8 || Math.abs(targetPos.z - lastTargetPos.z) > 1.5;
+        const targetChanged = obj.lastTaskTargetRid !== targetRid;
+        const coordRefreshDue = !obj.lastCoordTaskAt || (now - obj.lastCoordTaskAt) >= FOLLOW_COORD_REFRESH_MS;
+        const needReissueCoord = targetChanged || targetMoved || !moving || coordRefreshDue;
 
         if (!obj.lastFollowAt || (now - obj.lastFollowAt) >= FOLLOW_CD) {
-            const targetChanged = obj.lastTaskTargetRid !== targetRid;
-            const needReissue = targetChanged || !moving || !obj.lastFollowAt;
-            if (needReissue) {
+            if (needReissueCoord) {
                 obj.lastFollowAt = now;
-                if (targetChanged) {
-                    obj.lastTaskTargetRid = targetRid;
-                    try { ped.clearTasks(); } catch {}
-                }
+                obj.lastCoordTaskAt = now;
+                obj.lastTaskTargetRid = targetRid;
+                obj.lastTaskTargetPos = { x: targetPos.x, y: targetPos.y, z: targetPos.z };
+                try { ped.clearTasks(); } catch {}
                 forceAggroPedState(ped);
-                ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, speed, -1, stopDist, true);
+                ped.taskGoToCoordAnyMeans(targetPos.x, targetPos.y, targetPos.z, speed, 0, false, 0, 0.0);
+                dlog(`follow taskGoToCoordAnyMeans zid=${zid} target=${actualTarget.id} dist=${dist.toFixed(2)} moving=${moving}`);
+
+                try {
+                    ped.taskFollowToOffsetOfEntity(actualTarget.handle, 0, 0, 0, speed, 2000, stopDist, true);
+                    dlog(`follow fallback taskFollowToOffsetOfEntity zid=${zid} target=${actualTarget.id}`);
+                } catch {}
             }
         }
 
-        // мягкий "пинок" навигации, если ped визуально завис
-        if ((!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= 1200) && !moving) {
+        if ((!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= STUCK_CD) && !moving) {
             obj.lastNudgeAt = now;
             try { ped.clearTasks(); } catch {}
             forceAggroPedState(ped);
-            ped.taskGoStraightToCoord(target.position.x, target.position.y, target.position.z, speed, 1200, 0.0, 0.0);
-            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, speed, -1, stopDist, true);
+            ped.taskGoStraightToCoord(targetPos.x, targetPos.y, targetPos.z, speed, 1200, 0.0, 0.0);
+            dlog(`follow nudge taskGoStraightToCoord zid=${zid} dist=${dist.toFixed(2)}`);
         }
     } catch {}
 }
@@ -264,11 +297,18 @@ mp.events.add('z:assignController', (zid, ver) => {
 mp.events.add('z:executeCommand', (zid, cmd, extraJson) => {
     try{
         const obj = zombies.get(zid);
-        if(!obj) return;
+        if(!obj) {
+            dlog(`executeCommand skip zid=${zid} cmd=${cmd} reason=no-obj`);
+            return;
+        }
         const ped = obj.ped;
-        if(!mp.peds.exists(ped)) return;
+        if(!mp.peds.exists(ped)) {
+            dlog(`executeCommand skip zid=${zid} cmd=${cmd} reason=ped-missing`);
+            return;
+        }
 
         const extra = extraJson ? JSON.parse(extraJson) : {};
+        dlog(`executeCommand zid=${zid} cmd=${cmd} ctrl=${isController(ped)} extra=${JSON.stringify(extra)}`);
 
         switch (cmd) {
             case 'idle':
@@ -278,8 +318,9 @@ mp.events.add('z:executeCommand', (zid, cmd, extraJson) => {
                 obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
                 obj.followSpeed = (extra && typeof extra.speed === 'number') ? extra.speed : STEP_SPEED;
                 obj.stopDist = (extra && typeof extra.stopDist === 'number') ? extra.stopDist : STOP_DIST;
-                const target = findPlayerById(obj.followRid) || me;
-                applyFollowTask(obj, ped, target, Date.now());
+                const target = findPlayerById(obj.followRid);
+                dlog(`execute follow zid=${zid} rid=${obj.followRid} target=${target ? target.id : 'none'} ped=${mp.peds.exists(ped)}`);
+                applyFollowTask(obj, ped, target, Date.now(), 'z:executeCommand');
                 break;
             }
             case 'goMe': {
@@ -358,6 +399,7 @@ setInterval(() => {
                 || mp.game.ped.isPedDeadOrDying(ped.handle, true)
                 || hp <= 0;
             if (!deadOrDying) return;
+            dlog(`dead-loop zid=${zid} hp=${hp} deadOrDying=${deadOrDying}`);
             reportDead(zid, `client-loop hp=${hp}`);
         } catch {}
     });
@@ -372,8 +414,8 @@ setInterval(() => {
 
         try {
             const targetRid = typeof obj.followRid === 'number' ? obj.followRid : me.id;
-            const target = findPlayerById(targetRid) || me;
-            applyFollowTask(obj, ped, target, Date.now());
+            const target = findPlayerById(targetRid);
+            applyFollowTask(obj, ped, target, Date.now(), 'controller-loop');
         } catch {}
     });
 }, 300);
@@ -420,16 +462,23 @@ function raycastFromCam(dist){
 mp.events.add('playerWeaponShot', () => {
     try {
         const hit = raycastFromCam(60.0);
-        if (!hit || !hit.entity || hit.entity.type !== 'ped') return;
+        if (!hit || !hit.entity || hit.entity.type !== 'ped') {
+            dlog('playerWeaponShot no ped hit');
+            return;
+        }
 
         const zid = hit.entity.getVariable('zid');
-        if (typeof zid !== 'number') return; // не наш
+        if (typeof zid !== 'number') {
+            dlog('playerWeaponShot ped hit but no zid');
+            return;
+        }
 
         // пока ставим фиксированный урон
         const dmg = 35;
+        dlog(`playerWeaponShot zid=${zid} dmg=${dmg}`);
         reportHit(zid, dmg, 'weaponShot-raycast');
     } catch (e) {
-        // ignore
+        dlog(`playerWeaponShot err=${e.message}`);
     }
 });
 
@@ -444,11 +493,15 @@ mp.events.add('entityDamaged', (entity, attacker, weapon, damage) => {
         if (attacker.handle !== me.handle) return;
 
         const dmg = Math.max(1, parseInt(damage) || 25);
+        dlog(`entityDamaged zid=${zid} weapon=${weapon} damage=${damage} resolvedDmg=${dmg}`);
         reportHit(zid, dmg, `entityDamaged-w=${weapon}`);
 
         try {
             const hp = Number(entity.getHealth ? entity.getHealth() : entity.health) || 0;
-            if (hp <= 0) reportDead(zid, `entityDamaged-kill w=${weapon}`);
+            if (hp <= 0) {
+                dlog(`entityDamaged dead zid=${zid} weapon=${weapon}`);
+                reportDead(zid, `entityDamaged-kill w=${weapon}`);
+            }
         } catch {}
     } catch {}
 });
