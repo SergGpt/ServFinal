@@ -28,6 +28,7 @@ const IMPACT_FALLBACK_RADIUS = 1.6;
 
 const DEFAULT_CUSTOM_WEAPON_DAMAGE = 12;
 const CUSTOM_WEAPON_DAMAGE = new Map();
+const unknownWeaponHashes = new Set();
 
 function addWeaponDamage(name, value) {
     try { CUSTOM_WEAPON_DAMAGE.set(mp.game.joaat(name), value); } catch {}
@@ -56,10 +57,57 @@ function addWeaponDamage(name, value) {
     ['weapon_heavysniper', 85],
     ['weapon_marksmanrifle', 62],
     ['weapon_revolver', 52],
+    ['weapon_snspistol', 20],
+    ['weapon_heavypistol', 28],
+    ['weapon_vintagepistol', 20],
+    ['weapon_doubleaction', 44],
+    ['weapon_marksmanpistol', 58],
+    ['weapon_minismg', 18],
+    ['weapon_combatpdw', 22],
+    ['weapon_gusenberg', 25],
+    ['weapon_compactrifle', 26],
+    ['weapon_mg', 34],
+    ['weapon_combatmg', 36],
+    ['weapon_bullpupshotgun', 35],
+    ['weapon_dbshotgun', 55],
+    ['weapon_heavyshotgun', 42],
+    ['weapon_autoshotgun', 32],
+    ['weapon_sniperrifle', 88],
+    ['weapon_heavysniper_mk2', 95],
+    ['weapon_marksmanrifle_mk2', 66],
+    ['weapon_rpg', 120],
+    ['weapon_hominglauncher', 130],
+    ['weapon_minigun', 42],
+    ['weapon_grenadelauncher', 90],
+    ['weapon_compactlauncher', 72],
+    ['weapon_grenade', 70],
+    ['weapon_stickybomb', 80],
+    ['weapon_molotov', 45],
+    ['weapon_pipebomb', 85],
+    ['weapon_bzgas', 15],
+    ['weapon_petrolcan', 10],
+    ['weapon_crowbar', 18],
+    ['weapon_hammer', 18],
+    ['weapon_machete', 25],
+    ['weapon_battleaxe', 26],
+    ['weapon_poolcue', 14],
+    ['weapon_wrench', 15],
+    ['weapon_flashlight', 10],
 ].forEach(([n, v]) => addWeaponDamage(n, v));
 
 function resolveCustomWeaponDamage(weaponHash) {
-    return CUSTOM_WEAPON_DAMAGE.get(weaponHash) || DEFAULT_CUSTOM_WEAPON_DAMAGE;
+    const dmg = CUSTOM_WEAPON_DAMAGE.get(weaponHash);
+    if (typeof dmg === 'number' && dmg > 0) return dmg;
+    if (!unknownWeaponHashes.has(weaponHash)) {
+        unknownWeaponHashes.add(weaponHash);
+        dlog(`unknown weapon hash, using default damage hash=${weaponHash}`);
+    }
+    return DEFAULT_CUSTOM_WEAPON_DAMAGE;
+}
+
+function resolveWeaponName(weaponHash) {
+    try { return mp.weapons.getWeaponName(weaponHash) || 'unknown'; } catch {}
+    return 'unknown';
 }
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
@@ -585,8 +633,10 @@ mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
         shotSeq += 1;
         const shotId = shotSeq;
         const weaponHash = me.weapon || 0;
+        const weaponName = resolveWeaponName(weaponHash);
         const damage = resolveCustomWeaponDamage(weaponHash);
-        dlog(`weaponShot fired shot=${shotId} weapon=${weaponHash}`);
+        dlog(`weaponShot fired weapon=${weaponName} hash=${weaponHash} shot=${shotId}`);
+        dlog(`weapon damage resolved=${damage}`);
 
         const ray = raycastFromCam(120.0);
         const hitEntity = resolveShotEntity(targetEntity, targetPosition) || (ray && ray.entity ? ray.entity : null);
@@ -599,7 +649,7 @@ mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
         if (hitEntity && hitEntity.type === 'ped') {
             const zid = hitEntity.getVariable('zid');
             if (typeof zid === 'number') {
-                dlog(`weaponShot direct zombie hit zid=${zid}`);
+                dlog(`direct zombie hit zid=${zid}`);
                 sendCustomZombieHitOnce(zid, damage, weaponHash, 'direct', shotId);
                 return;
             }
@@ -608,7 +658,7 @@ mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
 
         const near = findZombieNearImpact(impactPos, IMPACT_FALLBACK_RADIUS);
         if (near && typeof near.zid === 'number') {
-            dlog(`weaponShot fallback zombie hit zid=${near.zid} dist=${near.dist.toFixed(2)}`);
+            dlog(`fallback zombie hit zid=${near.zid} dist=${near.dist.toFixed(2)}`);
             sendCustomZombieHitOnce(near.zid, damage, weaponHash, 'impact-fallback', shotId);
             return;
         }
