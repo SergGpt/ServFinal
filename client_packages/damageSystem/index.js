@@ -88,6 +88,44 @@ function resolveZombieFromPed(ped) {
     return { ped, zid };
 }
 
+function resolveZombieFromAimTarget() {
+    try {
+        const me = mp.players.local;
+        if (!me || !me.handle) return null;
+
+        let aimedHandle = 0;
+        try {
+            if (mp.game.player && typeof mp.game.player.getEntityPlayerIsFreeAimingAt === 'function') {
+                const out = mp.game.player.getEntityPlayerIsFreeAimingAt(me.handle);
+                if (Array.isArray(out)) {
+                    if (out[0] === true) aimedHandle = Number(out[1]) || 0;
+                } else if (typeof out === 'number') {
+                    aimedHandle = out;
+                } else if (out && typeof out === 'object') {
+                    if (typeof out.entity === 'number') aimedHandle = out.entity;
+                    else if (typeof out.handle === 'number') aimedHandle = out.handle;
+                }
+            }
+        } catch {}
+
+        if (!aimedHandle) return null;
+
+        let found = null;
+        mp.peds.forEach((ped) => {
+            if (found) return;
+            try {
+                const zombie = resolveZombieFromPed(ped);
+                if (!zombie) return;
+                if (ped.handle !== aimedHandle) return;
+                found = zombie;
+            } catch {}
+        });
+        return found;
+    } catch {
+        return null;
+    }
+}
+
 function dot(a, b) {
     return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
 }
@@ -428,8 +466,14 @@ mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
         zlog('hit entity type=none');
     }
 
-    // Primary zombie hit source: real ped damage registration.
-    // This keeps the behavior close to native ped hit detection and avoids "nearest zombie" smearing.
+    // Primary zombie hit source when targetEntity is empty: exact ped under native aim target.
+    const aimZombie = resolveZombieFromAimTarget();
+    if (aimZombie) {
+        sendZombieHitWithZone(aimZombie.ped, aimZombie.zid, damage, weaponHash, directImpactPos, 'native aim-target zombie hit');
+        return;
+    }
+
+    // Secondary source: real ped damage registration for edge cases where aim target isn't available.
     let damageDelivered = false;
     mp.peds.forEach((ped) => {
         if (damageDelivered) return;
