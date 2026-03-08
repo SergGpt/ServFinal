@@ -322,14 +322,14 @@ function syncDeadStateFromPed() {
 
         const hp = Number(st.ped.health) || 0;
         const deadFlag = !!st.ped.getVariable('deadFlag');
-        const isPedDead = hp <= 0 || deadFlag || st.deadFlag === true;
+        const isPedDead = deadFlag || st.deadFlag === true;
         const now = Date.now();
         if (!st.lastHpLogAt || now - st.lastHpLogAt >= ZOMBIE_CONFIG.timers.hpDebugMs) {
             st.lastHpLogAt = now;
             zlog(`hp-check zid=${st.zid} hp=${hp} pedDeadFlag=${deadFlag} stDeadFlag=${st.deadFlag === true} dead=${isPedDead} state=${st.state} switching=${st.switching}`);
         }
         if (isPedDead) {
-            const source = hp <= 0 ? 'ped-health' : (deadFlag ? 'ped-flag' : 'state-flag');
+            const source = deadFlag ? 'ped-flag' : 'state-flag';
             markDeadBySignal(st.zid, source);
             zlog(`dead-sync zid=${st.zid}: hp=${hp} pedDeadFlag=${deadFlag} stDeadFlag=${st.deadFlag === true} source=${source}`);
         }

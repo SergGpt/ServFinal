@@ -17,11 +17,50 @@ const STUCK_CD   = 1000;
 const MIN_STEP   = 0.04;
 const HIT_REPORT_CD = 250;
 const hitReportAt = new Map(); // zid -> ts
+const shotDedupAt = new Map(); // `${shotId}:${zid}` -> ts
 const DEAD_REPORT_CD = 1000;
 const deadReportAt = new Map(); // zid -> ts
 const lastEntityDamagedAt = new Map(); // zid -> ts
 let lastWeaponShotAt = 0;
+let shotSeq = 0;
 const CTRL_HEARTBEAT_MS = 700;
+const IMPACT_FALLBACK_RADIUS = 1.6;
+
+const DEFAULT_CUSTOM_WEAPON_DAMAGE = 12;
+const CUSTOM_WEAPON_DAMAGE = new Map();
+
+function addWeaponDamage(name, value) {
+    try { CUSTOM_WEAPON_DAMAGE.set(mp.game.joaat(name), value); } catch {}
+}
+
+[
+    ['weapon_unarmed', 8],
+    ['weapon_knife', 20],
+    ['weapon_bat', 18],
+    ['weapon_pistol', 22],
+    ['weapon_combatpistol', 24],
+    ['weapon_appistol', 20],
+    ['weapon_pistol50', 30],
+    ['weapon_microsmg', 17],
+    ['weapon_smg', 19],
+    ['weapon_machinepistol', 16],
+    ['weapon_assaultsmg', 21],
+    ['weapon_pumpshotgun', 38],
+    ['weapon_sawnoffshotgun', 36],
+    ['weapon_assaultshotgun', 34],
+    ['weapon_assaultrifle', 28],
+    ['weapon_carbinerifle', 30],
+    ['weapon_advancedrifle', 29],
+    ['weapon_specialcarbine', 31],
+    ['weapon_bullpuprifle', 32],
+    ['weapon_heavysniper', 85],
+    ['weapon_marksmanrifle', 62],
+    ['weapon_revolver', 52],
+].forEach(([n, v]) => addWeaponDamage(n, v));
+
+function resolveCustomWeaponDamage(weaponHash) {
+    return CUSTOM_WEAPON_DAMAGE.get(weaponHash) || DEFAULT_CUSTOM_WEAPON_DAMAGE;
+}
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
@@ -99,7 +138,8 @@ function reportDead(zid, reason = 'unknown', force = false) {
 // ====== подготовка педа ======
 function prepPed(ped){
     try{ mp.game.entity.setEntityAsMissionEntity(ped.handle,true,true);}catch{}
-    try{ ped.setInvincible(false); }catch{}
+    try{ ped.setInvincible(true); }catch{}
+    try{ mp.game.entity.setEntityProofs(ped.handle, true, true, true, true, true, true, true, true); }catch{}
     try{ ped.setCollision(true,true); }catch{}
     try{ ped.setBlockingOfNonTemporaryEvents(true); }catch{}
     try{ ped.setKeepTask(true); }catch{}
@@ -417,6 +457,8 @@ mp.events.add('z:dead', (zid) => {
     const ped = obj.ped;
     if(!mp.peds.exists(ped)) return;
     reportDead(zid, 'server-dead-event');
+    try { ped.setInvincible(false); } catch {}
+    try { mp.game.entity.setEntityProofs(ped.handle, false, false, false, false, false, false, false, false); }catch{}
     try { ped.clearTasksImmediately(); } catch {}
     try { ped.setHealth(0); } catch {}
     try { mp.game.ped.setPedToRagdoll(ped.handle, 5000, 5000, 0, false, false, false); } catch {}
@@ -430,13 +472,9 @@ setInterval(() => {
             if (!mp.peds.exists(ped)) return;
             const hp = Number(ped.getHealth ? ped.getHealth() : ped.health) || 0;
             const deadFlag = !!ped.getVariable('deadFlag');
-            const deadOrDying = mp.game.entity.isEntityDead(ped.handle, false)
-                || mp.game.ped.isPedDeadOrDying(ped.handle, true)
-                || deadFlag
-                || hp <= 0;
-            if (!deadOrDying) return;
-            dlog(`dead-loop zid=${zid} hp=${hp} deadFlag=${deadFlag} deadOrDying=${deadOrDying}`);
-            reportDead(zid, `client-loop hp=${hp} deadFlag=${deadFlag}`, hp <= 0 || deadFlag);
+            if (!deadFlag) return;
+            dlog(`dead-loop zid=${zid} hp=${hp} deadFlag=${deadFlag}`);
+            reportDead(zid, `client-loop deadFlag=${deadFlag}`, true);
         } catch {}
     });
 }, 500);
@@ -505,36 +543,77 @@ function resolveShotEntity(targetEntity, targetPosition) {
     return null;
 }
 
+function resolveImpactPosition(targetPosition, ray) {
+    if (targetPosition && typeof targetPosition.x === 'number') return targetPosition;
+    if (ray && ray.position && typeof ray.position.x === 'number') return ray.position;
+    return null;
+}
+
+function findZombieNearImpact(pos, radius = IMPACT_FALLBACK_RADIUS) {
+    if (!pos) return null;
+    let best = null;
+    let bestDist = Infinity;
+    zombies.forEach((obj, zid) => {
+        try {
+            if (!obj || !obj.ped || !mp.peds.exists(obj.ped)) return;
+            const p = obj.ped.position;
+            const dx = p.x - pos.x;
+            const dy = p.y - pos.y;
+            const dz = p.z - pos.z;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist <= radius && dist < bestDist) {
+                bestDist = dist;
+                best = { zid, dist, ped: obj.ped };
+            }
+        } catch {}
+    });
+    return best;
+}
+
+function sendCustomZombieHitOnce(zid, damage, weaponHash, reason, shotId) {
+    const key = `${shotId}:${zid}`;
+    if (shotDedupAt.get(key)) return false;
+    shotDedupAt.set(key, Date.now());
+    dlog(`sending custom z:hit zid=${zid} damage=${damage} weapon=${weaponHash} reason=${reason}`);
+    return sendHitRemote(zid, damage, `custom-shot#${shotId}:${reason}:w=${weaponHash}`);
+}
+
 // ловим выстрел (кастомный weapon pipeline)
 mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
     try {
         lastWeaponShotAt = Date.now();
-        const hitEntity = resolveShotEntity(targetEntity, targetPosition);
-        if (!hitEntity) {
-            dlog('playerWeaponShot npc-skip entity-not-ped');
-            return;
-        }
+        shotSeq += 1;
+        const shotId = shotSeq;
+        const weaponHash = me.weapon || 0;
+        const damage = resolveCustomWeaponDamage(weaponHash);
+        dlog(`weaponShot fired shot=${shotId} weapon=${weaponHash}`);
 
-        if (hitEntity.type === 'player') {
+        const ray = raycastFromCam(120.0);
+        const hitEntity = resolveShotEntity(targetEntity, targetPosition) || (ray && ray.entity ? ray.entity : null);
+        const impactPos = resolveImpactPosition(targetPosition, ray);
+
+        if (hitEntity && hitEntity.type === 'player') {
             return; // урон по игрокам обрабатывается существующим damageSystem
         }
 
-        if (hitEntity.type !== 'ped') {
-            dlog('playerWeaponShot npc-skip entity-not-ped');
-            return;
-        }
-
-        const zid = hitEntity.getVariable('zid');
-        if (typeof zid !== 'number') {
+        if (hitEntity && hitEntity.type === 'ped') {
+            const zid = hitEntity.getVariable('zid');
+            if (typeof zid === 'number') {
+                dlog(`weaponShot direct zombie hit zid=${zid}`);
+                sendCustomZombieHitOnce(zid, damage, weaponHash, 'direct', shotId);
+                return;
+            }
             dlog('playerWeaponShot npc-skip no-zid');
+        }
+
+        const near = findZombieNearImpact(impactPos, IMPACT_FALLBACK_RADIUS);
+        if (near && typeof near.zid === 'number') {
+            dlog(`weaponShot fallback zombie hit zid=${near.zid} dist=${near.dist.toFixed(2)}`);
+            sendCustomZombieHitOnce(near.zid, damage, weaponHash, 'impact-fallback', shotId);
             return;
         }
 
-        const weaponHash = me.weapon || 0;
-        const dmg = 0; // фактический damage рассчитывается сервером по тому же weapon hash pipeline
-        dlog(`playerWeaponShot npc-hit zid=${zid} weapon=${weaponHash} damage=${dmg}`);
-        dlog(`sending z:hit from custom damage pipeline zid=${zid} damage=${dmg}`);
-        reportHit(zid, dmg, `custom-weapon-shot w=${weaponHash}`, true);
+        dlog('weaponShot no zombie hit');
     } catch (e) {
         dlog(`playerWeaponShot err=${e.message}`);
     }
@@ -562,23 +641,8 @@ mp.events.add('entityDamaged', (entity, attacker, weapon, damage) => {
             return;
         }
 
-        const dmg = Math.max(1, parseInt(damage) || 25);
         lastEntityDamagedAt.set(zid, Date.now());
-        dlog(`entityDamaged fallback zid=${zid} weapon=${weapon} damage=${damage} resolvedDmg=${dmg}`);
-        const sent = reportHit(zid, dmg, `entityDamaged-fallback w=${weapon}`, false);
-        dlog(`entityDamaged fallback reportHitResult zid=${zid} sent=${sent}`);
-
-        if (dmg >= 100) {
-            reportDead(zid, `entityDamaged-lethal-dmg w=${weapon} dmg=${dmg}`, true);
-        }
-
-        try {
-            const hp = Number(entity.getHealth ? entity.getHealth() : entity.health) || 0;
-            if (hp <= 0) {
-                dlog(`entityDamaged dead zid=${zid} weapon=${weapon}`);
-                reportDead(zid, `entityDamaged-kill w=${weapon}`, true);
-            }
-        } catch {}
+        dlog(`entityDamaged debug zid=${zid} weapon=${weapon} damage=${damage} (fallback only)`);
     } catch {}
 });
 
