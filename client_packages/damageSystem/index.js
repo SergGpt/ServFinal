@@ -4,7 +4,7 @@ const DEBUG_ZOMBIE_DAMAGE = false;
 const ENABLE_RAYCAST_FALLBACK = true;
 
 const ZOMBIE_IMPACT_RADIUS = 1.6;
-const ZOMBIE_HIT_DEDUP_MS = 5;
+const ZOMBIE_HIT_DEDUP_MS = 2;
 const DEFAULT_ZOMBIE_DAMAGE = 12;
 const ZOMBIE_RAYCAST_DIST = 120.0;
 const ZOMBIE_STRICT_RAY_DIST_MAX = 1.05;
@@ -13,8 +13,7 @@ const ZOMBIE_STRICT_ANGLE_MAX_DEG = 8.5;
 const ZOMBIE_MULTIPLIER_HEAD = 1.8;
 const ZOMBIE_MULTIPLIER_BODY = 1.0;
 const ZOMBIE_MULTIPLIER_LIMB = 0.65;
-const zombieHitAt = new Map(); // zid -> ts
-const zombieHitSignature = new Map(); // zid -> { ts, weaponHash, zone }
+const zombieHitSignature = new Map(); // zid -> { ts, sig }
 const zombieWeaponDamage = new Map();
 const unknownZombieWeapons = new Set();
 const HIT_FEEDBACK_MS = 550;
@@ -59,29 +58,6 @@ function resolveZombieDamage(weaponHash) {
     return DEFAULT_ZOMBIE_DAMAGE;
 }
 
-function resolveWeaponName(weaponHash) {
-    try { return mp.weapons.getWeaponName(weaponHash) || 'unknown'; } catch {}
-    return 'unknown';
-}
-
-function findZombieNearPosition(pos, radius = ZOMBIE_IMPACT_RADIUS) {
-    if (!pos) return null;
-    let best = null;
-    let bestDist = Infinity;
-    mp.peds.forEach((ped) => {
-        try {
-            if (!ped || !mp.peds.exists(ped)) return;
-            const zid = ped.getVariable('zid');
-            if (typeof zid !== 'number') return;
-            const d = ped.position.distanceTo(pos);
-            if (d <= radius && d < bestDist) {
-                bestDist = d;
-                best = { zid, dist: d, ped };
-            }
-        } catch {}
-    });
-    return best;
-}
 
 function resolveZombieFromPed(ped) {
     if (!ped || ped.type !== 'ped' || !mp.peds.exists(ped)) return null;
@@ -225,7 +201,7 @@ function getAimRay(dist = ZOMBIE_RAYCAST_DIST, aimedPoint = null) {
         z: camPos.z + dir.z * dist,
     };
 
-    zlog(`ray origin source=${originSource} dirSource=${dirSource} origin=${camPos.x.toFixed(2)},${camPos.y.toFixed(2)},${camPos.z.toFixed(2)} dir=${dir.x.toFixed(4)},${dir.y.toFixed(4)},${dir.z.toFixed(4)}`);
+    if (DEBUG_ZOMBIE_DAMAGE) zlog(`ray origin source=${originSource} dirSource=${dirSource} origin=${camPos.x.toFixed(2)},${camPos.y.toFixed(2)},${camPos.z.toFixed(2)} dir=${dir.x.toFixed(4)},${dir.y.toFixed(4)},${dir.z.toFixed(4)}`);
 
     return { from: camPos, to, dir, originSource, dirSource };
 }
@@ -234,7 +210,7 @@ function runAimRaycast(aimedPoint = null) {
     try {
         const ray = getAimRay(ZOMBIE_RAYCAST_DIST, aimedPoint);
         const hit = mp.raycasting.testPointToPoint(ray.from, ray.to, [1, 16]);
-        zlog(`raycast success=${!!hit} originSource=${ray.originSource || 'n/a'} dirSource=${ray.dirSource || 'n/a'}`);
+        if (DEBUG_ZOMBIE_DAMAGE) zlog(`raycast success=${!!hit} originSource=${ray.originSource || 'n/a'} dirSource=${ray.dirSource || 'n/a'}`);
         return { ray, hit };
     } catch (e) {
         zerr(`raycast fail reason=${e.message}`);
@@ -248,6 +224,7 @@ function runAimRaycast(aimedPoint = null) {
 }
 
 function logRayAlignmentDebug(ray, impactPos, candidate, label) {
+    if (!DEBUG_ZOMBIE_DAMAGE) return;
     if (!ray || !impactPos) return;
     try {
         const base = `[${label}] impact=${impactPos.x.toFixed(2)},${impactPos.y.toFixed(2)},${impactPos.z.toFixed(2)} rayFrom=${ray.from.x.toFixed(2)},${ray.from.y.toFixed(2)},${ray.from.z.toFixed(2)} dir=${ray.dir.x.toFixed(4)},${ray.dir.y.toFixed(4)},${ray.dir.z.toFixed(4)}`;
@@ -263,43 +240,20 @@ function logRayAlignmentDebug(ray, impactPos, candidate, label) {
     } catch {}
 }
 
-function findZombieAlongRay(ray, step = 4.0, radius = ZOMBIE_IMPACT_RADIUS) {
-    if (!ray || !ray.from || !ray.to) return null;
-    const dx = ray.to.x - ray.from.x;
-    const dy = ray.to.y - ray.from.y;
-    const dz = ray.to.z - ray.from.z;
-    const len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0;
-    if (len <= 0.001) return null;
-    const dir = { x: dx / len, y: dy / len, z: dz / len };
-
-    for (let t = step; t <= len; t += step) {
-        const point = {
-            x: ray.from.x + dir.x * t,
-            y: ray.from.y + dir.y * t,
-            z: ray.from.z + dir.z * t,
-        };
-        const near = findZombieNearPosition(point, radius);
-        if (near) return near;
-    }
-
-    return null;
+function makeZombieHitSignature(weaponHash, zone, impactPos = null, damage = 0) {
+    const x = impactPos && Number.isFinite(impactPos.x) ? impactPos.x.toFixed(2) : 'n';
+    const y = impactPos && Number.isFinite(impactPos.y) ? impactPos.y.toFixed(2) : 'n';
+    const z = impactPos && Number.isFinite(impactPos.z) ? impactPos.z.toFixed(2) : 'n';
+    return `${weaponHash}|${zone}|${damage}|${x}|${y}|${z}`;
 }
 
-function trySendZombieHit(zid, damage, weaponHash, zone = 'body') {
+function trySendZombieHit(zid, damage, weaponHash, zone = 'body', impactPos = null) {
     const now = Date.now();
-    const last = zombieHitAt.get(zid) || 0;
-    if (now - last < ZOMBIE_HIT_DEDUP_MS) return false;
+    const sig = makeZombieHitSignature(weaponHash, zone, impactPos, damage);
+    const last = zombieHitSignature.get(zid);
+    if (last && last.sig === sig && (now - last.ts) < ZOMBIE_HIT_DEDUP_MS) return false;
 
-    const signature = zombieHitSignature.get(zid);
-    if (signature
-        && signature.weaponHash === weaponHash
-        && signature.zone === zone
-        && (now - signature.ts) < ZOMBIE_HIT_DEDUP_MS) {
-        return false;
-    }
-
-    zombieHitAt.set(zid, now);
-    zombieHitSignature.set(zid, { ts: now, weaponHash, zone });
+    zombieHitSignature.set(zid, { ts: now, sig });
     zlog(`sending z:hit zid=${zid} damage=${damage} weapon=${weaponHash}`);
     try { mp.events.callRemote('z:hit', zid, damage); } catch (e) { zerr(`z:hit send error zid=${zid} err=${e.message}`); }
     return true;
@@ -332,7 +286,7 @@ function sendZombieHitWithZone(ped, zid, baseDamage, weaponHash, impactPos, sour
         zlog(`${sourceLog} zid=${zid} zone=${zone}`);
     }
     zlog(`final damage after multiplier=${finalDamage}`);
-    const sent = trySendZombieHit(zid, finalDamage, weaponHash, zone);
+    const sent = trySendZombieHit(zid, finalDamage, weaponHash, zone, impactPos);
     const registeredDamage = sent ? finalDamage : 0;
     showZombieHitFeedback(registeredDamage);
     return registeredDamage;
@@ -442,10 +396,7 @@ mp.events.add("characterInit.done", () => {
 
 mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
     const weaponHash = mp.players.local.weapon || 0;
-    const weaponName = resolveWeaponName(weaponHash);
     const damage = resolveZombieDamage(weaponHash);
-    zlog(`weapon fired weapon=${weaponName} hash=${weaponHash}`);
-    zlog(`weapon damage resolved=${damage}`);
 
     if (targetEntity && targetEntity.type === 'player' && mp.players.exists(targetEntity)) {
         let boneName = getHitBone(targetPosition, targetEntity);
@@ -453,7 +404,6 @@ mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
             //mp.chat.debug(boneName);
             mp.events.callRemote("playerDamaged", targetEntity.remoteId, boneName);
         }
-        zlog('hit entity type=player');
         return;
     }
 
@@ -461,60 +411,44 @@ mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
 
     if (targetEntity && targetEntity.type === 'ped') {
         const zombie = resolveZombieFromPed(targetEntity);
-        zlog('hit entity type=ped');
         if (zombie) {
             sendZombieHitWithZone(zombie.ped, zombie.zid, damage, weaponHash, directImpactPos, 'direct zombie hit');
             return;
         }
-        zlog('zid not found on ped, skipping zombie processing');
-    } else if (targetEntity) {
-        zlog(`hit entity type=${targetEntity.type}`);
-    } else {
-        zlog('hit entity type=none');
     }
 
     if (!ENABLE_RAYCAST_FALLBACK) return;
 
-    const { ray, hit } = runAimRaycast(targetPosition || null);
+    const hasTargetPos = !!(targetPosition && Number.isFinite(targetPosition.x) && Number.isFinite(targetPosition.y) && Number.isFinite(targetPosition.z));
+    const { ray, hit } = runAimRaycast(hasTargetPos ? targetPosition : null);
 
-    const strictFromTargetPos = findStrictZombieCandidate(targetPosition, ray);
-    logRayAlignmentDebug(ray, targetPosition || null, strictFromTargetPos, 'targetPosition-strict');
-    if (strictFromTargetPos) {
-        sendZombieHitWithZone(strictFromTargetPos.ped, strictFromTargetPos.zid, damage, weaponHash, targetPosition, 'fallback targetPosition zombie hit', strictFromTargetPos.metrics);
-        return;
+    if (hasTargetPos) {
+        const strictFromTargetPos = findStrictZombieCandidate(targetPosition, ray);
+        logRayAlignmentDebug(ray, targetPosition, strictFromTargetPos, 'targetPosition-strict');
+        if (strictFromTargetPos) {
+            sendZombieHitWithZone(strictFromTargetPos.ped, strictFromTargetPos.zid, damage, weaponHash, targetPosition, 'fallback targetPosition zombie hit', strictFromTargetPos.metrics);
+            return;
+        }
     }
 
-    const rayEntityType = (hit && hit.entity && hit.entity.type) ? hit.entity.type : 'none';
-    zlog(`raycast entity type=${rayEntityType}`);
-
     if (hit && hit.entity && hit.entity.type === 'ped') {
-        const zid = hit.entity.getVariable('zid');
-        if (typeof zid === 'number') {
-            sendZombieHitWithZone(hit.entity, zid, damage, weaponHash, hit.position || targetPosition || null, 'raycast zombie hit');
+        const zombie = resolveZombieFromPed(hit.entity);
+        if (zombie) {
+            sendZombieHitWithZone(zombie.ped, zombie.zid, damage, weaponHash, hit.position || targetPosition || null, 'raycast zombie hit');
             return;
         }
     }
 
     const rayImpactPos = hit && hit.position ? hit.position : null;
-    const strictFromRayImpact = findStrictZombieCandidate(rayImpactPos, ray);
-    logRayAlignmentDebug(ray, rayImpactPos, strictFromRayImpact, 'rayImpact-strict');
-    if (strictFromRayImpact) {
-        sendZombieHitWithZone(strictFromRayImpact.ped, strictFromRayImpact.zid, damage, weaponHash, rayImpactPos, 'raycast impact fallback zombie hit', strictFromRayImpact.metrics);
-        return;
-    }
-
-    const nearAlongRay = findZombieAlongRay(ray, 4.0, ZOMBIE_IMPACT_RADIUS);
-    if (nearAlongRay) {
-        const metrics = evaluateZombieCandidateByRay(nearAlongRay.ped, ray, rayImpactPos);
-        logRayAlignmentDebug(ray, rayImpactPos, { zid: nearAlongRay.zid, ped: nearAlongRay.ped, metrics }, 'rayImpact-nearAlongRay');
-        if (metrics && metrics.distToRay <= ZOMBIE_STRICT_RAY_DIST_MAX && metrics.angle <= ZOMBIE_STRICT_ANGLE_MAX_DEG) {
-            sendZombieHitWithZone(nearAlongRay.ped, nearAlongRay.zid, damage, weaponHash, rayImpactPos, 'raycast impact fallback zombie hit', metrics);
+    if (rayImpactPos) {
+        const strictFromRayImpact = findStrictZombieCandidate(rayImpactPos, ray);
+        logRayAlignmentDebug(ray, rayImpactPos, strictFromRayImpact, 'rayImpact-strict');
+        if (strictFromRayImpact) {
+            sendZombieHitWithZone(strictFromRayImpact.ped, strictFromRayImpact.zid, damage, weaponHash, rayImpactPos, 'raycast impact fallback zombie hit', strictFromRayImpact.metrics);
             return;
         }
-        zlog(`raycast fallback reject zid=${nearAlongRay.zid} rayDist=${metrics ? metrics.distToRay.toFixed(2) : 'n/a'} angle=${metrics ? metrics.angle.toFixed(2) : 'n/a'}`);
     }
 
-    zlog('no zombie hit');
 });
 
 let getHitBone = (position, target) => {
