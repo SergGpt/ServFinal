@@ -1,6 +1,7 @@
 function createLogger(enabled, tag = 'ZCTRL') {
+    const importantRe = /(spawn zid=|switch start|switch done|hit accepted|mark-dead|cleanup-destroy|destroy-start|destroy done|error|dead signal accepted|dead zid=)/i;
     return (msg) => {
-        if (!enabled) return;
+        if (!enabled && !importantRe.test(String(msg || ''))) return;
         console.log(`[${tag}] ${msg}`);
     };
 }

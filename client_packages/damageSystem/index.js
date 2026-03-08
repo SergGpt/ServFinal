@@ -1,5 +1,7 @@
 "use strict";
 
+const DEBUG_ZOMBIE_DAMAGE = false;
+
 const ZOMBIE_IMPACT_RADIUS = 1.6;
 const ZOMBIE_HIT_DEDUP_MS = 15;
 const DEFAULT_ZOMBIE_DAMAGE = 12;
@@ -38,6 +40,7 @@ function addZombieWeaponDamage(name, value) {
 ].forEach(([n, v]) => addZombieWeaponDamage(n, v));
 
 function zlog(msg) {
+    if (!DEBUG_ZOMBIE_DAMAGE) return;
     try { mp.gui.chat.push(`!{#99ccff}[DMG-Z] ${msg}`); } catch {}
 }
 

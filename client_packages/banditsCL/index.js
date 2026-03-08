@@ -2,7 +2,7 @@
 // RAGE:MP — Zombies (Client) — raycast hits + forceRemove
 // ============================
 
-const DEBUG = true;
+const DEBUG = false;
 let VERBOSE = true;
 
 const me = mp.players.local;
@@ -18,7 +18,7 @@ const MIN_STEP   = 0.04;
 const DEAD_REPORT_CD = 1000;
 const deadReportAt = new Map(); // zid -> ts
 const deadConfirmedAt = new Map(); // zid -> ts
-const CTRL_HEARTBEAT_MS = 700;
+const CTRL_HEARTBEAT_MS = 1000;
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
@@ -148,8 +148,7 @@ function tryResolvePendingAssignByPed(ped) {
         }
 
         ackController(zid, pending.ver);
-        setTimeout(() => ackController(zid, pending.ver), 150);
-        setTimeout(() => ackController(zid, pending.ver), 500);
+        setTimeout(() => ackController(zid, pending.ver), 350);
 
         pendingControllerAssign.delete(zid);
     } catch {}
@@ -302,8 +301,7 @@ mp.events.add('z:assignController', (zid, ver) => {
         }
 
         ackController(zid, ver);
-        setTimeout(() => ackController(zid, ver), 150);
-        setTimeout(() => ackController(zid, ver), 500);
+        setTimeout(() => ackController(zid, ver), 350);
 
         pendingControllerAssign.delete(zid);
     }catch{}
@@ -420,7 +418,7 @@ setInterval(() => {
             if (sent) deadConfirmedAt.set(zid, Date.now());
         } catch {}
     });
-}, 500);
+}, 1000);
 
 // ====== ДВИЖЕНИЕ У КОНТРОЛЛЕРА ======
 setInterval(() => {
@@ -435,7 +433,7 @@ setInterval(() => {
             applyFollowTask(obj, ped, target, Date.now(), 'controller-loop');
         } catch {}
     });
-}, 300);
+}, 450);
 
 setInterval(() => {
     zombies.forEach((obj, zid) => {

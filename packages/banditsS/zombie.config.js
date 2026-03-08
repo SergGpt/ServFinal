@@ -1,5 +1,5 @@
 const ZOMBIE_CONFIG = {
-    debug: true,
+    debug: false,
     models: ['u_m_y_zombie_01'],
 
     stats: {
