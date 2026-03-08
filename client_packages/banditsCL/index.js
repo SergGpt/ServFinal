@@ -15,100 +15,9 @@ const FOLLOW_CD  = 700;
 const FOLLOW_COORD_REFRESH_MS = 700;
 const STUCK_CD   = 1000;
 const MIN_STEP   = 0.04;
-const HIT_REPORT_CD = 250;
-const hitReportAt = new Map(); // zid -> ts
-const shotDedupAt = new Map(); // `${shotId}:${zid}` -> ts
 const DEAD_REPORT_CD = 1000;
 const deadReportAt = new Map(); // zid -> ts
-const lastEntityDamagedAt = new Map(); // zid -> ts
-let lastWeaponShotAt = 0;
-let shotSeq = 0;
 const CTRL_HEARTBEAT_MS = 700;
-const IMPACT_FALLBACK_RADIUS = 1.6;
-
-const DEFAULT_CUSTOM_WEAPON_DAMAGE = 12;
-const CUSTOM_WEAPON_DAMAGE = new Map();
-const unknownWeaponHashes = new Set();
-
-function addWeaponDamage(name, value) {
-    try { CUSTOM_WEAPON_DAMAGE.set(mp.game.joaat(name), value); } catch {}
-}
-
-[
-    ['weapon_unarmed', 8],
-    ['weapon_knife', 20],
-    ['weapon_bat', 18],
-    ['weapon_pistol', 22],
-    ['weapon_combatpistol', 24],
-    ['weapon_appistol', 20],
-    ['weapon_pistol50', 30],
-    ['weapon_microsmg', 17],
-    ['weapon_smg', 19],
-    ['weapon_machinepistol', 16],
-    ['weapon_assaultsmg', 21],
-    ['weapon_pumpshotgun', 38],
-    ['weapon_sawnoffshotgun', 36],
-    ['weapon_assaultshotgun', 34],
-    ['weapon_assaultrifle', 28],
-    ['weapon_carbinerifle', 30],
-    ['weapon_advancedrifle', 29],
-    ['weapon_specialcarbine', 31],
-    ['weapon_bullpuprifle', 32],
-    ['weapon_heavysniper', 85],
-    ['weapon_marksmanrifle', 62],
-    ['weapon_revolver', 52],
-    ['weapon_snspistol', 20],
-    ['weapon_heavypistol', 28],
-    ['weapon_vintagepistol', 20],
-    ['weapon_doubleaction', 44],
-    ['weapon_marksmanpistol', 58],
-    ['weapon_minismg', 18],
-    ['weapon_combatpdw', 22],
-    ['weapon_gusenberg', 25],
-    ['weapon_compactrifle', 26],
-    ['weapon_mg', 34],
-    ['weapon_combatmg', 36],
-    ['weapon_bullpupshotgun', 35],
-    ['weapon_dbshotgun', 55],
-    ['weapon_heavyshotgun', 42],
-    ['weapon_autoshotgun', 32],
-    ['weapon_sniperrifle', 88],
-    ['weapon_heavysniper_mk2', 95],
-    ['weapon_marksmanrifle_mk2', 66],
-    ['weapon_rpg', 120],
-    ['weapon_hominglauncher', 130],
-    ['weapon_minigun', 42],
-    ['weapon_grenadelauncher', 90],
-    ['weapon_compactlauncher', 72],
-    ['weapon_grenade', 70],
-    ['weapon_stickybomb', 80],
-    ['weapon_molotov', 45],
-    ['weapon_pipebomb', 85],
-    ['weapon_bzgas', 15],
-    ['weapon_petrolcan', 10],
-    ['weapon_crowbar', 18],
-    ['weapon_hammer', 18],
-    ['weapon_machete', 25],
-    ['weapon_battleaxe', 26],
-    ['weapon_poolcue', 14],
-    ['weapon_wrench', 15],
-    ['weapon_flashlight', 10],
-].forEach(([n, v]) => addWeaponDamage(n, v));
-
-function resolveCustomWeaponDamage(weaponHash) {
-    const dmg = CUSTOM_WEAPON_DAMAGE.get(weaponHash);
-    if (typeof dmg === 'number' && dmg > 0) return dmg;
-    if (!unknownWeaponHashes.has(weaponHash)) {
-        unknownWeaponHashes.add(weaponHash);
-        dlog(`unknown weapon hash, using default damage hash=${weaponHash}`);
-    }
-    return DEFAULT_CUSTOM_WEAPON_DAMAGE;
-}
-
-function resolveWeaponName(weaponHash) {
-    try { return mp.weapons.getWeaponName(weaponHash) || 'unknown'; } catch {}
-    return 'unknown';
-}
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
@@ -147,22 +56,6 @@ function sendDeadRemote(zid, reason = 'unknown') {
         return true;
     } catch (e) {
         dlog(`z:deadSignal send error zid=${zid} reason=${reason} err=${e.message}`);
-    }
-    return false;
-}
-
-function reportHit(zid, dmg, reason = 'unknown', force = false) {
-    try {
-        const now = Date.now();
-        const last = hitReportAt.get(zid) || 0;
-        if (!force && (now - last < HIT_REPORT_CD)) {
-            dlog(`reportHit skip zid=${zid} reason=${reason} cooldown=${now - last}`);
-            return false;
-        }
-        hitReportAt.set(zid, now);
-        return sendHitRemote(zid, dmg, reason);
-    } catch (e) {
-        dlog(`reportHit error zid=${zid} reason=${reason} err=${e.message}`);
     }
     return false;
 }
@@ -471,7 +364,6 @@ mp.events.add('z:forceRemove', (zid) => {
         zombies.delete(zid);
         pendingControllerAssign.delete(zid);
         deadReportAt.delete(zid);
-        hitReportAt.delete(zid);
         dlog(`🗑 forceRemove zid=${zid}`);
     } catch {}
 });
@@ -553,163 +445,6 @@ setInterval(() => {
         } catch {}
     });
 }, CTRL_HEARTBEAT_MS);
-
-// ====== HIT: raycast по выстрелу ======
-
-// вспомогательная — пуск луча
-function raycastFromCam(dist){
-    const camPos = mp.game.cam.getGameplayCamCoord();
-    const camRot = mp.game.cam.getGameplayCamRot(2);
-    const pitch = camRot.x * Math.PI / 180.0;
-    const yaw   = camRot.z * Math.PI / 180.0;
-
-    const dir = {
-        x: -Math.sin(yaw) * Math.cos(pitch),
-        y:  Math.cos(yaw) * Math.cos(pitch),
-        z:  Math.sin(pitch)
-    };
-
-    const to = {
-        x: camPos.x + dir.x * dist,
-        y: camPos.y + dir.y * dist,
-        z: camPos.z + dir.z * dist
-    };
-
-    // shapeTestRay
-    const ray = mp.raycasting.testPointToPoint(camPos, to, [1, 16]); // 8 - ped?, но чаще берут вот так
-    return ray;
-}
-
-function resolveShotEntity(targetEntity, targetPosition) {
-    if (targetEntity && (targetEntity.type === 'ped' || targetEntity.type === 'player')) {
-        return targetEntity;
-    }
-    if (targetPosition) {
-        const ray = raycastFromCam(60.0);
-        if (ray && ray.entity) return ray.entity;
-    }
-    return null;
-}
-
-function resolveImpactPosition(targetPosition, ray) {
-    if (targetPosition && typeof targetPosition.x === 'number') return targetPosition;
-    if (ray && ray.position && typeof ray.position.x === 'number') return ray.position;
-    return null;
-}
-
-function findZombieNearImpact(pos, radius = IMPACT_FALLBACK_RADIUS) {
-    if (!pos) return null;
-    let best = null;
-    let bestDist = Infinity;
-    zombies.forEach((obj, zid) => {
-        try {
-            if (!obj || !obj.ped || !mp.peds.exists(obj.ped)) return;
-            const p = obj.ped.position;
-            const dx = p.x - pos.x;
-            const dy = p.y - pos.y;
-            const dz = p.z - pos.z;
-            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            if (dist <= radius && dist < bestDist) {
-                bestDist = dist;
-                best = { zid, dist, ped: obj.ped };
-            }
-        } catch {}
-    });
-    return best;
-}
-
-function sendCustomZombieHitOnce(zid, damage, weaponHash, reason, shotId) {
-    const key = `${shotId}:${zid}`;
-    if (shotDedupAt.get(key)) return false;
-    shotDedupAt.set(key, Date.now());
-    dlog(`sending custom z:hit zid=${zid} damage=${damage} weapon=${weaponHash} reason=${reason}`);
-    return sendHitRemote(zid, damage, `custom-shot#${shotId}:${reason}:w=${weaponHash}`);
-}
-
-// ловим выстрел (кастомный weapon pipeline)
-mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
-    try {
-        lastWeaponShotAt = Date.now();
-        shotSeq += 1;
-        const shotId = shotSeq;
-        const weaponHash = me.weapon || 0;
-        const weaponName = resolveWeaponName(weaponHash);
-        const damage = resolveCustomWeaponDamage(weaponHash);
-        dlog(`weaponShot fired weapon=${weaponName} hash=${weaponHash} shot=${shotId}`);
-        dlog(`weapon damage resolved=${damage}`);
-
-        const ray = raycastFromCam(120.0);
-        const hitEntity = resolveShotEntity(targetEntity, targetPosition) || (ray && ray.entity ? ray.entity : null);
-        const impactPos = resolveImpactPosition(targetPosition, ray);
-
-        if (hitEntity && hitEntity.type === 'player') {
-            return; // урон по игрокам обрабатывается существующим damageSystem
-        }
-
-        if (hitEntity && hitEntity.type === 'ped') {
-            const zid = hitEntity.getVariable('zid');
-            if (typeof zid === 'number') {
-                dlog(`direct zombie hit zid=${zid}`);
-                sendCustomZombieHitOnce(zid, damage, weaponHash, 'direct', shotId);
-                return;
-            }
-            dlog('playerWeaponShot npc-skip no-zid');
-        }
-
-        const near = findZombieNearImpact(impactPos, IMPACT_FALLBACK_RADIUS);
-        if (near && typeof near.zid === 'number') {
-            dlog(`fallback zombie hit zid=${near.zid} dist=${near.dist.toFixed(2)}`);
-            sendCustomZombieHitOnce(near.zid, damage, weaponHash, 'impact-fallback', shotId);
-            return;
-        }
-
-        dlog('weaponShot no zombie hit');
-    } catch (e) {
-        dlog(`playerWeaponShot err=${e.message}`);
-    }
-});
-
-// fallback/debug канал (НЕ основной) на случай, если кастомный weapon-shot пайплайн не сработал
-mp.events.add('entityDamaged', (entity, attacker, weapon, damage) => {
-    try {
-        if (!entity || entity.type !== 'ped') {
-            dlog('entityDamaged skip reason=entity-not-ped');
-            return;
-        }
-        const zid = entity.getVariable('zid');
-        if (typeof zid !== 'number') {
-            dlog('entityDamaged skip reason=zid-not-found');
-            return;
-        }
-
-        if (!attacker || attacker.type !== 'player') {
-            dlog(`entityDamaged skip zid=${zid} reason=attacker-not-player`);
-            return;
-        }
-        if (attacker.handle !== me.handle) {
-            dlog(`entityDamaged skip zid=${zid} reason=attacker-not-local`);
-            return;
-        }
-
-        lastEntityDamagedAt.set(zid, Date.now());
-        dlog(`entityDamaged debug zid=${zid} weapon=${weapon} damage=${damage} (fallback only)`);
-    } catch {}
-});
-
-setInterval(() => {
-    try {
-        if (!lastWeaponShotAt) return;
-        if (Date.now() - lastWeaponShotAt < 550) return;
-        let hadDamageAfterShot = false;
-        lastEntityDamagedAt.forEach((ts) => {
-            if (ts >= lastWeaponShotAt) hadDamageAfterShot = true;
-        });
-        if (!hadDamageAfterShot) {
-            dlog('entityDamaged not triggered after recent playerWeaponShot');
-        }
-        lastWeaponShotAt = 0;
-    } catch {}
-}, 250);
 
 function getNearestZombieZid() {
     let best = null;

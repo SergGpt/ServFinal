@@ -1,5 +1,83 @@
 "use strict";
 
+const ZOMBIE_IMPACT_RADIUS = 1.6;
+const ZOMBIE_HIT_DEDUP_MS = 15;
+const DEFAULT_ZOMBIE_DAMAGE = 12;
+const zombieHitAt = new Map(); // zid -> ts
+const zombieWeaponDamage = new Map();
+const unknownZombieWeapons = new Set();
+
+function addZombieWeaponDamage(name, value) {
+    try { zombieWeaponDamage.set(mp.game.joaat(name), value); } catch {}
+}
+
+[
+    ['weapon_unarmed', 8], ['weapon_knife', 20], ['weapon_bat', 18], ['weapon_pistol', 22], ['weapon_combatpistol', 24],
+    ['weapon_appistol', 20], ['weapon_pistol50', 30], ['weapon_snspistol', 20], ['weapon_heavypistol', 28],
+    ['weapon_vintagepistol', 20], ['weapon_doubleaction', 44], ['weapon_marksmanpistol', 58], ['weapon_revolver', 52],
+    ['weapon_microsmg', 17], ['weapon_smg', 19], ['weapon_machinepistol', 16], ['weapon_assaultsmg', 21],
+    ['weapon_minismg', 18], ['weapon_combatpdw', 22], ['weapon_gusenberg', 25],
+    ['weapon_assaultrifle', 28], ['weapon_carbinerifle', 30], ['weapon_advancedrifle', 29], ['weapon_specialcarbine', 31],
+    ['weapon_bullpuprifle', 32], ['weapon_compactrifle', 26], ['weapon_mg', 34], ['weapon_combatmg', 36],
+    ['weapon_pumpshotgun', 38], ['weapon_sawnoffshotgun', 36], ['weapon_assaultshotgun', 34], ['weapon_bullpupshotgun', 35],
+    ['weapon_dbshotgun', 55], ['weapon_heavyshotgun', 42], ['weapon_autoshotgun', 32],
+    ['weapon_sniperrifle', 88], ['weapon_heavysniper', 85], ['weapon_heavysniper_mk2', 95],
+    ['weapon_marksmanrifle', 62], ['weapon_marksmanrifle_mk2', 66],
+    ['weapon_rpg', 120], ['weapon_hominglauncher', 130], ['weapon_minigun', 42], ['weapon_grenadelauncher', 90],
+    ['weapon_compactlauncher', 72], ['weapon_grenade', 70], ['weapon_stickybomb', 80], ['weapon_molotov', 45],
+    ['weapon_pipebomb', 85], ['weapon_bzgas', 15], ['weapon_petrolcan', 10],
+    ['weapon_crowbar', 18], ['weapon_hammer', 18], ['weapon_machete', 25], ['weapon_battleaxe', 26],
+    ['weapon_poolcue', 14], ['weapon_wrench', 15], ['weapon_flashlight', 10],
+].forEach(([n, v]) => addZombieWeaponDamage(n, v));
+
+function zlog(msg) {
+    try { mp.gui.chat.push(`!{#99ccff}[DMG-Z] ${msg}`); } catch {}
+}
+
+function resolveZombieDamage(weaponHash) {
+    const dmg = zombieWeaponDamage.get(weaponHash);
+    if (typeof dmg === 'number' && dmg > 0) return dmg;
+    if (!unknownZombieWeapons.has(weaponHash)) {
+        unknownZombieWeapons.add(weaponHash);
+        zlog(`unknown weapon hash, using default damage hash=${weaponHash}`);
+    }
+    return DEFAULT_ZOMBIE_DAMAGE;
+}
+
+function resolveWeaponName(weaponHash) {
+    try { return mp.weapons.getWeaponName(weaponHash) || 'unknown'; } catch {}
+    return 'unknown';
+}
+
+function findZombieNearPosition(pos, radius = ZOMBIE_IMPACT_RADIUS) {
+    if (!pos) return null;
+    let best = null;
+    let bestDist = Infinity;
+    mp.peds.forEach((ped) => {
+        try {
+            if (!ped || !mp.peds.exists(ped)) return;
+            const zid = ped.getVariable('zid');
+            if (typeof zid !== 'number') return;
+            const d = ped.position.distanceTo(pos);
+            if (d <= radius && d < bestDist) {
+                bestDist = d;
+                best = { zid, dist: d, ped };
+            }
+        } catch {}
+    });
+    return best;
+}
+
+function trySendZombieHit(zid, damage, weaponHash) {
+    const now = Date.now();
+    const last = zombieHitAt.get(zid) || 0;
+    if (now - last < ZOMBIE_HIT_DEDUP_MS) return false;
+    zombieHitAt.set(zid, now);
+    zlog(`sending z:hit zid=${zid} damage=${damage} weapon=${weaponHash}`);
+    try { mp.events.callRemote('z:hit', zid, damage); } catch (e) { zlog(`z:hit send error zid=${zid} err=${e.message}`); }
+    return true;
+}
+
 let parts = [
     {
         name: "Head",
@@ -84,13 +162,45 @@ mp.events.add("characterInit.done", () => {
 });
 
 mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
+    const weaponHash = mp.players.local.weapon || 0;
+    const weaponName = resolveWeaponName(weaponHash);
+    const damage = resolveZombieDamage(weaponHash);
+    zlog(`weapon fired weapon=${weaponName} hash=${weaponHash}`);
+    zlog(`weapon damage resolved=${damage}`);
+
     if (targetEntity && targetEntity.type === 'player' && mp.players.exists(targetEntity)) {
         let boneName = getHitBone(targetPosition, targetEntity);
         if (boneName != null) {
             //mp.chat.debug(boneName);
             mp.events.callRemote("playerDamaged", targetEntity.remoteId, boneName);
         }
+        zlog('hit entity type=player');
+        return;
     }
+
+    if (targetEntity && targetEntity.type === 'ped') {
+        const zid = targetEntity.getVariable('zid');
+        zlog('hit entity type=ped');
+        if (typeof zid === 'number') {
+            zlog(`direct zombie hit zid=${zid}`);
+            trySendZombieHit(zid, damage, weaponHash);
+            return;
+        }
+        zlog('zid not found on ped, trying fallback by impact position');
+    } else if (targetEntity) {
+        zlog(`hit entity type=${targetEntity.type}`);
+    } else {
+        zlog('hit entity type=none');
+    }
+
+    const near = findZombieNearPosition(targetPosition, ZOMBIE_IMPACT_RADIUS);
+    if (near) {
+        zlog(`fallback zombie hit zid=${near.zid} dist=${near.dist.toFixed(2)}`);
+        trySendZombieHit(near.zid, damage, weaponHash);
+        return;
+    }
+
+    zlog('no zombie hit');
 });
 
 let getHitBone = (position, target) => {
