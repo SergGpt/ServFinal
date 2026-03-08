@@ -14,10 +14,52 @@ const STOP_DIST  = 1.6;
 const FOLLOW_CD  = 350;
 const STUCK_CD   = 1000;
 const MIN_STEP   = 0.04;
+const HIT_REPORT_CD = 250;
+const hitReportAt = new Map(); // zid -> ts
+const DEAD_REPORT_CD = 1000;
+const deadReportAt = new Map(); // zid -> ts
+const CTRL_HEARTBEAT_MS = 700;
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
 function dlog(msg){ if(DEBUG && VERBOSE) chat(`[ZDBG] ${msg}`,'#99ccff'); }
+
+function forceAggroPedState(ped){
+    try { if (!ped || !mp.peds.exists(ped)) return; } catch { return; }
+
+    try { ped.setCanRagdoll(true); } catch {}
+    try { ped.setBlockingOfNonTemporaryEvents(true); } catch {}
+    try { ped.setKeepTask(true); } catch {}
+
+    try { mp.game.ped.setPedFleeAttributes(ped.handle, 0, false); } catch {}
+    try { mp.game.ped.setPedCombatAttributes(ped.handle, 17, true); } catch {} // always fight
+    try { mp.game.ped.setPedCombatAttributes(ped.handle, 46, true); } catch {} // BF_CanFightArmedPedsWhenNotArmed
+    try { mp.game.ped.setPedCombatMovement(ped.handle, 2); } catch {}
+    try { mp.game.ped.setPedCombatRange(ped.handle, 0); } catch {}
+    try { mp.game.ped.setPedAlertness(ped.handle, 3); } catch {}
+}
+
+function reportHit(zid, dmg, reason = 'unknown') {
+    try {
+        const now = Date.now();
+        const last = hitReportAt.get(zid) || 0;
+        if (now - last < HIT_REPORT_CD) return;
+        hitReportAt.set(zid, now);
+        mp.events.callRemote('z:hit', zid, dmg);
+        dlog(`→ reportHit zid=${zid} dmg=${dmg} reason=${reason}`);
+    } catch {}
+}
+
+function reportDead(zid, reason = 'unknown') {
+    try {
+        const now = Date.now();
+        const last = deadReportAt.get(zid) || 0;
+        if (now - last < DEAD_REPORT_CD) return;
+        deadReportAt.set(zid, now);
+        mp.events.callRemote('z:deadSignal', zid, reason);
+        dlog(`→ reportDead zid=${zid} reason=${reason}`);
+    } catch {}
+}
 
 // ====== подготовка педа ======
 function prepPed(ped){
@@ -27,6 +69,7 @@ function prepPed(ped){
     try{ ped.setBlockingOfNonTemporaryEvents(true); }catch{}
     try{ ped.setKeepTask(true); }catch{}
     try{ ped.setCanRagdoll(true); }catch{}
+    forceAggroPedState(ped);
 }
 
 // ====== attach / detach ======
@@ -64,6 +107,8 @@ function hydrateFollowFromPed(obj, ped) {
         if (cmd !== 'follow') return;
 
         obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
+        obj.followSpeed = (extra && typeof extra.speed === 'number') ? extra.speed : STEP_SPEED;
+        obj.stopDist = (extra && typeof extra.stopDist === 'number') ? extra.stopDist : STOP_DIST;
         const target = findPlayerById(obj.followRid) || me;
         applyFollowTask(obj, ped, target, Date.now());
     } catch {}
@@ -93,7 +138,13 @@ function tryResolvePendingAssignByPed(ped) {
 }
 
 mp.events.add('entityStreamIn', (ent) => {
-    try { if (ent && ent.type === 'ped') { attachIfZombie(ent); tryResolvePendingAssignByPed(ent); } } catch {}
+    try {
+        if (ent && ent.type === 'ped') {
+            attachIfZombie(ent);
+            forceAggroPedState(ent);
+            tryResolvePendingAssignByPed(ent);
+        }
+    } catch {}
 });
 mp.events.add('entityStreamOut', (ent) => {
     try { if (ent && ent.type === 'ped') detachIfZombie(ent); } catch {}
@@ -117,6 +168,22 @@ function isController(ped){
     return typeof rid === 'number' && rid === me.id;
 }
 
+function findZombiePedByZid(zid){
+    const obj = zombies.get(zid);
+    if (obj && obj.ped && mp.peds.exists(obj.ped)) return obj.ped;
+
+    let found = null;
+    try {
+        mp.peds.forEach((ped) => {
+            if (found) return;
+            if (!ped || !mp.peds.exists(ped)) return;
+            if (ped.getVariable('zid') === zid) found = ped;
+        });
+    } catch {}
+
+    return found;
+}
+
 function findPlayerById(rid){
     if (typeof rid !== 'number') return null;
     let found = null;
@@ -129,19 +196,38 @@ function applyFollowTask(obj, ped, target, now) {
     try {
         if (!obj || !ped || !target) return;
 
+        const speed = (obj && typeof obj.followSpeed === 'number') ? obj.followSpeed : STEP_SPEED;
+        const stopDist = (obj && typeof obj.stopDist === 'number') ? obj.stopDist : STOP_DIST;
+        const targetRid = typeof obj.followRid === 'number' ? obj.followRid : me.id;
         const dist = target.position.distanceTo(ped.position);
-        if (dist <= STOP_DIST) return;
+        if (dist <= stopDist) return;
+
+        const lastPos = obj.lastPos || ped.position;
+        const moved = ped.position.distanceTo(lastPos);
+        obj.lastPos = ped.position;
+        const moving = moved > 0.02;
 
         if (!obj.lastFollowAt || (now - obj.lastFollowAt) >= FOLLOW_CD) {
-            obj.lastFollowAt = now;
-            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
+            const targetChanged = obj.lastTaskTargetRid !== targetRid;
+            const needReissue = targetChanged || !moving || !obj.lastFollowAt;
+            if (needReissue) {
+                obj.lastFollowAt = now;
+                if (targetChanged) {
+                    obj.lastTaskTargetRid = targetRid;
+                    try { ped.clearTasks(); } catch {}
+                }
+                forceAggroPedState(ped);
+                ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, speed, -1, stopDist, true);
+            }
         }
 
         // мягкий "пинок" навигации, если ped визуально завис
-        if (!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= 1200) {
+        if ((!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= 1200) && !moving) {
             obj.lastNudgeAt = now;
-            ped.taskGoStraightToCoord(target.position.x, target.position.y, target.position.z, STEP_SPEED, 1200, 0.0, 0.0);
-            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, STEP_SPEED, -1, STOP_DIST, true);
+            try { ped.clearTasks(); } catch {}
+            forceAggroPedState(ped);
+            ped.taskGoStraightToCoord(target.position.x, target.position.y, target.position.z, speed, 1200, 0.0, 0.0);
+            ped.taskFollowToOffsetOfEntity(target.handle, 0,0,0, speed, -1, stopDist, true);
         }
     } catch {}
 }
@@ -149,12 +235,12 @@ function applyFollowTask(obj, ped, target, now) {
 // ====== события от сервера ======
 
 // сервер говорит: "ты контроллер вот этого педа"
-mp.events.add('z:assignController', (zid, ver, pedHandle) => {
+mp.events.add('z:assignController', (zid, ver) => {
     try{
         zid = parseInt(zid);
         ver = parseInt(ver);
 
-        const ped = mp.peds.atHandle(pedHandle);
+        const ped = findZombiePedByZid(zid);
         if(!ped || !mp.peds.exists(ped)) {
             pendingControllerAssign.set(zid, { ver, at: Date.now() });
             return;
@@ -190,6 +276,8 @@ mp.events.add('z:executeCommand', (zid, cmd, extraJson) => {
                 break;
             case 'follow': {
                 obj.followRid = (extra && typeof extra.rid === 'number') ? extra.rid : me.id;
+                obj.followSpeed = (extra && typeof extra.speed === 'number') ? extra.speed : STEP_SPEED;
+                obj.stopDist = (extra && typeof extra.stopDist === 'number') ? extra.stopDist : STOP_DIST;
                 const target = findPlayerById(obj.followRid) || me;
                 applyFollowTask(obj, ped, target, Date.now());
                 break;
@@ -219,6 +307,8 @@ mp.events.add('z:forceRemove', (zid) => {
         }
         zombies.delete(zid);
         pendingControllerAssign.delete(zid);
+        deadReportAt.delete(zid);
+        hitReportAt.delete(zid);
         dlog(`🗑 forceRemove zid=${zid}`);
     } catch {}
 });
@@ -251,10 +341,27 @@ mp.events.add('z:dead', (zid) => {
     if(!obj) return;
     const ped = obj.ped;
     if(!mp.peds.exists(ped)) return;
+    reportDead(zid, 'server-dead-event');
     try { ped.clearTasksImmediately(); } catch {}
+    try { ped.setHealth(0); } catch {}
     try { mp.game.ped.setPedToRagdoll(ped.handle, 5000, 5000, 0, false, false, false); } catch {}
     // дальше сервер сам его удалит через z:forceRemove
 });
+
+setInterval(() => {
+    zombies.forEach((obj, zid) => {
+        try {
+            const ped = obj.ped;
+            if (!mp.peds.exists(ped)) return;
+            const hp = Number(ped.getHealth ? ped.getHealth() : ped.health) || 0;
+            const deadOrDying = mp.game.entity.isEntityDead(ped.handle, false)
+                || mp.game.ped.isPedDeadOrDying(ped.handle, true)
+                || hp <= 0;
+            if (!deadOrDying) return;
+            reportDead(zid, `client-loop hp=${hp}`);
+        } catch {}
+    });
+}, 500);
 
 // ====== ДВИЖЕНИЕ У КОНТРОЛЛЕРА ======
 setInterval(() => {
@@ -270,6 +377,18 @@ setInterval(() => {
         } catch {}
     });
 }, 300);
+
+setInterval(() => {
+    zombies.forEach((obj, zid) => {
+        try {
+            const ped = obj.ped;
+            if (!mp.peds.exists(ped)) return;
+            if (!isController(ped)) return;
+            const ver = parseInt(ped.getVariable('ctrlVer')) || 0;
+            mp.events.callRemote('z:ctrlHeartbeat', zid, ver);
+        } catch {}
+    });
+}, CTRL_HEARTBEAT_MS);
 
 // ====== HIT: raycast по выстрелу ======
 
@@ -308,11 +427,30 @@ mp.events.add('playerWeaponShot', () => {
 
         // пока ставим фиксированный урон
         const dmg = 35;
-        mp.events.callRemote('z:hit', zid, dmg);
-        dlog(`→ shot raycast hit zid=${zid}, dmg=${dmg}`);
+        reportHit(zid, dmg, 'weaponShot-raycast');
     } catch (e) {
         // ignore
     }
+});
+
+// дополнительный надежный канал: срабатывает при реальном уроне ped
+mp.events.add('entityDamaged', (entity, attacker, weapon, damage) => {
+    try {
+        if (!entity || entity.type !== 'ped') return;
+        const zid = entity.getVariable('zid');
+        if (typeof zid !== 'number') return;
+
+        if (!attacker || attacker.type !== 'player') return;
+        if (attacker.handle !== me.handle) return;
+
+        const dmg = Math.max(1, parseInt(damage) || 25);
+        reportHit(zid, dmg, `entityDamaged-w=${weapon}`);
+
+        try {
+            const hp = Number(entity.getHealth ? entity.getHealth() : entity.health) || 0;
+            if (hp <= 0) reportDead(zid, `entityDamaged-kill w=${weapon}`);
+        } catch {}
+    } catch {}
 });
 
 // ===== КЛАВИША: убить ближайшего зомби (для теста)
