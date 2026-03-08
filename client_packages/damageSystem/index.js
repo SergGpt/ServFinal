@@ -70,8 +70,38 @@ function findZombieNearPosition(pos, radius = ZOMBIE_IMPACT_RADIUS) {
 }
 
 function getAimRay(dist = ZOMBIE_RAYCAST_DIST) {
-    const camPos = mp.game.cam.getGameplayCamCoord();
-    const camRot = mp.game.cam.getGameplayCamRot(2);
+    let camPos = null;
+    let originSource = 'unknown';
+
+    try {
+        if (mp.game.cam && typeof mp.game.cam.getGameplayCamCoord === 'function') {
+            camPos = mp.game.cam.getGameplayCamCoord();
+            originSource = 'getGameplayCamCoord';
+        }
+    } catch {}
+
+    try {
+        if (!camPos && mp.game.cam && typeof mp.game.cam.getFinalRenderedCamCoord === 'function') {
+            camPos = mp.game.cam.getFinalRenderedCamCoord();
+            originSource = 'getFinalRenderedCamCoord';
+        }
+    } catch {}
+
+    if (!camPos) {
+        const p = mp.players.local && mp.players.local.position ? mp.players.local.position : { x: 0, y: 0, z: 0 };
+        camPos = { x: p.x, y: p.y, z: p.z + 0.65 };
+        originSource = 'player-pos-fallback';
+    }
+
+    let camRot = { x: 0, y: 0, z: 0 };
+    try {
+        if (mp.game.cam && typeof mp.game.cam.getGameplayCamRot === 'function') {
+            camRot = mp.game.cam.getGameplayCamRot(2) || camRot;
+        }
+    } catch (e) {
+        zlog(`raycast cam rot fallback err=${e.message}`);
+    }
+
     const pitch = camRot.x * Math.PI / 180.0;
     const yaw = camRot.z * Math.PI / 180.0;
 
@@ -87,16 +117,25 @@ function getAimRay(dist = ZOMBIE_RAYCAST_DIST) {
         z: camPos.z + dir.z * dist,
     };
 
-    return { from: camPos, to, dir };
+    zlog(`ray origin source=${originSource} origin=${camPos.x.toFixed(2)},${camPos.y.toFixed(2)},${camPos.z.toFixed(2)}`);
+
+    return { from: camPos, to, dir, originSource };
 }
 
 function runAimRaycast() {
     try {
         const ray = getAimRay(ZOMBIE_RAYCAST_DIST);
         const hit = mp.raycasting.testPointToPoint(ray.from, ray.to, [1, 16]);
+        zlog(`raycast success=${!!hit} originSource=${ray.originSource || 'n/a'}`);
         return { ray, hit };
-    } catch {
-        return { ray: getAimRay(ZOMBIE_RAYCAST_DIST), hit: null };
+    } catch (e) {
+        zlog(`raycast fail reason=${e.message}`);
+        try {
+            return { ray: getAimRay(ZOMBIE_RAYCAST_DIST), hit: null };
+        } catch (e2) {
+            zlog(`raycast fallback fail reason=${e2.message}`);
+            return { ray: null, hit: null };
+        }
     }
 }
 
