@@ -66,6 +66,13 @@ function resolveZombieFromPed(ped) {
     return { ped, zid };
 }
 
+function resolveZombieFromPed(ped) {
+    if (!ped || ped.type !== 'ped' || !mp.peds.exists(ped)) return null;
+    const zid = ped.getVariable('zid');
+    if (typeof zid !== 'number') return null;
+    return { ped, zid };
+}
+
 function dot(a, b) {
     return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
 }
