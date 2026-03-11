@@ -301,7 +301,10 @@ function spawnLootBagForDeadZombie(st, source = 'unknown') {
         return;
     }
 
-    zlog(`loot-create-call zid=${st.zid} source=${source} pos=${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)} dim=${dimension}`);
+    const hasGroundZ = Number.isFinite(st.lastGroundZ);
+    if (hasGroundZ) pos.z = st.lastGroundZ;
+
+    zlog(`loot-create-call zid=${st.zid} source=${source} pos=${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)} dim=${dimension} groundZ=${hasGroundZ ? st.lastGroundZ.toFixed(2) : 'none'}`);
     const loot = zombieLootManager.createLootBag(st.zid, pos, dimension);
     if (!loot) {
         zlog(`loot-fail zid=${st.zid} source=${source} reason=create-returned-null`);
@@ -718,11 +721,11 @@ function registerEvents() {
         } catch {}
     });
 
-    mp.events.add('z:hit', (player, zidRaw, dmgRaw) => {
+    mp.events.add('z:hit', (player, zidRaw, dmgRaw, groundZRaw) => {
         try {
             const zid = parseInt(zidRaw, 10);
             const dmg = resolveZombieHitDamage(player, dmgRaw);
-            zlog(`z:hit raw player=${player ? player.id : -1} zidRaw=${zidRaw} dmgRaw=${dmgRaw}`);
+            zlog(`z:hit raw player=${player ? player.id : -1} zidRaw=${zidRaw} dmgRaw=${dmgRaw} groundZRaw=${groundZRaw}`);
             zlog(`z:hit parsed player=${player ? player.id : -1} zid=${zid} dmg=${dmg}`);
             const st = zombies.get(zid);
             if (!st) {
@@ -734,6 +737,12 @@ function registerEvents() {
                 return;
             }
 
+
+            const groundZ = Number(groundZRaw);
+            if (Number.isFinite(groundZ)) {
+                st.lastGroundZ = groundZ;
+                zlog(`z:hit groundZ accepted zid=${zid} groundZ=${groundZ.toFixed(2)}`);
+            }
             zlog(`z:hit recv by=${player ? player.id : -1} zid=${zid} dmg=${dmg} hp=${st.hp}`);
 
             const oldHp = Math.max(0, parseInt(st.hp, 10) || ZOMBIE_CONFIG.stats.hp);
@@ -759,15 +768,21 @@ function registerEvents() {
         }
     });
 
-    mp.events.add('z:deadSignal', (player, zidRaw, reasonRaw) => {
+    mp.events.add('z:deadSignal', (player, zidRaw, reasonRaw, groundZRaw) => {
         try {
             const zid = parseInt(zidRaw, 10);
             const reason = typeof reasonRaw === 'string' ? reasonRaw : 'client-signal';
-            zlog(`z:deadSignal raw player=${player ? player.id : -1} zidRaw=${zidRaw} reasonRaw=${reasonRaw}`);
+            zlog(`z:deadSignal raw player=${player ? player.id : -1} zidRaw=${zidRaw} reasonRaw=${reasonRaw} groundZRaw=${groundZRaw}`);
             zlog(`z:deadSignal parsed player=${player ? player.id : -1} zid=${zid} reason=${reason}`);
             const st = zombies.get(zid);
             if (!st) return;
             if (st.dead) return;
+
+            const groundZ = Number(groundZRaw);
+            if (Number.isFinite(groundZ)) {
+                st.lastGroundZ = groundZ;
+                zlog(`z:deadSignal groundZ accepted zid=${zid} groundZ=${groundZ.toFixed(2)}`);
+            }
 
             const now = Date.now();
             if (now - (st.deadSignalAt || 0) < ZOMBIE_CONFIG.timers.deadSignalCooldownMs) return;
