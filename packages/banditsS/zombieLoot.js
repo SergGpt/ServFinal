@@ -5,6 +5,8 @@ const zlog = createLogger(ZOMBIE_CONFIG.debug, 'ZLOOT');
 
 const BAG_MODEL = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.bagModel ? ZOMBIE_CONFIG.loot.bagModel : 'prop_cs_heist_bag_01';
 const INTERACT_DISTANCE = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.interactDistance ? ZOMBIE_CONFIG.loot.interactDistance : 2.2;
+const TEMP_INTERACT_DISTANCE = Math.max(INTERACT_DISTANCE, 3.0);
+const ZLOOT_CHAT_DEBUG = true;
 const CANCEL_DISTANCE = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.cancelDistance ? ZOMBIE_CONFIG.loot.cancelDistance : 3.5;
 const LOOT_DURATION_MS = ZOMBIE_CONFIG.timers && ZOMBIE_CONFIG.timers.lootDurationMs ? ZOMBIE_CONFIG.timers.lootDurationMs : 5000;
 const BAG_LIFETIME_MS = ZOMBIE_CONFIG.timers && ZOMBIE_CONFIG.timers.lootBagLifetimeMs ? ZOMBIE_CONFIG.timers.lootBagLifetimeMs : 5 * 60 * 1000;
@@ -45,6 +47,13 @@ function createZombieLootManager() {
             return;
         }
         try { player.outputChatBox(`!{#ff6666}[Лут] ${text}`); } catch {}
+    }
+
+
+    function debugToPlayer(player, text) {
+        if (!ZLOOT_CHAT_DEBUG) return;
+        if (!player || !mp.players.exists(player)) return;
+        try { player.outputChatBox(`!{#99ccff}[ZLOOT] ${text}`); } catch {}
     }
 
     function pickRandomItemId() {
@@ -172,39 +181,47 @@ function createZombieLootManager() {
         const lootId = parseInt(lootIdRaw, 10);
         if (!player || !mp.players.exists(player) || !Number.isFinite(lootId)) {
             zlootTryStartLog(player, lootIdRaw, 'rejected reason=invalid-player-or-lootid');
+            debugToPlayer(player, `tryStart reject reason=invalid-player-or-lootid lootIdRaw=${lootIdRaw}`);
             return;
         }
 
         zlootTryStartLog(player, lootIdRaw, `recv parsedLootId=${lootId}`);
+        debugToPlayer(player, `tryStart recv lootId=${lootId}`);
         const loot = lootBags.get(lootId);
         if (!loot) {
             zlootTryStartLog(player, lootIdRaw, 'rejected reason=loot-not-found');
+            debugToPlayer(player, `tryStart reject reason=loot-not-found lootId=${lootId}`);
             return;
         }
         if (loot.isLooted) {
             zlootTryStartLog(player, lootIdRaw, 'rejected reason=already-looted');
+            debugToPlayer(player, `tryStart reject reason=already-looted lootId=${lootId}`);
             return;
         }
         if (loot.isBusy) {
             zlootTryStartLog(player, lootIdRaw, `rejected reason=busy looterId=${loot.looterId}`);
+            debugToPlayer(player, `tryStart reject reason=busy lootId=${lootId} looterId=${loot.looterId}`);
             notifyError(player, 'Эту сумку уже обыскивают.');
             return;
         }
 
         if (!isPlayerAlive(player)) {
             zlootTryStartLog(player, lootIdRaw, 'rejected reason=player-not-alive');
+            debugToPlayer(player, `tryStart reject reason=player-not-alive lootId=${lootId}`);
             notifyError(player, 'Нельзя обыскивать сумку в таком состоянии.');
             return;
         }
 
         if (player.dimension !== loot.dimension) {
             zlootTryStartLog(player, lootIdRaw, `rejected reason=dimension-mismatch playerDim=${player.dimension} lootDim=${loot.dimension}`);
+            debugToPlayer(player, `tryStart reject reason=dimension-mismatch playerDim=${player.dimension} lootDim=${loot.dimension}`);
             return;
         }
 
         const distance = dist3(player.position, loot.pos);
-        if (distance > INTERACT_DISTANCE) {
-            zlootTryStartLog(player, lootIdRaw, `rejected reason=too-far distance=${distance.toFixed(2)} interact=${INTERACT_DISTANCE}`);
+        if (distance > TEMP_INTERACT_DISTANCE) {
+            zlootTryStartLog(player, lootIdRaw, `rejected reason=too-far distance=${distance.toFixed(2)} interact=${TEMP_INTERACT_DISTANCE}`);
+            debugToPlayer(player, `tryStart reject reason=too-far dist=${distance.toFixed(2)} max=${TEMP_INTERACT_DISTANCE}`);
             notifyError(player, 'Подойдите ближе к сумке.');
             return;
         }
@@ -215,6 +232,7 @@ function createZombieLootManager() {
 
         try { player.call('zloot:start', [loot.id, LOOT_DURATION_MS]); } catch {}
         zlootTryStartLog(player, lootIdRaw, `accepted start lootId=${loot.id} duration=${LOOT_DURATION_MS}`);
+        debugToPlayer(player, `loot start ok lootId=${loot.id} duration=${LOOT_DURATION_MS}`);
         zlog(`start bag id=${loot.id} by=${player.id}`);
     }
 

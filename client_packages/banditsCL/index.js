@@ -24,10 +24,14 @@ function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
 function dlog(msg){ if(DEBUG && VERBOSE) chat(`[ZDBG] ${msg}`,'#99ccff'); }
 const LOOT_DEBUG = true;
+const LOOT_CHAT_DEBUG = true;
 function lootDebug(msg){
     if (!LOOT_DEBUG) return;
     try { mp.console.logInfo(`[ZLOOT-CL] ${msg}`); } catch {}
     try { dlog(`[loot] ${msg}`); } catch {}
+    if (LOOT_CHAT_DEBUG) {
+        try { chat(`[ZLOOT] ${msg}`, '#99ccff'); } catch {}
+    }
 }
 
 function forceAggroPedState(ped){
@@ -470,7 +474,7 @@ setInterval(() => {
 
 
 const lootBags = new Map(); // lootId -> { id, x, y, z, dimension, objectId }
-const LOOT_INTERACT_DISTANCE = 2.2;
+const LOOT_INTERACT_DISTANCE = 3.0;
 const LOOT_CANCEL_DISTANCE = 3.5;
 let activeLoot = null; // { lootId, startedAt, durationMs, finishTimer }
 let lootPromptVisibleFor = null;
@@ -489,25 +493,31 @@ function getNearZombieLootObject(pos) {
     let best = null;
     let bestDist = Infinity;
 
+    lootDebug('scan start');
     try {
         mp.objects.forEach((obj) => {
             try {
                 if (!obj || !mp.objects.exists(obj)) return;
                 if (obj.dimension !== me.dimension) return;
 
-                const isZombieLootBag = getObjVarSafe(obj, 'isZombieLootBag') === true;
-                const lootIdRaw = getObjVarSafe(obj, 'lootId') ?? getObjVarSafe(obj, 'zLootBagId');
-                const lootId = parseInt(lootIdRaw, 10);
+                const rawIsZombieLootBag = getObjVarSafe(obj, 'isZombieLootBag');
+                const rawLootId = getObjVarSafe(obj, 'lootId');
+                const rawCompatLootId = getObjVarSafe(obj, 'zLootBagId');
+                const isZombieLootBag = rawIsZombieLootBag === true;
+                const lootId = parseInt(rawLootId, 10);
 
-                if (!isZombieLootBag || !Number.isFinite(lootId)) {
-                    if ((getObjVarSafe(obj, 'isZombieLootBag') || lootIdRaw) && !obj.__zLootDebugMissed) {
-                        obj.__zLootDebugMissed = true;
-                        lootDebug(`object found but no loot vars obj=${obj.remoteId} isZombieLootBag=${isZombieLootBag} lootIdRaw=${lootIdRaw}`);
-                    }
+                lootDebug(`object vars obj=${obj.remoteId} isZombieLootBag=${rawIsZombieLootBag} lootId=${rawLootId} zLootBagId=${rawCompatLootId}`);
+                if (!isZombieLootBag) {
+                    lootDebug(`reject reason=no-isZombieLootBag obj=${obj.remoteId}`);
+                    return;
+                }
+                if (!Number.isFinite(lootId)) {
+                    lootDebug(`reject reason=no-lootId obj=${obj.remoteId} lootId=${rawLootId} zLootBagId=${rawCompatLootId}`);
                     return;
                 }
 
                 const d = pos.distanceTo(obj.position);
+                lootDebug(`candidate obj found lootId=${lootId} dist=${d.toFixed(2)}`);
                 if (d >= bestDist) return;
 
                 bestDist = d;
@@ -535,7 +545,7 @@ function getNearZombieLootObject(pos) {
         if (lastLootVarsLogId !== best.lootId || Date.now() - lastLootVarsLogAt > 1500) {
             lastLootVarsLogId = best.lootId;
             lastLootVarsLogAt = Date.now();
-            lootDebug(`loot vars found lootId=${best.lootId} obj=${best.object.remoteId} dist=${best.distance.toFixed(2)} dim=${me.dimension}`);
+            lootDebug(`nearest loot selected lootId=${best.lootId} obj=${best.object.remoteId} dist=${best.distance.toFixed(2)} dim=${me.dimension}`);
         }
     }
 
@@ -707,10 +717,10 @@ mp.keys.bind(0x45, true, () => {
         if (activeLoot) { lootDebug('E ignored: active loot in progress'); return; }
         if (lootIsPlayerBusy()) { lootDebug('E ignored: player busy'); return; }
         const nearest = getNearestLootBag();
-        if (!nearest) { lootDebug('E pressed: no nearby loot bag found'); return; }
-        lootDebug(`nearest loot bag lootId=${nearest.bag.id} dist=${nearest.distance.toFixed(2)} dim=${nearest.bag.dimension}`);
-        if (nearest.distance > LOOT_INTERACT_DISTANCE) { lootDebug(`distance too far dist=${nearest.distance.toFixed(2)} max=${LOOT_INTERACT_DISTANCE}`); return; }
-        lootDebug(`sending startLoot lootId=${nearest.bag.id}`);
+        if (!nearest) { lootDebug('E ignored reason=no-loot'); return; }
+        lootDebug(`nearest loot on E lootId=${nearest.bag.id} dist=${nearest.distance.toFixed(2)} dim=${nearest.bag.dimension}`);
+        if (nearest.distance > LOOT_INTERACT_DISTANCE) { lootDebug(`E ignored reason=too-far dist=${nearest.distance.toFixed(2)} max=${LOOT_INTERACT_DISTANCE}`); return; }
+        lootDebug(`sending zloot:tryStart lootId=${nearest.bag.id}`);
         mp.events.callRemote('zloot:tryStart', nearest.bag.id);
     } catch {}
 });
@@ -739,9 +749,9 @@ setInterval(() => {
 
         const nearest = getNearestLootBag();
         if (!nearest || nearest.distance > LOOT_INTERACT_DISTANCE) {
-            try { if (mp.prompt && mp.prompt.hide) mp.prompt.hide(); } catch {}
+            try { if (mp.prompt && mp.prompt.hide) { mp.prompt.hide(); lootDebug('hide prompt'); } } catch {}
             if (lootPromptVisibleFor !== null) {
-                lootDebug('prompt hidden: no nearby loot bag or too far');
+                lootDebug('hide prompt');
                 lootPromptVisibleFor = null;
             }
             return;
@@ -752,8 +762,14 @@ setInterval(() => {
             lastLootVarsLogAt = Date.now();
             lootDebug(`distance ok lootId=${nearest.bag.id} dist=${nearest.distance.toFixed(2)}`);
         }
+        if (lootIsPlayerBusy()) {
+            lootDebug('prompt blocked reason=player-busy');
+            return;
+        }
+
         try {
-            if (mp.prompt && mp.prompt.show) {
+            if (mp.prompt && mp.prompt.showByName) {
+                lootDebug(`show prompt lootId=${nearest.bag.id} key=zombie_loot_search`);
                 mp.prompt.showByName('zombie_loot_search');
                 if (lootPromptVisibleFor !== nearest.bag.id) {
                     lootPromptVisibleFor = nearest.bag.id;
