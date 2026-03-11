@@ -448,10 +448,54 @@ setInterval(() => {
 }, CTRL_HEARTBEAT_MS);
 
 
-const lootBags = new Map(); // lootId -> { id, x, y, z }
+const lootBags = new Map(); // lootId -> { id, x, y, z, dimension, objectId }
 const LOOT_INTERACT_DISTANCE = 2.2;
 const LOOT_CANCEL_DISTANCE = 3.5;
 let activeLoot = null; // { lootId, startedAt, durationMs, finishTimer }
+
+function getObjVarSafe(obj, name) {
+    try {
+        if (!obj || typeof obj.getVariable !== 'function') return undefined;
+        return obj.getVariable(name);
+    } catch {}
+    return undefined;
+}
+
+function syncNearbyLootBags() {
+    try {
+        const trackedIds = new Set();
+        mp.objects.forEachInStreamRange((obj) => {
+            try {
+                if (!obj || !mp.objects.exists(obj)) return;
+
+                const isLootBag = !!getObjVarSafe(obj, 'isZombieLootBag');
+                const lootId = parseInt(getObjVarSafe(obj, 'lootId') ?? getObjVarSafe(obj, 'zLootBagId'), 10);
+                if (!isLootBag || !Number.isFinite(lootId)) return;
+
+                const pos = obj.position;
+                if (!pos) return;
+                const dimension = typeof obj.dimension === 'number' ? obj.dimension : 0;
+                const bag = {
+                    id: lootId,
+                    x: pos.x,
+                    y: pos.y,
+                    z: pos.z,
+                    dimension,
+                    objectId: obj.remoteId,
+                };
+
+                trackedIds.add(lootId);
+                lootBags.set(lootId, bag);
+            } catch {}
+        });
+
+        lootBags.forEach((bag, lootId) => {
+            if (!bag || !Number.isFinite(lootId)) return;
+            if (trackedIds.has(lootId)) return;
+            if (bag.objectId) lootBags.delete(lootId);
+        });
+    } catch {}
+}
 
 function lootIsPlayerBusy() {
     try {
@@ -488,6 +532,7 @@ function getNearestLootBag() {
     let bestDist = Infinity;
     lootBags.forEach((bag) => {
         try {
+            if (typeof bag.dimension === 'number' && me.dimension !== bag.dimension) return;
             const bagPos = new mp.Vector3(bag.x, bag.y, bag.z);
             const d = me.position.distanceTo(bagPos);
             if (d < bestDist) {
@@ -515,7 +560,10 @@ function cancelActiveLoot(reason = 'client-cancel') {
 mp.events.add('zloot:create', (data) => {
     try {
         if (!data || typeof data.id !== 'number') return;
-        lootBags.set(data.id, data);
+        lootBags.set(data.id, {
+            ...data,
+            dimension: typeof data.dimension === 'number' ? data.dimension : me.dimension,
+        });
     } catch {}
 });
 
@@ -581,12 +629,15 @@ mp.keys.bind(0x45, true, () => {
         const nearest = getNearestLootBag();
         if (!nearest) return;
         if (nearest.distance > LOOT_INTERACT_DISTANCE) return;
+        dlog(`loot interact try lootId=${nearest.bag.id} dist=${nearest.distance.toFixed(2)} dim=${me.dimension}`);
         mp.events.callRemote('zloot:tryStart', nearest.bag.id);
     } catch {}
 });
 
 setInterval(() => {
     try {
+        syncNearbyLootBags();
+
         if (activeLoot) {
             const bag = lootBags.get(activeLoot.lootId);
             if (!bag) {
@@ -613,7 +664,7 @@ setInterval(() => {
 
         try {
             if (mp.prompt && mp.prompt.show) {
-                mp.prompt.show('Нажмите <span>E</span>, чтобы обыскать сумку зомби');
+                mp.prompt.show('Нажмите <span>E</span> чтобы обыскать сумку');
             }
         } catch {}
     } catch {}

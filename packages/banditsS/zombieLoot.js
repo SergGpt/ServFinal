@@ -8,6 +8,7 @@ const INTERACT_DISTANCE = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.interactDista
 const CANCEL_DISTANCE = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.cancelDistance ? ZOMBIE_CONFIG.loot.cancelDistance : 3.5;
 const LOOT_DURATION_MS = ZOMBIE_CONFIG.timers && ZOMBIE_CONFIG.timers.lootDurationMs ? ZOMBIE_CONFIG.timers.lootDurationMs : 5000;
 const BAG_LIFETIME_MS = ZOMBIE_CONFIG.timers && ZOMBIE_CONFIG.timers.lootBagLifetimeMs ? ZOMBIE_CONFIG.timers.lootBagLifetimeMs : 5 * 60 * 1000;
+const BAG_GROUND_OFFSET_Z = 0.08;
 const ZOMBIE_LOOT_ITEM_IDS = (ZOMBIE_CONFIG.loot && Array.isArray(ZOMBIE_CONFIG.loot.itemIds) && ZOMBIE_CONFIG.loot.itemIds.length)
     ? ZOMBIE_CONFIG.loot.itemIds
     : [234, 235, 237, 238, 239, 240, 241, 242, 243, 244];
@@ -51,6 +52,7 @@ function createZombieLootManager() {
             x: loot.pos.x,
             y: loot.pos.y,
             z: loot.pos.z,
+            dimension: loot.dimension,
             model: BAG_MODEL,
         };
     }
@@ -108,7 +110,8 @@ function createZombieLootManager() {
         }
 
         const lootId = nextLootId++;
-        const objectPos = new mp.Vector3(pos.x, pos.y, pos.z - 0.95);
+        const safeGroundZ = Number(pos.z) + BAG_GROUND_OFFSET_Z;
+        const objectPos = new mp.Vector3(pos.x, pos.y, safeGroundZ);
         let object = null;
 
         try {
@@ -126,12 +129,15 @@ function createZombieLootManager() {
         }
 
         try { object.setVariable('zLootBagId', lootId); } catch {}
+        try { object.setVariable('lootId', lootId); } catch {}
+        try { object.setVariable('isZombieLootBag', true); } catch {}
+        try { object.setVariable('zombieId', zombieId); } catch {}
 
         const loot = {
             id: lootId,
             zombieId,
             object,
-            pos: { x: pos.x, y: pos.y, z: pos.z },
+            pos: { x: pos.x, y: pos.y, z: safeGroundZ },
             dimension,
             isLooted: false,
             isBusy: false,
@@ -145,6 +151,7 @@ function createZombieLootManager() {
 
         emitCreateForAll(loot);
         zlog(`spawn bag id=${loot.id} zid=${zombieId} pos=${loot.pos.x.toFixed(2)},${loot.pos.y.toFixed(2)},${loot.pos.z.toFixed(2)} dim=${dimension}`);
+        zlog(`loot bag created zid=${zombieId} lootId=${loot.id} pos=${loot.pos.x.toFixed(2)},${loot.pos.y.toFixed(2)},${loot.pos.z.toFixed(2)} dim=${dimension}`);
 
         return loot;
     }
