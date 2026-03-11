@@ -281,30 +281,21 @@ function spawnLootBagForDeadZombie(st, source = 'unknown') {
         return;
     }
 
-    let pos = null;
-    let dimension = 0;
-
-    try {
-        if (st.ped && mp.peds.exists(st.ped)) {
-            const p = st.ped.position;
-            if (p) pos = { x: p.x, y: p.y, z: p.z };
-            dimension = Number(st.ped.dimension) || 0;
-        }
-    } catch {}
-
-    if (!pos && st.lastPos) {
-        pos = { x: st.lastPos.x, y: st.lastPos.y, z: st.lastPos.z };
-    }
-
-    if (!pos) {
-        zlog(`loot-fail zid=${st.zid} source=${source} reason=no-position`);
+    if (!st.ped || !mp.peds.exists(st.ped)) {
+        zlog(`loot-skip zid=${st.zid} source=${source} reason=ped-missing`);
         return;
     }
 
-    const hasGroundZ = Number.isFinite(st.lastGroundZ);
-    if (hasGroundZ) pos.z = st.lastGroundZ;
+    const pedPos = st.ped.position;
+    if (!pedPos) {
+        zlog(`loot-skip zid=${st.zid} source=${source} reason=ped-position-missing`);
+        return;
+    }
 
-    zlog(`loot-create-call zid=${st.zid} source=${source} pos=${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)} dim=${dimension} groundZ=${hasGroundZ ? st.lastGroundZ.toFixed(2) : 'none'}`);
+    const pos = { x: pedPos.x, y: pedPos.y, z: pedPos.z };
+    const dimension = Number(st.ped.dimension) || 0;
+
+    zlog(`loot-create-call zid=${st.zid} source=${source} coords=ped.position pos=${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)} dim=${dimension}`);
     const loot = zombieLootManager.createLootBag(st.zid, pos, dimension);
     if (!loot) {
         zlog(`loot-fail zid=${st.zid} source=${source} reason=create-returned-null`);
@@ -312,7 +303,7 @@ function spawnLootBagForDeadZombie(st, source = 'unknown') {
     }
 
     st.lootSpawned = true;
-    zlog(`loot bag created zid=${st.zid} lootId=${loot.id} pos=${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)} dim=${dimension}`);
+    zlog(`loot bag created zid=${st.zid} lootId=${loot.id} pos=${loot.pos.x.toFixed(2)},${loot.pos.y.toFixed(2)},${loot.pos.z.toFixed(2)} dim=${dimension}`);
 }
 
 function markDeadByHit(zid, killer) {
