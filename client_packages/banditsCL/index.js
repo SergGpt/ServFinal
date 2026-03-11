@@ -474,7 +474,15 @@ setInterval(() => {
 
 
 const lootBags = new Map(); // lootId -> { id, objectId, dimension }
-const LOOT_MODEL_HASH = mp.joaat('prop_cs_heist_bag_01');
+function resolveLootModelHash() {
+    try {
+        if (mp && mp.game && typeof mp.game.joaat === 'function') {
+            return mp.game.joaat('prop_cs_heist_bag_01');
+        }
+    } catch {}
+    return null;
+}
+const LOOT_MODEL_HASH = resolveLootModelHash();
 const LOOT_INTERACT_DISTANCE = 2.2;
 const LOOT_CANCEL_DISTANCE = 3.5;
 let activeLoot = null; // { lootId, startedAt, durationMs, finishTimer }
@@ -487,7 +495,7 @@ function findLootObjectById(objectIdRaw) {
         if (!mp.objects || typeof mp.objects.atRemoteId !== 'function') return null;
         const obj = mp.objects.atRemoteId(objectId);
         if (!obj || !mp.objects.exists(obj)) return null;
-        if (obj.model !== LOOT_MODEL_HASH) return null;
+        if (LOOT_MODEL_HASH !== null && obj.model !== LOOT_MODEL_HASH) return null;
         return obj;
     } catch {}
     return null;
