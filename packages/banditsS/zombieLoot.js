@@ -8,7 +8,7 @@ const INTERACT_DISTANCE = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.interactDista
 const CANCEL_DISTANCE = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.cancelDistance ? ZOMBIE_CONFIG.loot.cancelDistance : 3.5;
 const LOOT_DURATION_MS = 3000;
 const BAG_LIFETIME_MS = ZOMBIE_CONFIG.timers && ZOMBIE_CONFIG.timers.lootBagLifetimeMs ? ZOMBIE_CONFIG.timers.lootBagLifetimeMs : 5 * 60 * 1000;
-const BAG_GROUND_OFFSET_Z = 0.05;
+const BAG_GROUND_OFFSET_Z = -0.12;
 const ZOMBIE_LOOT_ITEM_IDS = (ZOMBIE_CONFIG.loot && Array.isArray(ZOMBIE_CONFIG.loot.itemIds) && ZOMBIE_CONFIG.loot.itemIds.length)
     ? ZOMBIE_CONFIG.loot.itemIds
     : [234, 235, 237, 238, 239, 240, 241, 242, 243, 244];
@@ -43,6 +43,15 @@ function createZombieLootManager() {
         try { player.outputChatBox(`!{#ff6666}[Лут] ${text}`); } catch {}
     }
 
+    function notifySuccess(player, text) {
+        if (!player || !mp.players.exists(player)) return;
+        const notifs = getNotifs();
+        if (notifs && typeof notifs.success === 'function') {
+            notifs.success(player, text, 'Лут');
+            return;
+        }
+        try { player.outputChatBox(`!{#99ff99}[Лут] ${text}`); } catch {}
+    }
 
     function pickRandomItemId() {
         return ZOMBIE_LOOT_ITEM_IDS[(Math.random() * ZOMBIE_LOOT_ITEM_IDS.length) | 0];
@@ -290,7 +299,9 @@ function createZombieLootManager() {
 
             loot.isLooted = true;
             clearLootBusyState(loot);
-            try { player.call('zloot:success', [loot.id, itemId]); } catch {}
+            const itemName = (inventory && typeof inventory.getName === 'function') ? inventory.getName(itemId) : `#${itemId}`;
+            notifySuccess(player, `Вы нашли ${itemName}`);
+            try { player.call('zloot:success', [loot.id, itemId, itemName]); } catch {}
             zlog(`loot finish success lootId=${loot.id} itemId=${itemId}`);
             cleanupLoot(loot, `looted-by-${player.id}`);
         });
