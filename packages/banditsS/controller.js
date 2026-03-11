@@ -281,27 +281,21 @@ function spawnLootBagForDeadZombie(st, source = 'unknown') {
         return;
     }
 
-    let pos = null;
-    let dimension = 0;
-
-    try {
-        if (st.ped && mp.peds.exists(st.ped)) {
-            const p = st.ped.position;
-            if (p) pos = { x: p.x, y: p.y, z: p.z };
-            dimension = Number(st.ped.dimension) || 0;
-        }
-    } catch {}
-
-    if (!pos && st.lastPos) {
-        pos = { x: st.lastPos.x, y: st.lastPos.y, z: st.lastPos.z };
-    }
-
-    if (!pos) {
-        zlog(`loot-fail zid=${st.zid} source=${source} reason=no-position`);
+    if (!st.ped || !mp.peds.exists(st.ped)) {
+        zlog(`loot-skip zid=${st.zid} source=${source} reason=ped-missing`);
         return;
     }
 
-    zlog(`loot-create-call zid=${st.zid} source=${source} pos=${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)} dim=${dimension}`);
+    const pedPos = st.ped.position;
+    if (!pedPos) {
+        zlog(`loot-skip zid=${st.zid} source=${source} reason=ped-position-missing`);
+        return;
+    }
+
+    const pos = { x: pedPos.x, y: pedPos.y, z: pedPos.z };
+    const dimension = Number(st.ped.dimension) || 0;
+
+    zlog(`loot-create-call zid=${st.zid} source=${source} coords=ped.position pos=${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)} dim=${dimension}`);
     const loot = zombieLootManager.createLootBag(st.zid, pos, dimension);
     if (!loot) {
         zlog(`loot-fail zid=${st.zid} source=${source} reason=create-returned-null`);
@@ -309,7 +303,10 @@ function spawnLootBagForDeadZombie(st, source = 'unknown') {
     }
 
     st.lootSpawned = true;
-    zlog(`loot bag created zid=${st.zid} lootId=${loot.id} pos=${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)} dim=${dimension}`);
+    const objPos = loot && loot.object && mp.objects.exists(loot.object) ? loot.object.position : null;
+    if (objPos) {
+        zlog(`loot bag created zid=${st.zid} lootId=${loot.id} pos=${objPos.x.toFixed(2)},${objPos.y.toFixed(2)},${objPos.z.toFixed(2)} dim=${dimension}`);
+    }
 }
 
 function markDeadByHit(zid, killer) {
@@ -718,11 +715,11 @@ function registerEvents() {
         } catch {}
     });
 
-    mp.events.add('z:hit', (player, zidRaw, dmgRaw) => {
+    mp.events.add('z:hit', (player, zidRaw, dmgRaw, groundZRaw) => {
         try {
             const zid = parseInt(zidRaw, 10);
             const dmg = resolveZombieHitDamage(player, dmgRaw);
-            zlog(`z:hit raw player=${player ? player.id : -1} zidRaw=${zidRaw} dmgRaw=${dmgRaw}`);
+            zlog(`z:hit raw player=${player ? player.id : -1} zidRaw=${zidRaw} dmgRaw=${dmgRaw} groundZRaw=${groundZRaw}`);
             zlog(`z:hit parsed player=${player ? player.id : -1} zid=${zid} dmg=${dmg}`);
             const st = zombies.get(zid);
             if (!st) {
@@ -734,6 +731,12 @@ function registerEvents() {
                 return;
             }
 
+
+            const groundZ = Number(groundZRaw);
+            if (Number.isFinite(groundZ)) {
+                st.lastGroundZ = groundZ;
+                zlog(`z:hit groundZ accepted zid=${zid} groundZ=${groundZ.toFixed(2)}`);
+            }
             zlog(`z:hit recv by=${player ? player.id : -1} zid=${zid} dmg=${dmg} hp=${st.hp}`);
 
             const oldHp = Math.max(0, parseInt(st.hp, 10) || ZOMBIE_CONFIG.stats.hp);
@@ -759,15 +762,21 @@ function registerEvents() {
         }
     });
 
-    mp.events.add('z:deadSignal', (player, zidRaw, reasonRaw) => {
+    mp.events.add('z:deadSignal', (player, zidRaw, reasonRaw, groundZRaw) => {
         try {
             const zid = parseInt(zidRaw, 10);
             const reason = typeof reasonRaw === 'string' ? reasonRaw : 'client-signal';
-            zlog(`z:deadSignal raw player=${player ? player.id : -1} zidRaw=${zidRaw} reasonRaw=${reasonRaw}`);
+            zlog(`z:deadSignal raw player=${player ? player.id : -1} zidRaw=${zidRaw} reasonRaw=${reasonRaw} groundZRaw=${groundZRaw}`);
             zlog(`z:deadSignal parsed player=${player ? player.id : -1} zid=${zid} reason=${reason}`);
             const st = zombies.get(zid);
             if (!st) return;
             if (st.dead) return;
+
+            const groundZ = Number(groundZRaw);
+            if (Number.isFinite(groundZ)) {
+                st.lastGroundZ = groundZ;
+                zlog(`z:deadSignal groundZ accepted zid=${zid} groundZ=${groundZ.toFixed(2)}`);
+            }
 
             const now = Date.now();
             if (now - (st.deadSignalAt || 0) < ZOMBIE_CONFIG.timers.deadSignalCooldownMs) return;

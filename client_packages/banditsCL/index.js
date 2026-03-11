@@ -23,6 +23,16 @@ const CTRL_HEARTBEAT_MS = 1000;
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
 function dlog(msg){ if(DEBUG && VERBOSE) chat(`[ZDBG] ${msg}`,'#99ccff'); }
+const LOOT_DEBUG = true;
+const LOOT_CHAT_DEBUG = false;
+function lootDebug(msg){
+    if (!LOOT_DEBUG) return;
+    try { mp.console.logInfo(`[ZLOOT-CL] ${msg}`); } catch {}
+    try { dlog(`[loot] ${msg}`); } catch {}
+    if (LOOT_CHAT_DEBUG) {
+        try { chat(`[ZLOOT] ${msg}`, '#99ccff'); } catch {}
+    }
+}
 
 function forceAggroPedState(ped){
     try { if (!ped || !mp.peds.exists(ped)) return; } catch { return; }
@@ -39,10 +49,24 @@ function forceAggroPedState(ped){
     try { mp.game.ped.setPedAlertness(ped.handle, 3); } catch {}
 }
 
+
+function getZombieGroundZ(zid) {
+    try {
+        const obj = zombies.get(zid);
+        if (!obj || !obj.ped || !mp.peds.exists(obj.ped)) return null;
+        const pos = obj.ped.position;
+        if (!pos) return null;
+        const groundZ = mp.game.gameplay.getGroundZFor3dCoord(pos.x, pos.y, pos.z + 1.0, false, false);
+        return Number.isFinite(groundZ) ? groundZ : null;
+    } catch {}
+    return null;
+}
+
 function sendHitRemote(zid, dmg, reason = 'unknown') {
     try {
-        dlog(`sending z:hit zid=${zid} dmg=${dmg} reason=${reason}`);
-        mp.events.callRemote('z:hit', zid, dmg);
+        const groundZ = getZombieGroundZ(zid);
+        dlog(`sending z:hit zid=${zid} dmg=${dmg} reason=${reason} groundZ=${groundZ}`);
+        mp.events.callRemote('z:hit', zid, dmg, groundZ);
         return true;
     } catch (e) {
         dlog(`z:hit send error zid=${zid} reason=${reason} err=${e.message}`);
@@ -52,8 +76,9 @@ function sendHitRemote(zid, dmg, reason = 'unknown') {
 
 function sendDeadRemote(zid, reason = 'unknown') {
     try {
-        dlog(`sending z:deadSignal zid=${zid} reason=${reason}`);
-        mp.events.callRemote('z:deadSignal', zid, reason);
+        const groundZ = getZombieGroundZ(zid);
+        dlog(`sending z:deadSignal zid=${zid} reason=${reason} groundZ=${groundZ}`);
+        mp.events.callRemote('z:deadSignal', zid, reason, groundZ);
         return true;
     } catch (e) {
         dlog(`z:deadSignal send error zid=${zid} reason=${reason} err=${e.message}`);
@@ -448,10 +473,101 @@ setInterval(() => {
 }, CTRL_HEARTBEAT_MS);
 
 
-const lootBags = new Map(); // lootId -> { id, x, y, z }
+const lootBags = new Map(); // lootId -> { id, objectId, dimension }
+function joaat(str) {
+    let hash = 0;
+    const key = String(str || '').toLowerCase();
+    for (let i = 0; i < key.length; i++) {
+        hash += key.charCodeAt(i);
+        hash += (hash << 10);
+        hash ^= (hash >>> 6);
+    }
+    hash += (hash << 3);
+    hash ^= (hash >>> 11);
+    hash += (hash << 15);
+    return hash >>> 0;
+}
+const LOOT_MODEL_HASH = joaat('prop_cs_heist_bag_01');
 const LOOT_INTERACT_DISTANCE = 2.2;
 const LOOT_CANCEL_DISTANCE = 3.5;
-let activeLoot = null; // { lootId, startedAt, durationMs, finishTimer }
+const LOOT_START_REQUEST_COOLDOWN_MS = 800;
+const LOOT_OBJECT_MISSING_GRACE_MS = 1500;
+const LOOT_HARD_TIMEOUT_EXTRA_MS = 2500;
+let activeLoot = null; // { lootId, startedAt, durationMs, finishTimer, objectMissingSince }
+let lootPromptVisibleFor = null;
+let lastLootStartRequestAt = 0;
+
+function findLootObjectById(objectIdRaw) {
+    const objectId = parseInt(objectIdRaw, 10);
+    if (!Number.isFinite(objectId) || objectId < 0) return null;
+    try {
+        if (!mp.objects || typeof mp.objects.atRemoteId !== 'function') return null;
+        const obj = mp.objects.atRemoteId(objectId);
+        if (!obj || !mp.objects.exists(obj)) return null;
+        if ((obj.model >>> 0) !== LOOT_MODEL_HASH) return null;
+        return obj;
+    } catch {}
+    return null;
+}
+
+function distanceToEntity(entity) {
+    try {
+        if (!entity || !entity.position || !me || !me.position) return null;
+        const px = Number(me.position.x);
+        const py = Number(me.position.y);
+        const pz = Number(me.position.z);
+        const ox = Number(entity.position.x);
+        const oy = Number(entity.position.y);
+        const oz = Number(entity.position.z);
+        if (![px, py, pz, ox, oy, oz].every(Number.isFinite)) return null;
+        const dx = px - ox;
+        const dy = py - oy;
+        const dz = pz - oz;
+        return Math.sqrt((dx * dx) + (dy * dy) + (dz * dz));
+    } catch {}
+    return null;
+}
+
+function getNearestLootBag() {
+    let nearest = null;
+    let nearestDist = Infinity;
+
+    lootBags.forEach((bag) => {
+        try {
+            if (!bag) return;
+            const bagDim = typeof bag.dimension === 'number' ? bag.dimension : 0;
+            if (bagDim !== me.dimension) return;
+
+            const obj = findLootObjectById(bag.objectId);
+            if (!obj || !obj.position) return;
+
+            const dist = distanceToEntity(obj);
+            if (!Number.isFinite(dist)) return;
+            if (dist >= nearestDist) return;
+
+            nearestDist = dist;
+            nearest = {
+                bag,
+                object: obj,
+                distance: dist,
+            };
+        } catch {}
+    });
+
+    return nearest;
+}
+
+function getLootById(lootIdRaw) {
+    const lootId = parseInt(lootIdRaw, 10);
+    if (!Number.isFinite(lootId)) return null;
+    const bag = lootBags.get(lootId);
+    if (!bag) return null;
+    const bagDim = typeof bag.dimension === 'number' ? bag.dimension : 0;
+    if (bagDim !== me.dimension) return null;
+    const object = findLootObjectById(bag.objectId);
+    if (!object || !object.position) return null;
+    return { bag, object };
+}
 
 function lootIsPlayerBusy() {
     try {
@@ -473,7 +589,9 @@ function loadAnimDict(dict) {
 }
 
 function stopLootAnim() {
+    try { me.clearTasksImmediately(); } catch {}
     try { me.clearTasks(); } catch {}
+    try { me.stopAnimTask('amb@prop_human_bum_bin@idle_b', 'idle_d', 2.0); } catch {}
 }
 
 function playLootAnim() {
@@ -483,39 +601,45 @@ function playLootAnim() {
     try { me.taskPlayAnim(dict, name, 8.0, -8.0, -1, 1, 0.0, false, false, false); } catch {}
 }
 
-function getNearestLootBag() {
-    let best = null;
-    let bestDist = Infinity;
-    lootBags.forEach((bag) => {
-        try {
-            const bagPos = new mp.Vector3(bag.x, bag.y, bag.z);
-            const d = me.position.distanceTo(bagPos);
-            if (d < bestDist) {
-                best = bag;
-                bestDist = d;
-            }
-        } catch {}
-    });
-
-    if (!best) return null;
-    return { bag: best, distance: bestDist };
-}
-
-function cancelActiveLoot(reason = 'client-cancel') {
-    if (!activeLoot) return;
-
+function clearActiveLootLocal() {
+    if (!activeLoot) return null;
     const lootId = activeLoot.lootId;
     if (activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
     activeLoot = null;
     stopLootAnim();
+    return lootId;
+}
+
+function cancelActiveLoot(reason = 'client-cancel') {
+    const lootId = clearActiveLootLocal();
+    if (!Number.isFinite(lootId)) return;
 
     try { mp.events.callRemote('zloot:cancel', lootId, reason); } catch {}
 }
 
 mp.events.add('zloot:create', (data) => {
     try {
-        if (!data || typeof data.id !== 'number') return;
-        lootBags.set(data.id, data);
+        if (!data || typeof data.id !== 'number' || typeof data.objectId !== 'number') return;
+        const bag = {
+            id: data.id,
+            objectId: data.objectId,
+            dimension: typeof data.dimension === 'number' ? data.dimension : me.dimension,
+        };
+        lootBags.set(data.id, bag);
+        const obj = findLootObjectById(bag.objectId);
+        const pos = obj && obj.position ? `${obj.position.x.toFixed(2)},${obj.position.y.toFixed(2)},${obj.position.z.toFixed(2)}` : 'no-object';
+        lootDebug(`zloot:create lootId=${bag.id} obj=${bag.objectId} pos=${pos} dim=${bag.dimension}`);
+    } catch {}
+});
+
+mp.events.add('zloot:reset', () => {
+    try {
+        lootBags.clear();
+        clearActiveLootLocal();
+        if (lootPromptVisibleFor !== null) {
+            lootPromptVisibleFor = null;
+            try { if (mp.prompt && mp.prompt.hide) mp.prompt.hide(); } catch {}
+        }
     } catch {}
 });
 
@@ -523,11 +647,8 @@ mp.events.add('zloot:remove', (lootIdRaw) => {
     try {
         const lootId = parseInt(lootIdRaw, 10);
         lootBags.delete(lootId);
-        if (activeLoot && activeLoot.lootId === lootId) {
-            if (activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
-            activeLoot = null;
-            stopLootAnim();
-        }
+        lootDebug(`loot remove lootId=${lootId}`);
+        if (activeLoot && activeLoot.lootId === lootId) clearActiveLootLocal();
     } catch {}
 });
 
@@ -535,15 +656,21 @@ mp.events.add('zloot:start', (lootIdRaw, durationRaw) => {
     try {
         const lootId = parseInt(lootIdRaw, 10);
         const durationMs = parseInt(durationRaw, 10) || 5000;
+        if (!Number.isFinite(lootId) || durationMs <= 0) return;
 
-        if (activeLoot && activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
+        if (activeLoot && activeLoot.lootId === lootId) return;
+        clearActiveLootLocal();
 
         activeLoot = {
             lootId,
             startedAt: Date.now(),
             durationMs,
+            objectMissingSince: 0,
             finishTimer: setTimeout(() => {
-                try { mp.events.callRemote('zloot:finish', lootId); } catch {}
+                try {
+                    if (!activeLoot || activeLoot.lootId !== lootId) return;
+                    mp.events.callRemote('zloot:finish', lootId);
+                } catch {}
             }, durationMs),
         };
 
@@ -555,9 +682,7 @@ mp.events.add('zloot:cancel', (lootIdRaw) => {
     try {
         const lootId = parseInt(lootIdRaw, 10);
         if (!activeLoot || activeLoot.lootId !== lootId) return;
-        if (activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
-        activeLoot = null;
-        stopLootAnim();
+        clearActiveLootLocal();
     } catch {}
 });
 
@@ -565,11 +690,7 @@ mp.events.add('zloot:success', (lootIdRaw, itemIdRaw) => {
     try {
         const lootId = parseInt(lootIdRaw, 10);
         const itemId = parseInt(itemIdRaw, 10);
-        if (activeLoot && activeLoot.lootId === lootId) {
-            if (activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
-            activeLoot = null;
-            stopLootAnim();
-        }
+        if (activeLoot && activeLoot.lootId === lootId) clearActiveLootLocal();
         chat(`Вы нашли предмет #${itemId}`, '#99ff99');
     } catch {}
 });
@@ -580,7 +701,14 @@ mp.keys.bind(0x45, true, () => {
         if (lootIsPlayerBusy()) return;
         const nearest = getNearestLootBag();
         if (!nearest) return;
+        lootDebug(`loot E lootId=${nearest.bag.id} obj=${nearest.bag.objectId} dist=${nearest.distance.toFixed(2)}`);
         if (nearest.distance > LOOT_INTERACT_DISTANCE) return;
+
+        const now = Date.now();
+        if (now - lastLootStartRequestAt < LOOT_START_REQUEST_COOLDOWN_MS) return;
+        lastLootStartRequestAt = now;
+
+        lootDebug(`sending zloot:tryStart lootId=${nearest.bag.id}`);
         mp.events.callRemote('zloot:tryStart', nearest.bag.id);
     } catch {}
 });
@@ -588,13 +716,30 @@ mp.keys.bind(0x45, true, () => {
 setInterval(() => {
     try {
         if (activeLoot) {
-            const bag = lootBags.get(activeLoot.lootId);
-            if (!bag) {
-                cancelActiveLoot('bag-missing');
+            const elapsed = Date.now() - activeLoot.startedAt;
+            if (elapsed > activeLoot.durationMs + LOOT_HARD_TIMEOUT_EXTRA_MS) {
+                clearActiveLootLocal();
                 return;
             }
 
-            const dist = me.position.distanceTo(new mp.Vector3(bag.x, bag.y, bag.z));
+            const activeData = getLootById(activeLoot.lootId);
+            if (!activeData) {
+                if (!activeLoot.objectMissingSince) activeLoot.objectMissingSince = Date.now();
+                if (Date.now() - activeLoot.objectMissingSince > LOOT_OBJECT_MISSING_GRACE_MS) {
+                    cancelActiveLoot('bag-sync-missing');
+                }
+                return;
+            }
+            activeLoot.objectMissingSince = 0;
+
+            const dist = distanceToEntity(activeData.object);
+            if (!Number.isFinite(dist)) {
+                if (!activeLoot.objectMissingSince) activeLoot.objectMissingSince = Date.now();
+                if (Date.now() - activeLoot.objectMissingSince > LOOT_OBJECT_MISSING_GRACE_MS) {
+                    cancelActiveLoot('loot-distance-invalid');
+                }
+                return;
+            }
             const hp = Number(me.getHealth ? me.getHealth() : me.health) || 0;
             if (dist > LOOT_CANCEL_DISTANCE || hp <= 0) {
                 cancelActiveLoot('client-conditions-fail');
@@ -607,13 +752,22 @@ setInterval(() => {
 
         const nearest = getNearestLootBag();
         if (!nearest || nearest.distance > LOOT_INTERACT_DISTANCE) {
-            try { if (mp.prompt && mp.prompt.hide) mp.prompt.hide(); } catch {}
+            try { if (mp.prompt && mp.prompt.hide) { mp.prompt.hide(); } } catch {}
+            if (lootPromptVisibleFor !== null) {
+                lootPromptVisibleFor = null;
+            }
             return;
         }
 
+        lootDebug(`loot prompt lootId=${nearest.bag.id} obj=${nearest.bag.objectId} dist=${nearest.distance.toFixed(2)}`);
+        if (lootIsPlayerBusy()) return;
+
         try {
-            if (mp.prompt && mp.prompt.show) {
-                mp.prompt.show('Нажмите <span>E</span>, чтобы обыскать сумку зомби');
+            if (mp.prompt && mp.prompt.showByName) {
+                mp.prompt.showByName('zombie_loot_search');
+                if (lootPromptVisibleFor !== nearest.bag.id) {
+                    lootPromptVisibleFor = nearest.bag.id;
+                }
             }
         } catch {}
     } catch {}
