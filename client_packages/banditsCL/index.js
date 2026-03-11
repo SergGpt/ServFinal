@@ -491,8 +491,7 @@ const LOOT_MODEL_HASH = joaat('prop_cs_heist_bag_01');
 const LOOT_INTERACT_DISTANCE = 2.2;
 const LOOT_START_REQUEST_COOLDOWN_MS = 800;
 const LOOT_HARD_TIMEOUT_EXTRA_MS = 2500;
-const LOOT_ANIM_REFRESH_MS = 1200;
-let activeLoot = null; // { lootId, startedAt, durationMs, finishTimer }
+let activeLoot = null; // { lootId, startedAt, durationMs, watchdogTimer }
 let lootPromptVisibleFor = null;
 let lastLootStartRequestAt = 0;
 let lootAnimPlaying = false;
@@ -596,7 +595,7 @@ function playLootAnim() {
 function clearActiveLootLocal() {
     if (!activeLoot) return null;
     const lootId = activeLoot.lootId;
-    if (activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
+    if (activeLoot.watchdogTimer) clearTimeout(activeLoot.watchdogTimer);
     activeLoot = null;
     stopLootAnim();
     return lootId;
@@ -657,14 +656,16 @@ mp.events.add('zloot:start', (lootIdRaw, durationRaw) => {
             lootId,
             startedAt: Date.now(),
             durationMs,
-            finishTimer: setTimeout(() => {
+            watchdogTimer: setTimeout(() => {
                 try {
                     if (!activeLoot || activeLoot.lootId !== lootId) return;
-                    mp.events.callRemote('zloot:finish', lootId);
+                    cancelActiveLoot('client-hard-timeout');
                 } catch {}
-            }, durationMs),
+            }, durationMs + LOOT_HARD_TIMEOUT_EXTRA_MS),
         };
 
+        try { if (mp.prompt && mp.prompt.hide) mp.prompt.hide(); } catch {}
+        lootPromptVisibleFor = null;
         playLootAnim();
     } catch {}
 });
@@ -707,21 +708,13 @@ mp.keys.bind(0x45, true, () => {
 setInterval(() => {
     try {
         if (activeLoot) {
-            const elapsed = Date.now() - activeLoot.startedAt;
-            if (elapsed > activeLoot.durationMs + LOOT_HARD_TIMEOUT_EXTRA_MS) {
-                cancelActiveLoot('client-hard-timeout');
-                return;
-            }
-
             const hp = Number(me.getHealth ? me.getHealth() : me.health) || 0;
             if (hp <= 0 || lootIsPlayerBusy()) {
                 cancelActiveLoot('client-conditions-fail');
                 return;
             }
 
-            if (!lootAnimPlaying || (Date.now() - lootAnimLastPlayAt >= LOOT_ANIM_REFRESH_MS)) {
-                playLootAnim();
-            }
+            if (!lootAnimPlaying) playLootAnim();
             return;
         }
 
@@ -748,10 +741,10 @@ setInterval(() => {
     } catch {}
 }, 200);
 
-mp.keys.bind(0x1B, false, () => {
+mp.keys.bind(0x1B, true, () => {
     try {
         if (!activeLoot) return;
-        cancelActiveLoot('client-esc-cancel');
+        cancelActiveLoot('esc');
     } catch {}
 });
 
