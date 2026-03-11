@@ -12,11 +12,13 @@ const { ZOMBIE_STATE, setZombieState } = require('./zombie.state');
 const { saveTask, clearTask, restoreTask } = require('./zombieTaskMemory');
 const { createControllerManager } = require('./zombieControllerManager');
 const damageSystem = require('../damageSystem/index.js');
+const { createZombieLootManager } = require('./zombieLoot');
 
 const zlog = createLogger(ZOMBIE_CONFIG.debug, 'ZCTRL');
 
 const zones = new Map();
 const zombies = new Map();
+const zombieLootManager = createZombieLootManager();
 
 ZOMBIE_CONFIG.zones.forEach((z) => {
     zones.set(z.id, {
@@ -245,6 +247,10 @@ function destroyZombie(zid, reason = 'unknown') {
     const zone = zones.get(st.zoneId);
 
     try {
+        if (!st.dead) zombieLootManager.removeLootByZombie(zid, `zombie-destroy-${reason}`);
+    } catch {}
+
+    try {
         if (mp.peds.exists(st.ped)) st.ped.destroy();
     } catch {}
 
@@ -299,6 +305,12 @@ function markDeadByHit(zid, killer) {
             p.call('z:dead', [zid]);
         } catch {}
     });
+
+    try {
+        if (mp.peds.exists(st.ped)) {
+            zombieLootManager.createLootBag(st.zid, st.ped.position, st.ped.dimension);
+        }
+    } catch {}
 
     zlog(`dead zid=${zid} killer=${killer}`);
 }
@@ -632,6 +644,7 @@ const controllerManager = createControllerManager({
 });
 
 function registerEvents() {
+    zombieLootManager.registerEvents();
     mp.events.add('z:ctrlAck', (player, zid, ver) => {
         try {
             zid = parseInt(zid, 10);
@@ -744,6 +757,7 @@ function registerEvents() {
 }
 
 function registerLoops() {
+    zombieLootManager.registerLoops();
     setInterval(() => {
         try {
             updateZoneEntryState();
