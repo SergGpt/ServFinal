@@ -489,6 +489,28 @@ function getObjVarSafe(obj, name) {
     return undefined;
 }
 
+function getLootObjectById(lootIdRaw) {
+    const lootId = parseInt(lootIdRaw, 10);
+    if (!Number.isFinite(lootId)) return null;
+
+    let found = null;
+    try {
+        mp.objects.forEach((obj) => {
+            if (found) return;
+            try {
+                if (!obj || !mp.objects.exists(obj)) return;
+                if (obj.dimension !== me.dimension) return;
+                if (getObjVarSafe(obj, 'isZombieLootBag') !== true) return;
+                const objLootId = parseInt(getObjVarSafe(obj, 'lootId'), 10);
+                if (!Number.isFinite(objLootId) || objLootId !== lootId) return;
+                found = obj;
+            } catch {}
+        });
+    } catch {}
+
+    return found;
+}
+
 function getNearZombieLootObject(pos) {
     let best = null;
     let bestDist = Infinity;
@@ -561,7 +583,7 @@ function syncNearbyLootBags() {
                 if (obj.dimension !== me.dimension) return;
 
                 const isZombieLootBag = getObjVarSafe(obj, 'isZombieLootBag') === true;
-                const lootId = parseInt(getObjVarSafe(obj, 'lootId') ?? getObjVarSafe(obj, 'zLootBagId'), 10);
+                const lootId = parseInt(getObjVarSafe(obj, 'lootId'), 10);
                 if (!isZombieLootBag || !Number.isFinite(lootId)) return;
 
                 validIds.add(lootId);
@@ -615,24 +637,19 @@ function playLootAnim() {
 
 function getNearestLootBag() {
     const nearestObject = getNearZombieLootObject(me.position);
-    if (nearestObject) return { bag: { id: nearestObject.lootId, x: nearestObject.pos.x, y: nearestObject.pos.y, z: nearestObject.pos.z, dimension: me.dimension }, distance: nearestObject.distance };
+    if (!nearestObject) return null;
 
-    let best = null;
-    let bestDist = Infinity;
-    lootBags.forEach((bag) => {
-        try {
-            if (typeof bag.dimension === 'number' && me.dimension !== bag.dimension) return;
-            const bagPos = new mp.Vector3(bag.x, bag.y, bag.z);
-            const d = me.position.distanceTo(bagPos);
-            if (d < bestDist) {
-                best = bag;
-                bestDist = d;
-            }
-        } catch {}
-    });
-
-    if (!best) return null;
-    return { bag: best, distance: bestDist };
+    return {
+        bag: {
+            id: nearestObject.lootId,
+            x: nearestObject.pos.x,
+            y: nearestObject.pos.y,
+            z: nearestObject.pos.z,
+            dimension: me.dimension,
+            objectId: nearestObject.object ? nearestObject.object.remoteId : null,
+        },
+        distance: nearestObject.distance,
+    };
 }
 
 function cancelActiveLoot(reason = 'client-cancel') {
@@ -730,13 +747,13 @@ setInterval(() => {
         syncNearbyLootBags();
 
         if (activeLoot) {
-            const bag = lootBags.get(activeLoot.lootId);
-            if (!bag) {
-                cancelActiveLoot('bag-missing');
+            const lootObj = getLootObjectById(activeLoot.lootId);
+            if (!lootObj || !lootObj.position) {
+                cancelActiveLoot('bag-object-missing');
                 return;
             }
 
-            const dist = me.position.distanceTo(new mp.Vector3(bag.x, bag.y, bag.z));
+            const dist = me.position.distanceTo(lootObj.position);
             const hp = Number(me.getHealth ? me.getHealth() : me.health) || 0;
             if (dist > LOOT_CANCEL_DISTANCE || hp <= 0) {
                 cancelActiveLoot('client-conditions-fail');
@@ -769,7 +786,7 @@ setInterval(() => {
 
         try {
             if (mp.prompt && mp.prompt.showByName) {
-                lootDebug(`show prompt lootId=${nearest.bag.id} key=zombie_loot_search`);
+                lootDebug(`show prompt lootId=${nearest.bag.id} key=zombie_loot_search promptPos=${nearest.bag.x.toFixed(2)},${nearest.bag.y.toFixed(2)},${nearest.bag.z.toFixed(2)}`);
                 mp.prompt.showByName('zombie_loot_search');
                 if (lootPromptVisibleFor !== nearest.bag.id) {
                     lootPromptVisibleFor = nearest.bag.id;

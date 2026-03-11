@@ -148,11 +148,13 @@ function createZombieLootManager() {
         try { object.setVariable('isZombieLootBag', true); } catch { varsOk = false; }
         try { object.setVariable('zombieId', zombieId); } catch { varsOk = false; }
 
+        const finalPos = object && object.position ? object.position : objectPos;
+
         const loot = {
             id: lootId,
             zombieId,
             object,
-            pos: { x: pos.x, y: pos.y, z: safeGroundZ },
+            pos: { x: finalPos.x, y: finalPos.y, z: finalPos.z },
             dimension,
             isLooted: false,
             isBusy: false,
@@ -169,6 +171,18 @@ function createZombieLootManager() {
         zlog(`loot bag created lootId=${loot.id} object=ok vars=${varsOk ? 'ok' : 'fail'} pos=${loot.pos.x.toFixed(2)},${loot.pos.y.toFixed(2)},${loot.pos.z.toFixed(2)} dim=${dimension}`);
 
         return loot;
+    }
+
+
+    function getLootWorldPos(loot) {
+        if (!loot) return null;
+        try {
+            if (loot.object && mp.objects.exists(loot.object) && loot.object.position) {
+                const p = loot.object.position;
+                return { x: p.x, y: p.y, z: p.z };
+            }
+        } catch {}
+        return loot.pos || null;
     }
 
     function isPlayerAlive(player) {
@@ -218,7 +232,14 @@ function createZombieLootManager() {
             return;
         }
 
-        const distance = dist3(player.position, loot.pos);
+        const lootPos = getLootWorldPos(loot);
+        if (!lootPos) {
+            zlootTryStartLog(player, lootIdRaw, 'rejected reason=no-loot-world-pos');
+            debugToPlayer(player, `tryStart reject reason=no-loot-world-pos lootId=${lootId}`);
+            return;
+        }
+
+        const distance = dist3(player.position, lootPos);
         if (distance > TEMP_INTERACT_DISTANCE) {
             zlootTryStartLog(player, lootIdRaw, `rejected reason=too-far distance=${distance.toFixed(2)} interact=${TEMP_INTERACT_DISTANCE}`);
             debugToPlayer(player, `tryStart reject reason=too-far dist=${distance.toFixed(2)} max=${TEMP_INTERACT_DISTANCE}`);
@@ -254,7 +275,14 @@ function createZombieLootManager() {
             return;
         }
 
-        const distance = dist3(player.position, loot.pos);
+        const lootPos = getLootWorldPos(loot);
+        if (!lootPos) {
+            zlootTryStartLog(player, lootIdRaw, 'rejected reason=no-loot-world-pos');
+            debugToPlayer(player, `tryStart reject reason=no-loot-world-pos lootId=${lootId}`);
+            return;
+        }
+
+        const distance = dist3(player.position, lootPos);
         if (distance > CANCEL_DISTANCE) {
             cancelLooting(loot, 'too-far', true);
             return;
@@ -376,7 +404,13 @@ function createZombieLootManager() {
                         return;
                     }
 
-                    const distance = dist3(looter.position, loot.pos);
+                    const lootPos = getLootWorldPos(loot);
+                    if (!lootPos) {
+                        cancelLooting(loot, 'no-loot-world-pos', true);
+                        return;
+                    }
+
+                    const distance = dist3(looter.position, lootPos);
                     if (distance > CANCEL_DISTANCE) {
                         cancelLooting(loot, 'looter-too-far', true);
                     }
