@@ -474,15 +474,20 @@ setInterval(() => {
 
 
 const lootBags = new Map(); // lootId -> { id, objectId, dimension }
-function resolveLootModelHash() {
-    try {
-        if (mp && mp.game && typeof mp.game.joaat === 'function') {
-            return mp.game.joaat('prop_cs_heist_bag_01');
-        }
-    } catch {}
-    return null;
+function joaat(str) {
+    let hash = 0;
+    const key = String(str || '').toLowerCase();
+    for (let i = 0; i < key.length; i++) {
+        hash += key.charCodeAt(i);
+        hash += (hash << 10);
+        hash ^= (hash >>> 6);
+    }
+    hash += (hash << 3);
+    hash ^= (hash >>> 11);
+    hash += (hash << 15);
+    return hash >>> 0;
 }
-const LOOT_MODEL_HASH = resolveLootModelHash();
+const LOOT_MODEL_HASH = joaat('prop_cs_heist_bag_01');
 const LOOT_INTERACT_DISTANCE = 2.2;
 const LOOT_CANCEL_DISTANCE = 3.5;
 let activeLoot = null; // { lootId, startedAt, durationMs, finishTimer }
@@ -495,8 +500,26 @@ function findLootObjectById(objectIdRaw) {
         if (!mp.objects || typeof mp.objects.atRemoteId !== 'function') return null;
         const obj = mp.objects.atRemoteId(objectId);
         if (!obj || !mp.objects.exists(obj)) return null;
-        if (LOOT_MODEL_HASH !== null && obj.model !== LOOT_MODEL_HASH) return null;
+        if ((obj.model >>> 0) !== LOOT_MODEL_HASH) return null;
         return obj;
+    } catch {}
+    return null;
+}
+
+function distanceToEntity(entity) {
+    try {
+        if (!entity || !entity.position || !me || !me.position) return null;
+        const px = Number(me.position.x);
+        const py = Number(me.position.y);
+        const pz = Number(me.position.z);
+        const ox = Number(entity.position.x);
+        const oy = Number(entity.position.y);
+        const oz = Number(entity.position.z);
+        if (![px, py, pz, ox, oy, oz].every(Number.isFinite)) return null;
+        const dx = px - ox;
+        const dy = py - oy;
+        const dz = pz - oz;
+        return Math.sqrt((dx * dx) + (dy * dy) + (dz * dz));
     } catch {}
     return null;
 }
@@ -514,7 +537,8 @@ function getNearestLootBag() {
             const obj = findLootObjectById(bag.objectId);
             if (!obj || !obj.position) return;
 
-            const dist = me.position.distanceTo(obj.position);
+            const dist = distanceToEntity(obj);
+            if (!Number.isFinite(dist)) return;
             if (dist >= nearestDist) return;
 
             nearestDist = dist;
@@ -688,7 +712,11 @@ setInterval(() => {
                 return;
             }
 
-            const dist = me.position.distanceTo(activeData.object.position);
+            const dist = distanceToEntity(activeData.object);
+            if (!Number.isFinite(dist)) {
+                cancelActiveLoot('loot-distance-invalid');
+                return;
+            }
             const hp = Number(me.getHealth ? me.getHealth() : me.health) || 0;
             if (dist > LOOT_CANCEL_DISTANCE || hp <= 0) {
                 cancelActiveLoot('client-conditions-fail');
