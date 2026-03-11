@@ -12,11 +12,13 @@ const { ZOMBIE_STATE, setZombieState } = require('./zombie.state');
 const { saveTask, clearTask, restoreTask } = require('./zombieTaskMemory');
 const { createControllerManager } = require('./zombieControllerManager');
 const damageSystem = require('../damageSystem/index.js');
+const { createZombieLootManager } = require('./zombieLoot');
 
 const zlog = createLogger(ZOMBIE_CONFIG.debug, 'ZCTRL');
 
 const zones = new Map();
 const zombies = new Map();
+const zombieLootManager = createZombieLootManager();
 
 ZOMBIE_CONFIG.zones.forEach((z) => {
     zones.set(z.id, {
@@ -213,6 +215,7 @@ function spawnZombie(zone, owner, spawnIndex = 0) {
         lastFollowIssueAt: 0,
         lastControllerAckAt: 0,
         stuckGraceUntil: now + (ZOMBIE_CONFIG.ai.stuckGraceAfterSpawnMs || 4000),
+        lootSpawned: false,
     };
 
     zombies.set(zid, st);
@@ -245,6 +248,10 @@ function destroyZombie(zid, reason = 'unknown') {
     const zone = zones.get(st.zoneId);
 
     try {
+        if (!st.dead) zombieLootManager.removeLootByZombie(zid, `zombie-destroy-${reason}`);
+    } catch {}
+
+    try {
         if (mp.peds.exists(st.ped)) st.ped.destroy();
     } catch {}
 
@@ -265,6 +272,44 @@ function destroyZombie(zid, reason = 'unknown') {
     });
 
     zlog(`destroy done zid=${zid} reason=${reason} zone=${st.zoneId}`);
+}
+
+function spawnLootBagForDeadZombie(st, source = 'unknown') {
+    if (!st) return;
+    if (st.lootSpawned) {
+        zlog(`loot-skip zid=${st.zid} source=${source} reason=already-spawned`);
+        return;
+    }
+
+    let pos = null;
+    let dimension = 0;
+
+    try {
+        if (st.ped && mp.peds.exists(st.ped)) {
+            const p = st.ped.position;
+            if (p) pos = { x: p.x, y: p.y, z: p.z };
+            dimension = Number(st.ped.dimension) || 0;
+        }
+    } catch {}
+
+    if (!pos && st.lastPos) {
+        pos = { x: st.lastPos.x, y: st.lastPos.y, z: st.lastPos.z };
+    }
+
+    if (!pos) {
+        zlog(`loot-fail zid=${st.zid} source=${source} reason=no-position`);
+        return;
+    }
+
+    zlog(`loot-create-call zid=${st.zid} source=${source} pos=${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)} dim=${dimension}`);
+    const loot = zombieLootManager.createLootBag(st.zid, pos, dimension);
+    if (!loot) {
+        zlog(`loot-fail zid=${st.zid} source=${source} reason=create-returned-null`);
+        return;
+    }
+
+    st.lootSpawned = true;
+    zlog(`loot bag created zid=${st.zid} lootId=${loot.id} pos=${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)} dim=${dimension}`);
 }
 
 function markDeadByHit(zid, killer) {
@@ -301,6 +346,12 @@ function markDeadByHit(zid, killer) {
     });
 
     zlog(`dead zid=${zid} killer=${killer}`);
+
+    try {
+        spawnLootBagForDeadZombie(st, 'markDeadByHit');
+    } catch (e) {
+        zlog(`loot-fail zid=${zid} source=markDeadByHit reason=${e.message}`);
+    }
 }
 
 function markDeadBySignal(zid, source = 'unknown') {
@@ -632,6 +683,7 @@ const controllerManager = createControllerManager({
 });
 
 function registerEvents() {
+    zombieLootManager.registerEvents();
     mp.events.add('z:ctrlAck', (player, zid, ver) => {
         try {
             zid = parseInt(zid, 10);
@@ -744,6 +796,7 @@ function registerEvents() {
 }
 
 function registerLoops() {
+    zombieLootManager.registerLoops();
     setInterval(() => {
         try {
             updateZoneEntryState();

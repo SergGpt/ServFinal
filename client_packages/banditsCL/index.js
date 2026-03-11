@@ -447,6 +447,178 @@ setInterval(() => {
     });
 }, CTRL_HEARTBEAT_MS);
 
+
+const lootBags = new Map(); // lootId -> { id, x, y, z }
+const LOOT_INTERACT_DISTANCE = 2.2;
+const LOOT_CANCEL_DISTANCE = 3.5;
+let activeLoot = null; // { lootId, startedAt, durationMs, finishTimer }
+
+function lootIsPlayerBusy() {
+    try {
+        if (!me || !mp.players.exists(me)) return true;
+        return !!me.vehicle;
+    } catch {}
+    return false;
+}
+
+function loadAnimDict(dict) {
+    try {
+        if (mp.game.streaming.hasAnimDictLoaded(dict)) return true;
+        mp.game.streaming.requestAnimDict(dict);
+        let i = 0;
+        while (!mp.game.streaming.hasAnimDictLoaded(dict) && i++ < 70) mp.game.wait(10);
+        return mp.game.streaming.hasAnimDictLoaded(dict);
+    } catch {}
+    return false;
+}
+
+function stopLootAnim() {
+    try { me.clearTasks(); } catch {}
+}
+
+function playLootAnim() {
+    const dict = 'amb@prop_human_bum_bin@idle_b';
+    const name = 'idle_d';
+    if (!loadAnimDict(dict)) return;
+    try { me.taskPlayAnim(dict, name, 8.0, -8.0, -1, 1, 0.0, false, false, false); } catch {}
+}
+
+function getNearestLootBag() {
+    let best = null;
+    let bestDist = Infinity;
+    lootBags.forEach((bag) => {
+        try {
+            const bagPos = new mp.Vector3(bag.x, bag.y, bag.z);
+            const d = me.position.distanceTo(bagPos);
+            if (d < bestDist) {
+                best = bag;
+                bestDist = d;
+            }
+        } catch {}
+    });
+
+    if (!best) return null;
+    return { bag: best, distance: bestDist };
+}
+
+function cancelActiveLoot(reason = 'client-cancel') {
+    if (!activeLoot) return;
+
+    const lootId = activeLoot.lootId;
+    if (activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
+    activeLoot = null;
+    stopLootAnim();
+
+    try { mp.events.callRemote('zloot:cancel', lootId, reason); } catch {}
+}
+
+mp.events.add('zloot:create', (data) => {
+    try {
+        if (!data || typeof data.id !== 'number') return;
+        lootBags.set(data.id, data);
+    } catch {}
+});
+
+mp.events.add('zloot:remove', (lootIdRaw) => {
+    try {
+        const lootId = parseInt(lootIdRaw, 10);
+        lootBags.delete(lootId);
+        if (activeLoot && activeLoot.lootId === lootId) {
+            if (activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
+            activeLoot = null;
+            stopLootAnim();
+        }
+    } catch {}
+});
+
+mp.events.add('zloot:start', (lootIdRaw, durationRaw) => {
+    try {
+        const lootId = parseInt(lootIdRaw, 10);
+        const durationMs = parseInt(durationRaw, 10) || 5000;
+
+        if (activeLoot && activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
+
+        activeLoot = {
+            lootId,
+            startedAt: Date.now(),
+            durationMs,
+            finishTimer: setTimeout(() => {
+                try { mp.events.callRemote('zloot:finish', lootId); } catch {}
+            }, durationMs),
+        };
+
+        playLootAnim();
+    } catch {}
+});
+
+mp.events.add('zloot:cancel', (lootIdRaw) => {
+    try {
+        const lootId = parseInt(lootIdRaw, 10);
+        if (!activeLoot || activeLoot.lootId !== lootId) return;
+        if (activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
+        activeLoot = null;
+        stopLootAnim();
+    } catch {}
+});
+
+mp.events.add('zloot:success', (lootIdRaw, itemIdRaw) => {
+    try {
+        const lootId = parseInt(lootIdRaw, 10);
+        const itemId = parseInt(itemIdRaw, 10);
+        if (activeLoot && activeLoot.lootId === lootId) {
+            if (activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
+            activeLoot = null;
+            stopLootAnim();
+        }
+        chat(`Вы нашли предмет #${itemId}`, '#99ff99');
+    } catch {}
+});
+
+mp.keys.bind(0x45, true, () => {
+    try {
+        if (activeLoot) return;
+        if (lootIsPlayerBusy()) return;
+        const nearest = getNearestLootBag();
+        if (!nearest) return;
+        if (nearest.distance > LOOT_INTERACT_DISTANCE) return;
+        mp.events.callRemote('zloot:tryStart', nearest.bag.id);
+    } catch {}
+});
+
+setInterval(() => {
+    try {
+        if (activeLoot) {
+            const bag = lootBags.get(activeLoot.lootId);
+            if (!bag) {
+                cancelActiveLoot('bag-missing');
+                return;
+            }
+
+            const dist = me.position.distanceTo(new mp.Vector3(bag.x, bag.y, bag.z));
+            const hp = Number(me.getHealth ? me.getHealth() : me.health) || 0;
+            if (dist > LOOT_CANCEL_DISTANCE || hp <= 0) {
+                cancelActiveLoot('client-conditions-fail');
+                return;
+            }
+
+            playLootAnim();
+            return;
+        }
+
+        const nearest = getNearestLootBag();
+        if (!nearest || nearest.distance > LOOT_INTERACT_DISTANCE) {
+            try { if (mp.prompt && mp.prompt.hide) mp.prompt.hide(); } catch {}
+            return;
+        }
+
+        try {
+            if (mp.prompt && mp.prompt.show) {
+                mp.prompt.show('Нажмите <span>E</span>, чтобы обыскать сумку зомби');
+            }
+        } catch {}
+    } catch {}
+}, 200);
+
 function getNearestZombieZid() {
     let best = null;
     let bestD = Infinity;

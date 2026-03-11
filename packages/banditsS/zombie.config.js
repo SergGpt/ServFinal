@@ -27,6 +27,15 @@ const ZOMBIE_CONFIG = {
         switchCooldownMs: 900,
         maxSwitchAttempts: 3,
         switchAssignJitterMs: 120,
+        lootBagLifetimeMs: 5 * 60 * 1000,
+        lootDurationMs: 5000,
+    },
+
+    loot: {
+        bagModel: 'prop_cs_heist_bag_01',
+        interactDistance: 2.2,
+        cancelDistance: 3.5,
+        itemIds: [234, 235, 237, 238, 239, 240, 241, 242, 243, 244],
     },
 
     network: {
