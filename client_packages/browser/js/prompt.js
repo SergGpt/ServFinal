@@ -134,6 +134,9 @@ var prompt = new Vue({
             "bin": {
                 text: "Нажмите <span>E</span>, чтобы покопаться в мусорке",
             },
+            "zombie_loot_search": {
+                text: "Нажмите <span>E</span>, чтобы обыскать сумку",
+            },
             "woodman_take_ax": {
                 text: "Достаньте топор, чтобы вырубить дерево",
             },

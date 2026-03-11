@@ -8,9 +8,11 @@ const INTERACT_DISTANCE = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.interactDista
 const CANCEL_DISTANCE = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.cancelDistance ? ZOMBIE_CONFIG.loot.cancelDistance : 3.5;
 const LOOT_DURATION_MS = ZOMBIE_CONFIG.timers && ZOMBIE_CONFIG.timers.lootDurationMs ? ZOMBIE_CONFIG.timers.lootDurationMs : 5000;
 const BAG_LIFETIME_MS = ZOMBIE_CONFIG.timers && ZOMBIE_CONFIG.timers.lootBagLifetimeMs ? ZOMBIE_CONFIG.timers.lootBagLifetimeMs : 5 * 60 * 1000;
+const BAG_GROUND_OFFSET_Z = 0.05;
 const ZOMBIE_LOOT_ITEM_IDS = (ZOMBIE_CONFIG.loot && Array.isArray(ZOMBIE_CONFIG.loot.itemIds) && ZOMBIE_CONFIG.loot.itemIds.length)
     ? ZOMBIE_CONFIG.loot.itemIds
     : [234, 235, 237, 238, 239, 240, 241, 242, 243, 244];
+
 
 function createZombieLootManager() {
     const lootBags = new Map(); // id -> state
@@ -41,22 +43,24 @@ function createZombieLootManager() {
         try { player.outputChatBox(`!{#ff6666}[Лут] ${text}`); } catch {}
     }
 
+
     function pickRandomItemId() {
         return ZOMBIE_LOOT_ITEM_IDS[(Math.random() * ZOMBIE_LOOT_ITEM_IDS.length) | 0];
     }
 
     function toClientData(loot) {
+        if (!loot || !loot.object || !mp.objects.exists(loot.object)) return null;
         return {
             id: loot.id,
-            x: loot.pos.x,
-            y: loot.pos.y,
-            z: loot.pos.z,
+            dimension: loot.dimension,
+            objectId: loot.object.id,
             model: BAG_MODEL,
         };
     }
 
     function emitCreateForAll(loot) {
         const data = toClientData(loot);
+        if (!data) return;
         mp.players.forEach((player) => {
             try { player.call('zloot:create', [data]); } catch {}
         });
@@ -78,7 +82,7 @@ function createZombieLootManager() {
         lootBags.delete(loot.id);
 
         emitRemoveForAll(loot.id);
-        zlog(`remove bag id=${loot.id} zid=${loot.zombieId} reason=${reason}`);
+        zlog(`loot remove lootId=${loot.id} reason=${reason}`);
     }
 
     function cancelLooting(loot, reason = 'cancel', silent = false) {
@@ -108,7 +112,8 @@ function createZombieLootManager() {
         }
 
         const lootId = nextLootId++;
-        const objectPos = new mp.Vector3(pos.x, pos.y, pos.z - 0.95);
+        const safeGroundZ = Number(pos.z) + BAG_GROUND_OFFSET_Z;
+        const objectPos = new mp.Vector3(pos.x, pos.y, safeGroundZ);
         let object = null;
 
         try {
@@ -125,13 +130,18 @@ function createZombieLootManager() {
             return null;
         }
 
-        try { object.setVariable('zLootBagId', lootId); } catch {}
+        let varsOk = true;
+        try { object.setVariable('zLootBagId', lootId); } catch { varsOk = false; }
+        try { object.setVariable('lootId', lootId); } catch { varsOk = false; }
+        try { object.setVariable('isZombieLootBag', true); } catch { varsOk = false; }
+        try { object.setVariable('zombieId', zombieId); } catch { varsOk = false; }
+
+        const finalPos = object && object.position ? object.position : objectPos;
 
         const loot = {
             id: lootId,
             zombieId,
             object,
-            pos: { x: pos.x, y: pos.y, z: pos.z },
             dimension,
             isLooted: false,
             isBusy: false,
@@ -144,9 +154,20 @@ function createZombieLootManager() {
         lootsByZombieId.set(zombieId, lootId);
 
         emitCreateForAll(loot);
-        zlog(`spawn bag id=${loot.id} zid=${zombieId} pos=${loot.pos.x.toFixed(2)},${loot.pos.y.toFixed(2)},${loot.pos.z.toFixed(2)} dim=${dimension}`);
+        zlog(`loot create lootId=${loot.id} obj=${object.id} pos=${finalPos.x.toFixed(2)},${finalPos.y.toFixed(2)},${finalPos.z.toFixed(2)} dim=${dimension} vars=${varsOk ? 'ok' : 'fail'}`);
 
         return loot;
+    }
+
+    function getLootObjectPos(loot) {
+        if (!loot) return null;
+        try {
+            if (loot.object && mp.objects.exists(loot.object) && loot.object.position) {
+                const p = loot.object.position;
+                return { x: p.x, y: p.y, z: p.z };
+            }
+        } catch {}
+        return null;
     }
 
     function isPlayerAlive(player) {
@@ -174,11 +195,17 @@ function createZombieLootManager() {
 
         if (player.dimension !== loot.dimension) return;
 
-        const distance = dist3(player.position, loot.pos);
+        const lootPos = getLootObjectPos(loot);
+        if (!lootPos) return;
+
+        const distance = dist3(player.position, lootPos);
         if (distance > INTERACT_DISTANCE) {
+            zlog(`loot tryStart lootId=${loot.id} dist=${distance.toFixed(2)} rejected=too-far`);
             notifyError(player, 'Подойдите ближе к сумке.');
             return;
         }
+
+        zlog(`loot tryStart lootId=${loot.id} dist=${distance.toFixed(2)} ok`);
 
         loot.isBusy = true;
         loot.looterId = player.id;
@@ -206,7 +233,12 @@ function createZombieLootManager() {
             return;
         }
 
-        const distance = dist3(player.position, loot.pos);
+        const lootPos = getLootObjectPos(loot);
+        if (!lootPos) {
+            return;
+        }
+
+        const distance = dist3(player.position, lootPos);
         if (distance > CANCEL_DISTANCE) {
             cancelLooting(loot, 'too-far', true);
             return;
@@ -267,8 +299,11 @@ function createZombieLootManager() {
 
     function syncLootsForPlayer(player) {
         if (!player || !mp.players.exists(player)) return;
+        try { player.call('zloot:reset'); } catch {}
         lootBags.forEach((loot) => {
-            try { player.call('zloot:create', [toClientData(loot)]); } catch {}
+            const data = toClientData(loot);
+            if (!data) return;
+            try { player.call('zloot:create', [data]); } catch {}
         });
     }
 
@@ -328,7 +363,13 @@ function createZombieLootManager() {
                         return;
                     }
 
-                    const distance = dist3(looter.position, loot.pos);
+                    const lootPos = getLootObjectPos(loot);
+                    if (!lootPos) {
+                        cancelLooting(loot, 'no-loot-world-pos', true);
+                        return;
+                    }
+
+                    const distance = dist3(looter.position, lootPos);
                     if (distance > CANCEL_DISTANCE) {
                         cancelLooting(loot, 'looter-too-far', true);
                     }
