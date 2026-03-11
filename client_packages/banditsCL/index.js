@@ -474,7 +474,8 @@ const LOOT_INTERACT_DISTANCE = 2.2;
 const LOOT_CANCEL_DISTANCE = 3.5;
 let activeLoot = null; // { lootId, startedAt, durationMs, finishTimer }
 let lootPromptVisibleFor = null;
-let lastLootDistanceLogAt = 0;
+let lastLootVarsLogAt = 0;
+let lastLootVarsLogId = null;
 
 function getObjVarSafe(obj, name) {
     try {
@@ -484,55 +485,92 @@ function getObjVarSafe(obj, name) {
     return undefined;
 }
 
-function syncNearbyLootBags() {
+function getNearZombieLootObject(pos) {
+    let best = null;
+    let bestDist = Infinity;
+
     try {
-        const trackedIds = new Set();
-        const scanObject = (obj) => {
+        mp.objects.forEach((obj) => {
             try {
                 if (!obj || !mp.objects.exists(obj)) return;
+                if (obj.dimension !== me.dimension) return;
 
-                const rawIsLootBag = getObjVarSafe(obj, 'isZombieLootBag');
-                const rawLootId = getObjVarSafe(obj, 'lootId') ?? getObjVarSafe(obj, 'zLootBagId');
-                const isLootBag = rawIsLootBag === true;
-                const lootId = parseInt(rawLootId, 10);
+                const isZombieLootBag = getObjVarSafe(obj, 'isZombieLootBag') === true;
+                const lootIdRaw = getObjVarSafe(obj, 'lootId') ?? getObjVarSafe(obj, 'zLootBagId');
+                const lootId = parseInt(lootIdRaw, 10);
 
-                if (!isLootBag || !Number.isFinite(lootId)) {
-                    if ((rawIsLootBag || rawLootId) && LOOT_DEBUG) lootDebug(`object found but no loot vars remoteId=${obj.remoteId} isLoot=${rawIsLootBag} lootId=${rawLootId}`);
+                if (!isZombieLootBag || !Number.isFinite(lootId)) {
+                    if ((getObjVarSafe(obj, 'isZombieLootBag') || lootIdRaw) && !obj.__zLootDebugMissed) {
+                        obj.__zLootDebugMissed = true;
+                        lootDebug(`object found but no loot vars obj=${obj.remoteId} isZombieLootBag=${isZombieLootBag} lootIdRaw=${lootIdRaw}`);
+                    }
                     return;
                 }
 
-                const pos = obj.position;
-                if (!pos) return;
-                const dimension = typeof obj.dimension === 'number' ? obj.dimension : 0;
-                const bag = {
-                    id: lootId,
-                    x: pos.x,
-                    y: pos.y,
-                    z: pos.z,
-                    dimension,
-                    objectId: obj.remoteId,
+                const d = pos.distanceTo(obj.position);
+                if (d >= bestDist) return;
+
+                bestDist = d;
+                best = {
+                    object: obj,
+                    lootId,
+                    pos: obj.position,
+                    distance: d,
                 };
-
-                trackedIds.add(lootId);
-                lootBags.set(lootId, bag);
-                lootDebug(`loot vars found lootId=${lootId} obj=${obj.remoteId} dim=${dimension}`);
             } catch {}
-        };
-
-        if (typeof mp.objects.forEachInStreamRange === 'function') {
-            mp.objects.forEachInStreamRange(scanObject);
-        } else if (typeof mp.objects.forEach === 'function') {
-            mp.objects.forEach(scanObject);
-        }
-
-        lootBags.forEach((bag, lootId) => {
-            if (!bag || !Number.isFinite(lootId)) return;
-            if (trackedIds.has(lootId)) return;
-            if (bag.objectId) lootBags.delete(lootId);
         });
     } catch (e) {
-        lootDebug(`syncNearbyLootBags error=${e.message}`);
+        lootDebug(`getNearZombieLootObject error=${e.message}`);
     }
+
+    if (best) {
+        lootBags.set(best.lootId, {
+            id: best.lootId,
+            x: best.pos.x,
+            y: best.pos.y,
+            z: best.pos.z,
+            dimension: me.dimension,
+            objectId: best.object.remoteId,
+        });
+        if (lastLootVarsLogId !== best.lootId || Date.now() - lastLootVarsLogAt > 1500) {
+            lastLootVarsLogId = best.lootId;
+            lastLootVarsLogAt = Date.now();
+            lootDebug(`loot vars found lootId=${best.lootId} obj=${best.object.remoteId} dist=${best.distance.toFixed(2)} dim=${me.dimension}`);
+        }
+    }
+
+    return best;
+}
+
+function syncNearbyLootBags() {
+    const validIds = new Set();
+    try {
+        mp.objects.forEach((obj) => {
+            try {
+                if (!obj || !mp.objects.exists(obj)) return;
+                if (obj.dimension !== me.dimension) return;
+
+                const isZombieLootBag = getObjVarSafe(obj, 'isZombieLootBag') === true;
+                const lootId = parseInt(getObjVarSafe(obj, 'lootId') ?? getObjVarSafe(obj, 'zLootBagId'), 10);
+                if (!isZombieLootBag || !Number.isFinite(lootId)) return;
+
+                validIds.add(lootId);
+                lootBags.set(lootId, {
+                    id: lootId,
+                    x: obj.position.x,
+                    y: obj.position.y,
+                    z: obj.position.z,
+                    dimension: obj.dimension,
+                    objectId: obj.remoteId,
+                });
+            } catch {}
+        });
+    } catch {}
+
+    lootBags.forEach((bag, lootId) => {
+        if (validIds.has(lootId)) return;
+        if (bag && bag.objectId) lootBags.delete(lootId);
+    });
 }
 
 function lootIsPlayerBusy() {
@@ -566,6 +604,9 @@ function playLootAnim() {
 }
 
 function getNearestLootBag() {
+    const nearestObject = getNearZombieLootObject(me.position);
+    if (nearestObject) return { bag: { id: nearestObject.lootId, x: nearestObject.pos.x, y: nearestObject.pos.y, z: nearestObject.pos.z, dimension: me.dimension }, distance: nearestObject.distance };
+
     let best = null;
     let bestDist = Infinity;
     lootBags.forEach((bag) => {
@@ -706,13 +747,14 @@ setInterval(() => {
             return;
         }
 
-        if (Date.now() - lastLootDistanceLogAt > 1500) {
-            lastLootDistanceLogAt = Date.now();
+        if (lastLootVarsLogId !== nearest.bag.id || Date.now() - lastLootVarsLogAt > 1500) {
+            lastLootVarsLogId = nearest.bag.id;
+            lastLootVarsLogAt = Date.now();
             lootDebug(`distance ok lootId=${nearest.bag.id} dist=${nearest.distance.toFixed(2)}`);
         }
         try {
             if (mp.prompt && mp.prompt.show) {
-                mp.prompt.show('Нажмите <span>E</span>, чтобы обыскать сумку');
+                mp.prompt.showByName('zombie_loot_search');
                 if (lootPromptVisibleFor !== nearest.bag.id) {
                     lootPromptVisibleFor = nearest.bag.id;
                     lootDebug(`prompt shown lootId=${nearest.bag.id}`);
