@@ -490,8 +490,12 @@ function joaat(str) {
 const LOOT_MODEL_HASH = joaat('prop_cs_heist_bag_01');
 const LOOT_INTERACT_DISTANCE = 2.2;
 const LOOT_CANCEL_DISTANCE = 3.5;
-let activeLoot = null; // { lootId, startedAt, durationMs, finishTimer }
+const LOOT_START_REQUEST_COOLDOWN_MS = 800;
+const LOOT_OBJECT_MISSING_GRACE_MS = 1500;
+const LOOT_HARD_TIMEOUT_EXTRA_MS = 2500;
+let activeLoot = null; // { lootId, startedAt, durationMs, finishTimer, objectMissingSince }
 let lootPromptVisibleFor = null;
+let lastLootStartRequestAt = 0;
 
 function findLootObjectById(objectIdRaw) {
     const objectId = parseInt(objectIdRaw, 10);
@@ -585,7 +589,9 @@ function loadAnimDict(dict) {
 }
 
 function stopLootAnim() {
+    try { me.clearTasksImmediately(); } catch {}
     try { me.clearTasks(); } catch {}
+    try { me.stopAnimTask('amb@prop_human_bum_bin@idle_b', 'idle_d', 2.0); } catch {}
 }
 
 function playLootAnim() {
@@ -595,13 +601,18 @@ function playLootAnim() {
     try { me.taskPlayAnim(dict, name, 8.0, -8.0, -1, 1, 0.0, false, false, false); } catch {}
 }
 
-function cancelActiveLoot(reason = 'client-cancel') {
-    if (!activeLoot) return;
-
+function clearActiveLootLocal() {
+    if (!activeLoot) return null;
     const lootId = activeLoot.lootId;
     if (activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
     activeLoot = null;
     stopLootAnim();
+    return lootId;
+}
+
+function cancelActiveLoot(reason = 'client-cancel') {
+    const lootId = clearActiveLootLocal();
+    if (!Number.isFinite(lootId)) return;
 
     try { mp.events.callRemote('zloot:cancel', lootId, reason); } catch {}
 }
@@ -624,9 +635,7 @@ mp.events.add('zloot:create', (data) => {
 mp.events.add('zloot:reset', () => {
     try {
         lootBags.clear();
-        if (activeLoot && activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
-        activeLoot = null;
-        stopLootAnim();
+        clearActiveLootLocal();
         if (lootPromptVisibleFor !== null) {
             lootPromptVisibleFor = null;
             try { if (mp.prompt && mp.prompt.hide) mp.prompt.hide(); } catch {}
@@ -639,11 +648,7 @@ mp.events.add('zloot:remove', (lootIdRaw) => {
         const lootId = parseInt(lootIdRaw, 10);
         lootBags.delete(lootId);
         lootDebug(`loot remove lootId=${lootId}`);
-        if (activeLoot && activeLoot.lootId === lootId) {
-            if (activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
-            activeLoot = null;
-            stopLootAnim();
-        }
+        if (activeLoot && activeLoot.lootId === lootId) clearActiveLootLocal();
     } catch {}
 });
 
@@ -651,15 +656,21 @@ mp.events.add('zloot:start', (lootIdRaw, durationRaw) => {
     try {
         const lootId = parseInt(lootIdRaw, 10);
         const durationMs = parseInt(durationRaw, 10) || 5000;
+        if (!Number.isFinite(lootId) || durationMs <= 0) return;
 
-        if (activeLoot && activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
+        if (activeLoot && activeLoot.lootId === lootId) return;
+        clearActiveLootLocal();
 
         activeLoot = {
             lootId,
             startedAt: Date.now(),
             durationMs,
+            objectMissingSince: 0,
             finishTimer: setTimeout(() => {
-                try { mp.events.callRemote('zloot:finish', lootId); } catch {}
+                try {
+                    if (!activeLoot || activeLoot.lootId !== lootId) return;
+                    mp.events.callRemote('zloot:finish', lootId);
+                } catch {}
             }, durationMs),
         };
 
@@ -671,9 +682,7 @@ mp.events.add('zloot:cancel', (lootIdRaw) => {
     try {
         const lootId = parseInt(lootIdRaw, 10);
         if (!activeLoot || activeLoot.lootId !== lootId) return;
-        if (activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
-        activeLoot = null;
-        stopLootAnim();
+        clearActiveLootLocal();
     } catch {}
 });
 
@@ -681,11 +690,7 @@ mp.events.add('zloot:success', (lootIdRaw, itemIdRaw) => {
     try {
         const lootId = parseInt(lootIdRaw, 10);
         const itemId = parseInt(itemIdRaw, 10);
-        if (activeLoot && activeLoot.lootId === lootId) {
-            if (activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
-            activeLoot = null;
-            stopLootAnim();
-        }
+        if (activeLoot && activeLoot.lootId === lootId) clearActiveLootLocal();
         chat(`Вы нашли предмет #${itemId}`, '#99ff99');
     } catch {}
 });
@@ -698,6 +703,11 @@ mp.keys.bind(0x45, true, () => {
         if (!nearest) return;
         lootDebug(`loot E lootId=${nearest.bag.id} obj=${nearest.bag.objectId} dist=${nearest.distance.toFixed(2)}`);
         if (nearest.distance > LOOT_INTERACT_DISTANCE) return;
+
+        const now = Date.now();
+        if (now - lastLootStartRequestAt < LOOT_START_REQUEST_COOLDOWN_MS) return;
+        lastLootStartRequestAt = now;
+
         lootDebug(`sending zloot:tryStart lootId=${nearest.bag.id}`);
         mp.events.callRemote('zloot:tryStart', nearest.bag.id);
     } catch {}
@@ -706,15 +716,28 @@ mp.keys.bind(0x45, true, () => {
 setInterval(() => {
     try {
         if (activeLoot) {
-            const activeData = getLootById(activeLoot.lootId);
-            if (!activeData) {
-                cancelActiveLoot('bag-sync-missing');
+            const elapsed = Date.now() - activeLoot.startedAt;
+            if (elapsed > activeLoot.durationMs + LOOT_HARD_TIMEOUT_EXTRA_MS) {
+                clearActiveLootLocal();
                 return;
             }
 
+            const activeData = getLootById(activeLoot.lootId);
+            if (!activeData) {
+                if (!activeLoot.objectMissingSince) activeLoot.objectMissingSince = Date.now();
+                if (Date.now() - activeLoot.objectMissingSince > LOOT_OBJECT_MISSING_GRACE_MS) {
+                    cancelActiveLoot('bag-sync-missing');
+                }
+                return;
+            }
+            activeLoot.objectMissingSince = 0;
+
             const dist = distanceToEntity(activeData.object);
             if (!Number.isFinite(dist)) {
-                cancelActiveLoot('loot-distance-invalid');
+                if (!activeLoot.objectMissingSince) activeLoot.objectMissingSince = Date.now();
+                if (Date.now() - activeLoot.objectMissingSince > LOOT_OBJECT_MISSING_GRACE_MS) {
+                    cancelActiveLoot('loot-distance-invalid');
+                }
                 return;
             }
             const hp = Number(me.getHealth ? me.getHealth() : me.health) || 0;
