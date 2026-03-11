@@ -10,6 +10,7 @@ const zombies = new Map(); // zid -> { ped, followRid, lastFollowAt, lastNudgeAt
 const pendingControllerAssign = new Map(); // zid -> { ver, at }
 
 const STEP_SPEED = 1.35;
+const ZOMBIE_WALK_CLIPSET = 'move_m@drunk@verydrunk';
 const STOP_DIST  = 1.6;
 const FOLLOW_CD  = 700;
 const FOLLOW_COORD_REFRESH_MS = 700;
@@ -34,8 +35,27 @@ function lootDebug(msg){
     }
 }
 
+function applyZombieWalkStyle(ped) {
+    try {
+        if (!ped || !mp.peds.exists(ped)) return;
+        const style = ZOMBIE_WALK_CLIPSET;
+        if (!style) {
+            try { ped.resetMovementClipset(0.0); } catch {}
+            return;
+        }
+        if (!mp.game.streaming.hasClipSetLoaded(style)) {
+            mp.game.streaming.requestClipSet(style);
+            let i = 0;
+            while (!mp.game.streaming.hasClipSetLoaded(style) && i++ < 80) mp.game.wait(0);
+        }
+        try { ped.setMovementClipset(style, 0.25); } catch {}
+    } catch {}
+}
+
 function forceAggroPedState(ped){
     try { if (!ped || !mp.peds.exists(ped)) return; } catch { return; }
+
+    applyZombieWalkStyle(ped);
 
     try { ped.setCanRagdoll(true); } catch {}
     try { ped.setBlockingOfNonTemporaryEvents(true); } catch {}
@@ -111,6 +131,7 @@ function prepPed(ped){
     try{ ped.setBlockingOfNonTemporaryEvents(true); }catch{}
     try{ ped.setKeepTask(true); }catch{}
     try{ ped.setCanRagdoll(true); }catch{}
+    applyZombieWalkStyle(ped);
     forceAggroPedState(ped);
 }
 
