@@ -24,7 +24,7 @@ function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
 function dlog(msg){ if(DEBUG && VERBOSE) chat(`[ZDBG] ${msg}`,'#99ccff'); }
 const LOOT_DEBUG = true;
-const LOOT_CHAT_DEBUG = true;
+const LOOT_CHAT_DEBUG = false;
 function lootDebug(msg){
     if (!LOOT_DEBUG) return;
     try { mp.console.logInfo(`[ZLOOT-CL] ${msg}`); } catch {}
@@ -473,11 +473,25 @@ setInterval(() => {
 }, CTRL_HEARTBEAT_MS);
 
 
-const lootBags = new Map(); // lootId -> { id, x, y, z, dimension }
-const LOOT_INTERACT_DISTANCE = 3.0;
+const lootBags = new Map(); // lootId -> { id, objectId, dimension }
+const LOOT_MODEL_HASH = mp.joaat('prop_cs_heist_bag_01');
+const LOOT_INTERACT_DISTANCE = 2.2;
 const LOOT_CANCEL_DISTANCE = 3.5;
 let activeLoot = null; // { lootId, startedAt, durationMs, finishTimer }
 let lootPromptVisibleFor = null;
+
+function findLootObjectById(objectIdRaw) {
+    const objectId = parseInt(objectIdRaw, 10);
+    if (!Number.isFinite(objectId) || objectId < 0) return null;
+    try {
+        if (!mp.objects || typeof mp.objects.atRemoteId !== 'function') return null;
+        const obj = mp.objects.atRemoteId(objectId);
+        if (!obj || !mp.objects.exists(obj)) return null;
+        if (obj.model !== LOOT_MODEL_HASH) return null;
+        return obj;
+    } catch {}
+    return null;
+}
 
 function getNearestLootBag() {
     let nearest = null;
@@ -489,19 +503,21 @@ function getNearestLootBag() {
             const bagDim = typeof bag.dimension === 'number' ? bag.dimension : 0;
             if (bagDim !== me.dimension) return;
 
-            const bagPos = new mp.Vector3(bag.x, bag.y, bag.z);
-            const dist = me.position.distanceTo(bagPos);
+            const obj = findLootObjectById(bag.objectId);
+            if (!obj || !obj.position) return;
+
+            const dist = me.position.distanceTo(obj.position);
             if (dist >= nearestDist) return;
 
             nearestDist = dist;
             nearest = {
                 bag,
+                object: obj,
                 distance: dist,
             };
         } catch {}
     });
 
-    if (nearest) lootDebug(`nearest synced loot lootId=${nearest.bag.id} dist=${nearest.distance.toFixed(2)}`);
     return nearest;
 }
 
@@ -512,7 +528,9 @@ function getLootById(lootIdRaw) {
     if (!bag) return null;
     const bagDim = typeof bag.dimension === 'number' ? bag.dimension : 0;
     if (bagDim !== me.dimension) return null;
-    return bag;
+    const object = findLootObjectById(bag.objectId);
+    if (!object || !object.position) return null;
+    return { bag, object };
 }
 
 function lootIsPlayerBusy() {
@@ -558,16 +576,29 @@ function cancelActiveLoot(reason = 'client-cancel') {
 
 mp.events.add('zloot:create', (data) => {
     try {
-        if (!data || typeof data.id !== 'number') return;
+        if (!data || typeof data.id !== 'number' || typeof data.objectId !== 'number') return;
         const bag = {
             id: data.id,
-            x: Number(data.x) || 0,
-            y: Number(data.y) || 0,
-            z: Number(data.z) || 0,
+            objectId: data.objectId,
             dimension: typeof data.dimension === 'number' ? data.dimension : me.dimension,
         };
         lootBags.set(data.id, bag);
-        lootDebug(`zloot:create lootId=${bag.id} pos=${bag.x.toFixed(2)},${bag.y.toFixed(2)},${bag.z.toFixed(2)} dim=${bag.dimension}`);
+        const obj = findLootObjectById(bag.objectId);
+        const pos = obj && obj.position ? `${obj.position.x.toFixed(2)},${obj.position.y.toFixed(2)},${obj.position.z.toFixed(2)}` : 'no-object';
+        lootDebug(`zloot:create lootId=${bag.id} obj=${bag.objectId} pos=${pos} dim=${bag.dimension}`);
+    } catch {}
+});
+
+mp.events.add('zloot:reset', () => {
+    try {
+        lootBags.clear();
+        if (activeLoot && activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
+        activeLoot = null;
+        stopLootAnim();
+        if (lootPromptVisibleFor !== null) {
+            lootPromptVisibleFor = null;
+            try { if (mp.prompt && mp.prompt.hide) mp.prompt.hide(); } catch {}
+        }
     } catch {}
 });
 
@@ -575,6 +606,7 @@ mp.events.add('zloot:remove', (lootIdRaw) => {
     try {
         const lootId = parseInt(lootIdRaw, 10);
         lootBags.delete(lootId);
+        lootDebug(`loot remove lootId=${lootId}`);
         if (activeLoot && activeLoot.lootId === lootId) {
             if (activeLoot.finishTimer) clearTimeout(activeLoot.finishTimer);
             activeLoot = null;
@@ -628,14 +660,12 @@ mp.events.add('zloot:success', (lootIdRaw, itemIdRaw) => {
 
 mp.keys.bind(0x45, true, () => {
     try {
-        lootDebug('E pressed');
-        if (activeLoot) { lootDebug('E ignored: active loot in progress'); return; }
-        if (lootIsPlayerBusy()) { lootDebug('E ignored: player busy'); return; }
+        if (activeLoot) return;
+        if (lootIsPlayerBusy()) return;
         const nearest = getNearestLootBag();
-        if (!nearest) { lootDebug('E ignored reason=no-loot'); return; }
-        lootDebug(`nearest loot on E lootId=${nearest.bag.id} dist=${nearest.distance.toFixed(2)} dim=${nearest.bag.dimension}`);
-        if (nearest.distance > LOOT_INTERACT_DISTANCE) { lootDebug(`E ignored reason=too-far dist=${nearest.distance.toFixed(2)} max=${LOOT_INTERACT_DISTANCE}`); return; }
-        lootDebug(`E using synced lootId=${nearest.bag.id}`);
+        if (!nearest) return;
+        lootDebug(`loot E lootId=${nearest.bag.id} obj=${nearest.bag.objectId} dist=${nearest.distance.toFixed(2)}`);
+        if (nearest.distance > LOOT_INTERACT_DISTANCE) return;
         lootDebug(`sending zloot:tryStart lootId=${nearest.bag.id}`);
         mp.events.callRemote('zloot:tryStart', nearest.bag.id);
     } catch {}
@@ -644,13 +674,13 @@ mp.keys.bind(0x45, true, () => {
 setInterval(() => {
     try {
         if (activeLoot) {
-            const activeBag = getLootById(activeLoot.lootId);
-            if (!activeBag) {
+            const activeData = getLootById(activeLoot.lootId);
+            if (!activeData) {
                 cancelActiveLoot('bag-sync-missing');
                 return;
             }
 
-            const dist = me.position.distanceTo(new mp.Vector3(activeBag.x, activeBag.y, activeBag.z));
+            const dist = me.position.distanceTo(activeData.object.position);
             const hp = Number(me.getHealth ? me.getHealth() : me.health) || 0;
             if (dist > LOOT_CANCEL_DISTANCE || hp <= 0) {
                 cancelActiveLoot('client-conditions-fail');
@@ -663,27 +693,21 @@ setInterval(() => {
 
         const nearest = getNearestLootBag();
         if (!nearest || nearest.distance > LOOT_INTERACT_DISTANCE) {
-            try { if (mp.prompt && mp.prompt.hide) { mp.prompt.hide(); lootDebug('hide prompt'); } } catch {}
+            try { if (mp.prompt && mp.prompt.hide) { mp.prompt.hide(); } } catch {}
             if (lootPromptVisibleFor !== null) {
-                lootDebug('hide prompt');
                 lootPromptVisibleFor = null;
             }
             return;
         }
 
-        lootDebug(`nearest synced loot lootId=${nearest.bag.id} dist=${nearest.distance.toFixed(2)}`);
-        if (lootIsPlayerBusy()) {
-            lootDebug('prompt blocked reason=player-busy');
-            return;
-        }
+        lootDebug(`loot prompt lootId=${nearest.bag.id} obj=${nearest.bag.objectId} dist=${nearest.distance.toFixed(2)}`);
+        if (lootIsPlayerBusy()) return;
 
         try {
             if (mp.prompt && mp.prompt.showByName) {
-                lootDebug(`show prompt lootId=${nearest.bag.id} promptPos=${nearest.bag.x.toFixed(2)},${nearest.bag.y.toFixed(2)},${nearest.bag.z.toFixed(2)}`);
                 mp.prompt.showByName('zombie_loot_search');
                 if (lootPromptVisibleFor !== nearest.bag.id) {
                     lootPromptVisibleFor = nearest.bag.id;
-                    lootDebug(`prompt shown lootId=${nearest.bag.id}`);
                 }
             }
         } catch {}

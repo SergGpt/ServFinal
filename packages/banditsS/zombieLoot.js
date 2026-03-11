@@ -5,8 +5,6 @@ const zlog = createLogger(ZOMBIE_CONFIG.debug, 'ZLOOT');
 
 const BAG_MODEL = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.bagModel ? ZOMBIE_CONFIG.loot.bagModel : 'prop_cs_heist_bag_01';
 const INTERACT_DISTANCE = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.interactDistance ? ZOMBIE_CONFIG.loot.interactDistance : 2.2;
-const TEMP_INTERACT_DISTANCE = Math.max(INTERACT_DISTANCE, 3.0);
-const ZLOOT_CHAT_DEBUG = true;
 const CANCEL_DISTANCE = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.cancelDistance ? ZOMBIE_CONFIG.loot.cancelDistance : 3.5;
 const LOOT_DURATION_MS = ZOMBIE_CONFIG.timers && ZOMBIE_CONFIG.timers.lootDurationMs ? ZOMBIE_CONFIG.timers.lootDurationMs : 5000;
 const BAG_LIFETIME_MS = ZOMBIE_CONFIG.timers && ZOMBIE_CONFIG.timers.lootBagLifetimeMs ? ZOMBIE_CONFIG.timers.lootBagLifetimeMs : 5 * 60 * 1000;
@@ -15,10 +13,6 @@ const ZOMBIE_LOOT_ITEM_IDS = (ZOMBIE_CONFIG.loot && Array.isArray(ZOMBIE_CONFIG.
     ? ZOMBIE_CONFIG.loot.itemIds
     : [234, 235, 237, 238, 239, 240, 241, 242, 243, 244];
 
-
-function zlootTryStartLog(player, lootIdRaw, message) {
-    zlog(`tryStart player=${player && player.id ? player.id : -1} lootIdRaw=${lootIdRaw} ${message}`);
-}
 
 function createZombieLootManager() {
     const lootBags = new Map(); // id -> state
@@ -50,29 +44,23 @@ function createZombieLootManager() {
     }
 
 
-    function debugToPlayer(player, text) {
-        if (!ZLOOT_CHAT_DEBUG) return;
-        if (!player || !mp.players.exists(player)) return;
-        try { player.outputChatBox(`!{#99ccff}[ZLOOT] ${text}`); } catch {}
-    }
-
     function pickRandomItemId() {
         return ZOMBIE_LOOT_ITEM_IDS[(Math.random() * ZOMBIE_LOOT_ITEM_IDS.length) | 0];
     }
 
     function toClientData(loot) {
+        if (!loot || !loot.object || !mp.objects.exists(loot.object)) return null;
         return {
             id: loot.id,
-            x: loot.pos.x,
-            y: loot.pos.y,
-            z: loot.pos.z,
             dimension: loot.dimension,
+            objectId: loot.object.id,
             model: BAG_MODEL,
         };
     }
 
     function emitCreateForAll(loot) {
         const data = toClientData(loot);
+        if (!data) return;
         mp.players.forEach((player) => {
             try { player.call('zloot:create', [data]); } catch {}
         });
@@ -94,7 +82,7 @@ function createZombieLootManager() {
         lootBags.delete(loot.id);
 
         emitRemoveForAll(loot.id);
-        zlog(`remove bag id=${loot.id} zid=${loot.zombieId} reason=${reason}`);
+        zlog(`loot remove lootId=${loot.id} reason=${reason}`);
     }
 
     function cancelLooting(loot, reason = 'cancel', silent = false) {
@@ -154,7 +142,6 @@ function createZombieLootManager() {
             id: lootId,
             zombieId,
             object,
-            pos: { x: finalPos.x, y: finalPos.y, z: finalPos.z },
             dimension,
             isLooted: false,
             isBusy: false,
@@ -167,14 +154,12 @@ function createZombieLootManager() {
         lootsByZombieId.set(zombieId, lootId);
 
         emitCreateForAll(loot);
-        zlog(`spawn bag id=${loot.id} zid=${zombieId} pos=${loot.pos.x.toFixed(2)},${loot.pos.y.toFixed(2)},${loot.pos.z.toFixed(2)} dim=${dimension}`);
-        zlog(`loot bag created lootId=${loot.id} object=ok vars=${varsOk ? 'ok' : 'fail'} pos=${loot.pos.x.toFixed(2)},${loot.pos.y.toFixed(2)},${loot.pos.z.toFixed(2)} dim=${dimension}`);
+        zlog(`loot create lootId=${loot.id} obj=${object.id} pos=${finalPos.x.toFixed(2)},${finalPos.y.toFixed(2)},${finalPos.z.toFixed(2)} dim=${dimension} vars=${varsOk ? 'ok' : 'fail'}`);
 
         return loot;
     }
 
-
-    function getLootWorldPos(loot) {
+    function getLootObjectPos(loot) {
         if (!loot) return null;
         try {
             if (loot.object && mp.objects.exists(loot.object) && loot.object.position) {
@@ -182,7 +167,7 @@ function createZombieLootManager() {
                 return { x: p.x, y: p.y, z: p.z };
             }
         } catch {}
-        return loot.pos || null;
+        return null;
     }
 
     function isPlayerAlive(player) {
@@ -193,67 +178,40 @@ function createZombieLootManager() {
 
     function tryStartLoot(player, lootIdRaw) {
         const lootId = parseInt(lootIdRaw, 10);
-        if (!player || !mp.players.exists(player) || !Number.isFinite(lootId)) {
-            zlootTryStartLog(player, lootIdRaw, 'rejected reason=invalid-player-or-lootid');
-            debugToPlayer(player, `tryStart reject reason=invalid-player-or-lootid lootIdRaw=${lootIdRaw}`);
-            return;
-        }
+        if (!player || !mp.players.exists(player) || !Number.isFinite(lootId)) return;
 
-        zlootTryStartLog(player, lootIdRaw, `recv parsedLootId=${lootId}`);
-        debugToPlayer(player, `tryStart recv lootId=${lootId}`);
         const loot = lootBags.get(lootId);
-        if (!loot) {
-            zlootTryStartLog(player, lootIdRaw, 'rejected reason=loot-not-found');
-            debugToPlayer(player, `tryStart reject reason=loot-not-found lootId=${lootId}`);
-            return;
-        }
-        if (loot.isLooted) {
-            zlootTryStartLog(player, lootIdRaw, 'rejected reason=already-looted');
-            debugToPlayer(player, `tryStart reject reason=already-looted lootId=${lootId}`);
-            return;
-        }
+        if (!loot) return;
+        if (loot.isLooted) return;
         if (loot.isBusy) {
-            zlootTryStartLog(player, lootIdRaw, `rejected reason=busy looterId=${loot.looterId}`);
-            debugToPlayer(player, `tryStart reject reason=busy lootId=${lootId} looterId=${loot.looterId}`);
             notifyError(player, 'Эту сумку уже обыскивают.');
             return;
         }
 
         if (!isPlayerAlive(player)) {
-            zlootTryStartLog(player, lootIdRaw, 'rejected reason=player-not-alive');
-            debugToPlayer(player, `tryStart reject reason=player-not-alive lootId=${lootId}`);
             notifyError(player, 'Нельзя обыскивать сумку в таком состоянии.');
             return;
         }
 
-        if (player.dimension !== loot.dimension) {
-            zlootTryStartLog(player, lootIdRaw, `rejected reason=dimension-mismatch playerDim=${player.dimension} lootDim=${loot.dimension}`);
-            debugToPlayer(player, `tryStart reject reason=dimension-mismatch playerDim=${player.dimension} lootDim=${loot.dimension}`);
-            return;
-        }
+        if (player.dimension !== loot.dimension) return;
 
-        const lootPos = getLootWorldPos(loot);
-        if (!lootPos) {
-            zlootTryStartLog(player, lootIdRaw, 'rejected reason=no-loot-world-pos');
-            debugToPlayer(player, `tryStart reject reason=no-loot-world-pos lootId=${lootId}`);
-            return;
-        }
+        const lootPos = getLootObjectPos(loot);
+        if (!lootPos) return;
 
         const distance = dist3(player.position, lootPos);
-        if (distance > TEMP_INTERACT_DISTANCE) {
-            zlootTryStartLog(player, lootIdRaw, `rejected reason=too-far distance=${distance.toFixed(2)} interact=${TEMP_INTERACT_DISTANCE}`);
-            debugToPlayer(player, `tryStart reject reason=too-far dist=${distance.toFixed(2)} max=${TEMP_INTERACT_DISTANCE}`);
+        if (distance > INTERACT_DISTANCE) {
+            zlog(`loot tryStart lootId=${loot.id} dist=${distance.toFixed(2)} rejected=too-far`);
             notifyError(player, 'Подойдите ближе к сумке.');
             return;
         }
+
+        zlog(`loot tryStart lootId=${loot.id} dist=${distance.toFixed(2)} ok`);
 
         loot.isBusy = true;
         loot.looterId = player.id;
         loot.lootStartedAt = Date.now();
 
         try { player.call('zloot:start', [loot.id, LOOT_DURATION_MS]); } catch {}
-        zlootTryStartLog(player, lootIdRaw, `accepted start lootId=${loot.id} duration=${LOOT_DURATION_MS}`);
-        debugToPlayer(player, `loot start ok lootId=${loot.id} duration=${LOOT_DURATION_MS}`);
         zlog(`start bag id=${loot.id} by=${player.id}`);
     }
 
@@ -275,10 +233,8 @@ function createZombieLootManager() {
             return;
         }
 
-        const lootPos = getLootWorldPos(loot);
+        const lootPos = getLootObjectPos(loot);
         if (!lootPos) {
-            zlootTryStartLog(player, lootIdRaw, 'rejected reason=no-loot-world-pos');
-            debugToPlayer(player, `tryStart reject reason=no-loot-world-pos lootId=${lootId}`);
             return;
         }
 
@@ -343,8 +299,11 @@ function createZombieLootManager() {
 
     function syncLootsForPlayer(player) {
         if (!player || !mp.players.exists(player)) return;
+        try { player.call('zloot:reset'); } catch {}
         lootBags.forEach((loot) => {
-            try { player.call('zloot:create', [toClientData(loot)]); } catch {}
+            const data = toClientData(loot);
+            if (!data) return;
+            try { player.call('zloot:create', [data]); } catch {}
         });
     }
 
@@ -404,7 +363,7 @@ function createZombieLootManager() {
                         return;
                     }
 
-                    const lootPos = getLootWorldPos(loot);
+                    const lootPos = getLootObjectPos(loot);
                     if (!lootPos) {
                         cancelLooting(loot, 'no-loot-world-pos', true);
                         return;

@@ -303,7 +303,10 @@ function spawnLootBagForDeadZombie(st, source = 'unknown') {
     }
 
     st.lootSpawned = true;
-    zlog(`loot bag created zid=${st.zid} lootId=${loot.id} pos=${loot.pos.x.toFixed(2)},${loot.pos.y.toFixed(2)},${loot.pos.z.toFixed(2)} dim=${dimension}`);
+    const objPos = loot && loot.object && mp.objects.exists(loot.object) ? loot.object.position : null;
+    if (objPos) {
+        zlog(`loot bag created zid=${st.zid} lootId=${loot.id} pos=${objPos.x.toFixed(2)},${objPos.y.toFixed(2)},${objPos.z.toFixed(2)} dim=${dimension}`);
+    }
 }
 
 function markDeadByHit(zid, killer) {
