@@ -109,9 +109,21 @@ function createZombieLootManager() {
 
         const lootId = nextLootId++;
         const objectPos = new mp.Vector3(pos.x, pos.y, pos.z - 0.95);
-        const object = mp.objects.new(mp.joaat(BAG_MODEL), objectPos, {
-            dimension,
-        });
+        let object = null;
+
+        try {
+            object = mp.objects.new(mp.joaat(BAG_MODEL), objectPos, {
+                dimension,
+            });
+        } catch (e) {
+            zlog(`create-fail zid=${zombieId} lootId=${lootId} reason=${e.message}`);
+            return null;
+        }
+
+        if (!object || !mp.objects.exists(object)) {
+            zlog(`create-fail zid=${zombieId} lootId=${lootId} reason=object-not-created`);
+            return null;
+        }
 
         try { object.setVariable('zLootBagId', lootId); } catch {}
 
@@ -132,7 +144,7 @@ function createZombieLootManager() {
         lootsByZombieId.set(zombieId, lootId);
 
         emitCreateForAll(loot);
-        zlog(`spawn bag id=${loot.id} zid=${zombieId}`);
+        zlog(`spawn bag id=${loot.id} zid=${zombieId} pos=${loot.pos.x.toFixed(2)},${loot.pos.y.toFixed(2)},${loot.pos.z.toFixed(2)} dim=${dimension}`);
 
         return loot;
     }
