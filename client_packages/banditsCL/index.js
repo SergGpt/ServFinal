@@ -709,7 +709,7 @@ setInterval(() => {
         if (activeLoot) {
             const elapsed = Date.now() - activeLoot.startedAt;
             if (elapsed > activeLoot.durationMs + LOOT_HARD_TIMEOUT_EXTRA_MS) {
-                clearActiveLootLocal();
+                cancelActiveLoot('client-hard-timeout');
                 return;
             }
 
@@ -747,6 +747,13 @@ setInterval(() => {
         } catch {}
     } catch {}
 }, 200);
+
+mp.keys.bind(0x1B, false, () => {
+    try {
+        if (!activeLoot) return;
+        cancelActiveLoot('client-esc-cancel');
+    } catch {}
+});
 
 function getNearestZombieZid() {
     let best = null;
