@@ -24,24 +24,35 @@ const QuickSlot = ({ slot }) => (
     </div>
 );
 
-const InventorySlot = ({ slot, index }) => (
-    <div className={`${styles.inventorySlot} ${slot.item ? styles.inventorySlotFilled : ''}`}>
-        <span className={styles.slotIndex}>{index + 1}</span>
-        {slot.item ? (
-            <>
-                <div className={styles.itemIcon}>{slot.item.icon || slot.item.initials || slot.item.name[0]}</div>
-                <div className={styles.itemInfo}>
-                    <span className={styles.itemName}>{slot.item.name}</span>
-                    {slot.item.weight !== undefined && (
-                        <span className={styles.itemWeight}>{slot.item.weight.toFixed(2)} кг</span>
-                    )}
-                </div>
-            </>
-        ) : (
-            <span className={styles.emptyPlaceholder}>Свободно</span>
-        )}
-    </div>
-);
+const InventorySlot = ({ slot, index, compact = false }) => {
+    const itemWidth = Math.max(1, slot.item?.sizeX || 1);
+    const itemHeight = Math.max(1, slot.item?.sizeY || 1);
+
+    return (
+        <div
+            className={`${styles.inventorySlot} ${slot.item ? styles.inventorySlotFilled : ''} ${compact ? styles.sectionSlot : ''}`}
+            style={{
+                gridColumn: `span ${compact ? 1 : itemWidth}`,
+                gridRow: `span ${compact ? 1 : itemHeight}`,
+            }}
+        >
+            <span className={styles.slotIndex}>{index + 1}</span>
+            {slot.item ? (
+                <>
+                    <div className={styles.itemIcon}>{slot.item.icon || slot.item.initials || slot.item.name[0]}</div>
+                    <div className={styles.itemInfo}>
+                        <span className={styles.itemName}>{slot.item.name}</span>
+                        {slot.item.weight !== undefined && (
+                            <span className={styles.itemWeight}>{slot.item.weight.toFixed(2)} кг</span>
+                        )}
+                    </div>
+                </>
+            ) : (
+                <span className={styles.emptyPlaceholder}>Свободно</span>
+            )}
+        </div>
+    );
+};
 
 const EquipmentSlot = ({ slot }) => (
     <div className={`${styles.equipmentSlot} ${slot.item ? styles.equipmentSlotFilled : ''}`}>
@@ -72,69 +83,20 @@ const Inventory = () => {
     return (
         <div className={styles.overlay}>
             <div className={styles.container}>
-                <aside className={styles.quickSlots}>
-                    <div className={styles.sectionHeading}>Быстрые слоты</div>
-                    {quickSlots.map((slot) => (
-                        <QuickSlot key={slot.key} slot={slot} />
-                    ))}
-                </aside>
-
-                <section className={styles.inventorySection}>
-                    <header className={styles.inventoryHeader}>
-                        <div>
-                            <h2>Инвентарь</h2>
-                            <div className={styles.weightLabel}>
-                                {weight.current.toFixed(2)} / {weight.max} кг
-                            </div>
-                        </div>
-                        <div className={styles.filters}>
-                            <button className={styles.filterActive}>Все</button>
-                            <button>Одежда</button>
-                            <button>Еда</button>
-                            <button>Разное</button>
-                        </div>
-                    </header>
-
-                    <div className={styles.inventoryGrid}>
-                        {inventorySlots.map((slot, index) => (
-                            <InventorySlot key={slot.id} slot={slot} index={index} />
-                        ))}
-                    </div>
-
-                    {sections.map((section) => (
-                        <div key={section.id} className={styles.sectionGroup}>
-                            <div className={styles.sectionHeading}>{section.title}</div>
-                            <div className={styles.sectionSlots}>
-                                {section.slots.map((slot) => (
-                                    <div key={slot.id} className={`${styles.inventorySlot} ${styles.sectionSlot}`}>
-                                        {slot.item ? (
-                                            <div className={styles.itemInfo}>
-                                                <span className={styles.itemName}>{slot.item.name}</span>
-                                                {slot.item.weight !== undefined && (
-                                                    <span className={styles.itemWeight}>{slot.item.weight.toFixed(2)} кг</span>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <span className={styles.emptyPlaceholder}>Свободно</span>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ))}
-                </section>
-
                 <aside className={styles.equipmentSection}>
                     <div className={styles.sectionHeading}>Экипировка</div>
-                    <div className={styles.equipmentLayout}>
+                    <div className={styles.equipmentCanvas}>
                         <div className={styles.equipmentColumn}>
                             {equipment.leftColumn.map((slot) => (
                                 <EquipmentSlot key={slot.id} slot={slot} />
                             ))}
                         </div>
+
                         <div className={styles.avatarPlaceholder}>
+                            <div className={styles.avatarGlow} />
                             <div className={styles.avatarCore} />
                         </div>
+
                         <div className={styles.equipmentColumn}>
                             {equipment.rightColumn.map((slot) => (
                                 <EquipmentSlot key={slot.id} slot={slot} />
@@ -164,6 +126,49 @@ const Inventory = () => {
                             <StatBlock key={stat.id} stat={stat} />
                         ))}
                     </div>
+                </aside>
+
+                <section className={styles.inventorySection}>
+                    <header className={styles.inventoryHeader}>
+                        <div>
+                            <h2>Инвентарь</h2>
+                            <div className={styles.weightLabel}>
+                                {weight.current.toFixed(2)} / {weight.max} кг
+                            </div>
+                        </div>
+                        <div className={styles.filters}>
+                            <button className={styles.filterActive}>Все</button>
+                            <button>Одежда</button>
+                            <button>Еда</button>
+                            <button>Разное</button>
+                        </div>
+                    </header>
+
+                    <div className={styles.inventoryGridWrap}>
+                        <div className={styles.inventoryGrid}>
+                            {inventorySlots.map((slot, index) => (
+                                <InventorySlot key={slot.id} slot={slot} index={index} />
+                            ))}
+                        </div>
+                    </div>
+
+                    {sections.map((section) => (
+                        <div key={section.id} className={styles.sectionGroup}>
+                            <div className={styles.sectionHeading}>{section.title}</div>
+                            <div className={styles.sectionSlots}>
+                                {section.slots.map((slot, index) => (
+                                    <InventorySlot key={slot.id} slot={slot} index={index} compact />
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </section>
+
+                <aside className={styles.quickSlots}>
+                    <div className={styles.sectionHeading}>Быстрые слоты</div>
+                    {quickSlots.map((slot) => (
+                        <QuickSlot key={slot.key} slot={slot} />
+                    ))}
                 </aside>
             </div>
         </div>

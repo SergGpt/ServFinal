@@ -4,274 +4,71 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(7, 12, 20, 0.72);
-    backdrop-filter: blur(8px);
+    padding: 28px;
+    box-sizing: border-box;
+    background: radial-gradient(circle at 20% 10%, rgba(47, 82, 136, 0.28), transparent 45%),
+        rgba(6, 10, 18, 0.78);
+    backdrop-filter: blur(10px);
     z-index: 2000;
     font-family: 'Montserrat', 'Roboto', sans-serif;
 }
 
+.container,
+.container * {
+    box-sizing: border-box;
+}
+
 .container {
-    width: 1100px;
-    height: 640px;
-    display: flex;
-    background: linear-gradient(135deg, rgba(18, 25, 39, 0.95), rgba(7, 11, 19, 0.9));
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.55);
-    color: #f1f5ff;
+    width: min(1360px, 100%);
+    height: min(760px, 100%);
+    display: grid;
+    grid-template-columns: minmax(320px, 360px) minmax(560px, 1fr) minmax(220px, 260px);
+    gap: 18px;
+    padding: 20px;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: linear-gradient(140deg, rgba(12, 19, 31, 0.86), rgba(7, 12, 23, 0.83));
+    box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    color: #edf2ff;
     overflow: hidden;
 }
 
 .sectionHeading {
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.55);
-    margin-bottom: 16px;
-}
-
-.quickSlots {
-    width: 170px;
-    padding: 32px 24px;
-    display: flex;
-    flex-direction: column;
-    background: linear-gradient(180deg, rgba(21, 31, 51, 0.4), rgba(12, 18, 30, 0.3));
-    border-right: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.quickSlot {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
-}
-
-.quickSlot:last-child {
-    margin-bottom: 0;
-}
-
-.quickSlotIndex {
-    width: 26px;
-    height: 26px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.08);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.7);
-}
-
-.quickSlotBody {
-    flex: 1;
-    height: 68px;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(135deg, rgba(31, 45, 70, 0.28), rgba(15, 23, 42, 0.28));
-    display: flex;
-    align-items: center;
-    padding: 12px;
-    gap: 12px;
-}
-
-.quickSlotIcon {
-    width: 36px;
-    height: 36px;
-    border-radius: 12px;
-    background: rgba(108, 175, 255, 0.15);
-    color: #8abfff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    font-weight: 600;
-}
-
-.quickSlotInfo {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.quickSlotName {
-    font-size: 13px;
-    font-weight: 600;
-}
-
-.quickSlotWeight {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.6);
-}
-
-.quickSlotEmpty {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.45);
-}
-
-.inventorySection {
-    flex: 1;
-    padding: 32px;
-    display: flex;
-    flex-direction: column;
-}
-
-.inventoryHeader {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-}
-
-.inventoryHeader h2 {
-    margin: 0;
-    font-size: 26px;
-    letter-spacing: 0.02em;
-}
-
-.weightLabel {
-    margin-top: 4px;
-    font-size: 13px;
-    color: rgba(255, 255, 255, 0.6);
-}
-
-.filters {
-    display: flex;
-    gap: 12px;
-}
-
-.filters button {
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    padding: 8px 18px;
-    font-size: 12px;
-    letter-spacing: 0.04em;
+    font-weight: 600;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.6);
-    cursor: pointer;
-    transition: all 0.25s ease;
+    color: rgba(228, 236, 255, 0.56);
+    margin-bottom: 14px;
 }
 
-.filters button:hover {
-    border-color: rgba(122, 187, 255, 0.55);
-    color: #9cccff;
-}
-
-.filterActive {
-    background: linear-gradient(135deg, rgba(98, 169, 255, 0.3), rgba(55, 118, 229, 0.3));
-    border-color: rgba(122, 187, 255, 0.55) !important;
-    color: #d8e9ff !important;
-}
-
-.inventoryGrid {
-    margin-top: 28px;
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 14px;
-    flex: 1;
-}
-
-.inventorySlot {
-    position: relative;
-    min-height: 100px;
+.panelBase {
     border-radius: 18px;
-    border: 1px dashed rgba(255, 255, 255, 0.08);
-    background: rgba(18, 25, 39, 0.38);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 12px 10px;
-    text-align: center;
-    transition: border-color 0.25s ease, background 0.25s ease;
-}
-
-.inventorySlotFilled {
-    border-style: solid;
-    border-color: rgba(126, 200, 255, 0.45);
-    background: linear-gradient(160deg, rgba(32, 64, 111, 0.45), rgba(16, 32, 62, 0.45));
-    box-shadow: inset 0 0 0 1px rgba(126, 200, 255, 0.25);
-}
-
-.slotIndex {
-    position: absolute;
-    top: 10px;
-    left: 12px;
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.35);
-}
-
-.itemIcon {
-    width: 46px;
-    height: 46px;
-    border-radius: 14px;
-    background: rgba(122, 187, 255, 0.18);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    font-weight: 600;
-    color: #9fc9ff;
-    margin-bottom: 12px;
-}
-
-.itemInfo {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    align-items: center;
-}
-
-.itemName {
-    font-size: 13px;
-    font-weight: 600;
-}
-
-.itemWeight {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.6);
-}
-
-.emptyPlaceholder {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.4);
-}
-
-.sectionGroup {
-    margin-top: 30px;
-}
-
-.sectionSlots {
-    margin-top: 14px;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-}
-
-.sectionSlot {
-    min-height: 72px;
+    border: 1px solid rgba(196, 216, 255, 0.16);
+    background: linear-gradient(165deg, rgba(22, 34, 54, 0.5), rgba(12, 19, 33, 0.44));
+    backdrop-filter: blur(8px);
 }
 
 .equipmentSection {
-    width: 280px;
-    padding: 32px 28px;
+    @extend .panelBase;
+    padding: 20px;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(180deg, rgba(20, 27, 44, 0.45), rgba(10, 16, 30, 0.45));
-    border-left: 1px solid rgba(255, 255, 255, 0.06);
+    min-height: 0;
+    overflow: auto;
 }
 
-.equipmentLayout {
+.equipmentCanvas {
     display: grid;
-    grid-template-columns: 1fr 120px 1fr;
-    gap: 16px;
+    grid-template-columns: minmax(90px, 1fr) 120px minmax(90px, 1fr);
+    gap: 12px;
+    align-items: stretch;
 }
 
 .equipmentColumn {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    display: grid;
+    grid-template-rows: repeat(4, minmax(76px, 1fr));
+    gap: 10px;
 }
 
 .avatarPlaceholder {
@@ -279,112 +76,336 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 18px;
+    border: 1px solid rgba(173, 203, 255, 0.26);
+    background: linear-gradient(180deg, rgba(31, 51, 82, 0.36), rgba(15, 27, 46, 0.4));
+    overflow: hidden;
+    min-height: 334px;
 }
 
-.avatarPlaceholder::before {
-    content: '';
+.avatarGlow {
     position: absolute;
-    width: 120px;
-    height: 340px;
-    border-radius: 60px;
-    background: linear-gradient(180deg, rgba(67, 105, 168, 0.2), rgba(32, 51, 87, 0.2));
-    filter: drop-shadow(0 0 25px rgba(98, 169, 255, 0.35));
+    width: 136px;
+    height: 280px;
+    border-radius: 80px;
+    background: radial-gradient(circle at 50% 30%, rgba(145, 190, 255, 0.32), rgba(145, 190, 255, 0));
 }
 
 .avatarCore {
-    width: 68px;
-    height: 240px;
-    border-radius: 34px;
-    background: linear-gradient(180deg, rgba(24, 37, 62, 0.55), rgba(16, 27, 47, 0.55));
-    border: 1px solid rgba(126, 200, 255, 0.18);
+    width: 66px;
+    height: 226px;
+    border-radius: 36px;
+    border: 1px solid rgba(169, 207, 255, 0.32);
+    background: linear-gradient(180deg, rgba(56, 83, 124, 0.45), rgba(19, 35, 61, 0.45));
+    box-shadow: inset 0 0 40px rgba(112, 161, 230, 0.15);
+    z-index: 1;
 }
 
-.equipmentSlot {
+.quickSlots {
+    @extend .panelBase;
+    padding: 20px 16px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 10px 12px;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(18, 26, 42, 0.42);
-    min-height: 70px;
+    min-height: 0;
+    overflow: auto;
 }
 
-.equipmentSlotFilled {
-    border-color: rgba(126, 200, 255, 0.45);
-    box-shadow: inset 0 0 0 1px rgba(126, 200, 255, 0.25);
+.quickSlot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
 }
 
-.equipmentLabel {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: rgba(255, 255, 255, 0.45);
+.quickSlot:last-child {
+    margin-bottom: 0;
 }
 
-.equipmentBody {
-    flex: 1;
+.quickSlotIndex {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid rgba(186, 210, 255, 0.22);
+    background: rgba(84, 120, 184, 0.2);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #e6eeff;
-    font-size: 13px;
-    text-align: center;
-}
-
-.equipmentEmpty {
-    color: rgba(255, 255, 255, 0.38);
     font-size: 12px;
+    font-weight: 600;
+    color: rgba(236, 243, 255, 0.88);
 }
 
-.equipmentBottom {
-    margin-top: 20px;
+.quickSlotBody {
+    flex: 1;
+    min-height: 64px;
+    border-radius: 14px;
+    border: 1px solid rgba(188, 214, 255, 0.18);
+    background: rgba(19, 29, 47, 0.62);
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    gap: 10px;
+}
+
+.quickSlotIcon,
+.itemIcon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(160deg, rgba(94, 141, 224, 0.28), rgba(71, 107, 176, 0.22));
+    border: 1px solid rgba(160, 200, 255, 0.24);
+    color: #b7d4ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    font-weight: 600;
+}
+
+.quickSlotInfo,
+.itemInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.quickSlotName,
+.itemName {
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.quickSlotWeight,
+.itemWeight {
+    font-size: 11px;
+    color: rgba(216, 227, 255, 0.6);
+}
+
+.quickSlotEmpty,
+.emptyPlaceholder,
+.equipmentEmpty {
+    font-size: 12px;
+    color: rgba(208, 220, 247, 0.52);
+}
+
+.inventorySection {
+    @extend .panelBase;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.inventoryHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.inventoryHeader h2 {
+    margin: 0;
+    font-size: 26px;
+    letter-spacing: 0.01em;
+}
+
+.weightLabel {
+    margin-top: 6px;
+    font-size: 13px;
+    color: rgba(216, 228, 255, 0.68);
+}
+
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.filters button {
+    background: rgba(17, 27, 43, 0.68);
+    border: 1px solid rgba(177, 205, 255, 0.2);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(219, 232, 255, 0.72);
+    cursor: pointer;
+    transition: 0.22s ease;
+}
+
+.filters button:hover {
+    border-color: rgba(147, 191, 255, 0.55);
+    color: #dbeaff;
+    background: rgba(41, 64, 101, 0.65);
+}
+
+.filterActive {
+    border-color: rgba(152, 198, 255, 0.7) !important;
+    color: #ecf4ff !important;
+    background: linear-gradient(155deg, rgba(70, 113, 189, 0.62), rgba(46, 80, 139, 0.5)) !important;
+    box-shadow: 0 0 18px rgba(95, 143, 227, 0.32);
+}
+
+.inventoryGridWrap {
+    margin-top: 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(180, 209, 255, 0.18);
+    background: rgba(12, 20, 35, 0.52);
+    padding: 10px;
+    min-height: 0;
+    flex: 1;
+    overflow: auto;
+}
+
+.inventoryGrid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+    grid-template-columns: repeat(6, minmax(86px, 1fr));
+    grid-auto-rows: 86px;
+    gap: 10px;
+    min-width: 100%;
+    align-content: start;
 }
 
+.inventorySlot {
+    position: relative;
+    border-radius: 12px;
+    border: 1px solid rgba(186, 210, 255, 0.22);
+    background: rgba(21, 32, 52, 0.66);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 10px;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.inventorySlot:hover {
+    border-color: rgba(164, 201, 255, 0.55);
+    background: rgba(30, 46, 73, 0.78);
+    box-shadow: inset 0 0 0 1px rgba(164, 201, 255, 0.2);
+}
+
+.inventorySlotFilled {
+    border-color: rgba(138, 189, 255, 0.52);
+    background: linear-gradient(155deg, rgba(39, 68, 113, 0.78), rgba(24, 41, 70, 0.76));
+    box-shadow: inset 0 0 0 1px rgba(145, 193, 255, 0.24), 0 0 20px rgba(41, 72, 122, 0.32);
+}
+
+.inventorySlotFilled:hover {
+    box-shadow: inset 0 0 0 1px rgba(175, 214, 255, 0.35), 0 0 24px rgba(98, 149, 231, 0.4);
+}
+
+.slotIndex {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    font-size: 10px;
+    color: rgba(213, 226, 255, 0.44);
+}
+
+.sectionGroup {
+    margin-top: 16px;
+}
+
+.sectionSlots {
+    margin-top: 8px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.sectionSlot {
+    min-height: 74px;
+}
+
+.equipmentSlot {
+    border-radius: 12px;
+    border: 1px solid rgba(187, 213, 255, 0.22);
+    background: rgba(20, 31, 49, 0.62);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 76px;
+    padding: 10px;
+    gap: 8px;
+}
+
+.equipmentSlotFilled {
+    border-color: rgba(138, 189, 255, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(138, 189, 255, 0.2);
+}
+
+.equipmentLabel {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.11em;
+    color: rgba(211, 226, 255, 0.62);
+}
+
+.equipmentBody {
+    min-height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 13px;
+    color: #ebf2ff;
+}
+
+.equipmentBottom,
 .handsSection {
-    margin-top: 24px;
+    margin-top: 12px;
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
 }
 
 .handSlot {
-    min-height: 90px;
+    min-height: 84px;
 }
 
 .statsPanel {
-    margin-top: 28px;
-    padding: 18px;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(12, 18, 32, 0.55);
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(183, 211, 255, 0.2);
+    background: rgba(14, 23, 39, 0.66);
+    display: grid;
+    gap: 10px;
 }
 
 .statBlock {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 }
 
 .statDot {
-    width: 10px;
-    height: 10px;
+    width: 9px;
+    height: 9px;
     border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, #9cccff, #3b82f6);
-    box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
+    background: radial-gradient(circle at 30% 30%, #b4d4ff, #4a86df);
+    box-shadow: 0 0 12px rgba(74, 134, 223, 0.6);
 }
 
 .statLabel {
-    font-size: 12px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: rgba(255, 255, 255, 0.6);
+    color: rgba(216, 228, 255, 0.58);
 }
 
 .statValue {
@@ -392,8 +413,20 @@
     font-weight: 600;
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1366px) {
+    .overlay {
+        padding: 14px;
+    }
+
     .container {
-        transform: scale(0.92);
+        grid-template-columns: minmax(280px, 320px) minmax(500px, 1fr) minmax(200px, 240px);
+        gap: 12px;
+        padding: 14px;
+    }
+
+    .inventoryGrid {
+        grid-template-columns: repeat(6, minmax(72px, 1fr));
+        grid-auto-rows: 72px;
+        gap: 8px;
     }
 }
