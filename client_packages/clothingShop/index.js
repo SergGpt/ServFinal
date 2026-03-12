@@ -197,7 +197,7 @@ mp.events.add({
     },
     'clothingShop.list.get': (key, list) => {
         if (!clothesList.hasOwnProperty(key)) return;
-        clothesList[key] = list;
+        clothesList[key] = Array.isArray(list) ? list : [];
         clothesLoaded++;
         if (clothesLoaded >= Object.keys(clothesList).length) {
             clothesLoaded = 0;
@@ -215,8 +215,9 @@ mp.events.add({
         // currentItem.index = index;
         // currentItem.textureIndex = textureIndex;
 
-        let sortedList = clothesList[group].filter(x => x.class == shopClass);
+        let sortedList = getSortedList(group);
         let item = sortedList[index];
+        if (!item) return;
 
         if (debugMode) {
             debugText = '';
@@ -241,8 +242,9 @@ mp.events.add({
     },
     'clothingShop.inputClothes.set': setInputClothes,
     'clothingShop.item.buy': (group, index, textureIndex) => {
-        let sortedList = clothesList[group].filter(x => x.class == shopClass);
+        let sortedList = getSortedList(group);
         let item = sortedList[index];
+        if (!item) return;
         mp.events.callRemote('clothingShop.item.buy', group, item.id, textureIndex);
     },
     'clothingShop.item.buy.ans': (ans, data) => {
@@ -326,7 +328,7 @@ function setHeaders(type) {
 function initMainMenu() {
     let items = [];
     for (let key in clothesList) {
-        let sortedList = clothesList[key].filter(x => x.class == shopClass);
+        let sortedList = getSortedList(key);
         if (!clothesInfo[key]) continue;
         if (sortedList.length > 0) {
             items.push({
@@ -341,6 +343,11 @@ function initMainMenu() {
     mp.callCEFV(`selectMenu.setItems('clothingMain', ${JSON.stringify(items)});`)
     mp.callCEFV(`selectMenu.menus["clothingMain"].i = 0`);
     mp.callCEFV(`selectMenu.menus["clothingMain"].j = 0`);
+}
+
+function getSortedList(group) {
+    let list = Array.isArray(clothesList[group]) ? clothesList[group] : [];
+    return list.filter(x => x && x.class == shopClass);
 }
 
 function initSubMenu(key, list) {
