@@ -203,8 +203,8 @@ function tryResolvePendingAssignByPed(ped) {
 mp.events.add('entityStreamIn', (ent) => {
     try {
         if (ent && ent.type === 'ped') {
-            attachIfZombie(ent);
-            forceAggroPedState(ent);
+            const attached = attachIfZombie(ent);
+            if (attached) forceAggroPedState(ent);
             tryResolvePendingAssignByPed(ent);
         }
     } catch {}
