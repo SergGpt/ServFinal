@@ -174,11 +174,6 @@ function triggerZombiePlayerHitFx() {
 
     playerHitFx.flashUntil = now + HIT_FLASH_MS;
 
-    try {
-        if (!me.isInAnyVehicle(false)) {
-            mp.game.ped.setPedToRagdoll(me.handle, heavyHit ? 420 : 220, heavyHit ? 420 : 220, 0, false, false, false);
-        }
-    } catch {}
 }
 
 mp.events.add('render', () => {
@@ -193,18 +188,16 @@ mp.events.add('render', () => {
         const infectedLeft = Math.max(0, playerHitFx.infectedUntil - now);
 
         if (flashLeft > 0 || strongFlashLeft > 0 || lowHp) {
-            const baseEdgeAlpha = lowHp ? 65 : 0;
             const pulse = lowHp ? (0.45 + (Math.sin(now / 180) * 0.2)) : 0;
-            const hitEdge = flashLeft > 0 ? (flashLeft / HIT_FLASH_MS) * 135 : 0;
-            const strongEdge = strongFlashLeft > 0 ? (strongFlashLeft / (HIT_FLASH_MS + 120)) * 165 : 0;
-            const edgeAlpha = Math.max(0, Math.min(220, Math.floor(baseEdgeAlpha + hitEdge + strongEdge + pulse * 40)));
-            const bloodAlpha = Math.max(0, Math.min(190, Math.floor((lowHp ? 65 : 0) + strongEdge * 0.65 + hitEdge * 0.3)));
+            const hitFlash = flashLeft > 0 ? (flashLeft / HIT_FLASH_MS) * 85 : 0;
+            const strongFlash = strongFlashLeft > 0 ? (strongFlashLeft / (HIT_FLASH_MS + 120)) * 125 : 0;
+            const bloodAlpha = Math.max(0, Math.min(170, Math.floor((lowHp ? 55 : 0) + strongFlash * 0.75 + hitFlash * 0.5 + pulse * 20)));
+            const flashAlpha = Math.max(0, Math.min(145, Math.floor(hitFlash + strongFlash)));
 
-            // blood vignette / red flash by edges
-            mp.game.graphics.drawRect(0.5, 0.015, 1.0, 0.03, 120, 0, 0, edgeAlpha);
-            mp.game.graphics.drawRect(0.5, 0.985, 1.0, 0.03, 120, 0, 0, edgeAlpha);
-            mp.game.graphics.drawRect(0.01, 0.5, 0.02, 1.0, 120, 0, 0, edgeAlpha);
-            mp.game.graphics.drawRect(0.99, 0.5, 0.02, 1.0, 120, 0, 0, edgeAlpha);
+            if (flashAlpha > 0) {
+                // short hit flash without side bars
+                mp.game.graphics.drawRect(0.5, 0.5, 1.0, 1.0, 150, 10, 10, flashAlpha);
+            }
 
             if (bloodAlpha > 0) {
                 mp.game.graphics.drawRect(0.5, 0.5, 1.0, 1.0, 95, 0, 0, bloodAlpha);
