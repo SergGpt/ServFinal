@@ -1202,16 +1202,16 @@
 #inventory .environment .container .pockets .items,
 #inventory .playerInventory .items,
 #inventory .environment .items {
-    gap: 0.45vh !important;
+    gap: 2px !important;
 }
 
 #inventory .playerInventory .container .pockets .items .column,
 #inventory .environment .container .pockets .items .column,
 #inventory .playerInventory .items .column,
 #inventory .environment .items .column {
-    width: 4.35vh !important;
-    height: 4.35vh !important;
-    min-height: 4.35vh !important;
+    width: 2.77vh !important;
+    height: 2.77vh !important;
+    min-height: 2.77vh !important;
     border-radius: 0.35vh;
     border: 1px solid rgba(168, 192, 233, 0.18) !important;
     background: rgba(9, 13, 22, 0.76) !important;
@@ -1233,6 +1233,7 @@
     background-size: contain !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
+    box-sizing: border-box;
 }
 
 /* quick slots at the bottom */
