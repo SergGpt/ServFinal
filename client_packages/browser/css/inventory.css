@@ -1114,3 +1114,172 @@
     transform: translate3d(0, -0.4vh, 0);
     box-shadow: 0 0 1.6vh rgba(102, 255, 204, 0.45);
 }
+
+/* === AAA survival overhaul (runtime-visible inventory UI) === */
+#inventory {
+    width: 94vw !important;
+    height: 92vh !important;
+    border-radius: 1vh;
+    border: 1px solid rgba(158, 184, 230, 0.24) !important;
+    background: radial-gradient(circle at 18% 12%, rgba(86, 129, 214, 0.2), transparent 44%), rgba(6, 10, 17, 0.94) !important;
+    box-shadow: 0 2.2vh 8vh rgba(0, 0, 0, 0.74), inset 0 0 0 0.1vh rgba(255, 255, 255, 0.04) !important;
+}
+
+#inventory > .close {
+    height: 4.8vh;
+    padding: 0.6vh 1.2vh;
+}
+
+#inventory > .body {
+    position: relative;
+    height: calc(100% - 12.5vh) !important;
+    display: grid !important;
+    grid-template-columns: 43vh minmax(74vh, 1fr) 18vh !important;
+    gap: 1.6vh !important;
+    padding: 1.6vh !important;
+    background: linear-gradient(155deg, rgba(10, 15, 24, 0.95), rgba(6, 10, 16, 0.96)) !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+#inventory > .body > div {
+    width: auto !important;
+    border-radius: 0.9vh;
+    border: 1px solid rgba(182, 204, 238, 0.16) !important;
+    background: linear-gradient(180deg, rgba(19, 27, 41, 0.7), rgba(10, 15, 24, 0.8)) !important;
+    overflow: hidden;
+}
+
+/* layout: left equipment, center inventory/containers, right interaction */
+#inventory > .body .equipment {
+    order: 1;
+}
+
+#inventory > .body .playerInventory {
+    order: 2;
+}
+
+#inventory > .body .environment {
+    order: 3;
+}
+
+#inventory .header {
+    background: rgba(9, 14, 22, 0.82) !important;
+    border-bottom: 1px solid rgba(188, 207, 242, 0.15) !important;
+    padding: 0.95vh 1.05vh !important;
+}
+
+#inventory .header .title {
+    color: #dce8ff !important;
+    font-size: 1.5vh !important;
+    letter-spacing: 0.05em;
+}
+
+#inventory .block {
+    padding: 0.9vh !important;
+    gap: 0.8vh;
+}
+
+/* hands under character equipment */
+#inventory > .body .equipment .hands {
+    margin-top: 1vh;
+    padding-top: 0.9vh;
+    border-top: 1px solid rgba(182, 204, 238, 0.18);
+}
+
+/* tighter paper-doll with air around slots */
+#inventory > .body .equipment .body-items {
+    height: 54vh !important;
+    border-radius: 0.8vh;
+    border: 1px solid rgba(176, 198, 235, 0.2) !important;
+    background-color: rgba(8, 12, 19, 0.84) !important;
+    background-size: 62% !important;
+    background-position-y: 48% !important;
+}
+
+/* center inventory grids: square compact cells, no stretch */
+#inventory .playerInventory .container .pockets .items,
+#inventory .environment .container .pockets .items,
+#inventory .playerInventory .items,
+#inventory .environment .items {
+    gap: 2px !important;
+}
+
+#inventory .playerInventory .container .pockets .items .column,
+#inventory .environment .container .pockets .items .column,
+#inventory .playerInventory .items .column,
+#inventory .environment .items .column {
+    width: 2.77vh !important;
+    height: 2.77vh !important;
+    min-height: 2.77vh !important;
+    border-radius: 0.35vh;
+    border: 1px solid rgba(168, 192, 233, 0.18) !important;
+    background: rgba(9, 13, 22, 0.76) !important;
+    box-sizing: border-box;
+}
+
+#inventory .playerInventory .container .pockets .items .column.busy,
+#inventory .environment .container .pockets .items .column.busy,
+#inventory .playerInventory .items .column.busy,
+#inventory .environment .items .column.busy {
+    background: linear-gradient(145deg, rgba(53, 84, 139, 0.58), rgba(21, 37, 60, 0.66)) !important;
+    border-color: rgba(130, 176, 255, 0.52) !important;
+}
+
+#inventory .playerInventory .container .pockets .items .column .item,
+#inventory .environment .container .pockets .items .column .item,
+#inventory .playerInventory .items .column .item,
+#inventory .environment .items .column .item {
+    background-size: contain !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    box-sizing: border-box;
+}
+
+/* quick slots at the bottom */
+#inventory .hotkeys {
+    position: absolute;
+    left: 45vh;
+    right: 2vh;
+    bottom: 1.6vh;
+    height: 7.1vh;
+    display: grid !important;
+    grid-template-columns: repeat(9, minmax(0, 1fr)) !important;
+    gap: 0.7vh !important;
+    z-index: 8;
+}
+
+#inventory .hotkeys .key {
+    width: auto !important;
+    height: 7.1vh !important;
+    border-radius: 0.55vh;
+    border: 1px solid rgba(190, 210, 243, 0.22) !important;
+    background: rgba(9, 13, 22, 0.88) !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#inventory .hotkeys .key.has {
+    background: linear-gradient(140deg, rgba(50, 79, 130, 0.62), rgba(20, 34, 56, 0.72)) !important;
+    border-color: rgba(129, 174, 250, 0.52) !important;
+}
+
+#inventory .hotkeys .key::before {
+    color: rgba(221, 232, 255, 0.78) !important;
+    font-weight: 700;
+    font-size: 1.15vh;
+}
+
+/* make sure item tooltip/info text doesn't cut */
+#inventory .item-info,
+#inventory .info,
+#inventory .description,
+#inventory .itemDescription,
+#inventory .item-title,
+#inventory .item-desc {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow: visible !important;
+    max-width: 44vh;
+}

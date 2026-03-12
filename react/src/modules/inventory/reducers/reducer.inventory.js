@@ -1,77 +1,106 @@
 const createQuickSlot = (key, item = null) => ({
     key,
-    item
+    item,
 });
 
 const createInventorySlot = (id, item = null) => ({
     id,
-    item
+    item,
 });
 
 const createEquipmentSlot = (id, label, item = null) => ({
     id,
     label,
-    item
+    item,
 });
 
-const createSection = (id, title, slots = []) => ({
+const createSection = (id, title, slots = [], description = '') => ({
     id,
     title,
-    slots
+    slots,
+    description,
 });
 
 const initialState = {
     weight: {
-        current: 2.45,
+        current: 15.7,
         max: 40,
     },
     quickSlots: [
-        createQuickSlot(1),
-        createQuickSlot(2, { name: 'Смартфон', weight: 0.18, icon: '📱' }),
+        createQuickSlot(1, { name: 'Нож', weight: 0.48, icon: '🗡', sizeX: 1, sizeY: 1 }),
+        createQuickSlot(2, { name: 'Смартфон', weight: 0.18, icon: '📱', sizeX: 1, sizeY: 1 }),
         createQuickSlot(3),
-        createQuickSlot(4, { name: 'Аптечка', weight: 1.2, icon: '✚' }),
+        createQuickSlot(4, { name: 'Аптечка', weight: 1.2, icon: '✚', sizeX: 2, sizeY: 1 }),
         createQuickSlot(5),
         createQuickSlot(6),
         createQuickSlot(7),
+        createQuickSlot(8),
+        createQuickSlot(9),
     ],
-    inventorySlots: [
-        createInventorySlot('inv-1', { name: 'Футболка', weight: 0.2, initials: 'Ф', rarity: 'common' }),
-        ...Array.from({ length: 23 }).map((_, index) => createInventorySlot(`inv-${index + 2}`)),
-    ],
+    inventorySlots: [],
     sections: [
-        createSection('armor', 'Броня', [
-            createInventorySlot('armor-1'),
-            createInventorySlot('armor-2'),
-            createInventorySlot('armor-3'),
-        ]),
+        createSection(
+            'vest',
+            'Разгрузка',
+            [
+                createInventorySlot('vest-1', { name: 'Бинт', weight: 0.1, icon: '🩹', sizeX: 1, sizeY: 1, description: 'Стерильный бинт для остановки кровотечения.' }),
+                createInventorySlot('vest-2', { name: 'Патроны 5.45', weight: 0.34, initials: '5.45', sizeX: 2, sizeY: 1, description: 'Магазин с боеприпасами для штурмовой винтовки.' }),
+                ...Array.from({ length: 14 }).map((_, index) => createInventorySlot(`vest-empty-${index + 1}`)),
+            ],
+            'Компактный контейнер быстрого доступа'
+        ),
+        createSection(
+            'shirt',
+            'Футболка',
+            [
+                createInventorySlot('shirt-1', { name: 'Ключ-карта', weight: 0.02, initials: 'KC', sizeX: 1, sizeY: 1, description: 'Ключ доступа к закрытым зонам объекта.' }),
+                ...Array.from({ length: 11 }).map((_, index) => createInventorySlot(`shirt-empty-${index + 1}`)),
+            ],
+            'Легкая одежда с небольшим количеством карманов'
+        ),
+        createSection(
+            'pants',
+            'Брюки',
+            [
+                createInventorySlot('pants-1', { name: 'Фонарик', weight: 0.32, icon: '🔦', sizeX: 1, sizeY: 2, description: 'Тактический фонарик со средним зарядом.' }),
+                createInventorySlot('pants-2', { name: 'Консервы', weight: 0.8, icon: '🥫', sizeX: 2, sizeY: 2, description: 'Запас пищи на короткий рейд.' }),
+                ...Array.from({ length: 15 }).map((_, index) => createInventorySlot(`pants-empty-${index + 1}`)),
+            ],
+            'Средний объем хранения и быстрый доступ'
+        ),
+        createSection(
+            'backpack',
+            'Рюкзак',
+            [
+                createInventorySlot('bag-1', { name: 'Рация', weight: 0.41, initials: 'RF', sizeX: 2, sizeY: 1, description: 'Двухканальная рация для командной связи.' }),
+                createInventorySlot('bag-2', { name: 'Бутылка воды', weight: 1.1, icon: '💧', sizeX: 1, sizeY: 2, description: 'Питьевая вода, частично заполнена.' }),
+                ...Array.from({ length: 22 }).map((_, index) => createInventorySlot(`bag-empty-${index + 1}`)),
+            ],
+            'Основной контейнер с увеличенной вместимостью'
+        ),
     ],
     equipment: {
         leftColumn: [
             createEquipmentSlot('head', 'Голова'),
-            createEquipmentSlot('glasses', 'Очки'),
+            createEquipmentSlot('glasses', 'Лицо'),
             createEquipmentSlot('ears', 'Уши'),
-            createEquipmentSlot('gloves', 'Перчатки'),
+            createEquipmentSlot('gloves', 'Руки'),
         ],
         rightColumn: [
-            createEquipmentSlot('mask', 'Маска'),
-            createEquipmentSlot('torso', 'Верх', { name: 'Футболка' }),
-            createEquipmentSlot('legs', 'Низ', { name: 'Джинсы' }),
-            createEquipmentSlot('shoes', 'Обувь', { name: 'Кеды' }),
+            createEquipmentSlot('mask', 'Шея'),
+            createEquipmentSlot('torso', 'Броня', { name: 'Легкий бронежилет' }),
+            createEquipmentSlot('legs', 'Ноги', { name: 'Тактические штаны' }),
+            createEquipmentSlot('shoes', 'Спина', { name: 'Штурмовой рюкзак' }),
         ],
-        bottomRow: [
-            createEquipmentSlot('bag', 'Сумка'),
-            createEquipmentSlot('watch', 'Часы'),
-            createEquipmentSlot('bracelet', 'Браслет'),
-            createEquipmentSlot('accessory', 'Аксессуар'),
-        ],
+        bottomRow: [],
         hands: [
             createEquipmentSlot('leftHand', 'Левая рука'),
-            createEquipmentSlot('rightHand', 'Правая рука'),
+            createEquipmentSlot('rightHand', 'Правая рука', { name: 'АК-12' }),
         ],
         stats: [
-            { id: 'temperature', label: 'Температура', value: '22°' },
-            { id: 'hydration', label: 'Гидратация', value: '74%' },
-            { id: 'energy', label: 'Энергия', value: '58%' },
+            { id: 'health', label: 'Здоровье', value: '82%' },
+            { id: 'hydration', label: 'Гидратация', value: '61%' },
+            { id: 'energy', label: 'Энергия', value: '47%' },
         ],
     },
 };

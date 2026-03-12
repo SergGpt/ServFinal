@@ -1,168 +1,162 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 
 import styles from '../styles/inventory.module.scss';
 
+const getItemSize = (item = {}) => ({
+    x: Number(item.sizeX || item.width || 1),
+    y: Number(item.sizeY || item.height || 1),
+});
+
+const getItemPreview = (item) => item.icon || item.initials || item.name?.[0] || '?';
+
+const getSlotWeight = (item) => (item?.weight !== undefined ? `${item.weight.toFixed(2)} кг` : '0.00 кг');
+
 const QuickSlot = ({ slot }) => (
-    <div className={styles.quickSlot}>
+    <div className={`${styles.quickSlot} ${slot.item ? styles.quickSlotFilled : ''}`}>
         <span className={styles.quickSlotIndex}>{slot.key}</span>
-        <div className={styles.quickSlotBody}>
-            {slot.item ? (
+        <div className={styles.quickSlotContent}>
+            <div className={styles.quickSlotIcon}>{slot.item ? getItemPreview(slot.item) : '—'}</div>
+            <div>
+                <div className={styles.quickSlotName}>{slot.item ? slot.item.name : 'Пустой слот'}</div>
+                <div className={styles.quickSlotWeight}>{slot.item ? getSlotWeight(slot.item) : 'Назначьте предмет'}</div>
+            </div>
+        </div>
+    </div>
+);
+
+const GridCell = ({ cell }) => {
+    const itemSize = getItemSize(cell.item);
+
+    return (
+        <div
+            className={`${styles.gridCell} ${cell.item ? styles.gridCellFilled : ''}`}
+            style={{
+                gridColumn: `span ${itemSize.x}`,
+                gridRow: `span ${itemSize.y}`,
+            }}
+        >
+            <span className={styles.gridCellIndex}>{cell.index + 1}</span>
+            {cell.item ? (
                 <>
-                    <div className={styles.quickSlotIcon}>{slot.item.icon || slot.item.initials || slot.item.name[0]}</div>
-                    <div className={styles.quickSlotInfo}>
-                        <span className={styles.quickSlotName}>{slot.item.name}</span>
-                        {slot.item.weight !== undefined && (
-                            <span className={styles.quickSlotWeight}>{slot.item.weight.toFixed(2)} кг</span>
-                        )}
+                    <div className={styles.gridItemIcon}>{getItemPreview(cell.item)}</div>
+                    <div className={styles.gridItemMeta}>
+                        <span className={styles.gridItemName}>{cell.item.name}</span>
+                        <span className={styles.gridItemWeight}>{getSlotWeight(cell.item)}</span>
+                        <span className={styles.gridItemSize}>{itemSize.x}x{itemSize.y}</span>
                     </div>
                 </>
             ) : (
-                <span className={styles.quickSlotEmpty}>Пусто</span>
+                <span className={styles.gridCellEmpty}>Свободно</span>
             )}
         </div>
-    </div>
-);
+    );
+};
 
-const InventorySlot = ({ slot, index }) => (
-    <div className={`${styles.inventorySlot} ${slot.item ? styles.inventorySlotFilled : ''}`}>
-        <span className={styles.slotIndex}>{index + 1}</span>
-        {slot.item ? (
-            <>
-                <div className={styles.itemIcon}>{slot.item.icon || slot.item.initials || slot.item.name[0]}</div>
-                <div className={styles.itemInfo}>
-                    <span className={styles.itemName}>{slot.item.name}</span>
-                    {slot.item.weight !== undefined && (
-                        <span className={styles.itemWeight}>{slot.item.weight.toFixed(2)} кг</span>
-                    )}
+const ContainerGrid = ({ section, onHoverItem }) => {
+    const cells = useMemo(() => section.slots.map((slot, index) => ({ ...slot, index })), [section.slots]);
+    const totalWeight = section.slots.reduce((acc, slot) => acc + (slot.item?.weight || 0), 0);
+
+    return (
+        <article className={styles.containerPanel}>
+            <header className={styles.containerHeader}>
+                <div>
+                    <h3>{section.title}</h3>
+                    <span>{section.description || 'Контейнер с предметами'}</span>
                 </div>
-            </>
-        ) : (
-            <span className={styles.emptyPlaceholder}>Свободно</span>
-        )}
-    </div>
-);
+                <div className={styles.containerWeight}>{totalWeight.toFixed(2)} кг ▾</div>
+            </header>
+            <div className={styles.containerGrid}>
+                {cells.map((cell) => (
+                    <div key={cell.id} onMouseEnter={() => onHoverItem(cell.item)} onMouseLeave={() => onHoverItem(null)}>
+                        <GridCell cell={cell} />
+                    </div>
+                ))}
+            </div>
+        </article>
+    );
+};
 
-const EquipmentSlot = ({ slot }) => (
-    <div className={`${styles.equipmentSlot} ${slot.item ? styles.equipmentSlotFilled : ''}`}>
-        <div className={styles.equipmentLabel}>{slot.label}</div>
-        <div className={styles.equipmentBody}>
-            {slot.item ? (
-                <span>{slot.item.name}</span>
-            ) : (
-                <span className={styles.equipmentEmpty}>Пусто</span>
-            )}
-        </div>
-    </div>
-);
-
-const StatBlock = ({ stat }) => (
-    <div className={styles.statBlock}>
-        <span className={styles.statDot} />
-        <div>
-            <div className={styles.statLabel}>{stat.label}</div>
-            <div className={styles.statValue}>{stat.value}</div>
-        </div>
+const EquipmentSlot = ({ slot, className = '' }) => (
+    <div className={`${styles.equipmentSlot} ${slot.item ? styles.equipmentSlotFilled : ''} ${className}`}>
+        <span className={styles.equipmentSlotLabel}>{slot.label}</span>
+        <span className={styles.equipmentSlotValue}>{slot.item ? slot.item.name : 'Пусто'}</span>
     </div>
 );
 
 const Inventory = () => {
-    const { weight, quickSlots, inventorySlots, sections, equipment } = useSelector((state) => state.inventory);
+    const { weight, quickSlots, sections, equipment } = useSelector((state) => state.inventory);
+    const [hoveredItem, setHoveredItem] = useState(null);
 
     return (
         <div className={styles.overlay}>
-            <div className={styles.container}>
-                <aside className={styles.quickSlots}>
-                    <div className={styles.sectionHeading}>Быстрые слоты</div>
-                    {quickSlots.map((slot) => (
-                        <QuickSlot key={slot.key} slot={slot} />
-                    ))}
+            <div className={styles.layout}>
+                <aside className={styles.leftColumn}>
+                    <div className={styles.columnTitle}>Быстрый доступ</div>
+                    <div className={styles.quickSlotsList}>
+                        {quickSlots.map((slot) => (
+                            <QuickSlot key={slot.key} slot={slot} />
+                        ))}
+                    </div>
                 </aside>
 
-                <section className={styles.inventorySection}>
-                    <header className={styles.inventoryHeader}>
+                <section className={styles.centerColumn}>
+                    <header className={styles.centerHeader}>
                         <div>
-                            <h2>Инвентарь</h2>
-                            <div className={styles.weightLabel}>
-                                {weight.current.toFixed(2)} / {weight.max} кг
-                            </div>
+                            <p className={styles.kicker}>Character Inventory</p>
+                            <h1>Снаряжение и лут</h1>
                         </div>
-                        <div className={styles.filters}>
-                            <button className={styles.filterActive}>Все</button>
-                            <button>Одежда</button>
-                            <button>Еда</button>
-                            <button>Разное</button>
-                        </div>
+                        <div className={styles.totalWeight}>{weight.current.toFixed(2)} / {weight.max.toFixed(2)} кг</div>
                     </header>
 
-                    <div className={styles.inventoryGrid}>
-                        {inventorySlots.map((slot, index) => (
-                            <InventorySlot key={slot.id} slot={slot} index={index} />
+                    <div className={styles.containersWrap}>
+                        {sections.map((section) => (
+                            <ContainerGrid key={section.id} section={section} onHoverItem={setHoveredItem} />
+                        ))}
+                    </div>
+                </section>
+
+                <aside className={styles.rightColumn}>
+                    <div className={styles.columnTitle}>Экипировка</div>
+                    <div className={styles.paperDoll}>
+                        <div className={styles.paperDollSilhouette} />
+                        {equipment.leftColumn.map((slot) => (
+                            <EquipmentSlot key={slot.id} slot={slot} className={styles[`slot${slot.id}`]} />
+                        ))}
+                        {equipment.rightColumn.map((slot) => (
+                            <EquipmentSlot key={slot.id} slot={slot} className={styles[`slot${slot.id}`]} />
                         ))}
                     </div>
 
-                    {sections.map((section) => (
-                        <div key={section.id} className={styles.sectionGroup}>
-                            <div className={styles.sectionHeading}>{section.title}</div>
-                            <div className={styles.sectionSlots}>
-                                {section.slots.map((slot) => (
-                                    <div key={slot.id} className={`${styles.inventorySlot} ${styles.sectionSlot}`}>
-                                        {slot.item ? (
-                                            <div className={styles.itemInfo}>
-                                                <span className={styles.itemName}>{slot.item.name}</span>
-                                                {slot.item.weight !== undefined && (
-                                                    <span className={styles.itemWeight}>{slot.item.weight.toFixed(2)} кг</span>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <span className={styles.emptyPlaceholder}>Свободно</span>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ))}
-                </section>
-
-                <aside className={styles.equipmentSection}>
-                    <div className={styles.sectionHeading}>Экипировка</div>
-                    <div className={styles.equipmentLayout}>
-                        <div className={styles.equipmentColumn}>
-                            {equipment.leftColumn.map((slot) => (
-                                <EquipmentSlot key={slot.id} slot={slot} />
-                            ))}
-                        </div>
-                        <div className={styles.avatarPlaceholder}>
-                            <div className={styles.avatarCore} />
-                        </div>
-                        <div className={styles.equipmentColumn}>
-                            {equipment.rightColumn.map((slot) => (
-                                <EquipmentSlot key={slot.id} slot={slot} />
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className={styles.equipmentBottom}>
-                        {equipment.bottomRow.map((slot) => (
+                    <div className={styles.handsBlock}>
+                        {equipment.hands.map((slot) => (
                             <EquipmentSlot key={slot.id} slot={slot} />
                         ))}
                     </div>
 
-                    <div className={styles.handsSection}>
-                        {equipment.hands.map((slot) => (
-                            <div key={slot.id} className={`${styles.inventorySlot} ${styles.handSlot}`}>
-                                <div className={styles.equipmentLabel}>{slot.label}</div>
-                                <div className={styles.equipmentBody}>
-                                    {slot.item ? slot.item.name : <span className={styles.equipmentEmpty}>Свободно</span>}
-                                </div>
+                    <div className={styles.statusBars}>
+                        {equipment.stats.map((stat) => (
+                            <div key={stat.id} className={styles.statusBarRow}>
+                                <span>{stat.label}</span>
+                                <div className={styles.statusTrack}><div className={styles.statusFill} style={{ width: stat.value }} /></div>
+                                <strong>{stat.value}</strong>
                             </div>
                         ))}
                     </div>
 
-                    <div className={styles.statsPanel}>
-                        {equipment.stats.map((stat) => (
-                            <StatBlock key={stat.id} stat={stat} />
-                        ))}
+                    <div className={styles.infoPanel}>
+                        <h4>Информация о предмете</h4>
+                        {hoveredItem ? (
+                            <>
+                                <div className={styles.infoName}>{hoveredItem.name}</div>
+                                <p className={styles.infoDescription}>
+                                    {hoveredItem.description || 'Описание отсутствует. Предмет готов к использованию или перемещению.'}
+                                </p>
+                                <div className={styles.infoMeta}>Вес: {getSlotWeight(hoveredItem)}</div>
+                            </>
+                        ) : (
+                            <p className={styles.infoDescription}>Наведите курсор на предмет, чтобы увидеть описание без обрезки текста.</p>
+                        )}
                     </div>
                 </aside>
             </div>
