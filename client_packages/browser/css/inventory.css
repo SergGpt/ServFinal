@@ -1114,3 +1114,123 @@
     transform: translate3d(0, -0.4vh, 0);
     box-shadow: 0 0 1.6vh rgba(102, 255, 204, 0.45);
 }
+
+/* === AAA survival overhaul (runtime-visible inventory UI) === */
+#inventory {
+    width: 96vw !important;
+    height: 94vh !important;
+    border-radius: 1.2vh;
+    border: 1px solid rgba(145, 177, 230, 0.26) !important;
+    background: radial-gradient(circle at 20% 15%, rgba(94, 140, 225, 0.2), transparent 42%), rgba(5, 8, 14, 0.92) !important;
+    box-shadow: 0 2.2vh 8vh rgba(0, 0, 0, 0.72), inset 0 0 0 0.1vh rgba(255, 255, 255, 0.04) !important;
+}
+
+#inventory>.body {
+    height: calc(100% - 12vh) !important;
+    grid-template-columns: 30vh minmax(0, 1fr) 44vh !important;
+    gap: 2vh !important;
+    padding: 2vh !important;
+    background: linear-gradient(160deg, rgba(11, 16, 26, 0.92), rgba(7, 11, 18, 0.95)) !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+#inventory>.body>div {
+    width: auto !important;
+    border-radius: 1vh;
+    border: 1px solid rgba(184, 206, 246, 0.15) !important;
+    background: linear-gradient(180deg, rgba(20, 28, 43, 0.65), rgba(10, 14, 23, 0.76)) !important;
+}
+
+#inventory>.body .equipment { order: 3; }
+#inventory>.body .playerInventory { order: 2; }
+#inventory>.body .environment { order: 1; }
+
+#inventory .header {
+    background: rgba(11, 17, 27, 0.78) !important;
+    border-bottom: 1px solid rgba(188, 208, 243, 0.14) !important;
+    padding: 1.1vh 1.2vh !important;
+}
+
+#inventory .header .title {
+    font-size: 1.7vh !important;
+    letter-spacing: .04em;
+    color: #dce8ff !important;
+}
+
+#inventory .block {
+    padding: 1.1vh !important;
+    gap: 1vh;
+}
+
+#inventory .container .pockets .items,
+#inventory .playerInventory .items,
+#inventory .environment .items {
+    gap: .55vh !important;
+}
+
+#inventory .container .pockets .items .column,
+#inventory .playerInventory .items .column,
+#inventory .environment .items .column {
+    min-height: 5.8vh !important;
+    border-radius: .5vh;
+    border: 1px solid rgba(173, 197, 240, 0.16) !important;
+    background: rgba(9, 14, 22, 0.7) !important;
+}
+
+#inventory .container .pockets .items .column.busy,
+#inventory .playerInventory .items .column.busy,
+#inventory .environment .items .column.busy {
+    background: linear-gradient(145deg, rgba(64, 99, 160, 0.5), rgba(25, 44, 72, 0.6)) !important;
+    border-color: rgba(132, 179, 255, 0.5) !important;
+}
+
+#inventory>.body .equipment .body-items {
+    height: 60vh !important;
+    border-radius: .8vh;
+    border: 1px solid rgba(177, 199, 239, 0.2) !important;
+    background-color: rgba(8, 12, 20, 0.82) !important;
+    background-size: 58% !important;
+    background-position-y: 50% !important;
+}
+
+#inventory .hands {
+    margin-top: 1.2vh;
+    border-top: 1px solid rgba(177, 199, 239, 0.2);
+    padding-top: 1vh;
+}
+
+#inventory .hotkeys {
+    position: absolute;
+    left: 2.2vh;
+    top: 8.4vh;
+    bottom: 2.5vh;
+    width: 7.2vh;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    grid-auto-rows: 1fr;
+    gap: .8vh !important;
+    z-index: 5;
+}
+
+#inventory .hotkeys .key {
+    width: 100% !important;
+    height: auto !important;
+    border-radius: .6vh;
+    background: rgba(8, 12, 20, 0.84) !important;
+    border: 1px solid rgba(190, 209, 242, 0.2) !important;
+}
+
+#inventory .hotkeys .key::before {
+    color: rgba(218, 230, 255, 0.78) !important;
+    font-weight: 700;
+}
+
+#inventory .item-info,
+#inventory .info,
+#inventory .description,
+#inventory .itemDescription {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow: visible !important;
+}
