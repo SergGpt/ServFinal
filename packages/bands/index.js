@@ -291,10 +291,10 @@ module.exports = {
         var marker = mp.markers.new(1, pos, 0.5, {
             color: [194, 245, 255, 70]
         });
-        marker.blip = mp.blips.new(51, pos, {
+        marker.blip = mp.blips.new(496, pos, {
             color: 4,
             name: `Наркопритон`,
-            shortRange: 10,
+            shortRange: true,
             scale: 1
         });
 
