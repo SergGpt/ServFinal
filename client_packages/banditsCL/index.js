@@ -20,6 +20,23 @@ const DEAD_REPORT_CD = 1000;
 const deadReportAt = new Map(); // zid -> ts
 const deadConfirmedAt = new Map(); // zid -> ts
 const CTRL_HEARTBEAT_MS = 1000;
+const PLAYER_HIT_CHAIN_WINDOW_MS = 2600;
+const PLAYER_HIT_SERIES_COUNT = 3;
+const LOW_HP_THRESHOLD = 0.4;
+const HIT_FLASH_MS = 280;
+const HEAVY_BLUR_MS_MIN = 200;
+const HEAVY_BLUR_MS_MAX = 400;
+
+const playerHitFx = {
+    lastHitAt: 0,
+    chainHits: 0,
+    flashUntil: 0,
+    strongFlashUntil: 0,
+    blurUntil: 0,
+    infectedUntil: 0,
+    lowHpActive: false,
+    heartbeatAt: 0,
+};
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
@@ -121,6 +138,108 @@ function reportDead(zid, reason = 'unknown', force = false) {
     }
     return false;
 }
+
+function getPlayerHealthRatio() {
+    try {
+        const hp = Number(me.getHealth ? me.getHealth() : me.health) || 0;
+        const maxHp = Math.max(1, Number(me.getMaxHealth ? me.getMaxHealth() : 100) || 100);
+        return Math.max(0, Math.min(1, hp / maxHp));
+    } catch {}
+    return 1;
+}
+
+function triggerZombiePlayerHitFx() {
+    const now = Date.now();
+    const dt = now - playerHitFx.lastHitAt;
+    playerHitFx.lastHitAt = now;
+    playerHitFx.chainHits = dt <= PLAYER_HIT_CHAIN_WINDOW_MS ? (playerHitFx.chainHits + 1) : 1;
+
+    const heavyHit = playerHitFx.chainHits >= PLAYER_HIT_SERIES_COUNT;
+    const shakeAmp = heavyHit ? 0.32 : 0.14;
+    try {
+        mp.game.cam.shakeGameplayCam('SMALL_EXPLOSION_SHAKE', shakeAmp);
+        mp.game.cam.setGameplayCamShakeAmplitude(shakeAmp);
+    } catch {}
+
+    if (heavyHit) {
+        const blurMs = HEAVY_BLUR_MS_MIN + Math.floor(Math.random() * (HEAVY_BLUR_MS_MAX - HEAVY_BLUR_MS_MIN + 1));
+        playerHitFx.blurUntil = Math.max(playerHitFx.blurUntil, now + blurMs);
+        playerHitFx.strongFlashUntil = Math.max(playerHitFx.strongFlashUntil, now + HIT_FLASH_MS + 120);
+        try { mp.game.graphics.startScreenEffect('DeathFailOut', blurMs, false); } catch {}
+        if (Math.random() <= 0.25) {
+            playerHitFx.infectedUntil = Math.max(playerHitFx.infectedUntil, now + 1800);
+            try { mp.game.graphics.startScreenEffect('HeistCelebPassBW', 900, false); } catch {}
+        }
+    }
+
+    playerHitFx.flashUntil = now + HIT_FLASH_MS;
+
+    try {
+        if (!me.isInAnyVehicle(false)) {
+            mp.game.ped.setPedToRagdoll(me.handle, heavyHit ? 420 : 220, heavyHit ? 420 : 220, 0, false, false, false);
+        }
+    } catch {}
+}
+
+mp.events.add('render', () => {
+    try {
+        const now = Date.now();
+        const hpRatio = getPlayerHealthRatio();
+        const lowHp = hpRatio <= LOW_HP_THRESHOLD;
+        playerHitFx.lowHpActive = lowHp;
+
+        const flashLeft = Math.max(0, playerHitFx.flashUntil - now);
+        const strongFlashLeft = Math.max(0, playerHitFx.strongFlashUntil - now);
+        const infectedLeft = Math.max(0, playerHitFx.infectedUntil - now);
+
+        if (flashLeft > 0 || strongFlashLeft > 0 || lowHp) {
+            const baseEdgeAlpha = lowHp ? 65 : 0;
+            const pulse = lowHp ? (0.45 + (Math.sin(now / 180) * 0.2)) : 0;
+            const hitEdge = flashLeft > 0 ? (flashLeft / HIT_FLASH_MS) * 135 : 0;
+            const strongEdge = strongFlashLeft > 0 ? (strongFlashLeft / (HIT_FLASH_MS + 120)) * 165 : 0;
+            const edgeAlpha = Math.max(0, Math.min(220, Math.floor(baseEdgeAlpha + hitEdge + strongEdge + pulse * 40)));
+            const bloodAlpha = Math.max(0, Math.min(190, Math.floor((lowHp ? 65 : 0) + strongEdge * 0.65 + hitEdge * 0.3)));
+
+            // blood vignette / red flash by edges
+            mp.game.graphics.drawRect(0.5, 0.015, 1.0, 0.03, 120, 0, 0, edgeAlpha);
+            mp.game.graphics.drawRect(0.5, 0.985, 1.0, 0.03, 120, 0, 0, edgeAlpha);
+            mp.game.graphics.drawRect(0.01, 0.5, 0.02, 1.0, 120, 0, 0, edgeAlpha);
+            mp.game.graphics.drawRect(0.99, 0.5, 0.02, 1.0, 120, 0, 0, edgeAlpha);
+
+            if (bloodAlpha > 0) {
+                mp.game.graphics.drawRect(0.5, 0.5, 1.0, 1.0, 95, 0, 0, bloodAlpha);
+            }
+        }
+
+        if (lowHp) {
+            try {
+                mp.game.graphics.setTimecycleModifier('NG_filmic04');
+                mp.game.graphics.setTimecycleModifierStrength(0.35);
+            } catch {}
+            if (now - playerHitFx.heartbeatAt > 950) {
+                playerHitFx.heartbeatAt = now;
+                try { mp.game.audio.playSoundFrontend(-1, 'TIMER_STOP', 'HUD_MINI_GAME_SOUNDSET', true); } catch {}
+            }
+        } else {
+            try { mp.game.graphics.clearTimecycleModifier(); } catch {}
+        }
+
+        if (infectedLeft > 0) {
+            const strength = Math.max(0.1, Math.min(0.45, infectedLeft / 1800));
+            try {
+                mp.game.graphics.setTimecycleModifier('spectator5');
+                mp.game.graphics.setTimecycleModifierStrength(strength);
+            } catch {}
+        }
+
+        if (playerHitFx.blurUntil <= now) {
+            try { mp.game.graphics.stopScreenEffect('DeathFailOut'); } catch {}
+        }
+        if (playerHitFx.infectedUntil <= now) {
+            try { mp.game.graphics.stopScreenEffect('HeistCelebPassBW'); } catch {}
+        }
+    } catch {}
+});
 
 // ====== подготовка педа ======
 function prepPed(ped){
@@ -432,6 +551,12 @@ mp.events.add('npc:animHit', (zid, targetId) => {
         try { ped.taskLookAt(t.handle, 300); } catch {}
         try { ped.taskTurnToFaceEntity(t.handle, 250); } catch {}
     }
+
+    const targetRid = parseInt(targetId, 10);
+    if (targetRid === me.id) {
+        triggerZombiePlayerHitFx();
+    }
+
     ped.taskPlayAnim(dict, name, 8.0, -8.0, 600, 0, 0.0, false, false, false);
 });
 
