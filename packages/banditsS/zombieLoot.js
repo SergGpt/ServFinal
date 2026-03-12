@@ -6,9 +6,9 @@ const zlog = createLogger(ZOMBIE_CONFIG.debug, 'ZLOOT');
 const BAG_MODEL = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.bagModel ? ZOMBIE_CONFIG.loot.bagModel : 'prop_cs_heist_bag_01';
 const INTERACT_DISTANCE = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.interactDistance ? ZOMBIE_CONFIG.loot.interactDistance : 2.2;
 const CANCEL_DISTANCE = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.cancelDistance ? ZOMBIE_CONFIG.loot.cancelDistance : 3.5;
-const LOOT_DURATION_MS = ZOMBIE_CONFIG.timers && ZOMBIE_CONFIG.timers.lootDurationMs ? ZOMBIE_CONFIG.timers.lootDurationMs : 5000;
+const LOOT_DURATION_MS = 3000;
 const BAG_LIFETIME_MS = ZOMBIE_CONFIG.timers && ZOMBIE_CONFIG.timers.lootBagLifetimeMs ? ZOMBIE_CONFIG.timers.lootBagLifetimeMs : 5 * 60 * 1000;
-const BAG_GROUND_OFFSET_Z = 0.05;
+const BAG_GROUND_OFFSET_Z = -0.12;
 const ZOMBIE_LOOT_ITEM_IDS = (ZOMBIE_CONFIG.loot && Array.isArray(ZOMBIE_CONFIG.loot.itemIds) && ZOMBIE_CONFIG.loot.itemIds.length)
     ? ZOMBIE_CONFIG.loot.itemIds
     : [234, 235, 237, 238, 239, 240, 241, 242, 243, 244];
@@ -43,6 +43,15 @@ function createZombieLootManager() {
         try { player.outputChatBox(`!{#ff6666}[Лут] ${text}`); } catch {}
     }
 
+    function notifySuccess(player, text) {
+        if (!player || !mp.players.exists(player)) return;
+        const notifs = getNotifs();
+        if (notifs && typeof notifs.success === 'function') {
+            notifs.success(player, text, 'Лут');
+            return;
+        }
+        try { player.outputChatBox(`!{#99ff99}[Лут] ${text}`); } catch {}
+    }
 
     function pickRandomItemId() {
         return ZOMBIE_LOOT_ITEM_IDS[(Math.random() * ZOMBIE_LOOT_ITEM_IDS.length) | 0];
@@ -72,8 +81,20 @@ function createZombieLootManager() {
         });
     }
 
+    function clearLootBusyState(loot) {
+        if (!loot) return;
+        if (loot.finishTimer) {
+            clearTimeout(loot.finishTimer);
+            loot.finishTimer = null;
+        }
+        loot.isBusy = false;
+        loot.looterId = null;
+        loot.lootStartedAt = 0;
+    }
+
     function cleanupLoot(loot, reason = 'unknown') {
         if (!loot) return;
+        clearLootBusyState(loot);
         try {
             if (loot.object && mp.objects.exists(loot.object)) loot.object.destroy();
         } catch {}
@@ -89,9 +110,7 @@ function createZombieLootManager() {
         if (!loot || !loot.isBusy) return;
 
         const looterId = loot.looterId;
-        loot.isBusy = false;
-        loot.looterId = null;
-        loot.lootStartedAt = 0;
+        clearLootBusyState(loot);
 
         const looter = typeof looterId === 'number' ? mp.players.at(looterId) : null;
         if (looter && mp.players.exists(looter)) {
@@ -99,7 +118,7 @@ function createZombieLootManager() {
             if (!silent) notifyError(looter, 'Обыск сумки отменен.');
         }
 
-        zlog(`cancel bag id=${loot.id} reason=${reason}`);
+        zlog(`loot cancel lootId=${loot.id} reason=${reason}`);
     }
 
     function createLootBag(zombieId, pos, dimension = 0) {
@@ -148,6 +167,7 @@ function createZombieLootManager() {
             looterId: null,
             createdAt: Date.now(),
             lootStartedAt: 0,
+            finishTimer: null,
         };
 
         lootBags.set(lootId, loot);
@@ -211,17 +231,27 @@ function createZombieLootManager() {
         loot.looterId = player.id;
         loot.lootStartedAt = Date.now();
 
+        loot.finishTimer = setTimeout(() => {
+            try { completeLoot(loot.id); } catch {}
+        }, LOOT_DURATION_MS);
+
         try { player.call('zloot:start', [loot.id, LOOT_DURATION_MS]); } catch {}
-        zlog(`start bag id=${loot.id} by=${player.id}`);
+        zlog(`loot start ok lootId=${loot.id}`);
     }
 
-    function finishLoot(player, lootIdRaw) {
+    function completeLoot(lootIdRaw) {
         const lootId = parseInt(lootIdRaw, 10);
-        if (!player || !mp.players.exists(player) || !Number.isFinite(lootId)) return;
+        if (!Number.isFinite(lootId)) return;
 
         const loot = lootBags.get(lootId);
         if (!loot || loot.isLooted || !loot.isBusy) return;
-        if (loot.looterId !== player.id) return;
+
+        const looterId = loot.looterId;
+        const player = typeof looterId === 'number' ? mp.players.at(looterId) : null;
+        if (!player || !mp.players.exists(player)) {
+            cancelLooting(loot, 'looter-missing', true);
+            return;
+        }
 
         if (!isPlayerAlive(player)) {
             cancelLooting(loot, 'dead', true);
@@ -235,17 +265,13 @@ function createZombieLootManager() {
 
         const lootPos = getLootObjectPos(loot);
         if (!lootPos) {
+            cancelLooting(loot, 'no-loot-world-pos', true);
             return;
         }
 
         const distance = dist3(player.position, lootPos);
         if (distance > CANCEL_DISTANCE) {
             cancelLooting(loot, 'too-far', true);
-            return;
-        }
-
-        if (Date.now() - loot.lootStartedAt < LOOT_DURATION_MS - 150) {
-            cancelLooting(loot, 'too-early', true);
             return;
         }
 
@@ -272,13 +298,15 @@ function createZombieLootManager() {
             }
 
             loot.isLooted = true;
-            loot.isBusy = false;
-            loot.looterId = null;
-            loot.lootStartedAt = 0;
-            try { player.call('zloot:success', [loot.id, itemId]); } catch {}
+            clearLootBusyState(loot);
+            const itemName = (inventory && typeof inventory.getName === 'function') ? inventory.getName(itemId) : `#${itemId}`;
+            notifySuccess(player, `Вы нашли ${itemName}`);
+            try { player.call('zloot:success', [loot.id, itemId, itemName]); } catch {}
+            zlog(`loot finish success lootId=${loot.id} itemId=${itemId}`);
             cleanupLoot(loot, `looted-by-${player.id}`);
         });
     }
+
 
     function cancelByPlayer(player, reason = 'player-cancel') {
         if (!player || !mp.players.exists(player)) return;
@@ -312,9 +340,6 @@ function createZombieLootManager() {
             try { tryStartLoot(player, lootId); } catch {}
         });
 
-        mp.events.add('zloot:finish', (player, lootId) => {
-            try { finishLoot(player, lootId); } catch {}
-        });
 
         mp.events.add('zloot:cancel', (player, lootId, reasonRaw) => {
             try {
