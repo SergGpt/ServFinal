@@ -3,6 +3,7 @@ import $ from 'jquery';
 
 const initialState = {
     phone: true,
+    inventory: false,
     // house: true,
     // business: true,
     // bank: true,
@@ -69,6 +70,18 @@ export default function forms(state = initialState, action) {
             return {
                 ...state,
                 players: payload
+            };
+
+        case 'SHOW_INVENTORY':
+            return {
+                ...state,
+                inventory: true
+            };
+
+        case 'HIDE_INVENTORY':
+            return {
+                ...state,
+                inventory: false
             };
     }
 
