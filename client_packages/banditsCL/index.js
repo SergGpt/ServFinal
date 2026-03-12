@@ -702,18 +702,7 @@ mp.events.add('zloot:cancel', (lootIdRaw) => {
 mp.events.add('zloot:success', (lootIdRaw, itemIdRaw, itemNameRaw) => {
     try {
         const lootId = parseInt(lootIdRaw, 10);
-        const itemId = parseInt(itemIdRaw, 10);
-        const itemName = (typeof itemNameRaw === 'string' && itemNameRaw.length) ? itemNameRaw : `предмет #${itemId}`;
         if (activeLoot && activeLoot.lootId === lootId) clearActiveLootLocal();
-        try {
-            if (mp.notify && typeof mp.notify.success === 'function') {
-                mp.notify.success(`Получен лут: ${itemName}`, 'Лут');
-            } else {
-                chat(`Вы нашли ${itemName}`, '#99ff99');
-            }
-        } catch {
-            chat(`Вы нашли ${itemName}`, '#99ff99');
-        }
     } catch {}
 });
 

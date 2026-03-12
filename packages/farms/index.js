@@ -140,14 +140,7 @@ module.exports = {
             }
             this.fieldBlip = null;
         }
-        if (this.fieldCenter) {
-            this.fieldBlip = mp.blips.new(567, this.adjustBlipPos(this.fieldCenter), {
-                name: "Грядки фермы",
-                color: 2,
-                shortRange: false,
-                scale: 0.8,
-            });
-        }
+        // Не создаем блип поля: "Грядки фермы" не должны отображаться на миникарте.
         this.plots = this.plotsData.map((plotData, index) => {
             const position = new mp.Vector3(plotData.x, plotData.y, plotData.z);
             const colshape = mp.colshapes.newSphere(position.x, position.y, position.z, 1.2);
