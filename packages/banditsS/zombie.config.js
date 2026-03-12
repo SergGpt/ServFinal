@@ -13,6 +13,8 @@ const ZOMBIE_CONFIG = {
 
     timers: {
         zonePresenceMs: 20000,
+        waveSpawnCheckMs: 5000,
+        waveIntervalMs: 60 * 1000,
         zoneEntryScanMs: 1000,
         syncMs: 700,
         attackMs: 350,
@@ -66,6 +68,8 @@ const ZOMBIE_CONFIG = {
             z: 81.60345,
             radius: 30,
             zombieCount: 3,
+            maxZombieCount: 18,
+            waveSize: 3,
         },
     ],
 };

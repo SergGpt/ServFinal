@@ -26,6 +26,8 @@ ZOMBIE_CONFIG.zones.forEach((z) => {
         zombieIds: [],
         active: false,
         activatorRid: null,
+        firstSpawnAt: 0,
+        lastWaveAt: 0,
     });
 });
 
@@ -227,6 +229,27 @@ function spawnZombie(zone, owner, spawnIndex = 0) {
     zlog(`spawn zid=${zid} owner=${st.ownerRid} pos=${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}`);
 }
 
+function spawnWave(zone, activator, count, source = 'unknown') {
+    if (!zone || !activator || !mp.players.exists(activator)) return 0;
+
+    const maxZombieCount = Math.max(0, parseInt(zone.maxZombieCount, 10) || zone.zombieCount || 0);
+    const activeZombieCount = zone.zombieIds.length;
+    const freeSlots = Math.max(0, maxZombieCount - activeZombieCount);
+    const waveCount = Math.max(0, Math.min(parseInt(count, 10) || 0, freeSlots));
+
+    if (!waveCount) {
+        zlog(`wave-skip zone=${zone.id} source=${source} active=${activeZombieCount} max=${maxZombieCount}`);
+        return 0;
+    }
+
+    zlog(`wave-spawn zone=${zone.id} source=${source} count=${waveCount} active=${activeZombieCount}->${activeZombieCount + waveCount} max=${maxZombieCount}`);
+    for (let i = 0; i < waveCount; i++) {
+        setTimeout(() => spawnZombie(zone, activator, activeZombieCount + i), i * 400);
+    }
+
+    return waveCount;
+}
+
 function spawnZoneOnEnter(zone, activator) {
     if (!zone || !activator || !mp.players.exists(activator)) return;
     if (zone.zombieIds.length) return;
@@ -234,9 +257,12 @@ function spawnZoneOnEnter(zone, activator) {
     zone.active = true;
     zone.activatorRid = activator.id;
 
-    console.log(`[ZONE] Spawning ${zone.zombieCount} zombies in "${zone.name}"`);
-    for (let i = 0; i < zone.zombieCount; i++) {
-        setTimeout(() => spawnZombie(zone, activator, i), i * 400);
+    const spawned = spawnWave(zone, activator, zone.zombieCount, 'initial-enter');
+    if (spawned > 0) {
+        const now = Date.now();
+        zone.firstSpawnAt = now;
+        zone.lastWaveAt = now;
+        console.log(`[ZONE] Spawning ${spawned} zombies in "${zone.name}"`);
     }
 }
 
@@ -262,6 +288,8 @@ function destroyZombie(zid, reason = 'unknown') {
         if (!zone.zombieIds.length) {
             zone.active = false;
             zone.activatorRid = null;
+            zone.firstSpawnAt = 0;
+            zone.lastWaveAt = 0;
         }
     }
 
@@ -409,6 +437,8 @@ function cleanupEmptyZones() {
 
         zone.active = false;
         zone.activatorRid = null;
+        zone.firstSpawnAt = 0;
+        zone.lastWaveAt = 0;
 
         zone.zombieIds.forEach((zid) => {
             const st = zombies.get(zid);
@@ -445,6 +475,32 @@ function spawnZonesByPresenceCheck() {
 
         zlog(`presence-check zone=${zone.id}: players=${plist.length}, spawn start`);
         spawnZoneOnEnter(zone, target);
+    });
+}
+
+
+function spawnZoneWaves() {
+    const now = Date.now();
+
+    zones.forEach((zone) => {
+        if (!zone || !zone.active) return;
+        if (!zone.zombieIds.length) return;
+
+        const activator = getPlayerById(mp, zone.activatorRid);
+        const players = playersInZone(mp, zone);
+        if (!activator || !mp.players.exists(activator)) return;
+        if (!players.length) return;
+
+        const firstSpawnAt = Number(zone.firstSpawnAt) || 0;
+        const lastWaveAt = Number(zone.lastWaveAt) || firstSpawnAt;
+        if (!firstSpawnAt) return;
+
+        if (now - firstSpawnAt < ZOMBIE_CONFIG.timers.waveIntervalMs) return;
+        if (now - lastWaveAt < ZOMBIE_CONFIG.timers.waveIntervalMs) return;
+
+        const waveSize = Math.max(1, parseInt(zone.waveSize, 10) || 3);
+        const spawned = spawnWave(zone, activator, waveSize, 'timed-wave');
+        if (spawned > 0) zone.lastWaveAt = now;
     });
 }
 
@@ -796,6 +852,8 @@ function registerEvents() {
             zone.zombieIds = [];
             zone.active = false;
             zone.activatorRid = null;
+            zone.firstSpawnAt = 0;
+            zone.lastWaveAt = 0;
         });
 
         if (player && player.outputChatBox) {
@@ -817,6 +875,12 @@ function registerLoops() {
             spawnZonesByPresenceCheck();
         } catch {}
     }, ZOMBIE_CONFIG.timers.zonePresenceMs);
+
+    setInterval(() => {
+        try {
+            spawnZoneWaves();
+        } catch {}
+    }, ZOMBIE_CONFIG.timers.waveSpawnCheckMs);
 
     setInterval(() => {
         try {
