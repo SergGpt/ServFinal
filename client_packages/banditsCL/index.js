@@ -20,22 +20,12 @@ const DEAD_REPORT_CD = 1000;
 const deadReportAt = new Map(); // zid -> ts
 const deadConfirmedAt = new Map(); // zid -> ts
 const CTRL_HEARTBEAT_MS = 1000;
-const PLAYER_HIT_CHAIN_WINDOW_MS = 2600;
-const PLAYER_HIT_SERIES_COUNT = 3;
-const LOW_HP_THRESHOLD = 0.4;
-const HIT_FLASH_MS = 280;
-const HEAVY_BLUR_MS_MIN = 200;
-const HEAVY_BLUR_MS_MAX = 400;
+const PLAYER_HIT_FX_COOLDOWN_MS = 5000;
+const HIT_EDGE_FLASH_MS = 420;
 
 const playerHitFx = {
     lastHitAt: 0,
-    chainHits: 0,
-    flashUntil: 0,
-    strongFlashUntil: 0,
-    blurUntil: 0,
-    infectedUntil: 0,
-    lowHpActive: false,
-    heartbeatAt: 0,
+    edgeFlashUntil: 0,
 };
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
@@ -139,97 +129,35 @@ function reportDead(zid, reason = 'unknown', force = false) {
     return false;
 }
 
-function getPlayerHealthRatio() {
-    try {
-        const hp = Number(me.getHealth ? me.getHealth() : me.health) || 0;
-        const maxHp = Math.max(1, Number(me.getMaxHealth ? me.getMaxHealth() : 100) || 100);
-        return Math.max(0, Math.min(1, hp / maxHp));
-    } catch {}
-    return 1;
-}
-
 function triggerZombiePlayerHitFx() {
     const now = Date.now();
-    const dt = now - playerHitFx.lastHitAt;
-    playerHitFx.lastHitAt = now;
-    playerHitFx.chainHits = dt <= PLAYER_HIT_CHAIN_WINDOW_MS ? (playerHitFx.chainHits + 1) : 1;
+    if (now - playerHitFx.lastHitAt < PLAYER_HIT_FX_COOLDOWN_MS) return;
 
-    const heavyHit = playerHitFx.chainHits >= PLAYER_HIT_SERIES_COUNT;
-    const shakeAmp = heavyHit ? 0.32 : 0.14;
+    playerHitFx.lastHitAt = now;
+    const shakeAmp = 0.16;
     try {
         mp.game.cam.shakeGameplayCam('SMALL_EXPLOSION_SHAKE', shakeAmp);
         mp.game.cam.setGameplayCamShakeAmplitude(shakeAmp);
     } catch {}
 
-    if (heavyHit) {
-        const blurMs = HEAVY_BLUR_MS_MIN + Math.floor(Math.random() * (HEAVY_BLUR_MS_MAX - HEAVY_BLUR_MS_MIN + 1));
-        playerHitFx.blurUntil = Math.max(playerHitFx.blurUntil, now + blurMs);
-        playerHitFx.strongFlashUntil = Math.max(playerHitFx.strongFlashUntil, now + HIT_FLASH_MS + 120);
-        try { mp.game.graphics.startScreenEffect('DeathFailOut', blurMs, false); } catch {}
-        if (Math.random() <= 0.25) {
-            playerHitFx.infectedUntil = Math.max(playerHitFx.infectedUntil, now + 1800);
-            try { mp.game.graphics.startScreenEffect('HeistCelebPassBW', 900, false); } catch {}
-        }
-    }
-
-    playerHitFx.flashUntil = now + HIT_FLASH_MS;
+    playerHitFx.edgeFlashUntil = now + HIT_EDGE_FLASH_MS;
 
 }
 
 mp.events.add('render', () => {
     try {
         const now = Date.now();
-        const hpRatio = getPlayerHealthRatio();
-        const lowHp = hpRatio <= LOW_HP_THRESHOLD;
-        playerHitFx.lowHpActive = lowHp;
+        const flashLeft = Math.max(0, playerHitFx.edgeFlashUntil - now);
+        if (flashLeft > 0) {
+            const intensity = flashLeft / HIT_EDGE_FLASH_MS;
+            const alpha = Math.max(0, Math.min(140, Math.floor(130 * intensity)));
+            const topBottomHeight = 0.16;
+            const sideWidth = 0.06;
 
-        const flashLeft = Math.max(0, playerHitFx.flashUntil - now);
-        const strongFlashLeft = Math.max(0, playerHitFx.strongFlashUntil - now);
-        const infectedLeft = Math.max(0, playerHitFx.infectedUntil - now);
-
-        if (flashLeft > 0 || strongFlashLeft > 0 || lowHp) {
-            const pulse = lowHp ? (0.45 + (Math.sin(now / 180) * 0.2)) : 0;
-            const hitFlash = flashLeft > 0 ? (flashLeft / HIT_FLASH_MS) * 85 : 0;
-            const strongFlash = strongFlashLeft > 0 ? (strongFlashLeft / (HIT_FLASH_MS + 120)) * 125 : 0;
-            const bloodAlpha = Math.max(0, Math.min(170, Math.floor((lowHp ? 55 : 0) + strongFlash * 0.75 + hitFlash * 0.5 + pulse * 20)));
-            const flashAlpha = Math.max(0, Math.min(145, Math.floor(hitFlash + strongFlash)));
-
-            if (flashAlpha > 0) {
-                // short hit flash without side bars
-                mp.game.graphics.drawRect(0.5, 0.5, 1.0, 1.0, 150, 10, 10, flashAlpha);
-            }
-
-            if (bloodAlpha > 0) {
-                mp.game.graphics.drawRect(0.5, 0.5, 1.0, 1.0, 95, 0, 0, bloodAlpha);
-            }
-        }
-
-        if (lowHp) {
-            try {
-                mp.game.graphics.setTimecycleModifier('NG_filmic04');
-                mp.game.graphics.setTimecycleModifierStrength(0.35);
-            } catch {}
-            if (now - playerHitFx.heartbeatAt > 950) {
-                playerHitFx.heartbeatAt = now;
-                try { mp.game.audio.playSoundFrontend(-1, 'TIMER_STOP', 'HUD_MINI_GAME_SOUNDSET', true); } catch {}
-            }
-        } else {
-            try { mp.game.graphics.clearTimecycleModifier(); } catch {}
-        }
-
-        if (infectedLeft > 0) {
-            const strength = Math.max(0.1, Math.min(0.45, infectedLeft / 1800));
-            try {
-                mp.game.graphics.setTimecycleModifier('spectator5');
-                mp.game.graphics.setTimecycleModifierStrength(strength);
-            } catch {}
-        }
-
-        if (playerHitFx.blurUntil <= now) {
-            try { mp.game.graphics.stopScreenEffect('DeathFailOut'); } catch {}
-        }
-        if (playerHitFx.infectedUntil <= now) {
-            try { mp.game.graphics.stopScreenEffect('HeistCelebPassBW'); } catch {}
+            mp.game.graphics.drawRect(0.5, topBottomHeight * 0.5, 1.0, topBottomHeight, 135, 0, 0, alpha);
+            mp.game.graphics.drawRect(0.5, 1 - (topBottomHeight * 0.5), 1.0, topBottomHeight, 135, 0, 0, alpha);
+            mp.game.graphics.drawRect(sideWidth * 0.5, 0.5, sideWidth, 1.0, 135, 0, 0, alpha);
+            mp.game.graphics.drawRect(1 - (sideWidth * 0.5), 0.5, sideWidth, 1.0, 135, 0, 0, alpha);
         }
     } catch {}
 });
