@@ -21,12 +21,9 @@ const deadReportAt = new Map(); // zid -> ts
 const deadConfirmedAt = new Map(); // zid -> ts
 const CTRL_HEARTBEAT_MS = 1000;
 const PLAYER_HIT_SHAKE_MS = 5000;
-const HIT_EDGE_FLASH_MS = 420;
-
 const playerHitFx = {
     shakeUntil: 0,
     shakeActive: false,
-    edgeFlashUntil: 0,
 };
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
@@ -139,24 +136,11 @@ function triggerZombiePlayerHitFx() {
         mp.game.cam.setGameplayCamShakeAmplitude(shakeAmp);
         playerHitFx.shakeActive = true;
     } catch {}
-
-    playerHitFx.edgeFlashUntil = now + HIT_EDGE_FLASH_MS;
-
 }
 
 mp.events.add('render', () => {
     try {
         const now = Date.now();
-        const flashLeft = Math.max(0, playerHitFx.edgeFlashUntil - now);
-        if (flashLeft > 0) {
-            const intensity = flashLeft / HIT_EDGE_FLASH_MS;
-            const alpha = Math.max(0, Math.min(140, Math.floor(130 * intensity)));
-            const topBottomHeight = 0.16;
-
-            mp.game.graphics.drawRect(0.5, topBottomHeight * 0.5, 1.0, topBottomHeight, 135, 0, 0, alpha);
-            mp.game.graphics.drawRect(0.5, 1 - (topBottomHeight * 0.5), 1.0, topBottomHeight, 135, 0, 0, alpha);
-        }
-
         if (playerHitFx.shakeActive && now > playerHitFx.shakeUntil) {
             try { mp.game.cam.stopGameplayCamShaking(true); } catch {}
             playerHitFx.shakeActive = false;
@@ -475,12 +459,11 @@ mp.events.add('npc:animHit', (zid, targetId) => {
         try { ped.taskTurnToFaceEntity(t.handle, 250); } catch {}
     }
 
-    const targetRid = parseInt(targetId, 10);
-    if (targetRid === me.id) {
-        triggerZombiePlayerHitFx();
-    }
-
     ped.taskPlayAnim(dict, name, 8.0, -8.0, 600, 0, 0.0, false, false, false);
+});
+
+mp.events.add('z:playerDamagedByZombie', () => {
+    triggerZombiePlayerHitFx();
 });
 
 // сервер: "упал"
