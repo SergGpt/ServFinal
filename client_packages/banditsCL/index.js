@@ -20,6 +20,13 @@ const DEAD_REPORT_CD = 1000;
 const deadReportAt = new Map(); // zid -> ts
 const deadConfirmedAt = new Map(); // zid -> ts
 const CTRL_HEARTBEAT_MS = 1000;
+const PLAYER_HIT_FX_COOLDOWN_MS = 5000;
+const HIT_EDGE_FLASH_MS = 420;
+
+const playerHitFx = {
+    lastHitAt: 0,
+    edgeFlashUntil: 0,
+};
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
@@ -121,6 +128,39 @@ function reportDead(zid, reason = 'unknown', force = false) {
     }
     return false;
 }
+
+function triggerZombiePlayerHitFx() {
+    const now = Date.now();
+    if (now - playerHitFx.lastHitAt < PLAYER_HIT_FX_COOLDOWN_MS) return;
+
+    playerHitFx.lastHitAt = now;
+    const shakeAmp = 0.16;
+    try {
+        mp.game.cam.shakeGameplayCam('SMALL_EXPLOSION_SHAKE', shakeAmp);
+        mp.game.cam.setGameplayCamShakeAmplitude(shakeAmp);
+    } catch {}
+
+    playerHitFx.edgeFlashUntil = now + HIT_EDGE_FLASH_MS;
+
+}
+
+mp.events.add('render', () => {
+    try {
+        const now = Date.now();
+        const flashLeft = Math.max(0, playerHitFx.edgeFlashUntil - now);
+        if (flashLeft > 0) {
+            const intensity = flashLeft / HIT_EDGE_FLASH_MS;
+            const alpha = Math.max(0, Math.min(140, Math.floor(130 * intensity)));
+            const topBottomHeight = 0.16;
+            const sideWidth = 0.06;
+
+            mp.game.graphics.drawRect(0.5, topBottomHeight * 0.5, 1.0, topBottomHeight, 135, 0, 0, alpha);
+            mp.game.graphics.drawRect(0.5, 1 - (topBottomHeight * 0.5), 1.0, topBottomHeight, 135, 0, 0, alpha);
+            mp.game.graphics.drawRect(sideWidth * 0.5, 0.5, sideWidth, 1.0, 135, 0, 0, alpha);
+            mp.game.graphics.drawRect(1 - (sideWidth * 0.5), 0.5, sideWidth, 1.0, 135, 0, 0, alpha);
+        }
+    } catch {}
+});
 
 // ====== подготовка педа ======
 function prepPed(ped){
@@ -432,6 +472,12 @@ mp.events.add('npc:animHit', (zid, targetId) => {
         try { ped.taskLookAt(t.handle, 300); } catch {}
         try { ped.taskTurnToFaceEntity(t.handle, 250); } catch {}
     }
+
+    const targetRid = parseInt(targetId, 10);
+    if (targetRid === me.id) {
+        triggerZombiePlayerHitFx();
+    }
+
     ped.taskPlayAnim(dict, name, 8.0, -8.0, 600, 0, 0.0, false, false, false);
 });
 
