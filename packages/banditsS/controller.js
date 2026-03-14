@@ -675,6 +675,10 @@ function processZombieAttacks() {
             owner.health = after;
         } catch {}
 
+        try {
+            owner.call('z:playerDamagedByZombie', [st.zid]);
+        } catch {}
+
         setZombieState(st, ZOMBIE_STATE.ATTACK, zlog, `target=${owner.id}`);
         saveTask(st, 'attack', { rid: owner.id, dist: d });
 
