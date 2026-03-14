@@ -60,7 +60,28 @@ async function loadZonesFromDb() {
         return;
     }
 
-    const dbZones = await dbModel.findAll();
+    let dbZones = [];
+    try {
+        dbZones = await dbModel.findAll();
+    } catch (error) {
+        const message = String(error && error.message ? error.message : error);
+        zlog(`ZombieZone findAll failed: ${message}`);
+
+        // Backward compatibility for DBs where `dimension` column was not added yet.
+        const hasNoDimensionColumn = /unknown column .*dimension/i.test(message);
+        if (hasNoDimensionColumn && db && db.sequelize) {
+            try {
+                const [rows] = await db.sequelize.query(
+                    'SELECT id, name, x, y, z, radius, zombieCount, respawnMs, maxZombieCount, waveSize FROM zombie_zones',
+                );
+                dbZones = (rows || []).map((row) => ({ ...row, dimension: 0 }));
+                console.log('[Z] loaded zombie zones from DB without dimension column (compat mode)');
+            } catch (compatError) {
+                zlog(`ZombieZone compat-select failed: ${compatError.message}`);
+            }
+        }
+    }
+
     if (!dbZones.length) {
         zlog('ZombieZone table is empty, fallback to config zones');
         ZOMBIE_CONFIG.zones.forEach((zone) => upsertZone(zone));
@@ -937,7 +958,19 @@ function registerEvents() {
             const dbModel = db && db.Models ? db.Models.ZombieZone : null;
             let created = payload;
             if (dbModel) {
-                created = await dbModel.create(payload);
+                try {
+                    created = await dbModel.create(payload);
+                } catch (error) {
+                    const message = String(error && error.message ? error.message : error);
+                    const hasNoDimensionColumn = /unknown column .*dimension/i.test(message);
+                    if (!hasNoDimensionColumn) throw error;
+
+                    const legacyPayload = { ...payload };
+                    delete legacyPayload.dimension;
+                    created = await dbModel.create(legacyPayload);
+                    created.dimension = 0;
+                    zlog('ZombieZone create fallback: DB has no dimension column, saved with dimension=0');
+                }
             } else {
                 const fallbackId = zones.size ? Math.max(...Array.from(zones.keys())) + 1 : 1;
                 created = { ...payload, id: fallbackId };
