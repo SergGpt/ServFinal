@@ -217,10 +217,28 @@ function setTaskFollow(st, reason = 'chase') {
 
 function spawnZombie(zone, owner, spawnIndex = 0) {
     const zid = nextZid();
+
+    let spawnBaseX = zone.x;
+    let spawnBaseY = zone.y;
+    if (owner && mp.players.exists(owner) && isPlayerInZone(owner, zone)) {
+        spawnBaseX = Number(owner.position.x) || zone.x;
+        spawnBaseY = Number(owner.position.y) || zone.y;
+    }
+
     const angle = Math.random() * Math.PI * 2;
-    const d = 8 + Math.random() * Math.max(4, zone.radius - 10);
-    const x = zone.x + Math.cos(angle) * d;
-    const y = zone.y + Math.sin(angle) * d;
+    const localSpawnRadius = Math.min(Math.max(6, zone.radius - 2), 24);
+    const d = 4 + Math.random() * Math.max(3, localSpawnRadius - 4);
+    let x = spawnBaseX + Math.cos(angle) * d;
+    let y = spawnBaseY + Math.sin(angle) * d;
+
+    const distFromZoneCenter = dist3({ x, y, z: zone.z }, { x: zone.x, y: zone.y, z: zone.z });
+    const maxDistFromCenter = Math.max(2, Number(zone.radius) - 1);
+    if (distFromZoneCenter > maxDistFromCenter) {
+        const k = maxDistFromCenter / distFromZoneCenter;
+        x = zone.x + (x - zone.x) * k;
+        y = zone.y + (y - zone.y) * k;
+    }
+
     const z = zone.z;
 
     const ped = mp.peds.new(mp.joaat(randomModel()), new mp.Vector3(x, y, z), {
