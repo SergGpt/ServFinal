@@ -32,6 +32,7 @@ function toRuntimeZone(raw) {
         x: Number(raw.x) || 0,
         y: Number(raw.y) || 0,
         z: Number(raw.z) || 0,
+        dimension: Number(raw.dimension) || 0,
         radius,
         zombieCount,
         maxZombieCount,
@@ -205,6 +206,10 @@ function spawnZombie(zone, owner, spawnIndex = 0) {
         dynamic: true,
         invincible: false,
     });
+
+    try {
+        ped.dimension = Number(zone.dimension) || 0;
+    } catch {}
 
     ped.setVariable('zoneId', zone.id);
     ped.setVariable('zid', zid);
@@ -921,6 +926,7 @@ function registerEvents() {
                 x: Number(player.position.x),
                 y: Number(player.position.y),
                 z: Number(player.position.z),
+                dimension: Number(player.dimension) || 0,
                 radius,
                 zombieCount,
                 respawnMs,
@@ -939,8 +945,12 @@ function registerEvents() {
 
             const zone = upsertZone(created);
 
-            player.outputChatBox(`!{#66ff66}[Z] Добавлена зона #${zone.id}: ${zone.name} | R=${zone.radius} | spawn=${zone.zombieCount} | respawn=${(zone.respawnMs / 1000).toFixed(0)}s`);
-            console.log(`[Z] zone added id=${zone.id} name=${zone.name} pos=${zone.x.toFixed(2)},${zone.y.toFixed(2)},${zone.z.toFixed(2)} radius=${zone.radius} spawn=${zone.zombieCount} respawnMs=${zone.respawnMs}`);
+            if (isPlayerInZone(player, zone)) {
+                spawnZoneOnEnter(zone, player);
+            }
+
+            player.outputChatBox(`!{#66ff66}[Z] Добавлена зона #${zone.id}: ${zone.name} | dim=${zone.dimension} | R=${zone.radius} | spawn=${zone.zombieCount} | respawn=${(zone.respawnMs / 1000).toFixed(0)}s`);
+            console.log(`[Z] zone added id=${zone.id} name=${zone.name} dim=${zone.dimension} pos=${zone.x.toFixed(2)},${zone.y.toFixed(2)},${zone.z.toFixed(2)} radius=${zone.radius} spawn=${zone.zombieCount} respawnMs=${zone.respawnMs}`);
         } catch (e) {
             if (player && player.outputChatBox) {
                 player.outputChatBox(`!{#ff6666}[Z] Ошибка добавления зоны: ${e.message}`);

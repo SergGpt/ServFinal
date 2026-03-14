@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS `zombie_zones` (
   `x` FLOAT NOT NULL,
   `y` FLOAT NOT NULL,
   `z` FLOAT NOT NULL,
+  `dimension` INT(11) NOT NULL DEFAULT 0,
   `radius` FLOAT NOT NULL DEFAULT 30,
   `zombieCount` INT(11) NOT NULL DEFAULT 3 COMMENT 'Количество одновременного спавна зомби',
   `respawnMs` INT(11) NOT NULL DEFAULT 60000 COMMENT 'Скорость респавна зомби (мс)',

@@ -36,6 +36,7 @@ function getPlayerById(mpRef, rid) {
 
 function isPlayerInZone(player, zone) {
     try {
+        if (zone && typeof zone.dimension === 'number' && player.dimension !== zone.dimension) return false;
         return dist2d(player.position.x, player.position.y, zone.x, zone.y) <= zone.radius;
     } catch {
         return false;

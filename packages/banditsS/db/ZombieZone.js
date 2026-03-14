@@ -25,6 +25,11 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false,
             defaultValue: 0,
         },
+        dimension: {
+            type: DataTypes.INTEGER(11),
+            allowNull: false,
+            defaultValue: 0,
+        },
         radius: {
             type: DataTypes.FLOAT(11),
             allowNull: false,
