@@ -19,6 +19,39 @@ const zlog = createLogger(ZOMBIE_CONFIG.debug, 'ZCTRL');
 const zones = new Map();
 const zombies = new Map();
 const zombieLootManager = createZombieLootManager();
+let zombieZoneColumnSet = null;
+
+async function getZombieZoneColumnSet() {
+    if (zombieZoneColumnSet) return zombieZoneColumnSet;
+    if (!db || !db.sequelize) return null;
+
+    try {
+        const [rows] = await db.sequelize.query('SHOW COLUMNS FROM zombie_zones');
+        zombieZoneColumnSet = new Set((rows || []).map((r) => String(r.Field || '')));
+    } catch (error) {
+        zlog(`ZombieZone SHOW COLUMNS failed: ${error.message}`);
+        zombieZoneColumnSet = null;
+    }
+
+    return zombieZoneColumnSet;
+}
+
+function buildLegacyZoneFromRow(row) {
+    const src = row && typeof row.get === 'function' ? row.get({ plain: true }) : row;
+    return {
+        id: src.id,
+        name: src.name || null,
+        x: src.x,
+        y: src.y,
+        z: src.z,
+        dimension: typeof src.dimension === 'number' ? src.dimension : 0,
+        radius: src.radius,
+        zombieCount: src.zombieCount,
+        respawnMs: src.respawnMs,
+        maxZombieCount: src.maxZombieCount,
+        waveSize: src.waveSize,
+    };
+}
 
 function toRuntimeZone(raw) {
     const radius = Math.max(5, Number(raw.radius) || 30);
@@ -67,15 +100,25 @@ async function loadZonesFromDb() {
         const message = String(error && error.message ? error.message : error);
         zlog(`ZombieZone findAll failed: ${message}`);
 
-        // Backward compatibility for DBs where `dimension` column was not added yet.
-        const hasNoDimensionColumn = /unknown column .*dimension/i.test(message);
-        if (hasNoDimensionColumn && db && db.sequelize) {
+        // Backward compatibility for DBs where some columns were not added yet.
+        const hasUnknownColumn = /unknown column/i.test(message);
+        if (hasUnknownColumn && db && db.sequelize) {
             try {
-                const [rows] = await db.sequelize.query(
-                    'SELECT id, name, x, y, z, radius, zombieCount, respawnMs, maxZombieCount, waveSize FROM zombie_zones',
-                );
-                dbZones = (rows || []).map((row) => ({ ...row, dimension: 0 }));
-                console.log('[Z] loaded zombie zones from DB without dimension column (compat mode)');
+                const cols = await getZombieZoneColumnSet();
+                if (cols && cols.size) {
+                    const selected = ['id', 'x', 'y', 'z']
+                        .concat(cols.has('name') ? ['name'] : [])
+                        .concat(cols.has('radius') ? ['radius'] : [])
+                        .concat(cols.has('zombieCount') ? ['zombieCount'] : [])
+                        .concat(cols.has('respawnMs') ? ['respawnMs'] : [])
+                        .concat(cols.has('maxZombieCount') ? ['maxZombieCount'] : [])
+                        .concat(cols.has('waveSize') ? ['waveSize'] : [])
+                        .concat(cols.has('dimension') ? ['dimension'] : []);
+
+                    const [rows] = await db.sequelize.query(`SELECT ${selected.join(', ')} FROM zombie_zones`);
+                    dbZones = (rows || []).map((row) => buildLegacyZoneFromRow(row));
+                    console.log(`[Z] loaded zombie zones in compat mode (columns: ${selected.join(', ')})`);
+                }
             } catch (compatError) {
                 zlog(`ZombieZone compat-select failed: ${compatError.message}`);
             }
@@ -985,14 +1028,29 @@ function registerEvents() {
                     created = await dbModel.create(payload);
                 } catch (error) {
                     const message = String(error && error.message ? error.message : error);
-                    const hasNoDimensionColumn = /unknown column .*dimension/i.test(message);
-                    if (!hasNoDimensionColumn) throw error;
+                    const hasUnknownColumn = /unknown column/i.test(message);
+                    if (!hasUnknownColumn) throw error;
 
-                    const legacyPayload = { ...payload };
-                    delete legacyPayload.dimension;
+                    const cols = await getZombieZoneColumnSet();
+                    if (!cols || !cols.size) throw error;
+
+                    const legacyPayload = {
+                        x: payload.x,
+                        y: payload.y,
+                        z: payload.z,
+                    };
+
+                    if (cols.has('name')) legacyPayload.name = payload.name;
+                    if (cols.has('radius')) legacyPayload.radius = payload.radius;
+                    if (cols.has('zombieCount')) legacyPayload.zombieCount = payload.zombieCount;
+                    if (cols.has('respawnMs')) legacyPayload.respawnMs = payload.respawnMs;
+                    if (cols.has('maxZombieCount')) legacyPayload.maxZombieCount = payload.maxZombieCount;
+                    if (cols.has('waveSize')) legacyPayload.waveSize = payload.waveSize;
+                    if (cols.has('dimension')) legacyPayload.dimension = payload.dimension;
+
                     created = await dbModel.create(legacyPayload);
-                    created.dimension = 0;
-                    zlog('ZombieZone create fallback: DB has no dimension column, saved with dimension=0');
+                    created = buildLegacyZoneFromRow(created);
+                    zlog(`ZombieZone create fallback: compat insert with columns=${Object.keys(legacyPayload).join(',')}`);
                 }
             } else {
                 const fallbackId = zones.size ? Math.max(...Array.from(zones.keys())) + 1 : 1;
