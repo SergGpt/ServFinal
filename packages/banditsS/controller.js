@@ -20,16 +20,55 @@ const zones = new Map();
 const zombies = new Map();
 const zombieLootManager = createZombieLootManager();
 
-ZOMBIE_CONFIG.zones.forEach((z) => {
-    zones.set(z.id, {
-        ...z,
+function toRuntimeZone(raw) {
+    const radius = Math.max(5, Number(raw.radius) || 30);
+    const zombieCount = Math.max(1, parseInt(raw.zombieCount, 10) || 3);
+    const maxZombieCount = Math.max(zombieCount, parseInt(raw.maxZombieCount, 10) || zombieCount);
+    const waveSize = Math.max(1, parseInt(raw.waveSize, 10) || zombieCount);
+
+    return {
+        id: parseInt(raw.id, 10),
+        name: raw.name || `Zombie Zone #${raw.id}`,
+        x: Number(raw.x) || 0,
+        y: Number(raw.y) || 0,
+        z: Number(raw.z) || 0,
+        radius,
+        zombieCount,
+        maxZombieCount,
+        waveSize,
+        respawnMs: Math.max(1000, parseInt(raw.respawnMs, 10) || ZOMBIE_CONFIG.timers.waveIntervalMs),
         zombieIds: [],
         active: false,
         activatorRid: null,
         firstSpawnAt: 0,
         lastWaveAt: 0,
-    });
-});
+    };
+}
+
+function upsertZone(raw) {
+    const runtimeZone = toRuntimeZone(raw);
+    zones.set(runtimeZone.id, runtimeZone);
+    return runtimeZone;
+}
+
+async function loadZonesFromDb() {
+    const dbModel = db && db.Models ? db.Models.ZombieZone : null;
+    if (!dbModel) {
+        zlog('ZombieZone model is missing, fallback to config zones');
+        ZOMBIE_CONFIG.zones.forEach((zone) => upsertZone(zone));
+        return;
+    }
+
+    const dbZones = await dbModel.findAll();
+    if (!dbZones.length) {
+        zlog('ZombieZone table is empty, fallback to config zones');
+        ZOMBIE_CONFIG.zones.forEach((zone) => upsertZone(zone));
+        return;
+    }
+
+    dbZones.forEach((zone) => upsertZone(zone));
+    console.log(`[Z] loaded ${dbZones.length} zombie zones from DB`);
+}
 
 function randomModel() {
     const arr = ZOMBIE_CONFIG.models;
@@ -495,8 +534,9 @@ function spawnZoneWaves() {
         const lastWaveAt = Number(zone.lastWaveAt) || firstSpawnAt;
         if (!firstSpawnAt) return;
 
-        if (now - firstSpawnAt < ZOMBIE_CONFIG.timers.waveIntervalMs) return;
-        if (now - lastWaveAt < ZOMBIE_CONFIG.timers.waveIntervalMs) return;
+        const zoneRespawnMs = Math.max(1000, parseInt(zone.respawnMs, 10) || ZOMBIE_CONFIG.timers.waveIntervalMs);
+        if (now - firstSpawnAt < zoneRespawnMs) return;
+        if (now - lastWaveAt < zoneRespawnMs) return;
 
         const waveSize = Math.max(1, parseInt(zone.waveSize, 10) || 3);
         const spawned = spawnWave(zone, activator, waveSize, 'timed-wave');
@@ -864,6 +904,50 @@ function registerEvents() {
             player.outputChatBox('!{#66ff66}[Z] Зомби очищены. Войдите в зону для нового спавна.');
         }
     });
+
+    mp.events.add('zombies:zone:add', async (player, radiusRaw, zombieCountRaw, respawnSecRaw, ...nameParts) => {
+        try {
+            if (!player || !mp.players.exists(player)) return;
+
+            const radius = Math.max(5, Number(radiusRaw) || 30);
+            const zombieCount = Math.max(1, parseInt(zombieCountRaw, 10) || 3);
+            const respawnSec = Math.max(1, parseInt(respawnSecRaw, 10) || 60);
+            const respawnMs = respawnSec * 1000;
+            const maxZombieCount = Math.max(zombieCount, zombieCount * 6);
+            const zoneName = (nameParts || []).join(' ').trim() || `Zone_${Date.now()}`;
+
+            const payload = {
+                name: zoneName,
+                x: Number(player.position.x),
+                y: Number(player.position.y),
+                z: Number(player.position.z),
+                radius,
+                zombieCount,
+                respawnMs,
+                maxZombieCount,
+                waveSize: zombieCount,
+            };
+
+            const dbModel = db && db.Models ? db.Models.ZombieZone : null;
+            let created = payload;
+            if (dbModel) {
+                created = await dbModel.create(payload);
+            } else {
+                const fallbackId = zones.size ? Math.max(...Array.from(zones.keys())) + 1 : 1;
+                created = { ...payload, id: fallbackId };
+            }
+
+            const zone = upsertZone(created);
+
+            player.outputChatBox(`!{#66ff66}[Z] Добавлена зона #${zone.id}: ${zone.name} | R=${zone.radius} | spawn=${zone.zombieCount} | respawn=${(zone.respawnMs / 1000).toFixed(0)}s`);
+            console.log(`[Z] zone added id=${zone.id} name=${zone.name} pos=${zone.x.toFixed(2)},${zone.y.toFixed(2)},${zone.z.toFixed(2)} radius=${zone.radius} spawn=${zone.zombieCount} respawnMs=${zone.respawnMs}`);
+        } catch (e) {
+            if (player && player.outputChatBox) {
+                player.outputChatBox(`!{#ff6666}[Z] Ошибка добавления зоны: ${e.message}`);
+            }
+            zlog(`zone-add error: ${e.message}`);
+        }
+    });
 }
 
 function registerLoops() {
@@ -912,10 +996,11 @@ function registerLoops() {
     }, ZOMBIE_CONFIG.timers.cleanupMs);
 }
 
-function initZombieController() {
+async function initZombieController() {
     registerEvents();
+    await loadZonesFromDb();
     registerLoops();
-    console.log('✅ Zombies server controller loaded');
+    console.log(`✅ Zombies server controller loaded (zones=${zones.size})`);
 }
 
 module.exports = {
