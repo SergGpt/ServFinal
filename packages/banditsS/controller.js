@@ -487,6 +487,11 @@ function updateZoneEntryState() {
             if (inZone && !wasInZone) {
                 player.setVariable(key, true);
                 zlog(`player ${player.id} entered zone=${zoneId}`);
+
+                // Spawn immediately on real entry, do not wait for periodic presence-check loop.
+                if (!zone.zombieIds.length) {
+                    spawnZoneOnEnter(zone, player);
+                }
             } else if (!inZone && wasInZone) {
                 player.setVariable(key, false);
                 zlog(`player ${player.id} left zone=${zoneId}`);
