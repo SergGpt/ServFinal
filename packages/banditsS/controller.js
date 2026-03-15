@@ -16,20 +16,160 @@ const { createZombieLootManager } = require('./zombieLoot');
 
 const zlog = createLogger(ZOMBIE_CONFIG.debug, 'ZCTRL');
 
+function infoLog(msg) {
+    console.log(`[Z] ${msg}`);
+}
+
 const zones = new Map();
 const zombies = new Map();
 const zombieLootManager = createZombieLootManager();
+let zombieZoneColumnSet = null;
+const ZONE_SPAWN_DELAY_MS = 45 * 1000;
+const ZONE_EMPTY_DESTROY_DELAY_MS = 30 * 1000;
 
-ZOMBIE_CONFIG.zones.forEach((z) => {
-    zones.set(z.id, {
-        ...z,
+function getDbRef() {
+    try {
+        if (typeof global !== 'undefined' && global.db) return global.db;
+    } catch {}
+    return null;
+}
+
+async function getZombieZoneColumnSet() {
+    if (zombieZoneColumnSet) return zombieZoneColumnSet;
+
+    const dbRef = getDbRef();
+    if (!dbRef || !dbRef.sequelize) return null;
+
+    try {
+        const [rows] = await dbRef.sequelize.query('SHOW COLUMNS FROM zombie_zones');
+        zombieZoneColumnSet = new Set((rows || []).map((r) => String(r.Field || '')));
+    } catch (error) {
+        zlog(`ZombieZone SHOW COLUMNS failed: ${error.message}`);
+        zombieZoneColumnSet = null;
+    }
+
+    return zombieZoneColumnSet;
+}
+
+function buildLegacyZoneFromRow(row) {
+    const src = row && typeof row.get === 'function' ? row.get({ plain: true }) : row;
+    return {
+        id: src.id,
+        name: src.name || null,
+        x: src.x,
+        y: src.y,
+        z: src.z,
+        dimension: typeof src.dimension === 'number' ? src.dimension : 0,
+        radius: src.radius,
+        zombieCount: src.zombieCount,
+        respawnMs: src.respawnMs,
+        maxZombieCount: src.maxZombieCount,
+        waveSize: src.waveSize,
+    };
+}
+
+function toRuntimeZone(raw) {
+    const radius = Math.max(5, Number(raw.radius) || 30);
+    const zombieCount = Math.max(1, parseInt(raw.zombieCount, 10) || 3);
+    const maxZombieCount = Math.max(zombieCount, parseInt(raw.maxZombieCount, 10) || zombieCount);
+    const waveSize = Math.max(1, parseInt(raw.waveSize, 10) || zombieCount);
+
+    return {
+        id: parseInt(raw.id, 10),
+        name: raw.name || `Zombie Zone #${raw.id}`,
+        x: Number(raw.x) || 0,
+        y: Number(raw.y) || 0,
+        z: Number(raw.z) || 0,
+        dimension: Number(raw.dimension) || 0,
+        radius,
+        zombieCount,
+        maxZombieCount,
+        waveSize,
+        respawnMs: Math.max(1000, parseInt(raw.respawnMs, 10) || ZOMBIE_CONFIG.timers.waveIntervalMs),
         zombieIds: [],
         active: false,
         activatorRid: null,
         firstSpawnAt: 0,
         lastWaveAt: 0,
-    });
-});
+        emptySinceAt: 0,
+    };
+}
+
+function upsertZone(raw) {
+    const runtimeZone = toRuntimeZone(raw);
+    const prev = zones.get(runtimeZone.id);
+    if (prev) {
+        runtimeZone.zombieIds = Array.isArray(prev.zombieIds) ? prev.zombieIds : [];
+        runtimeZone.active = !!prev.active;
+        runtimeZone.activatorRid = prev.activatorRid || null;
+        runtimeZone.firstSpawnAt = Number(prev.firstSpawnAt) || 0;
+        runtimeZone.lastWaveAt = Number(prev.lastWaveAt) || 0;
+        runtimeZone.emptySinceAt = Number(prev.emptySinceAt) || 0;
+    }
+    zones.set(runtimeZone.id, runtimeZone);
+    return runtimeZone;
+}
+
+async function loadZonesFromDb(options = {}) {
+    const fallbackToConfig = options.fallbackToConfig !== false;
+    const dbRef = getDbRef();
+    const dbModel = dbRef && dbRef.Models ? dbRef.Models.ZombieZone : null;
+    if (!dbModel) {
+        if (!fallbackToConfig) return;
+        infoLog('ZombieZone model is missing; loaded zones from config');
+        ZOMBIE_CONFIG.zones.forEach((zone) => upsertZone(zone));
+        return;
+    }
+
+    let dbZones = [];
+    try {
+        dbZones = await dbModel.findAll();
+    } catch (error) {
+        const message = String(error && error.message ? error.message : error);
+        zlog(`ZombieZone findAll failed: ${message}`);
+
+        // Backward compatibility for DBs where some columns were not added yet.
+        const hasUnknownColumn = /unknown column/i.test(message);
+        if (hasUnknownColumn && dbRef && dbRef.sequelize) {
+            try {
+                const cols = await getZombieZoneColumnSet();
+                if (cols && cols.size) {
+                    const selected = ['id', 'x', 'y', 'z']
+                        .concat(cols.has('name') ? ['name'] : [])
+                        .concat(cols.has('radius') ? ['radius'] : [])
+                        .concat(cols.has('zombieCount') ? ['zombieCount'] : [])
+                        .concat(cols.has('respawnMs') ? ['respawnMs'] : [])
+                        .concat(cols.has('maxZombieCount') ? ['maxZombieCount'] : [])
+                        .concat(cols.has('waveSize') ? ['waveSize'] : [])
+                        .concat(cols.has('dimension') ? ['dimension'] : []);
+
+                    const [rows] = await dbRef.sequelize.query(`SELECT ${selected.join(', ')} FROM zombie_zones`);
+                    dbZones = (rows || []).map((row) => buildLegacyZoneFromRow(row));
+                    console.log(`[Z] loaded zombie zones in compat mode (columns: ${selected.join(', ')})`);
+                }
+            } catch (compatError) {
+                zlog(`ZombieZone compat-select failed: ${compatError.message}`);
+            }
+        }
+    }
+
+    if (!dbZones.length) {
+        if (!fallbackToConfig) return;
+        infoLog('ZombieZone table is empty; loaded zones from config');
+        ZOMBIE_CONFIG.zones.forEach((zone) => upsertZone(zone));
+        return;
+    }
+
+    dbZones.forEach((zone) => upsertZone(zone));
+    infoLog(`loaded ${dbZones.length} zombie zones from DB`);
+}
+
+function getZonePlayerDwellMs(player, zoneId) {
+    if (!player) return 0;
+    const enteredAt = Number(player.getVariable(`inZoneSince_${zoneId}`)) || 0;
+    if (!enteredAt) return 0;
+    return Math.max(0, Date.now() - enteredAt);
+}
 
 function randomModel() {
     const arr = ZOMBIE_CONFIG.models;
@@ -156,16 +296,38 @@ function setTaskFollow(st, reason = 'chase') {
 
 function spawnZombie(zone, owner, spawnIndex = 0) {
     const zid = nextZid();
+
+    let spawnBaseX = zone.x;
+    let spawnBaseY = zone.y;
+    if (owner && mp.players.exists(owner) && isPlayerInZone(owner, zone)) {
+        spawnBaseX = Number(owner.position.x) || zone.x;
+        spawnBaseY = Number(owner.position.y) || zone.y;
+    }
+
     const angle = Math.random() * Math.PI * 2;
-    const d = 8 + Math.random() * Math.max(4, zone.radius - 10);
-    const x = zone.x + Math.cos(angle) * d;
-    const y = zone.y + Math.sin(angle) * d;
+    const localSpawnRadius = Math.min(Math.max(6, zone.radius - 2), 24);
+    const d = 4 + Math.random() * Math.max(3, localSpawnRadius - 4);
+    let x = spawnBaseX + Math.cos(angle) * d;
+    let y = spawnBaseY + Math.sin(angle) * d;
+
+    const distFromZoneCenter = dist3({ x, y, z: zone.z }, { x: zone.x, y: zone.y, z: zone.z });
+    const maxDistFromCenter = Math.max(2, Number(zone.radius) - 1);
+    if (distFromZoneCenter > maxDistFromCenter) {
+        const k = maxDistFromCenter / distFromZoneCenter;
+        x = zone.x + (x - zone.x) * k;
+        y = zone.y + (y - zone.y) * k;
+    }
+
     const z = zone.z;
 
     const ped = mp.peds.new(mp.joaat(randomModel()), new mp.Vector3(x, y, z), {
         dynamic: true,
         invincible: false,
     });
+
+    try {
+        ped.dimension = Number(zone.dimension) || 0;
+    } catch {}
 
     ped.setVariable('zoneId', zone.id);
     ped.setVariable('zid', zid);
@@ -225,7 +387,6 @@ function spawnZombie(zone, owner, spawnIndex = 0) {
 
     controllerManager.beginSwitch(st, 'spawn');
 
-    console.log(`[Z] spawn zid=${zid} in zone=${zone.id}`);
     zlog(`spawn zid=${zid} owner=${st.ownerRid} pos=${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}`);
 }
 
@@ -254,15 +415,25 @@ function spawnZoneOnEnter(zone, activator) {
     if (!zone || !activator || !mp.players.exists(activator)) return;
     if (zone.zombieIds.length) return;
 
+    const dwellMs = getZonePlayerDwellMs(activator, zone.id);
+    if (dwellMs < ZONE_SPAWN_DELAY_MS) {
+        const waitLeft = Math.ceil((ZONE_SPAWN_DELAY_MS - dwellMs) / 1000);
+        zlog(`spawn-delay zone=${zone.id} player=${activator.id} dwellMs=${dwellMs}`);
+        infoLog(`zone=${zone.id} waiting dwell: player=${activator.id}, left=${waitLeft}s`);
+        return;
+    }
+
     zone.active = true;
     zone.activatorRid = activator.id;
+    zone.emptySinceAt = 0;
 
     const spawned = spawnWave(zone, activator, zone.zombieCount, 'initial-enter');
     if (spawned > 0) {
         const now = Date.now();
         zone.firstSpawnAt = now;
         zone.lastWaveAt = now;
-        console.log(`[ZONE] Spawning ${spawned} zombies in "${zone.name}"`);
+        zlog(`zone-spawn-start zone=${zone.id} name=${zone.name} count=${spawned}`);
+        infoLog(`spawn started zone=${zone.id} name="${zone.name}" count=${spawned}`);
     }
 }
 
@@ -421,10 +592,14 @@ function updateZoneEntryState() {
 
             if (inZone && !wasInZone) {
                 player.setVariable(key, true);
+                player.setVariable(`inZoneSince_${zoneId}`, Date.now());
                 zlog(`player ${player.id} entered zone=${zoneId}`);
+                infoLog(`player ${player.id} entered zone=${zoneId}`);
             } else if (!inZone && wasInZone) {
                 player.setVariable(key, false);
+                player.setVariable(`inZoneSince_${zoneId}`, 0);
                 zlog(`player ${player.id} left zone=${zoneId}`);
+                infoLog(`player ${player.id} left zone=${zoneId}`);
             }
         });
     });
@@ -432,28 +607,49 @@ function updateZoneEntryState() {
 
 function cleanupEmptyZones() {
     zones.forEach((zone) => {
+        if (!zone) return;
         const plist = playersInZone(mp, zone);
-        if (plist.length) return;
+        if (plist.length) {
+            if (zone.emptySinceAt) infoLog(`zone=${zone.id} is populated again (players=${plist.length})`);
+            zone.emptySinceAt = 0;
+            return;
+        }
 
         zone.active = false;
         zone.activatorRid = null;
         zone.firstSpawnAt = 0;
         zone.lastWaveAt = 0;
 
-        zone.zombieIds.forEach((zid) => {
-            const st = zombies.get(zid);
-            if (!st || st.dead) return;
+        if (!zone.zombieIds.length) {
+            zone.emptySinceAt = 0;
+            return;
+        }
 
-            st.ownerRid = null;
-            if (st.switching) return;
+        if (!zone.emptySinceAt) {
+            zone.emptySinceAt = Date.now();
+            infoLog(`zone=${zone.id} became empty, destroy timer started (${ZONE_EMPTY_DESTROY_DELAY_MS / 1000}s)`);
+        }
 
-            setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, 'zone-empty');
-            if (ZOMBIE_CONFIG.ai.emptyZoneBehavior === 'destroy') {
-                destroyZombie(zid, 'zone-empty');
-            } else {
-                setTaskIdle(st, 'zone-empty');
-            }
-        });
+        const emptyForMs = Date.now() - zone.emptySinceAt;
+
+        if (emptyForMs < ZONE_EMPTY_DESTROY_DELAY_MS) {
+            zone.zombieIds.forEach((zid) => {
+                const st = zombies.get(zid);
+                if (!st || st.dead) return;
+
+                st.ownerRid = null;
+                if (st.switching) return;
+
+                setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, 'zone-empty-wait-destroy');
+                setTaskIdle(st, 'zone-empty-wait-destroy');
+            });
+            return;
+        }
+
+        infoLog(`zone=${zone.id} empty for ${Math.floor(emptyForMs / 1000)}s, destroying zombies=${zone.zombieIds.length}`);
+        zone.zombieIds.slice().forEach((zid) => destroyZombie(zid, 'zone-empty-timeout'));
+        zone.emptySinceAt = 0;
+        zone.zombieIds = [];
     });
 }
 
@@ -462,18 +658,37 @@ function spawnZonesByPresenceCheck() {
         const plist = playersInZone(mp, zone);
         if (!plist.length) {
             zlog(`presence-check zone=${zone.id}: empty, skip spawn`);
+            infoLog(`presence-check zone=${zone.id}: no players`);
             return;
         }
 
         if (zone.zombieIds.length) {
             zlog(`presence-check zone=${zone.id}: already active (${zone.zombieIds.length} zombies)`);
+            infoLog(`presence-check zone=${zone.id}: already has zombies=${zone.zombieIds.length}`);
             return;
         }
 
-        const target = chooseNearestTarget(mp, zone, { x: zone.x, y: zone.y, z: zone.z });
+        const eligiblePlayers = plist.filter((p) => getZonePlayerDwellMs(p, zone.id) >= ZONE_SPAWN_DELAY_MS);
+        if (!eligiblePlayers.length) {
+            zlog(`presence-check zone=${zone.id}: waiting dwell >= ${ZONE_SPAWN_DELAY_MS}ms`);
+            infoLog(`presence-check zone=${zone.id}: players in zone=${plist.length}, waiting dwell 45s`);
+            return;
+        }
+
+        const centerPos = { x: zone.x, y: zone.y, z: zone.z };
+        let target = null;
+        let bestDist = Infinity;
+        eligiblePlayers.forEach((p) => {
+            const d = dist3(p.position, centerPos);
+            if (d < bestDist) {
+                bestDist = d;
+                target = p;
+            }
+        });
         if (!target) return;
 
         zlog(`presence-check zone=${zone.id}: players=${plist.length}, spawn start`);
+        infoLog(`presence-check zone=${zone.id}: spawn candidate player=${target.id}, players=${plist.length}`);
         spawnZoneOnEnter(zone, target);
     });
 }
@@ -495,8 +710,9 @@ function spawnZoneWaves() {
         const lastWaveAt = Number(zone.lastWaveAt) || firstSpawnAt;
         if (!firstSpawnAt) return;
 
-        if (now - firstSpawnAt < ZOMBIE_CONFIG.timers.waveIntervalMs) return;
-        if (now - lastWaveAt < ZOMBIE_CONFIG.timers.waveIntervalMs) return;
+        const zoneRespawnMs = Math.max(1000, parseInt(zone.respawnMs, 10) || ZOMBIE_CONFIG.timers.waveIntervalMs);
+        if (now - firstSpawnAt < zoneRespawnMs) return;
+        if (now - lastWaveAt < zoneRespawnMs) return;
 
         const waveSize = Math.max(1, parseInt(zone.waveSize, 10) || 3);
         const spawned = spawnWave(zone, activator, waveSize, 'timed-wave');
@@ -864,6 +1080,83 @@ function registerEvents() {
             player.outputChatBox('!{#66ff66}[Z] Зомби очищены. Войдите в зону для нового спавна.');
         }
     });
+
+    mp.events.add('zombies:zone:add', async (player, radiusRaw, zombieCountRaw, respawnSecRaw, ...nameParts) => {
+        try {
+            if (!player || !mp.players.exists(player)) return;
+
+            const radius = Math.max(5, Number(radiusRaw) || 30);
+            const zombieCount = Math.max(1, parseInt(zombieCountRaw, 10) || 3);
+            const respawnSec = Math.max(1, parseInt(respawnSecRaw, 10) || 60);
+            const respawnMs = respawnSec * 1000;
+            const maxZombieCount = Math.max(zombieCount, zombieCount * 6);
+            const zoneName = (nameParts || []).join(' ').trim() || `Zone_${Date.now()}`;
+
+            const payload = {
+                name: zoneName,
+                x: Number(player.position.x),
+                y: Number(player.position.y),
+                z: Number(player.position.z),
+                dimension: Number(player.dimension) || 0,
+                radius,
+                zombieCount,
+                respawnMs,
+                maxZombieCount,
+                waveSize: zombieCount,
+            };
+
+            const dbRef = getDbRef();
+            const dbModel = dbRef && dbRef.Models ? dbRef.Models.ZombieZone : null;
+            let created = payload;
+            if (dbModel) {
+                try {
+                    created = await dbModel.create(payload);
+                } catch (error) {
+                    const message = String(error && error.message ? error.message : error);
+                    const hasUnknownColumn = /unknown column/i.test(message);
+                    if (!hasUnknownColumn) throw error;
+
+                    const cols = await getZombieZoneColumnSet();
+                    if (!cols || !cols.size) throw error;
+
+                    const legacyPayload = {
+                        x: payload.x,
+                        y: payload.y,
+                        z: payload.z,
+                    };
+
+                    if (cols.has('name')) legacyPayload.name = payload.name;
+                    if (cols.has('radius')) legacyPayload.radius = payload.radius;
+                    if (cols.has('zombieCount')) legacyPayload.zombieCount = payload.zombieCount;
+                    if (cols.has('respawnMs')) legacyPayload.respawnMs = payload.respawnMs;
+                    if (cols.has('maxZombieCount')) legacyPayload.maxZombieCount = payload.maxZombieCount;
+                    if (cols.has('waveSize')) legacyPayload.waveSize = payload.waveSize;
+                    if (cols.has('dimension')) legacyPayload.dimension = payload.dimension;
+
+                    created = await dbModel.create(legacyPayload);
+                    created = buildLegacyZoneFromRow(created);
+                    zlog(`ZombieZone create fallback: compat insert with columns=${Object.keys(legacyPayload).join(',')}`);
+                }
+            } else {
+                const fallbackId = zones.size ? Math.max(...Array.from(zones.keys())) + 1 : 1;
+                created = { ...payload, id: fallbackId };
+            }
+
+            const zone = upsertZone(created);
+
+            if (isPlayerInZone(player, zone)) {
+                spawnZoneOnEnter(zone, player);
+            }
+
+            player.outputChatBox(`!{#66ff66}[Z] Добавлена зона #${zone.id}: ${zone.name} | dim=${zone.dimension} | R=${zone.radius} | spawn=${zone.zombieCount} | respawn=${(zone.respawnMs / 1000).toFixed(0)}s`);
+            console.log(`[Z] zone added id=${zone.id} name=${zone.name} dim=${zone.dimension} pos=${zone.x.toFixed(2)},${zone.y.toFixed(2)},${zone.z.toFixed(2)} radius=${zone.radius} spawn=${zone.zombieCount} respawnMs=${zone.respawnMs}`);
+        } catch (e) {
+            if (player && player.outputChatBox) {
+                player.outputChatBox(`!{#ff6666}[Z] Ошибка добавления зоны: ${e.message}`);
+            }
+            zlog(`zone-add error: ${e.message}`);
+        }
+    });
 }
 
 function registerLoops() {
@@ -874,11 +1167,12 @@ function registerLoops() {
         } catch {}
     }, ZOMBIE_CONFIG.timers.zoneEntryScanMs);
 
-    setInterval(() => {
+    setInterval(async () => {
         try {
+            await loadZonesFromDb({ fallbackToConfig: false });
             spawnZonesByPresenceCheck();
         } catch {}
-    }, ZOMBIE_CONFIG.timers.zonePresenceMs);
+    }, 15000);
 
     setInterval(() => {
         try {
@@ -912,10 +1206,11 @@ function registerLoops() {
     }, ZOMBIE_CONFIG.timers.cleanupMs);
 }
 
-function initZombieController() {
+async function initZombieController() {
     registerEvents();
+    await loadZonesFromDb();
     registerLoops();
-    console.log('✅ Zombies server controller loaded');
+    console.log(`✅ Zombies server controller loaded (zones=${zones.size})`);
 }
 
 module.exports = {

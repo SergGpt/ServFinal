@@ -1,3 +1,5 @@
 const { initZombieController } = require('./controller');
 
-initZombieController();
+initZombieController().catch((error) => {
+    console.error('[Z] Failed to initialize zombie controller:', error);
+});

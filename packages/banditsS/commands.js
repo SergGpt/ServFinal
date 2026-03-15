@@ -46,4 +46,23 @@ module.exports = {
       }
     }
   },
+
+  "/z_addzone": {
+    access: 2,
+    description: "Добавить зону зомби из текущей позиции (radius spawnCount respawnSec [name]).",
+    args: "[radius] [spawnCount] [respawnSec] [name]",
+    handler: (player, args, out) => {
+      try {
+        const radius = args[0];
+        const spawnCount = args[1];
+        const respawnSec = args[2];
+        const nameParts = args.slice(3);
+
+        mp.events.call('zombies:zone:add', player, radius, spawnCount, respawnSec, ...nameParts);
+        if (out?.info) out.info(`${player.name} вызвал /z_addzone ${args.join(' ')}`);
+      } catch (e) {
+        if (out?.error) out.error(`Ошибка /z_addzone: ${e && e.message ? e.message : e}`, player);
+      }
+    }
+  },
 };
