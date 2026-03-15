@@ -21,7 +21,6 @@ const zombies = new Map();
 const zombieLootManager = createZombieLootManager();
 let zombieZoneColumnSet = null;
 const ZONE_SPAWN_DELAY_MS = 45 * 1000;
-const ZONE_EMPTY_DESTROY_DELAY_MS = 30 * 1000;
 
 function getDbRef() {
     try {
@@ -87,7 +86,6 @@ function toRuntimeZone(raw) {
         activatorRid: null,
         firstSpawnAt: 0,
         lastWaveAt: 0,
-        emptySinceAt: 0,
     };
 }
 
@@ -100,7 +98,6 @@ function upsertZone(raw) {
         runtimeZone.activatorRid = prev.activatorRid || null;
         runtimeZone.firstSpawnAt = Number(prev.firstSpawnAt) || 0;
         runtimeZone.lastWaveAt = Number(prev.lastWaveAt) || 0;
-        runtimeZone.emptySinceAt = Number(prev.emptySinceAt) || 0;
     }
     zones.set(runtimeZone.id, runtimeZone);
     return runtimeZone;
@@ -419,7 +416,6 @@ function spawnZoneOnEnter(zone, activator) {
 
     zone.active = true;
     zone.activatorRid = activator.id;
-    zone.emptySinceAt = 0;
 
     const spawned = spawnWave(zone, activator, zone.zombieCount, 'initial-enter');
     if (spawned > 0) {
@@ -600,37 +596,27 @@ function cleanupEmptyZones() {
     zones.forEach((zone) => {
         if (!zone) return;
         const plist = playersInZone(mp, zone);
-        if (plist.length) {
-            zone.emptySinceAt = 0;
-            return;
-        }
-
-        if (!zone.emptySinceAt) zone.emptySinceAt = Date.now();
-        const emptyForMs = Date.now() - zone.emptySinceAt;
+        if (plist.length) return;
 
         zone.active = false;
         zone.activatorRid = null;
         zone.firstSpawnAt = 0;
         zone.lastWaveAt = 0;
 
-        if (emptyForMs < ZONE_EMPTY_DESTROY_DELAY_MS) {
-            zone.zombieIds.forEach((zid) => {
-                const st = zombies.get(zid);
-                if (!st || st.dead) return;
+        zone.zombieIds.forEach((zid) => {
+            const st = zombies.get(zid);
+            if (!st || st.dead) return;
 
-                st.ownerRid = null;
-                if (st.switching) return;
+            st.ownerRid = null;
+            if (st.switching) return;
 
-                setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, 'zone-empty-wait-destroy');
-                setTaskIdle(st, 'zone-empty-wait-destroy');
-            });
-            return;
-        }
-
-        zlog(`zone-empty-destroy zone=${zone.id} emptyForMs=${emptyForMs} zombies=${zone.zombieIds.length}`);
-        zone.zombieIds.slice().forEach((zid) => destroyZombie(zid, 'zone-empty-timeout'));
-        zone.emptySinceAt = 0;
-        zone.zombieIds = [];
+            setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, 'zone-empty');
+            if (ZOMBIE_CONFIG.ai.emptyZoneBehavior === 'destroy') {
+                destroyZombie(zid, 'zone-empty');
+            } else {
+                setTaskIdle(st, 'zone-empty');
+            }
+        });
     });
 }
 
@@ -1148,7 +1134,7 @@ function registerLoops() {
         try {
             spawnZonesByPresenceCheck();
         } catch {}
-    }, 15000);
+    }, Math.max(1000, parseInt(ZOMBIE_CONFIG.timers.zonePresenceMs, 10) || 30000));
 
     setInterval(() => {
         try {

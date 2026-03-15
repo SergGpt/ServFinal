@@ -12,7 +12,7 @@ const ZOMBIE_CONFIG = {
     },
 
     timers: {
-        zonePresenceMs: 20000,
+        zonePresenceMs: 30000,
         waveSpawnCheckMs: 5000,
         waveIntervalMs: 60 * 1000,
         zoneEntryScanMs: 1000,
