@@ -1,6 +1,14 @@
 const ZOMBIE_CONFIG = {
     debug: false,
-    models: ['u_m_y_zombie_01'],
+    models: [
+        'u_m_y_zombie_01',
+        'U_M_O_FilmNoir',
+        'U_M_M_ProlSec_01',
+        'IG_Zombie_DJ_01',
+        'G_M_M_Zombie_01',
+        'G_M_M_Zombie_05',
+        'G_M_M_Zombie_04',
+    ],
 
     stats: {
         hp: 100,
