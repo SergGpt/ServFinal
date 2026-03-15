@@ -17,6 +17,7 @@ const { createZombieLootManager } = require('./zombieLoot');
 const zlog = createLogger(ZOMBIE_CONFIG.debug, 'ZCTRL');
 
 function infoLog(msg) {
+    if (!/loaded/i.test(String(msg || ''))) return;
     console.log(`[Z] ${msg}`);
 }
 
@@ -145,7 +146,6 @@ async function loadZonesFromDb(options = {}) {
 
                     const [rows] = await dbRef.sequelize.query(`SELECT ${selected.join(', ')} FROM zombie_zones`);
                     dbZones = (rows || []).map((row) => buildLegacyZoneFromRow(row));
-                    console.log(`[Z] loaded zombie zones in compat mode (columns: ${selected.join(', ')})`);
                 }
             } catch (compatError) {
                 zlog(`ZombieZone compat-select failed: ${compatError.message}`);
