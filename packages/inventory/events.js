@@ -18,6 +18,25 @@ let timer = call('timer');
 let vehicles = call('vehicles');
 let animations = call('animations');
 
+const CONSUMABLE_DEFAULT_PARAMS = {
+    34: { thirst: 100 },
+    35: { satiety: 20, thirst: -5 },
+    126: { satiety: 60, thirst: -10 },
+    127: { satiety: 65, thirst: -15 },
+    129: { satiety: 40, thirst: -10 },
+    130: { satiety: 10, thirst: 50 },
+};
+
+function getConsumableParams(itemId, params = {}) {
+    const defaults = CONSUMABLE_DEFAULT_PARAMS[itemId] || {};
+    const resolved = Object.assign({}, defaults, params);
+
+    if (params.satiety == null && defaults.satiety == null) resolved.satiety = 0;
+    if (params.thirst == null && defaults.thirst == null) resolved.thirst = 0;
+
+    return resolved;
+}
+
 module.exports = {
     "init": async () => {
         await inventory.init();
@@ -475,7 +494,7 @@ module.exports = {
         if (!eat) return out(`Предмет #${sqlId} не найден`);
         // if (!inventory.isInHands(eat)) return notifs.error(player, `${inventory.getName(eat.itemId)} не в руках`, header);
 
-        var params = inventory.getParamsValues(eat);
+        var params = getConsumableParams(eat.itemId, inventory.getParamsValues(eat));
         var character = player.character;
 
         if (!player.vehicle) {
@@ -519,7 +538,7 @@ module.exports = {
     var drink = inventory.getItem(player, sqlId);
     if (!drink) return out(`Предмет #${sqlId} не найден`);
 
-    var params = inventory.getParamsValues(drink);
+    var params = getConsumableParams(drink.itemId, inventory.getParamsValues(drink));
     var character = player.character;
     var itemId = drink.itemId; // сохраняем ID до удаления
 
