@@ -20,6 +20,7 @@ const zones = new Map();
 const zombies = new Map();
 const zombieLootManager = createZombieLootManager();
 let zombieZoneColumnSet = null;
+const ZONE_SPAWN_DELAY_MS = 45 * 1000;
 
 function getDbRef() {
     try {
@@ -156,18 +157,11 @@ async function loadZonesFromDb(options = {}) {
     console.log(`[Z] loaded ${dbZones.length} zombie zones from DB`);
 }
 
-async function refreshZonesAndPresenceScan() {
-    try {
-        await loadZonesFromDb({ fallbackToConfig: false });
-    } catch (error) {
-        zlog(`refreshZonesAndPresenceScan load error: ${error.message}`);
-    }
-
-    try {
-        spawnZonesByPresenceCheck();
-    } catch (error) {
-        zlog(`refreshZonesAndPresenceScan presence error: ${error.message}`);
-    }
+function getZonePlayerDwellMs(player, zoneId) {
+    if (!player) return 0;
+    const enteredAt = Number(player.getVariable(`inZoneSince_${zoneId}`)) || 0;
+    if (!enteredAt) return 0;
+    return Math.max(0, Date.now() - enteredAt);
 }
 
 function randomModel() {
@@ -386,7 +380,6 @@ function spawnZombie(zone, owner, spawnIndex = 0) {
 
     controllerManager.beginSwitch(st, 'spawn');
 
-    console.log(`[Z] spawn zid=${zid} in zone=${zone.id}`);
     zlog(`spawn zid=${zid} owner=${st.ownerRid} pos=${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}`);
 }
 
@@ -415,6 +408,12 @@ function spawnZoneOnEnter(zone, activator) {
     if (!zone || !activator || !mp.players.exists(activator)) return;
     if (zone.zombieIds.length) return;
 
+    const dwellMs = getZonePlayerDwellMs(activator, zone.id);
+    if (dwellMs < ZONE_SPAWN_DELAY_MS) {
+        zlog(`spawn-delay zone=${zone.id} player=${activator.id} dwellMs=${dwellMs}`);
+        return;
+    }
+
     zone.active = true;
     zone.activatorRid = activator.id;
 
@@ -423,7 +422,7 @@ function spawnZoneOnEnter(zone, activator) {
         const now = Date.now();
         zone.firstSpawnAt = now;
         zone.lastWaveAt = now;
-        console.log(`[ZONE] Spawning ${spawned} zombies in "${zone.name}"`);
+        zlog(`zone-spawn-start zone=${zone.id} name=${zone.name} count=${spawned}`);
     }
 }
 
@@ -582,14 +581,11 @@ function updateZoneEntryState() {
 
             if (inZone && !wasInZone) {
                 player.setVariable(key, true);
+                player.setVariable(`inZoneSince_${zoneId}`, Date.now());
                 zlog(`player ${player.id} entered zone=${zoneId}`);
-
-                // Spawn immediately on real entry, do not wait for periodic presence-check loop.
-                if (!zone.zombieIds.length) {
-                    spawnZoneOnEnter(zone, player);
-                }
             } else if (!inZone && wasInZone) {
                 player.setVariable(key, false);
+                player.setVariable(`inZoneSince_${zoneId}`, 0);
                 zlog(`player ${player.id} left zone=${zoneId}`);
             }
         });
@@ -636,7 +632,22 @@ function spawnZonesByPresenceCheck() {
             return;
         }
 
-        const target = chooseNearestTarget(mp, zone, { x: zone.x, y: zone.y, z: zone.z });
+        const eligiblePlayers = plist.filter((p) => getZonePlayerDwellMs(p, zone.id) >= ZONE_SPAWN_DELAY_MS);
+        if (!eligiblePlayers.length) {
+            zlog(`presence-check zone=${zone.id}: waiting dwell >= ${ZONE_SPAWN_DELAY_MS}ms`);
+            return;
+        }
+
+        const centerPos = { x: zone.x, y: zone.y, z: zone.z };
+        let target = null;
+        let bestDist = Infinity;
+        eligiblePlayers.forEach((p) => {
+            const d = dist3(p.position, centerPos);
+            if (d < bestDist) {
+                bestDist = d;
+                target = p;
+            }
+        });
         if (!target) return;
 
         zlog(`presence-check zone=${zone.id}: players=${plist.length}, spawn start`);
@@ -1120,7 +1131,7 @@ function registerLoops() {
 
     setInterval(() => {
         try {
-            refreshZonesAndPresenceScan();
+            spawnZonesByPresenceCheck();
         } catch {}
     }, 15000);
 
