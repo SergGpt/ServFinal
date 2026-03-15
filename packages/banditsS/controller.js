@@ -21,12 +21,21 @@ const zombies = new Map();
 const zombieLootManager = createZombieLootManager();
 let zombieZoneColumnSet = null;
 
+function getDbRef() {
+    try {
+        if (typeof global !== 'undefined' && global.db) return global.db;
+    } catch {}
+    return null;
+}
+
 async function getZombieZoneColumnSet() {
     if (zombieZoneColumnSet) return zombieZoneColumnSet;
-    if (!db || !db.sequelize) return null;
+
+    const dbRef = getDbRef();
+    if (!dbRef || !dbRef.sequelize) return null;
 
     try {
-        const [rows] = await db.sequelize.query('SHOW COLUMNS FROM zombie_zones');
+        const [rows] = await dbRef.sequelize.query('SHOW COLUMNS FROM zombie_zones');
         zombieZoneColumnSet = new Set((rows || []).map((r) => String(r.Field || '')));
     } catch (error) {
         zlog(`ZombieZone SHOW COLUMNS failed: ${error.message}`);
@@ -86,7 +95,8 @@ function upsertZone(raw) {
 }
 
 async function loadZonesFromDb() {
-    const dbModel = db && db.Models ? db.Models.ZombieZone : null;
+    const dbRef = getDbRef();
+    const dbModel = dbRef && dbRef.Models ? dbRef.Models.ZombieZone : null;
     if (!dbModel) {
         zlog('ZombieZone model is missing, fallback to config zones');
         ZOMBIE_CONFIG.zones.forEach((zone) => upsertZone(zone));
@@ -102,7 +112,7 @@ async function loadZonesFromDb() {
 
         // Backward compatibility for DBs where some columns were not added yet.
         const hasUnknownColumn = /unknown column/i.test(message);
-        if (hasUnknownColumn && db && db.sequelize) {
+        if (hasUnknownColumn && dbRef && dbRef.sequelize) {
             try {
                 const cols = await getZombieZoneColumnSet();
                 if (cols && cols.size) {
@@ -115,7 +125,7 @@ async function loadZonesFromDb() {
                         .concat(cols.has('waveSize') ? ['waveSize'] : [])
                         .concat(cols.has('dimension') ? ['dimension'] : []);
 
-                    const [rows] = await db.sequelize.query(`SELECT ${selected.join(', ')} FROM zombie_zones`);
+                    const [rows] = await dbRef.sequelize.query(`SELECT ${selected.join(', ')} FROM zombie_zones`);
                     dbZones = (rows || []).map((row) => buildLegacyZoneFromRow(row));
                     console.log(`[Z] loaded zombie zones in compat mode (columns: ${selected.join(', ')})`);
                 }
@@ -1021,7 +1031,8 @@ function registerEvents() {
                 waveSize: zombieCount,
             };
 
-            const dbModel = db && db.Models ? db.Models.ZombieZone : null;
+            const dbRef = getDbRef();
+            const dbModel = dbRef && dbRef.Models ? dbRef.Models.ZombieZone : null;
             let created = payload;
             if (dbModel) {
                 try {
