@@ -1,6 +1,6 @@
 "use strict";
 
-require('./cinematicCamera');
+require('dev/cinematicCamera.js');
 
 
 mp.dev = {
