@@ -16,11 +16,16 @@ const { createZombieLootManager } = require('./zombieLoot');
 
 const zlog = createLogger(ZOMBIE_CONFIG.debug, 'ZCTRL');
 
+function infoLog(msg) {
+    console.log(`[Z] ${msg}`);
+}
+
 const zones = new Map();
 const zombies = new Map();
 const zombieLootManager = createZombieLootManager();
 let zombieZoneColumnSet = null;
 const ZONE_SPAWN_DELAY_MS = 45 * 1000;
+const ZONE_EMPTY_DESTROY_DELAY_MS = 30 * 1000;
 
 function getDbRef() {
     try {
@@ -86,6 +91,7 @@ function toRuntimeZone(raw) {
         activatorRid: null,
         firstSpawnAt: 0,
         lastWaveAt: 0,
+        emptySinceAt: 0,
     };
 }
 
@@ -98,6 +104,7 @@ function upsertZone(raw) {
         runtimeZone.activatorRid = prev.activatorRid || null;
         runtimeZone.firstSpawnAt = Number(prev.firstSpawnAt) || 0;
         runtimeZone.lastWaveAt = Number(prev.lastWaveAt) || 0;
+        runtimeZone.emptySinceAt = Number(prev.emptySinceAt) || 0;
     }
     zones.set(runtimeZone.id, runtimeZone);
     return runtimeZone;
@@ -410,12 +417,15 @@ function spawnZoneOnEnter(zone, activator) {
 
     const dwellMs = getZonePlayerDwellMs(activator, zone.id);
     if (dwellMs < ZONE_SPAWN_DELAY_MS) {
+        const waitLeft = Math.ceil((ZONE_SPAWN_DELAY_MS - dwellMs) / 1000);
         zlog(`spawn-delay zone=${zone.id} player=${activator.id} dwellMs=${dwellMs}`);
+        infoLog(`zone=${zone.id} waiting dwell: player=${activator.id}, left=${waitLeft}s`);
         return;
     }
 
     zone.active = true;
     zone.activatorRid = activator.id;
+    zone.emptySinceAt = 0;
 
     const spawned = spawnWave(zone, activator, zone.zombieCount, 'initial-enter');
     if (spawned > 0) {
@@ -423,6 +433,7 @@ function spawnZoneOnEnter(zone, activator) {
         zone.firstSpawnAt = now;
         zone.lastWaveAt = now;
         zlog(`zone-spawn-start zone=${zone.id} name=${zone.name} count=${spawned}`);
+        infoLog(`spawn started zone=${zone.id} name="${zone.name}" count=${spawned}`);
     }
 }
 
@@ -583,10 +594,12 @@ function updateZoneEntryState() {
                 player.setVariable(key, true);
                 player.setVariable(`inZoneSince_${zoneId}`, Date.now());
                 zlog(`player ${player.id} entered zone=${zoneId}`);
+                infoLog(`player ${player.id} entered zone=${zoneId}`);
             } else if (!inZone && wasInZone) {
                 player.setVariable(key, false);
                 player.setVariable(`inZoneSince_${zoneId}`, 0);
                 zlog(`player ${player.id} left zone=${zoneId}`);
+                infoLog(`player ${player.id} left zone=${zoneId}`);
             }
         });
     });
@@ -596,27 +609,42 @@ function cleanupEmptyZones() {
     zones.forEach((zone) => {
         if (!zone) return;
         const plist = playersInZone(mp, zone);
-        if (plist.length) return;
+        if (plist.length) {
+            if (zone.emptySinceAt) infoLog(`zone=${zone.id} is populated again (players=${plist.length})`);
+            zone.emptySinceAt = 0;
+            return;
+        }
+
+        if (!zone.emptySinceAt) {
+            zone.emptySinceAt = Date.now();
+            infoLog(`zone=${zone.id} became empty, destroy timer started (${ZONE_EMPTY_DESTROY_DELAY_MS / 1000}s)`);
+        }
+
+        const emptyForMs = Date.now() - zone.emptySinceAt;
 
         zone.active = false;
         zone.activatorRid = null;
         zone.firstSpawnAt = 0;
         zone.lastWaveAt = 0;
 
-        zone.zombieIds.forEach((zid) => {
-            const st = zombies.get(zid);
-            if (!st || st.dead) return;
+        if (emptyForMs < ZONE_EMPTY_DESTROY_DELAY_MS) {
+            zone.zombieIds.forEach((zid) => {
+                const st = zombies.get(zid);
+                if (!st || st.dead) return;
 
-            st.ownerRid = null;
-            if (st.switching) return;
+                st.ownerRid = null;
+                if (st.switching) return;
 
-            setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, 'zone-empty');
-            if (ZOMBIE_CONFIG.ai.emptyZoneBehavior === 'destroy') {
-                destroyZombie(zid, 'zone-empty');
-            } else {
-                setTaskIdle(st, 'zone-empty');
-            }
-        });
+                setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, 'zone-empty-wait-destroy');
+                setTaskIdle(st, 'zone-empty-wait-destroy');
+            });
+            return;
+        }
+
+        infoLog(`zone=${zone.id} empty for ${Math.floor(emptyForMs / 1000)}s, destroying zombies=${zone.zombieIds.length}`);
+        zone.zombieIds.slice().forEach((zid) => destroyZombie(zid, 'zone-empty-timeout'));
+        zone.emptySinceAt = 0;
+        zone.zombieIds = [];
     });
 }
 
@@ -625,17 +653,20 @@ function spawnZonesByPresenceCheck() {
         const plist = playersInZone(mp, zone);
         if (!plist.length) {
             zlog(`presence-check zone=${zone.id}: empty, skip spawn`);
+            infoLog(`presence-check zone=${zone.id}: no players`);
             return;
         }
 
         if (zone.zombieIds.length) {
             zlog(`presence-check zone=${zone.id}: already active (${zone.zombieIds.length} zombies)`);
+            infoLog(`presence-check zone=${zone.id}: already has zombies=${zone.zombieIds.length}`);
             return;
         }
 
         const eligiblePlayers = plist.filter((p) => getZonePlayerDwellMs(p, zone.id) >= ZONE_SPAWN_DELAY_MS);
         if (!eligiblePlayers.length) {
             zlog(`presence-check zone=${zone.id}: waiting dwell >= ${ZONE_SPAWN_DELAY_MS}ms`);
+            infoLog(`presence-check zone=${zone.id}: players in zone=${plist.length}, waiting dwell 45s`);
             return;
         }
 
@@ -652,6 +683,7 @@ function spawnZonesByPresenceCheck() {
         if (!target) return;
 
         zlog(`presence-check zone=${zone.id}: players=${plist.length}, spawn start`);
+        infoLog(`presence-check zone=${zone.id}: spawn candidate player=${target.id}, players=${plist.length}`);
         spawnZoneOnEnter(zone, target);
     });
 }
