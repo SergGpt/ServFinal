@@ -38,106 +38,6 @@ const cinematicCamera = {
 };
 
 
-function chat(message) {
-    if (mp.gui && mp.gui.chat && typeof mp.gui.chat.push === 'function') {
-        mp.gui.chat.push(`!{4ec9ff}[CINEMA] !{ffffff}${message}`);
-    }
-}
-
-function printHelp() {
-    chat('Команды камеры:');
-    chat('/cam help - показать помощь');
-    chat('/cam stop - выключить камеру');
-    chat('/cam drone - включить дрон (W/A/S/D + Q/E, Shift)');
-    chat('/cam face [distance=2.5] [height=0.65] - вид на лицо персонажа');
-    chat('/cam follow [playerId] [distance=6] [height=2] - слежка за игроком');
-    chat('/cam stickped [0/1] - ped за камерой для прогрузки локации');
-    chat('/cam path <durationMs> <pointsJson> [lookAtJson] - пролет по координатам');
-    chat('Пример path: /cam path 12000 [{"x":0,"y":0,"z":80},{"x":20,"y":20,"z":90}]');
-}
-
-function parseCamCommand(message) {
-    if (typeof message !== 'string') return;
-    if (!message.startsWith('/cam')) return;
-
-    const trimmed = message.trim();
-    const parts = trimmed.split(' ');
-    const sub = (parts[1] || 'help').toLowerCase();
-
-    if (sub === 'help') {
-        printHelp();
-        return;
-    }
-
-    if (sub === 'stop') {
-        stopCinematicCamera();
-        return;
-    }
-
-    if (sub === 'drone') {
-        startDroneMode();
-        return;
-    }
-
-    if (sub === 'face') {
-        const distance = parts[2] ? Number(parts[2]) : 2.5;
-        const height = parts[3] ? Number(parts[3]) : 0.65;
-        startFaceView(distance, height);
-        return;
-    }
-
-    if (sub === 'follow') {
-        const playerId = parts[2] ? Number(parts[2]) : localPlayer.remoteId;
-        const distance = parts[3] ? Number(parts[3]) : 6.0;
-        const height = parts[4] ? Number(parts[4]) : 2.0;
-
-        if (!Number.isFinite(playerId)) {
-            chat('Укажите корректный playerId. Пример: /cam follow 12 6 2');
-            return;
-        }
-
-        startFollowPlayer(playerId, distance, height);
-        return;
-    }
-
-    if (sub === 'stickped') {
-        const state = parts[2] === undefined ? true : parts[2] === '1' || parts[2].toLowerCase() === 'true' || parts[2].toLowerCase() === 'on';
-        cinematicCamera.stickPedBehind = !!state;
-        notify(`Привязка ped за камерой: ${cinematicCamera.stickPedBehind ? 'ON' : 'OFF'}`);
-        return;
-    }
-
-    if (sub === 'path') {
-        const rest = trimmed.replace('/cam path', '').trim();
-        const firstSpace = rest.indexOf(' ');
-        if (firstSpace === -1) {
-            chat('Формат: /cam path <durationMs> <pointsJson> [lookAtJson]');
-            return;
-        }
-
-        const durationMs = Number(rest.substring(0, firstSpace));
-        const payload = rest.substring(firstSpace + 1).trim();
-
-        const separator = payload.indexOf('] ');
-        let pointsJson = payload;
-        let lookAtJson = '';
-
-        if (separator !== -1) {
-            pointsJson = payload.substring(0, separator + 1);
-            lookAtJson = payload.substring(separator + 2).trim();
-        }
-
-        if (!Number.isFinite(durationMs)) {
-            chat('durationMs должен быть числом. Пример: /cam path 12000 [...]');
-            return;
-        }
-
-        startPathFly(pointsJson, durationMs, lookAtJson);
-        return;
-    }
-
-    chat(`Неизвестная подкоманда: ${sub}. Используйте /cam help`);
-}
 function notify(message) {
     mp.game.graphics.notify(`~b~[CINEMA]~s~ ${message}`);
 }
@@ -460,9 +360,6 @@ mp.events.add('render', () => {
     }
 });
 
-mp.events.add('chat.message.get', (type, message) => {
-    parseCamCommand(message);
-});
 
 mp.events.add({
     'dev.camera.stop': () => stopCinematicCamera(),
@@ -473,5 +370,10 @@ mp.events.add({
     'dev.camera.stickPed': (state) => {
         cinematicCamera.stickPedBehind = !!state;
         notify(`Привязка ped за камерой: ${cinematicCamera.stickPedBehind ? 'ON' : 'OFF'}`);
+    },
+    'dev.camera.help': () => {
+        mp.events.call('chat.message.push', '!{#4ec9ff}[CAM] Команды: /camdrone, /camstop, /camface [dist] [height], /camfollow [id] [dist] [height], /camstickped [0/1], /campath [durationMs] [pointsJson] [lookAtJson]');
+        mp.events.call('chat.message.push', '!{#4ec9ff}[CAM] Управление дроном: W/A/S/D + Q/E, Shift ускорение.');
+        mp.events.call('chat.message.push', '!{#4ec9ff}[CAM] Пример path: /campath 12000 [{"x":0,"y":0,"z":80},{"x":20,"y":20,"z":90}]');
     },
 });

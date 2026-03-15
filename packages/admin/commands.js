@@ -51,6 +51,67 @@ module.exports = {
             mp.events.call('admin.notify.players.split', args.join(' '), `!{#ebc71b}${player.name}[${player.id}]: `);
         }
     },
+    "/camhelp": {
+        access: 1,
+        description: "Показать помощь по кинокамере",
+        args: "",
+        handler: (player) => {
+            player.call('dev.camera.help');
+        }
+    },
+    "/camdrone": {
+        access: 1,
+        description: "Включить режим кинокамеры-дрона",
+        args: "",
+        handler: (player) => {
+            player.call('dev.camera.drone');
+        }
+    },
+    "/camstop": {
+        access: 1,
+        description: "Выключить кинокамеру",
+        args: "",
+        handler: (player) => {
+            player.call('dev.camera.stop');
+        }
+    },
+    "/camface": {
+        access: 1,
+        description: "Вид на лицо персонажа",
+        args: "[distance]:n? [height]:n?",
+        handler: (player, args) => {
+            player.call('dev.camera.face', [args[0] || 2.5, args[1] || 0.65]);
+        }
+    },
+    "/camfollow": {
+        access: 1,
+        description: "Слежка за игроком",
+        args: "[id]:n [distance]:n? [height]:n?",
+        handler: (player, args, out) => {
+            const target = mp.players.at(args[0]);
+            if (!target) return out.error(`Игрок #${args[0]} не найден`, player);
+            player.call('dev.camera.followPlayer', [target.id, args[1] || 6.0, args[2] || 2.0]);
+        }
+    },
+    "/camstickped": {
+        access: 1,
+        description: "Привязать ped за камерой (для прогрузки)",
+        args: "[0|1]:n",
+        handler: (player, args) => {
+            player.call('dev.camera.stickPed', [args[0] === 1]);
+        }
+    },
+    "/campath": {
+        access: 1,
+        description: "Пролет по маршруту",
+        args: "[durationMs]:n [pointsJson] [lookAtJson]?",
+        handler: (player, args) => {
+            const durationMs = args[0] || 15000;
+            const pointsJson = args[1];
+            const lookAtJson = args[2] || '';
+            player.call('dev.camera.flyPath', [pointsJson, durationMs, lookAtJson]);
+        }
+    },
     "/goto": {
         access: 2,
         description: "Телепорт к игроку",
