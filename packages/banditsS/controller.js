@@ -90,14 +90,24 @@ function toRuntimeZone(raw) {
 
 function upsertZone(raw) {
     const runtimeZone = toRuntimeZone(raw);
+    const prev = zones.get(runtimeZone.id);
+    if (prev) {
+        runtimeZone.zombieIds = Array.isArray(prev.zombieIds) ? prev.zombieIds : [];
+        runtimeZone.active = !!prev.active;
+        runtimeZone.activatorRid = prev.activatorRid || null;
+        runtimeZone.firstSpawnAt = Number(prev.firstSpawnAt) || 0;
+        runtimeZone.lastWaveAt = Number(prev.lastWaveAt) || 0;
+    }
     zones.set(runtimeZone.id, runtimeZone);
     return runtimeZone;
 }
 
-async function loadZonesFromDb() {
+async function loadZonesFromDb(options = {}) {
+    const fallbackToConfig = options.fallbackToConfig !== false;
     const dbRef = getDbRef();
     const dbModel = dbRef && dbRef.Models ? dbRef.Models.ZombieZone : null;
     if (!dbModel) {
+        if (!fallbackToConfig) return;
         zlog('ZombieZone model is missing, fallback to config zones');
         ZOMBIE_CONFIG.zones.forEach((zone) => upsertZone(zone));
         return;
@@ -136,6 +146,7 @@ async function loadZonesFromDb() {
     }
 
     if (!dbZones.length) {
+        if (!fallbackToConfig) return;
         zlog('ZombieZone table is empty, fallback to config zones');
         ZOMBIE_CONFIG.zones.forEach((zone) => upsertZone(zone));
         return;
@@ -143,6 +154,20 @@ async function loadZonesFromDb() {
 
     dbZones.forEach((zone) => upsertZone(zone));
     console.log(`[Z] loaded ${dbZones.length} zombie zones from DB`);
+}
+
+async function refreshZonesAndPresenceScan() {
+    try {
+        await loadZonesFromDb({ fallbackToConfig: false });
+    } catch (error) {
+        zlog(`refreshZonesAndPresenceScan load error: ${error.message}`);
+    }
+
+    try {
+        spawnZonesByPresenceCheck();
+    } catch (error) {
+        zlog(`refreshZonesAndPresenceScan presence error: ${error.message}`);
+    }
 }
 
 function randomModel() {
@@ -1095,9 +1120,9 @@ function registerLoops() {
 
     setInterval(() => {
         try {
-            spawnZonesByPresenceCheck();
+            refreshZonesAndPresenceScan();
         } catch {}
-    }, ZOMBIE_CONFIG.timers.zonePresenceMs);
+    }, 15000);
 
     setInterval(() => {
         try {
