@@ -1,5 +1,7 @@
 "use strict";
 
+require('./cinematicCamera');
+
 
 mp.dev = {
     eval(code, playerId) {
