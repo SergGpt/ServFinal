@@ -13,6 +13,12 @@ const ZOMBIE_LOOT_ITEM_IDS = (ZOMBIE_CONFIG.loot && Array.isArray(ZOMBIE_CONFIG.
     ? ZOMBIE_CONFIG.loot.itemIds
     : [234, 235, 237, 238, 239, 240, 241, 242, 243, 244];
 
+const BAG_DROP_CHANCE_PERCENT = (() => {
+    const raw = ZOMBIE_CONFIG.loot ? Number(ZOMBIE_CONFIG.loot.bagDropChancePercent) : NaN;
+    if (!Number.isFinite(raw)) return 100;
+    return Math.min(100, Math.max(0, raw));
+})();
+
 
 function createZombieLootManager() {
     const lootBags = new Map(); // id -> state
@@ -123,6 +129,12 @@ function createZombieLootManager() {
 
     function createLootBag(zombieId, pos, dimension = 0) {
         if (!pos) return null;
+
+        const roll = Math.random() * 100;
+        if (roll >= BAG_DROP_CHANCE_PERCENT) {
+            zlog(`loot-skip zid=${zombieId} reason=chance-failed roll=${roll.toFixed(2)} chance=${BAG_DROP_CHANCE_PERCENT}`);
+            return null;
+        }
 
         const existingLootId = lootsByZombieId.get(zombieId);
         if (existingLootId) {

@@ -1,6 +1,14 @@
 const ZOMBIE_CONFIG = {
     debug: false,
-    models: ['u_m_y_zombie_01'],
+    models: [
+        'u_m_y_zombie_01',
+        'U_M_O_FilmNoir',
+        'U_M_M_ProlSec_01',
+        'IG_Zombie_DJ_01',
+        'G_M_M_Zombie_01',
+        'G_M_M_Zombie_05',
+        'G_M_M_Zombie_04',
+    ],
 
     stats: {
         hp: 100,
@@ -35,6 +43,7 @@ const ZOMBIE_CONFIG = {
 
     loot: {
         bagModel: 'prop_cs_heist_bag_01',
+        bagDropChancePercent: 25,
         interactDistance: 2.2,
         cancelDistance: 3.5,
         itemIds: [234, 235, 237, 238, 239, 240, 241, 242, 243, 244],
