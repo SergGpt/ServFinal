@@ -24,7 +24,6 @@ const zones = new Map();
 const zombies = new Map();
 const zombieLootManager = createZombieLootManager();
 let zombieZoneColumnSet = null;
-let zoneLoadSource = 'unknown';
 const ZONE_SPAWN_DELAY_MS = 45 * 1000;
 const ZONE_EMPTY_DESTROY_DELAY_MS = 30 * 1000;
 
@@ -117,7 +116,6 @@ async function loadZonesFromDb(options = {}) {
     const dbModel = dbRef && dbRef.Models ? dbRef.Models.ZombieZone : null;
     if (!dbModel) {
         if (!fallbackToConfig) return;
-        zoneLoadSource = 'config:no-db-model';
         infoLog('ZombieZone model is missing; loaded zones from config');
         ZOMBIE_CONFIG.zones.forEach((zone) => upsertZone(zone));
         return;
@@ -157,44 +155,13 @@ async function loadZonesFromDb(options = {}) {
 
     if (!dbZones.length) {
         if (!fallbackToConfig) return;
-        zoneLoadSource = 'config:empty-db';
         infoLog('ZombieZone table is empty; loaded zones from config');
         ZOMBIE_CONFIG.zones.forEach((zone) => upsertZone(zone));
         return;
     }
 
     dbZones.forEach((zone) => upsertZone(zone));
-    zoneLoadSource = 'db';
     infoLog(`loaded ${dbZones.length} zombie zones from DB`);
-}
-
-function registerDbZoneRetryIfNeeded() {
-    if (zoneLoadSource === 'db') return;
-
-    let attempts = 0;
-    const maxAttempts = 20;
-    const retryMs = 15000;
-
-    infoLog(`zone source is ${zoneLoadSource}; scheduling DB reload retries every ${retryMs / 1000}s`);
-
-    const timer = setInterval(async () => {
-        attempts += 1;
-        try {
-            await loadZonesFromDb({ fallbackToConfig: false });
-            if (zoneLoadSource === 'db') {
-                clearInterval(timer);
-                infoLog(`DB zones loaded after retry (attempt=${attempts}, zones=${zones.size})`);
-                return;
-            }
-        } catch (error) {
-            infoLog(`DB zones retry failed (attempt=${attempts}): ${error.message}`);
-        }
-
-        if (attempts >= maxAttempts) {
-            clearInterval(timer);
-            infoLog(`DB zones retry stopped after ${maxAttempts} attempts; using ${zoneLoadSource}`);
-        }
-    }, retryMs);
 }
 
 function getZonePlayerDwellMs(player, zoneId) {
@@ -1200,11 +1167,12 @@ function registerLoops() {
         } catch {}
     }, ZOMBIE_CONFIG.timers.zoneEntryScanMs);
 
-    setInterval(() => {
+    setInterval(async () => {
         try {
+            await loadZonesFromDb({ fallbackToConfig: false });
             spawnZonesByPresenceCheck();
         } catch {}
-    }, Math.max(1000, parseInt(ZOMBIE_CONFIG.timers.zonePresenceMs, 10) || 30000));
+    }, 15000);
 
     setInterval(() => {
         try {
@@ -1242,8 +1210,7 @@ async function initZombieController() {
     registerEvents();
     await loadZonesFromDb();
     registerLoops();
-    registerDbZoneRetryIfNeeded();
-    console.log(`✅ Zombies server controller loaded (zones=${zones.size}, source=${zoneLoadSource})`);
+    console.log(`✅ Zombies server controller loaded (zones=${zones.size})`);
 }
 
 module.exports = {
