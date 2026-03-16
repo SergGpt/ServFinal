@@ -40,6 +40,12 @@ module.exports = {
             let tattooList = tattoo.getRawTattooList();
             let packsCount = tattooList.length % 100 == 0 ?
                 parseInt(tattooList.length / 100) : parseInt(tattooList.length / 100) + 1;
+
+            if (packsCount === 0) {
+                player.hasValidTattooData = true;
+                return mp.events.call('tattoo.enter', player);
+            }
+
             while (tattooList.length > 0) {
                 let pack = tattooList.slice(0, 100);
                 tattooList.splice(0, 100);
