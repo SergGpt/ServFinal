@@ -1,5 +1,7 @@
 "use strict";
 
+require('dev/cinematicCamera.js');
+
 
 mp.dev = {
     eval(code, playerId) {

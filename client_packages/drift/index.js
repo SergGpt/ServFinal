@@ -248,11 +248,17 @@ function updateRemoteSmoke() {
     }
 }
 
-mp.timer.addInterval(() => {
+const runDriftTick = () => {
     try {
         updateLocalState();
         updateRemoteSmoke();
     } catch (err) {
         // защита от редких ошибок в стриме
     }
-}, state.config.smokeIntervalMs);
+};
+
+if (mp.timer && typeof mp.timer.addInterval === 'function') {
+    mp.timer.addInterval(runDriftTick, state.config.smokeIntervalMs);
+} else {
+    setInterval(runDriftTick, state.config.smokeIntervalMs);
+}
