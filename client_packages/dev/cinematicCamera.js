@@ -87,10 +87,30 @@ function parsePathPoints(pointsJson) {
     }
 }
 
+function getSafeGameplayCamCoord() {
+    if (mp.game.cam && typeof mp.game.cam.getGameplayCamCoord === 'function') {
+        return mp.game.cam.getGameplayCamCoord();
+    }
+
+    return new mp.Vector3(
+        localPlayer.position.x,
+        localPlayer.position.y,
+        localPlayer.position.z + 1.0,
+    );
+}
+
+function getSafeGameplayCamRot() {
+    if (mp.game.cam && typeof mp.game.cam.getGameplayCamRot === 'function') {
+        return mp.game.cam.getGameplayCamRot(2);
+    }
+
+    return localPlayer.getRotation(2);
+}
+
 function ensureCamera() {
     if (!cinematicCamera.camera) {
-        const gameplayCamPos = mp.game.cam.getGameplayCamCoord();
-        const gameplayCamRot = mp.game.cam.getGameplayCamRot(2);
+        const gameplayCamPos = getSafeGameplayCamCoord();
+        const gameplayCamRot = getSafeGameplayCamRot();
         cinematicCamera.camera = mp.cameras.new('cinematic.camera', gameplayCamPos, gameplayCamRot, 50.0);
     }
 
@@ -323,7 +343,7 @@ function updateDrone() {
 
     cinematicCamera.camera.setCoord(x, y, z);
 
-    const gameplayRot = mp.game.cam.getGameplayCamRot(2);
+    const gameplayRot = getSafeGameplayCamRot();
     cinematicCamera.camera.setRot(gameplayRot.x, gameplayRot.y, gameplayRot.z, 2);
 
     const finalRot = cinematicCamera.camera.getRot(2);
