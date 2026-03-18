@@ -243,8 +243,10 @@ function initMenus() {
         let menuName = zonesConfig[key];
         sortedList.forEach((current) => {
             if (current.zoneId != key) return;
+            const localizedName = mp.game.ui.getLabelText(current.name);
+            const displayName = (!localizedName || localizedName === 'NULL') ? current.name : localizedName;
             items.push({
-                text: mp.game.ui.getLabelText(current.name),
+                text: displayName,
                 values: [`$${parseInt(current.price * priceMultiplier)}`]
             });
         })
