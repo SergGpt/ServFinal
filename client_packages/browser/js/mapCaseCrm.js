@@ -142,8 +142,11 @@ var mapCaseCrmPermissions = {
 var mapCaseCrmStorage = {
     lock: false,
     switchStorage(lock) {
-        this.lock = !this.lock;
-        // TODO: Смена статуса склада (lock == текущий), в ответ меняем mapCasePdStorage.lock = !lock
+        var ranks = mapCase.ranks;
+        var maxRankName = ranks[ranks.length - 1];
+        if (statistics['factionRank'].value !== maxRankName) return mapCase.showRedMessage('Вы не лидер');
+        mp.trigger(`callRemote`, `factions.holder.common.state`, lock);
+        this.lock = !lock;
     }
 }
 

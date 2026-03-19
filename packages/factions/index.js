@@ -180,6 +180,7 @@ module.exports = {
             dimension: faction.sD
         });
         storage.isOpen = false;
+        storage.factionId = faction.id;
         this.storages.push(storage);
 
         var colshape = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 1.5, storage.dimension);
@@ -209,6 +210,7 @@ module.exports = {
         holder.inventory = {
             items: {}, // предметов игроков в шкафе
         };
+        holder.factionId = faction.id;
         this.holders.push(holder);
 
         var colshape = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 1.5, holder.dimension);
@@ -237,6 +239,7 @@ module.exports = {
             items: [],
         };
         holder.isOpen = false;
+        holder.factionId = faction.id;
         holder = await inventory.initFactionCommonInventory(holder);
         this.commonHolders.push(holder);
         let colshape = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 1.5);
@@ -374,16 +377,16 @@ createGarageMarker(faction) {
         return this.markers[id - 1];
     },
     getWarehouse(id) {
-        return this.warehouses[id - 1];
+        return this.warehouses.find(x => x && x.factionId === id) || this.warehouses[id - 1];
     },
     getStorage(id) {
-        return this.storages[id - 1];
+        return this.storages.find(x => x && x.factionId === id) || this.storages[id - 1];
     },
     getHolder(id) {
-        return this.holders[id - 1];
+        return this.holders.find(x => x && x.factionId === id) || this.holders[id - 1];
     },
     getCommonHolder(id) {
-        return this.commonHolders[id - 1];
+        return this.commonHolders.find(x => x && x.factionId === id) || this.commonHolders[id - 1];
     },
     getBlip(id) {
         return this.blips[id - 1];
