@@ -785,8 +785,14 @@ createGarageMarker(faction) {
     canTakeWarehouse(player, boxType, faction) {
         // банды тырят у армейцев
         if (this.isBandFaction(player.character.factionId) && this.isArmyFaction(faction)) return true;
+
+        // если минимальный ранг для склада не настроен в БД, пускаем с минимального ранга фракции
+        let minRank = faction.ammoRank ? this.getRank(faction, faction.ammoRank) : null;
+        if (!minRank) minRank = this.getMinRank(faction);
+        if (!minRank) return false;
+
         // игрок может брать в своей организации с определенного ранга
-        return player.character.factionId == faction.id && player.character.factionRank >= this.getRank(faction, faction.ammoRank).id;
+        return player.character.factionId == faction.id && player.character.factionRank >= minRank.id;
     },
     canInvite(player) {
         if (!player.character.factionId) return false;
