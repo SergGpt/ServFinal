@@ -311,8 +311,20 @@ module.exports = {
         if (!data.rank) return out(`Ошибка 2: Некорректный ранг (${data.rank}), сообщите разработчикам`);
         var faction = factions.getFaction(player.character.factionId);
 
-        faction[key] = data.rank;
-        faction.save();
+        if (key === "vehicleControlRank") {
+            faction.vehicleControlRank = data.rank;
+            if (!faction.vehicleAccess) {
+                faction.vehicleAccess = db.Models.FactionVehicleAccess.build({
+                    factionId: faction.id,
+                    rank: data.rank
+                });
+            }
+            faction.vehicleAccess.rank = data.rank;
+            faction.vehicleAccess.save();
+        } else {
+            faction[key] = data.rank;
+            faction.save();
+        }
 
         var info = {};
         info[key] = data.rank;

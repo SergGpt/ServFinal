@@ -107,6 +107,10 @@ module.exports = {
                     model: db.Models.FactionGarageSpawn,
                     as: "garageSpawnPoints",
                 },
+                {
+                    model: db.Models.FactionVehicleAccess,
+                    as: "vehicleAccess",
+                },
             ],
             order: ['id']
         });
@@ -123,6 +127,7 @@ module.exports = {
             if (faction.garageSpawnPoints) {
                 faction.garageSpawnPoints.sort((a, b) => a.id - b.id);
             }
+            faction.vehicleControlRank = faction.vehicleAccess ? faction.vehicleAccess.rank : faction.ranks.length;
         });
         this.factions = dbFactions;
         console.log(`[FACTIONS] Организации загужены (${dbFactions.length} шт.)`);

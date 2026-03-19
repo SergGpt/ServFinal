@@ -197,12 +197,6 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false,
             defaultValue: 10,
         },
-        // мин. ранг, который может возвращать транспорт в гараж
-        vehicleControlRank: {
-            type: DataTypes.INTEGER(11),
-            allowNull: false,
-            defaultValue: 10,
-        },
         // мин. ранг, который может брать БП/Мед со своего склада
         ammoRank: {
             type: DataTypes.INTEGER(11),
@@ -234,6 +228,10 @@ module.exports = (sequelize, DataTypes) => {
         model.hasMany(models.FactionGarageSpawn, {
             foreignKey: 'factionId',
             as: "garageSpawnPoints"
+        });
+        model.hasOne(models.FactionVehicleAccess, {
+            foreignKey: 'factionId',
+            as: "vehicleAccess"
         });
     };
 
