@@ -46,6 +46,64 @@ module.exports = {
 },
 
 
+    "/faddgaragespawnpos": {
+        description: "Добавить точку спавна транспорта у гаража фракции.",
+        access: 6,
+        args: "[ид_организации]:n",
+        handler: async (player, args, out) => {
+            const faction = factions.getFaction(args[0]);
+            if (!faction) return out.error(`Организация #${args[0]} не найдена`, player);
+
+            const point = await db.Models.FactionGarageSpawn.create({
+                factionId: faction.id,
+                x: player.position.x,
+                y: player.position.y,
+                z: player.position.z,
+                h: player.heading,
+                d: player.dimension,
+            });
+            if (!faction.garageSpawnPoints) faction.garageSpawnPoints = [];
+            faction.garageSpawnPoints.push(point);
+            faction.garageSpawnPoints.sort((a, b) => a.id - b.id);
+            out.info(`${player.name} добавил точку спавна #${point.id} для гаража ${faction.name}`);
+        }
+    },
+    "/fdelgaragespawnpos": {
+        description: "Удалить точку спавна транспорта у гаража фракции.",
+        access: 6,
+        args: "[ид_точки]:n",
+        handler: async (player, args, out) => {
+            const pointId = parseInt(args[0]);
+            const point = await db.Models.FactionGarageSpawn.findByPk(pointId);
+            if (!point) return out.error(`Точка #${pointId} не найдена`, player);
+
+            const faction = factions.getFaction(point.factionId);
+            await point.destroy();
+            if (faction && faction.garageSpawnPoints) {
+                faction.garageSpawnPoints = faction.garageSpawnPoints.filter(x => x.id !== pointId);
+            }
+            out.info(`${player.name} удалил точку спавна #${pointId}`);
+        }
+    },
+    "/flistgaragespawnpos": {
+        description: "Показать точки спавна транспорта у гаража фракции.",
+        access: 6,
+        args: "[ид_организации]:n",
+        handler: (player, args, out) => {
+            const faction = factions.getFaction(args[0]);
+            if (!faction) return out.error(`Организация #${args[0]} не найдена`, player);
+
+            const points = factions.getGarageSpawnPoints(faction.id);
+            if (!points.length) return out.info(`У ${faction.name} нет точек спавна гаража`, player);
+
+            let text = `${faction.name}:<br/>`;
+            points.forEach((point, index) => {
+                text += `#${point.id} (${index + 1}) ${point.x.toFixed(2)} ${point.y.toFixed(2)} ${point.z.toFixed(2)} h:${point.h.toFixed(2)} d:${point.d}<br/>`;
+            });
+            out.log(text, player);
+        }
+    },
+
 
     "/ftp": {
         description: "Телепортироваться к организации.",

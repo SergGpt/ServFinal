@@ -19,6 +19,7 @@ module.exports = {
             info.inviteRank = faction.inviteRank;
             info.uvalRank = faction.uvalRank;
             info.giveRankRank = faction.giveRankRank;
+            info.vehicleControlRank = faction.vehicleControlRank;
         }
         player.call(`factions.info.set`, [info]);
     },
@@ -54,6 +55,12 @@ module.exports = {
                 num: 3,
                 name: 'Гос.новости',
                 rank: faction.giveRankRank
+            },
+            {
+                id: 5,
+                num: 4,
+                name: 'Управление транспортом',
+                rank: faction.vehicleControlRank
             }
         ];
 
@@ -298,7 +305,7 @@ module.exports = {
         if (!player.character.factionId) return out(`Вы не состоите в организации`);
         if (!factions.isLeader(player)) return out(`Вы не лидер`);
 
-        var key = ["inviteRank", "uvalRank", "giveRankRank", "gnewsRank"][data.index];
+        var key = ["inviteRank", "uvalRank", "giveRankRank", "gnewsRank", "vehicleControlRank"][data.index];
 
         if (!data) return out(`Ошибка 1: Данные не переданы, сообщите разработчикам`);
         if (!data.rank) return out(`Ошибка 2: Некорректный ранг (${data.rank}), сообщите разработчикам`);
@@ -622,146 +629,160 @@ module.exports = {
         player.call('factions.treasury.menu.show', [cash]);
     },
 
-     "factions.garage.menu.request": (player) => {
-    if (!player.character || !player.character.factionId) return;
-    if (!player.getVariable('insideFactionGarage')) return;
+    "factions.garage.menu.request": (player) => {
+        if (!player.character || !player.character.factionId) return;
+        if (!player.getVariable('insideFactionGarage')) return;
 
-    const faction = factions.getFaction(player.character.factionId);
-    const vehicleItems = [];
+        const faction = factions.getFaction(player.character.factionId);
+        const vehicleItems = [];
 
-    // Получаем все машины фракции
-    mp.vehicles.forEach(v => {
-        if (!v.db || v.db.key !== 'faction') return;
-        if (v.db.owner !== faction.id) return;
+        mp.vehicles.forEach(v => {
+            if (!v.db || v.db.key !== 'faction') return;
+            if (v.db.owner !== faction.id) return;
 
-        const isSpawned = v.spawned !== false; // если spawned не false, значит в мире
-        
-        vehicleItems.push({
-            text: `${v.properties?.name || v.db.modelName} [${v.db.plate}]`,
-            values: [
-                `Ранг: ${v.db.minRank ? v.db.minRank.rank : 1}`,
-                isSpawned ? '~g~В мире' : '~r~В гараже'
-            ],
-            meta: { 
-                sqlId: v.db.id,
-                isSpawned: isSpawned
+            const isSpawned = v.spawned !== false;
+
+            vehicleItems.push({
+                text: `${v.properties?.name || v.db.modelName} [${v.db.plate}]`,
+                values: [
+                    `Ранг: ${v.db.minRank ? v.db.minRank.rank : 1}`,
+                    isSpawned ? '~g~В мире' : '~r~В гараже'
+                ],
+                meta: {
+                    sqlId: v.db.id,
+                    isSpawned: isSpawned
+                }
+            });
+        });
+
+        player.call('factions.garage.menu.set', [JSON.stringify(vehicleItems)]);
+    },
+
+    "factions.garage.spawn": (player, vehSqlId) => {
+        const header = 'Гараж фракции';
+
+        if (!player.character || !player.character.factionId) {
+            return notifs.error(player, 'Вы не в фракции', header);
+        }
+
+        if (!player.getVariable('insideFactionGarage')) {
+            return notifs.error(player, 'Вы далеко от гаража', header);
+        }
+
+        const faction = factions.getFaction(player.character.factionId);
+        const veh = factions.getFactionVehicleBySqlId(parseInt(vehSqlId));
+
+        if (!veh || !veh.db) {
+            return notifs.error(player, 'Машина не найдена', header);
+        }
+
+        if (veh.db.owner !== faction.id) {
+            return notifs.error(player, 'Машина не принадлежит вашей фракции', header);
+        }
+
+        if (veh.db.minRank) {
+            const minRank = factions.getRank(faction.id, veh.db.minRank.rank);
+            const playerRank = factions.getRankById(faction.id, player.character.factionRank);
+
+            if (minRank && playerRank.rank < minRank.rank) {
+                return notifs.error(player, `Доступно с ранга ${minRank.name}`, header);
+            }
+        }
+
+        if (veh.spawned !== false) {
+            return notifs.warning(player, 'Транспорт уже используется', header);
+        }
+
+        const spawnPoint = factions.getFreeGarageSpawnPoint(faction.id);
+        if (!spawnPoint) {
+            return notifs.error(player, 'Нет свободной точки спавна транспорта. Добавьте точки командой /faddgaragespawnpos', header);
+        }
+
+        veh.repair();
+        veh.position = new mp.Vector3(spawnPoint.x, spawnPoint.y, spawnPoint.z);
+        veh.rotation = new mp.Vector3(0, 0, spawnPoint.h || 0);
+        veh.dimension = spawnPoint.d || 0;
+        veh.spawned = true;
+        veh.garageSpawnPointId = spawnPoint.id;
+        veh.setVariable('heading', spawnPoint.h || 0);
+
+        notifs.success(player, `${veh.properties?.name || veh.db.modelName} выдана`, header);
+        mp.events.call('factions.garage.menu.request', player);
+    },
+
+    "factions.garage.park": (player, vehId) => {
+        const header = 'Гараж фракции';
+
+        if (!player.character || !player.character.factionId) {
+            return notifs.error(player, 'Вы не в фракции', header);
+        }
+
+        if (!player.getVariable('insideFactionGarageVehicle')) {
+            return notifs.error(player, 'Вы далеко от гаража', header);
+        }
+
+        const veh = mp.vehicles.at(vehId);
+        if (!veh || !veh.db) {
+            return notifs.error(player, 'Машина не найдена', header);
+        }
+
+        if (veh.db.key !== 'faction') {
+            return notifs.error(player, 'Это не фракционная машина', header);
+        }
+
+        const faction = factions.getFaction(player.character.factionId);
+        if (veh.db.owner !== faction.id) {
+            return notifs.error(player, 'Машина не принадлежит вашей фракции', header);
+        }
+
+        const playerPos = player.position;
+
+        mp.players.forEach(p => {
+            if (p.vehicle === veh) {
+                p.removeFromVehicle();
+                setTimeout(() => {
+                    p.position = new mp.Vector3(playerPos.x + 2, playerPos.y, playerPos.z);
+                    p.dimension = 0;
+                }, 100);
             }
         });
-    });
 
-    player.call('factions.garage.menu.set', [JSON.stringify(vehicleItems)]);
-},
+        setTimeout(() => {
+            factions.hideFactionVehicle(veh);
+            notifs.success(player, `${veh.properties?.name || veh.db.modelName} припаркована`, header);
+        }, 200);
+    },
+    "factions.control.transport.show": (player) => {
+        const out = (text) => player.call(`selectMenu.notification`, [text]);
+        if (!player.character.factionId) return out(`Вы не состоите в организации`);
+        if (!factions.canManageFactionTransport(player)) return out(`Недостаточно прав`);
 
-"factions.garage.spawn": (player, vehSqlId) => {
-    const header = 'Гараж фракции';
-    
-    if (!player.character || !player.character.factionId) {
-        return notifs.error(player, 'Вы не в фракции', header);
-    }
-    
-    if (!player.getVariable('insideFactionGarage')) {
-        return notifs.error(player, 'Вы далеко от гаража', header);
-    }
+        const vehicles = factions.getVehicles(player);
+        player.call(`factions.control.transport.show`, [{
+            vehicles: vehicles.map((x) => ({
+                id: x.id,
+                sqlId: x.db.id,
+                name: x.properties.name,
+                plate: x.db.plate,
+                spawned: x.spawned !== false,
+            })),
+        }]);
+    },
+    "factions.control.transport.park": (player, vehSqlId) => {
+        const header = `Управление транспортом`;
+        if (!player.character || !player.character.factionId) return notifs.error(player, `Вы не состоите в организации`, header);
+        if (!factions.canManageFactionTransport(player)) return notifs.error(player, `Недостаточно прав`, header);
 
-    const faction = factions.getFaction(player.character.factionId);
-    
-    // Ищем машину по ID из базы данных
-    let veh = null;
-    mp.vehicles.forEach(v => {
-        if (v.db && v.db.id === vehSqlId && v.db.key === 'faction') {
-            veh = v;
-        }
-    });
+        const veh = factions.getFactionVehicleBySqlId(parseInt(vehSqlId));
+        if (!veh || !veh.db || veh.db.key !== 'faction') return notifs.error(player, `Транспорт не найден`, header);
+        if (veh.db.owner !== player.character.factionId) return notifs.error(player, `Транспорт не вашей организации`, header);
+        if (veh.spawned === false) return notifs.warning(player, `Транспорт уже в гараже`, header);
+        if (call('vehicles').getOccupants(veh).length) return notifs.error(player, `Нельзя вернуть транспорт с людьми внутри`, header);
 
-    if (!veh || !veh.db) {
-        return notifs.error(player, 'Машина не найдена', header);
-    }
-
-    if (veh.db.owner !== faction.id) {
-        return notifs.error(player, 'Машина не принадлежит вашей фракции', header);
-    }
-
-    // Проверка ранга игрока
-    if (veh.db.minRank) {
-        const minRank = factions.getRank(faction.id, veh.db.minRank.rank);
-        const playerRank = factions.getRankById(faction.id, player.character.factionRank);
-        
-        if (playerRank.rank < minRank.rank) {
-            return notifs.error(player, `Доступно с ранга ${minRank.name}`, header);
-        }
-    }
-
-    // Проверяем, не заспавнена ли уже машина
-    if (veh.spawned !== false) {
-        return notifs.warning(player, 'Машина уже в мире', header);
-    }
-
-    // Спавним машину на позиции гаража
-    const spawnPos = new mp.Vector3(faction.gX, faction.gY, faction.gZ);
-    const spawnRot = faction.gH || 0;
-
-    veh.position = spawnPos;
-    veh.rotation = new mp.Vector3(0, 0, spawnRot);
-    veh.dimension = 0; // ВАЖНО: всегда dimension 0
-    veh.spawned = true;
-
-    notifs.success(player, `${veh.properties?.name || veh.db.modelName} выдана`, header);
-    
-    // Обновляем меню
-    mp.events.call('factions.garage.menu.request', player);
-},
-
-"factions.garage.park": (player, vehId) => {
-    const header = 'Гараж фракции';
-    
-    if (!player.character || !player.character.factionId) {
-        return notifs.error(player, 'Вы не в фракции', header);
-    }
-    
-    if (!player.getVariable('insideFactionGarageVehicle')) {
-        return notifs.error(player, 'Вы далеко от гаража', header);
-    }
-
-    const veh = mp.vehicles.at(vehId);
-    if (!veh || !veh.db) {
-        return notifs.error(player, 'Машина не найдена', header);
-    }
-
-    if (veh.db.key !== 'faction') {
-        return notifs.error(player, 'Это не фракционная машина', header);
-    }
-
-    const faction = factions.getFaction(player.character.factionId);
-    if (veh.db.owner !== faction.id) {
-        return notifs.error(player, 'Машина не принадлежит вашей фракции', header);
-    }
-
-    // Сохраняем позицию игрока (в dimension 0)
-    const playerPos = player.position;
-
-    // Выкидываем всех из машины
-    mp.players.forEach(p => {
-        if (p.vehicle === veh) {
-            p.removeFromVehicle();
-            setTimeout(() => {
-                // Телепортируем игрока рядом в СВОЁМ dimension (0)
-                p.position = new mp.Vector3(playerPos.x + 2, playerPos.y, playerPos.z);
-                p.dimension = 0; // ВАЖНО: всегда dimension 0
-            }, 100);
-        }
-    });
-
-    // Паркуем машину после задержки
-    setTimeout(() => {
-        veh.spawned = false;
-        
-        // Прячем машину под карту в отдельный dimension
-        veh.position = new mp.Vector3(0, 0, -100);
-        veh.dimension = 999999; // Машина уходит в другой dimension
-        
-        notifs.success(player, `${veh.properties?.name || veh.db.modelName} припаркована`, header);
-    }, 200);
-},
+        factions.hideFactionVehicle(veh);
+        notifs.success(player, `${veh.properties?.name || veh.db.modelName} возвращён в гараж`, header);
+        mp.events.call('factions.control.transport.show', player);
+    },
 
 
     

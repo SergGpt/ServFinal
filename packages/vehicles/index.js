@@ -345,9 +345,15 @@ module.exports = {
                 model: db.Models.FactionVehicleRank
             }
         });
+        const factions = call("factions");
         for (var i = 0; i < dbVehicles.length; i++) {
             var veh = dbVehicles[i];
-            this.spawnVehicle(veh, 0);
+            const vehicle = this.spawnVehicle(veh, 0);
+            if (veh.key === "faction") {
+                Promise.resolve(vehicle).then(spawnedVeh => {
+                    if (spawnedVeh) factions.hideFactionVehicle(spawnedVeh);
+                });
+            }
         }
         console.log(`[VEHICLES] Загружено транспортных средств: ${i}`);
     },
@@ -786,6 +792,13 @@ module.exports = {
 
         veh.engine = false;
         veh.setVariable("engine", false);
+
+        if (veh.db && veh.db.key === "faction") {
+            call("factions").hideFactionVehicle(veh);
+            delete veh.lastPlayerTime;
+            mp.events.call("vehicle.respawned", veh);
+            return;
+        }
 
         veh.repair();
         veh.position = new mp.Vector3(veh.db.x, veh.db.y, veh.db.z);

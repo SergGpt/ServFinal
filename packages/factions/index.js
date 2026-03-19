@@ -13,6 +13,11 @@ module.exports = {
 
     garages: [],
     getGarage(id) { return this.garages[id - 1]; },
+    getGarageSpawnPoints(factionId) {
+        const faction = this.getFaction(factionId);
+        if (!faction || !faction.garageSpawnPoints) return [];
+        return faction.garageSpawnPoints;
+    },
     factions: [],
     // Маркеры организаций
     markers: [],
@@ -98,6 +103,10 @@ module.exports = {
                     model: db.Models.FactionItemRank,
                     as: "itemRanks",
                 },
+                {
+                    model: db.Models.FactionGarageSpawn,
+                    as: "garageSpawnPoints",
+                },
             ],
             order: ['id']
         });
@@ -111,6 +120,9 @@ module.exports = {
             faction.itemRanks.sort((a, b) => {
                 return a.id - b.id;
             });
+            if (faction.garageSpawnPoints) {
+                faction.garageSpawnPoints.sort((a, b) => a.id - b.id);
+            }
         });
         this.factions = dbFactions;
         console.log(`[FACTIONS] Организации загужены (${dbFactions.length} шт.)`);
@@ -631,6 +643,50 @@ createGarageMarker(faction) {
             raw: true
         });
         return members;
+    },
+    getFactionVehicleBySqlId(sqlId) {
+        let found = null;
+        mp.vehicles.forEach(veh => {
+            if (found || !veh.db) return;
+            if (veh.db.key !== 'faction') return;
+            if (veh.db.id === sqlId) found = veh;
+        });
+        return found;
+    },
+    getFreeGarageSpawnPoint(factionId) {
+        const points = this.getGarageSpawnPoints(factionId);
+        for (const point of points) {
+            let busy = false;
+            mp.vehicles.forEach(veh => {
+                if (busy || !veh || !veh.db) return;
+                if (veh.db.key !== 'faction' || veh.db.owner !== factionId) return;
+                if (veh.spawned === false) return;
+                if ((veh.dimension || 0) !== point.d) return;
+                if (utils.vdist(veh.position, new mp.Vector3(point.x, point.y, point.z)) < 3) busy = true;
+            });
+            if (!busy) return point;
+        }
+        return null;
+    },
+    hideFactionVehicle(veh) {
+        if (!veh || !veh.db || veh.db.key !== 'faction') return false;
+        veh.engine = false;
+        veh.setVariable('engine', false);
+        veh.spawned = false;
+        veh.position = new mp.Vector3(0, 0, -100);
+        veh.dimension = 999999 + veh.db.owner;
+        veh.rotation = new mp.Vector3(0, 0, 0);
+        veh.setVariable('heading', 0);
+        return true;
+    },
+    canManageFactionTransport(player) {
+        if (!player.character || !player.character.factionId) return false;
+        const faction = this.getFaction(player.character.factionId);
+        if (!faction) return false;
+        let minRank = faction.vehicleControlRank ? this.getRank(faction, faction.vehicleControlRank) : null;
+        if (!minRank) minRank = this.getMinRank(faction);
+        if (!minRank) return false;
+        return player.character.factionId === faction.id && player.character.factionRank >= minRank.id;
     },
     getVehicles(player) {
         var vehicles = [];

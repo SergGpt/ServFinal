@@ -1971,6 +1971,9 @@ var selectMenu = new Vue({
                         text: "Транспорт"
                     },
                     {
+                        text: "Управление транспортом"
+                    },
+                    {
                         text: "Доступ к складу"
                     },
                     {
@@ -1988,6 +1991,7 @@ var selectMenu = new Vue({
                 inviteRank: 1,
                 uvalRank: 1,
                 giveRankRank: 1,
+                vehicleControlRank: 1,
                 handler(eventName) {
                     var item = this.items[this.i];
                     var e = {
@@ -2016,6 +2020,9 @@ var selectMenu = new Vue({
                             if (statistics['factionRank'].value != maxRankName) return selectMenu.notification = "Вы не лидер";
                             selectMenu.loader = true;
                             mp.trigger(`callRemote`, `factions.control.vehicles.show`);
+                        } else if (e.itemName == 'Управление транспортом') {
+                            selectMenu.loader = true;
+                            mp.trigger(`callRemote`, `factions.control.transport.show`);
                         } else if (e.itemName == 'Доступ к складу') {
                             var ranks = selectMenu.menus["factionControlRanks"].ranks;
                             var maxRankName = ranks[ranks.length - 1].name;
@@ -2026,7 +2033,7 @@ var selectMenu = new Vue({
                             var ranks = selectMenu.menus["factionControlRanks"].ranks;
                             var maxRankName = ranks[ranks.length - 1].name;
                             if (statistics['factionRank'].value != maxRankName) return selectMenu.notification = "Вы не лидер";
-                            selectMenu.menus['factionControlAccessMembers'].show(this.inviteRank, this.uvalRank, this.giveRankRank);
+                            selectMenu.menus['factionControlAccessMembers'].show(this.inviteRank, this.uvalRank, this.giveRankRank, this.vehicleControlRank);
                         } else if (e.itemName == 'Общий шкаф') {
                             var ranks = selectMenu.menus["factionControlRanks"].ranks;
                             var maxRankName = ranks[ranks.length - 1].name;
@@ -2372,6 +2379,53 @@ var selectMenu = new Vue({
                             var rankNames = selectMenu.menus['factionControlRanks'].ranks.map(x => x.name);
                             selectMenu.menus['factionControlVehicle'].init(this.vehicles[e.itemIndex], rankNames);
                             selectMenu.showByName('factionControlVehicle');
+                        }
+                    } else if (eventName == 'onBackspacePressed') selectMenu.showByName("factionControl");
+                }
+            },
+            "factionManageVehicles": {
+                name: "factionManageVehicles",
+                header: "Управление транспортом",
+                items: [{
+                        text: "Обновить список"
+                    },
+                    {
+                        text: "Вернуться"
+                    }
+                ],
+                i: 0,
+                j: 0,
+                init(data) {
+                    if (typeof data == 'string') data = JSON.parse(data);
+
+                    var items = [];
+                    data.vehicles.forEach((veh) => {
+                        items.push({
+                            text: veh.name,
+                            values: [veh.plate, veh.spawned ? 'В мире' : 'В гараже'],
+                            meta: veh
+                        });
+                    });
+                    items.push({
+                        text: `Обновить список`
+                    });
+                    items.push({
+                        text: `Вернуться`
+                    });
+                    selectMenu.setItems('factionManageVehicles', items);
+                },
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    if (eventName == 'onItemSelected') {
+                        if (item.meta && item.meta.sqlId) {
+                            if (!item.meta.spawned) return selectMenu.notification = "Транспорт уже в гараже";
+                            selectMenu.show = false;
+                            mp.trigger(`callRemote`, `factions.control.transport.park`, item.meta.sqlId);
+                        } else if (item.text == 'Обновить список') {
+                            selectMenu.loader = true;
+                            mp.trigger(`callRemote`, `factions.control.transport.show`);
+                        } else if (item.text == 'Вернуться') {
+                            selectMenu.showByName("factionControl");
                         }
                     } else if (eventName == 'onBackspacePressed') selectMenu.showByName("factionControl");
                 }
@@ -2766,12 +2820,16 @@ var selectMenu = new Vue({
                         values: [`Ранг 1`],
                     },
                     {
+                        text: "Управление транспортом",
+                        values: [`Ранг 1`],
+                    },
+                    {
                         text: "Вернуться"
                     }
                 ],
                 i: 0,
                 j: 0,
-                show(inviteRank, uvalRank, giveRankRank) {
+                show(inviteRank, uvalRank, giveRankRank, vehicleControlRank) {
                     var rankNames = selectMenu.menus['factionControlRanks'].ranks.map(x => x.name);
 
                     Vue.set(this.items[0], 'values', rankNames);
@@ -2785,6 +2843,9 @@ var selectMenu = new Vue({
 
                     Vue.set(this.items[3], 'values', rankNames);
                     Vue.set(this.items[3], 'i', giveRankRank - 1);
+
+                    Vue.set(this.items[4], 'values', rankNames);
+                    Vue.set(this.items[4], 'i', vehicleControlRank - 1);
 
                     selectMenu.showByName(this.name);
                 },
@@ -2805,7 +2866,7 @@ var selectMenu = new Vue({
                                 index: e.itemIndex,
                                 rank: item.i + 1
                             };
-                            var key = ["inviteRank", "uvalRank", "giveRankRank", "gnewsRank"][data.index];
+                            var key = ["inviteRank", "uvalRank", "giveRankRank", "gnewsRank", "vehicleControlRank"][data.index];
                             selectMenu.menus['factionControl'][key] = data.rank;
                             mp.trigger(`callRemote`, `factions.control.members.access.set`, JSON.stringify(data));
                         }

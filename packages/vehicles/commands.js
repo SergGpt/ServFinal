@@ -98,6 +98,8 @@ module.exports = {
                     mp.events.call('admin.notify.all', `!{#f0ff9e}[A] ${player.name} создал/обновил транспорт для новичков`);
                     break;
                 case "faction":
+                    call("factions").hideFactionVehicle(veh);
+                    player.removeFromVehicle();
                     mp.events.call('admin.notify.all', `!{#f0ff9e}[A] ${player.name} создал/обновил транспорт для фракции с ID ${args[1]}`);
                     break;
                 case "job":

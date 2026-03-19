@@ -103,6 +103,15 @@ mp.factions = {
         mp.callCEFV(`selectMenu.menus['factionControlStorage'].init(${JSON.stringify(data)})`);
         mp.callCEFV(`selectMenu.showByName('factionControlStorage')`);
     },
+    setInfo(info) {
+        this.vehRespawnPrice = info.vehRespawnPrice || 0;
+        if (!mp.callCEFV) return;
+        mp.callCEFV(`selectMenu.menus['factionControl'].inviteRank = ${info.inviteRank || 1}`);
+        mp.callCEFV(`selectMenu.menus['factionControl'].uvalRank = ${info.uvalRank || 1}`);
+        mp.callCEFV(`selectMenu.menus['factionControl'].giveRankRank = ${info.giveRankRank || 1}`);
+        mp.callCEFV(`selectMenu.menus['factionControl'].vehicleControlRank = ${info.vehicleControlRank || 1}`);
+        mp.callCEFV(`selectMenu.menus['factionControlVehicles'].respawnPrice = ${info.vehRespawnPrice || 0}`);
+    },
     isGovernmentFaction(factionId) {
         return factionId == 1;
     },
@@ -318,6 +327,15 @@ mp.events.add({
             mc.setResult(cat, []);
         } else if (mp.factions && typeof mp.factions.showWarehouseSelectMenu === 'function') {
             mp.factions.showWarehouseSelectMenu(data);
+        }
+    },
+    "factions.control.transport.show": (data) => {
+        try {
+            mp.callCEFV(`selectMenu.menus['factionManageVehicles'].init('${JSON.stringify(data).replace(/'/g, "\\'")}')`);
+            mp.callCEFV(`selectMenu.showByName('factionManageVehicles')`);
+        } catch (e) {
+            console.error('Ошибка меню управления транспортом:', e);
+            mp.events.call('notifications.push.error', 'Ошибка меню управления транспортом');
         }
     },
     
