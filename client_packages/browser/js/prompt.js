@@ -62,6 +62,9 @@ var prompt = new Vue({
             "take_medicinesbox": {
                 text: "Нажмите <span>E</span> для того, чтобы взять ящик с медикаментами",
             },
+            "take_materialsbox": {
+                text: "Нажмите <span>E</span> для того, чтобы взять ящик с материалами",
+            },
             "put_ammobox": {
                 text: "Нажмите <span>E</span> для того, чтобы положить ящик с боеприпасами",
             },
