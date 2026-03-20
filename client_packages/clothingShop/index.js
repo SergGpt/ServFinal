@@ -162,6 +162,12 @@ function updateEditMenuValue(index, value) {
     mp.callCEFV(`if (selectMenu.menu && selectMenu.menu.name === "clothingShopEditMenu") selectMenu.menu.items[${index}].values = ${JSON.stringify([value])};`);
 }
 
+function syncEditMenuValues() {
+    updateEditMenuValue(0, editClothingShopInfo.enter ? 'OK' : 'No');
+    updateEditMenuValue(1, editClothingShopInfo.place ? 'OK' : 'No');
+    updateEditMenuValue(2, editClothingShopInfo.camera ? 'OK' : 'No');
+}
+
 function resetEditClothingShopState() {
     editClothingShopInfo = {
         id: null,
@@ -181,6 +187,15 @@ function getGameplayCameraCoord() {
         y: camPos.y,
         z: camPos.z
     };
+}
+
+function normalizeEditShopData(shopData) {
+    if (!shopData || typeof shopData !== 'object') return;
+
+    editClothingShopInfo.id = shopData.id;
+    editClothingShopInfo.enter = shopData.enter || null;
+    editClothingShopInfo.place = shopData.place || null;
+    editClothingShopInfo.camera = shopData.camera || null;
 }
 
 mp.events.add({
@@ -225,14 +240,19 @@ mp.events.add({
 
         mp.events.callRemote('clothingShop.exit');
     },
-    'clothingShop.edit.open': (shopId) => {
+    'clothingShop.edit.open': (shopData) => {
         if (mp.busy.includes()) return;
         if (!mp.busy.add('clothingShop.edit', false)) return;
 
         resetEditClothingShopState();
-        editClothingShopInfo.id = shopId;
+        if (typeof shopData === 'number') {
+            editClothingShopInfo.id = shopData;
+        } else {
+            normalizeEditShopData(shopData);
+        }
         mp.callCEFV(`selectMenu.menu = cloneObj(selectMenu.menus["clothingShopEditMenu"]);`);
         mp.callCEFV(`selectMenu.show = true`);
+        syncEditMenuValues();
     },
     'clothingShop.edit.close': () => {
         mp.busy.remove('clothingShop.edit');

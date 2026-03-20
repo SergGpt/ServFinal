@@ -99,6 +99,52 @@ module.exports = {
         this.recreateShopShape(id);
         return shop;
     },
+    async createNewShop(data) {
+        const shop = await db.Models.ClothingShop.create({
+            bizId: data.bizId,
+            bType: data.bType,
+            class: data.class,
+            x: data.enter.x,
+            y: data.enter.y,
+            z: data.enter.z,
+            placeX: data.place.x,
+            placeY: data.place.y,
+            placeZ: data.place.z,
+            placeH: data.place.h,
+            cameraX: data.camera.x,
+            cameraY: data.camera.y,
+            cameraZ: data.camera.z,
+            priceMultiplier: data.priceMultiplier
+        });
+
+        shops.push(shop);
+        this.createShop(shop);
+        return shop;
+    },
+    getEditShopData(id) {
+        const shop = shops.find(x => x.id == id);
+        if (!shop) return null;
+
+        return {
+            id: shop.id,
+            enter: {
+                x: shop.x,
+                y: shop.y,
+                z: shop.z
+            },
+            place: {
+                x: shop.placeX,
+                y: shop.placeY,
+                z: shop.placeZ,
+                h: shop.placeH
+            },
+            camera: {
+                x: shop.cameraX,
+                y: shop.cameraY,
+                z: shop.cameraZ
+            }
+        };
+    },
     getRawShopData(id) {
         let shop = shops.find(x => x.id == id);
         return {

@@ -58,6 +58,51 @@ function startClothesScan(player, out, options) {
 }
 
 module.exports = {
+    '/cshopadd': {
+        args: '[bizId] [bType] [class]',
+        description: 'Создать магазин одежды на позиции игрока и открыть редактор',
+        access: 6,
+        handler: async (player, args, out) => {
+            const bizId = parseInt(args[0]);
+            const bType = parseInt(args[1]);
+            const shopClass = parseInt(args[2]);
+
+            if (isNaN(bizId) || isNaN(bType) || isNaN(shopClass)) {
+                return out.error('Используй: /cshopadd [bizId] [bType] [class]', player);
+            }
+
+            const enter = {
+                x: player.position.x,
+                y: player.position.y,
+                z: player.position.z - 1.3
+            };
+            const place = {
+                x: player.position.x,
+                y: player.position.y,
+                z: player.position.z,
+                h: player.heading
+            };
+            const camera = {
+                x: player.position.x,
+                y: player.position.y,
+                z: player.position.z + 1.0
+            };
+
+            const clothingShop = require('./index.js');
+            const shop = await clothingShop.createNewShop({
+                bizId,
+                bType,
+                class: shopClass,
+                enter,
+                place,
+                camera,
+                priceMultiplier: 1.0
+            });
+
+            player.call('clothingShop.edit.open', [clothingShop.getEditShopData(shop.id)]);
+            out.info(`Создан магазин одежды #${shop.id}. Открываю редактор.`, player);
+        }
+    },
     '/cshopedit': {
         args: '[id]',
         description: 'Настроить вход, место примерки и камеру магазина одежды',
@@ -66,10 +111,11 @@ module.exports = {
             const id = parseInt(args[0]);
             if (isNaN(id)) return out.error('Используй: /cshopedit [id]', player);
 
-            const shop = await db.Models.ClothingShop.findOne({ where: { id } });
-            if (!shop) return out.error('Магазин не найден', player);
+            const clothingShop = require('./index.js');
+            const shopData = clothingShop.getEditShopData(id);
+            if (!shopData) return out.error('Магазин не найден', player);
 
-            player.call('clothingShop.edit.open', [id]);
+            player.call('clothingShop.edit.open', [shopData]);
             out.info(`Открыта настройка магазина одежды #${id}`, player);
         }
     },
