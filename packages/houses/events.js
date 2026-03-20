@@ -307,6 +307,7 @@ module.exports = {
             y: player.position.y,
             z: player.position.z,
             spawnHeading: player.heading,
+            d: player.dimension || 0,
             color1: 54,
             color2: 54,
             license: 0,
