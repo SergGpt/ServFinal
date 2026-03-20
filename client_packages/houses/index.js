@@ -473,6 +473,7 @@ mp.events.add('house.add.garage.close', () => {
 });
 mp.events.add('house.add.garage.exit', () => {
     if (mp.players.local.vehicle) return mp.notify.error("Покиньте авто", "Ошибка");
+    const currentDimension = mp.players.local.dimension || 0;
     addGarageInfo.exitX = mp.players.local.position.x;
     addGarageInfo.exitY = mp.players.local.position.y;
     addGarageInfo.exitZ = mp.players.local.position.z;
@@ -484,12 +485,13 @@ mp.events.add('house.add.garage.exit', () => {
             rotation: new mp.Vector3(0, 0, 0),
             color: [0, 255, 0, 255],
             visible: true,
-            dimension: 0
+            dimension: currentDimension
         });
     mp.callCEFV(`selectMenu.menu.items[4].values = ["GREEN"];`);
 });
 mp.events.add('house.add.garage.enter', () => {
     if (mp.players.local.vehicle) return mp.notify.error("Покиньте авто", "Ошибка");
+    const currentDimension = mp.players.local.dimension || 0;
     addGarageInfo.x = mp.players.local.position.x;
     addGarageInfo.y = mp.players.local.position.y;
     addGarageInfo.z = mp.players.local.position.z;
@@ -503,7 +505,7 @@ mp.events.add('house.add.garage.enter', () => {
             rotation: new mp.Vector3(0, 0, 0),
             color: [255, 0, 0, 255],
             visible: true,
-            dimension: 0
+            dimension: currentDimension
         });
     enterMarkerAngle = mp.markers.new(0, new mp.Vector3(addGarageInfo.x + Math.sin((360 - addGarageInfo.rotation) * Math.PI/180) * 0.5, addGarageInfo.y + Math.cos((360 - addGarageInfo.rotation) * Math.PI/180) * 0.5, addGarageInfo.z - 1), 0.25,
     {
@@ -511,7 +513,7 @@ mp.events.add('house.add.garage.enter', () => {
         rotation: new mp.Vector3(0, 0, 0),
         color: [255, 0, 0, 255],
         visible: true,
-        dimension: 0
+        dimension: currentDimension
     });
     mp.callCEFV(`selectMenu.menu.items[3].values = ["RED"];`);
 });
@@ -520,11 +522,28 @@ mp.events.add('house.add.garage.carSpawn', () => {
     id++;
     mp.events.callRemote("house.add.carSpawn", id, true);
 });
+
+function assignGarageCarId(idCar, attempts = 20) {
+    const localVehicle = mp.players.local.vehicle;
+    if (localVehicle) {
+        localVehicle.idCar = idCar;
+        return;
+    }
+
+    if (attempts <= 0) {
+        mp.notify.error("Машина для настройки гаража не появилась", "Ошибка");
+        return;
+    }
+
+    setTimeout(() => assignGarageCarId(idCar, attempts - 1), 100);
+}
+
 mp.events.add('house.add.carSpawn.ans', (id) => {
-    mp.players.local.vehicle.idCar = id;
+    assignGarageCarId(id);
 });
 mp.events.add('house.add.garage.addPlace', () => {
     if (!mp.players.local.vehicle) return mp.notify.error("Сядьте в авто", "Ошибка");
+    const currentDimension = mp.players.local.dimension || 0;
     let pos = mp.vehicles.getVehiclePosition(mp.players.local.vehicle);
 
     let marker = mp.markers.new(0, new mp.Vector3(pos.x, pos.y, pos.z + 0.5), 1,
@@ -533,7 +552,7 @@ mp.events.add('house.add.garage.addPlace', () => {
             rotation: new mp.Vector3(0, 0, 0),
             color: [0, 0, 255, 255],
             visible: true,
-            dimension: 0
+            dimension: currentDimension
         });
 
     addGarageInfo.GaragePlaces.push({
@@ -549,7 +568,7 @@ mp.events.add('house.add.garage.addPlace', () => {
 });
 mp.events.add('house.add.garage.removePlace', () => {
     if (!mp.players.local.vehicle) return mp.notify.error("Сядьте в авто", "Ошибка");
-    let index = addGarageInfo.GaragePlaces.findIndex(x => x.id = mp.players.local.vehicle.idCar);
+    let index = addGarageInfo.GaragePlaces.findIndex(x => x.id == mp.players.local.vehicle.idCar);
     let idCar = mp.players.local.vehicle.idCar;
     if (index == -1) return mp.notify.error("Авто не найдено в списке парковочных мест", "Ошибка");
     addGarageInfo.GaragePlaces[index].marker.destroy();

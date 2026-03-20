@@ -1,5 +1,7 @@
 let shops;
 let bizes;
+let shopMarkers = new Map();
+let shopBlips = new Map();
 
 module.exports = {
     business: {
@@ -35,23 +37,113 @@ module.exports = {
         console.log(`[CLOTHINGSHOP] Загружено магазинов одежды: ${i}`);
     },
     createShop(shop) {
-        mp.blips.new(73, new mp.Vector3(shop.x, shop.y, shop.z),
+        const oldMarker = shopMarkers.get(shop.id);
+        if (oldMarker) {
+            oldMarker.destroy();
+            shopMarkers.delete(shop.id);
+        }
+
+        const oldBlip = shopBlips.get(shop.id);
+        if (oldBlip) {
+            oldBlip.destroy();
+            shopBlips.delete(shop.id);
+        }
+
+        const blip = mp.blips.new(73, new mp.Vector3(shop.x, shop.y, shop.z),
             {
                 name: 'Магазин одежды',
                 color: 0,
                 shortRange: true,
             });
+        shopBlips.set(shop.id, blip);
 
-        mp.markers.new(1, new mp.Vector3(shop.x, shop.y, shop.z - 0.05), 0.8,
+        const marker = mp.markers.new(1, new mp.Vector3(shop.x, shop.y, shop.z - 0.05), 0.8,
             {
                 color: [245, 167, 66, 200],
                 visible: true,
                 dimension: 0
             });
+        shopMarkers.set(shop.id, marker);
 
         let shape = mp.colshapes.newSphere(shop.x, shop.y, shop.z, 1.8);
         shape.isClothingShop = true;
         shape.clothingShopId = shop.id;
+    },
+    recreateShopShape(id) {
+        let shop = shops.find(x => x.id == id);
+        if (!shop) return false;
+
+        const oldShape = mp.colshapes.toArray().find(x => x.clothingShopId === id);
+        if (oldShape) oldShape.destroy();
+
+        this.createShop(shop);
+        return true;
+    },
+    async updateShopLayout(id, data) {
+        let shop = shops.find(x => x.id == id);
+        if (!shop) return null;
+
+        await shop.update({
+            x: data.enter.x,
+            y: data.enter.y,
+            z: data.enter.z,
+            placeX: data.place.x,
+            placeY: data.place.y,
+            placeZ: data.place.z,
+            placeH: data.place.h,
+            cameraX: data.camera.x,
+            cameraY: data.camera.y,
+            cameraZ: data.camera.z
+        });
+
+        this.recreateShopShape(id);
+        return shop;
+    },
+    async createNewShop(data) {
+        const shop = await db.Models.ClothingShop.create({
+            bizId: data.bizId,
+            bType: data.bType,
+            class: data.class,
+            x: data.enter.x,
+            y: data.enter.y,
+            z: data.enter.z,
+            placeX: data.place.x,
+            placeY: data.place.y,
+            placeZ: data.place.z,
+            placeH: data.place.h,
+            cameraX: data.camera.x,
+            cameraY: data.camera.y,
+            cameraZ: data.camera.z,
+            priceMultiplier: data.priceMultiplier
+        });
+
+        shops.push(shop);
+        this.createShop(shop);
+        return shop;
+    },
+    getEditShopData(id) {
+        const shop = shops.find(x => x.id == id);
+        if (!shop) return null;
+
+        return {
+            id: shop.id,
+            enter: {
+                x: shop.x,
+                y: shop.y,
+                z: shop.z
+            },
+            place: {
+                x: shop.placeX,
+                y: shop.placeY,
+                z: shop.placeZ,
+                h: shop.placeH
+            },
+            camera: {
+                x: shop.cameraX,
+                y: shop.cameraY,
+                z: shop.cameraZ
+            }
+        };
     },
     getRawShopData(id) {
         let shop = shops.find(x => x.id == id);

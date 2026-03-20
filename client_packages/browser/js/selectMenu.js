@@ -6415,6 +6415,66 @@ var selectMenu = new Vue({
 
                 }
             },
+            "clothingShopEditMenu": {
+                name: "clothingShopEditMenu",
+                header: "Настройка магазина одежды",
+                items: [{
+                        text: "Поставить вход в магазин",
+                        values: ['No'],
+                        i: 0,
+                    },
+                    {
+                        text: "Поставить место примерки",
+                        values: ['No'],
+                        i: 0,
+                    },
+                    {
+                        text: "Сохранить позицию камеры",
+                        values: ['No'],
+                        i: 0,
+                    },
+                    {
+                        text: "Сохранить",
+                    },
+                    {
+                        text: "Закрыть",
+                    }
+                ],
+                i: 0,
+                j: 0,
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    var e = {
+                        menuName: this.name,
+                        itemName: item.text,
+                        itemIndex: this.i,
+                        itemValue: (item.i != null && item.values) ? item.values[item.i] : null,
+                        valueIndex: item.i,
+                    };
+                    if (eventName == 'onItemSelected') {
+                        switch (e.itemName) {
+                            case "Поставить вход в магазин":
+                                mp.trigger("clothingShop.edit.enter");
+                                break;
+                            case "Поставить место примерки":
+                                mp.trigger("clothingShop.edit.place");
+                                break;
+                            case "Сохранить позицию камеры":
+                                mp.trigger("clothingShop.edit.camera");
+                                break;
+                            case "Сохранить":
+                                mp.trigger("clothingShop.edit.save");
+                                break;
+                            case "Закрыть":
+                                mp.trigger("clothingShop.edit.close");
+                                break;
+                        }
+                    }
+                    if (eventName == 'onBackspacePressed' || eventName == 'onEscapePressed') {
+                        mp.trigger("clothingShop.edit.close");
+                    }
+                }
+            },
             "clothingTops": {
                 name: "clothingTops",
                 header: "Тело",
