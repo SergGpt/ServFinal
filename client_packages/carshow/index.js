@@ -17,6 +17,40 @@ let controlsDisabled = false;
 let isTestDriving = false;
 
 let updateTimeout;
+let showcaseHeading = 0;
+let showcaseRotationSpeed = 0.15;
+
+function applyCurrentShowcaseHeading() {
+    if (!current || !mp.vehicles.exists(current)) return;
+    current.setHeading(showcaseHeading);
+}
+
+function ensureCarShowSetupMenu() {
+    mp.callCEFV(`(function() {
+        selectMenu.menus["carShowSetup"] = {
+            name: "carShowSetup",
+            header: "Настройка автосалона",
+            items: [
+                { text: "Поставить вход" },
+                { text: "Поставить выход / выдачу авто" },
+                { text: "Поставить точку показа авто" },
+                { text: "Поставить камеру" },
+                { text: "Закрыть" }
+            ],
+            i: 0,
+            j: 0,
+            handler(eventName) {
+                var item = this.items[this.i];
+                var e = {
+                    menuName: this.name,
+                    itemName: item.text,
+                    itemIndex: this.i
+                };
+                mp.trigger("selectMenu.handler", this.name, eventName, JSON.stringify(e));
+            }
+        };
+    })()`);
+}
 
 mp.events.add('carshow.list.show', (inputList, inputInfo) => {
 
@@ -34,6 +68,7 @@ mp.events.add('carshow.list.show', (inputList, inputInfo) => {
 
     list = inputList;
     carShowInfo = inputInfo;
+    showcaseHeading = carShowInfo.toH || 0;
     camera = mp.cameras.new('default', new mp.Vector3(carShowInfo.cameraX, carShowInfo.cameraY, carShowInfo.cameraZ), new mp.Vector3(0, 0, 0), 70);
     camera.pointAtCoord(carShowInfo.toX, carShowInfo.toY, carShowInfo.toZ);
     camera.setActive(true);
@@ -44,6 +79,7 @@ mp.events.add('carshow.list.show', (inputList, inputInfo) => {
     new mp.Vector3(carShowInfo.toX, carShowInfo.toY, carShowInfo.toZ),
     { dimension: mp.players.local.dimension } // <- добавлено
 )
+    applyCurrentShowcaseHeading();
 
     let models = inputList.map(x => {
         return {
@@ -66,6 +102,11 @@ mp.events.add('carshow.list.show', (inputList, inputInfo) => {
 mp.events.add('render', () => {
     if (controlsDisabled) {
         mp.game.controls.disableControlAction(1, 200, true);
+    }
+    if (controlsDisabled && !isTestDriving && current && mp.vehicles.exists(current)) {
+        showcaseHeading += showcaseRotationSpeed;
+        if (showcaseHeading >= 360) showcaseHeading -= 360;
+        applyCurrentShowcaseHeading();
     }
 });
 
@@ -99,6 +140,7 @@ mp.events.add('carshow.vehicle.show', (i) => {
     new mp.Vector3(carShowInfo.toX, carShowInfo.toY, carShowInfo.toZ),
     { dimension: mp.players.local.dimension } // <- добавлено
 );
+            applyCurrentShowcaseHeading();
         }
     }, 300);
 });
@@ -135,6 +177,12 @@ mp.events.add("carshow.testdrive.started", () => {
     isTestDriving = true;
 });
 
+mp.events.add("carshow.setup.show", (carShowId, name) => {
+    ensureCarShowSetupMenu();
+    mp.callCEFV(`selectMenu.menus["carShowSetup"].header = "Настройка автосалона #${carShowId}: ${name}"`);
+    mp.events.call('selectMenu.show', 'carShowSetup');
+});
+
 mp.events.add("carshow.car.buy.ans", (ans, carInfo, parkingInfo) => {
     mp.events.call('carshow.list.close');
     switch (ans) {
@@ -167,8 +215,17 @@ mp.events.add("carshow.car.buy.ans", (ans, carInfo, parkingInfo) => {
         case 7: // нельзя выдать ключи в инвентарь
             mp.notify.error(carInfo.text, `Инвентарь`);
             break;
+        case 8:
+            mp.notify.success('Вы приобрели транспорт', 'Успех');
+            mp.events.call('chat.message.push', `!{#80c102}Вы успешно приобрели транспортное средство !{#009eec}${carInfo.properties.name}`);
+            mp.events.call('chat.message.push', '!{#f3c800}Транспорт появился рядом с точкой выхода из автосалона');
+            break;
     }
     mp.callCEFV(`selectMenu.loader = false;`);
+});
+
+mp.events.add('carshow.setup.action', (action) => {
+    mp.events.callRemote('carshow.setup.apply', action);
 });
 
 function getModelClass(model) {

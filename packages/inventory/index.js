@@ -127,6 +127,7 @@ async loadInventoryItemsFromDB() {
 
     // Передаём на клиент уже распарсенные объекты
     this.clientInventoryItems = this.convertServerInventoryItemsToClient(parsedItems);
+    this.refreshBackWeaponList();
     console.log(`[INVENTORY] Предметы инвентаря загружены (${dbItems.length} шт.)`);
 
     // Опционально: сразу обновить всех игроков (чтобы изменения применялись без рестарта клиента)
@@ -138,6 +139,17 @@ async loadInventoryItemsFromDB() {
         console.error("[INVENTORY] Error broadcasting items to clients:", e);
     }
 },
+    refreshBackWeaponList() {
+        const legacyList = Array.isArray(this.bodyList[9]) ? this.bodyList[9] : [];
+        const weaponIds = Object.values(this.inventoryItems)
+            .filter(item => item && typeof item.model === 'string' && item.model.startsWith('weapon_'))
+            .map(item => item.id);
+
+        this.bodyList[9] = Array.from(new Set([...legacyList, ...weaponIds]))
+            .sort((a, b) => a - b);
+
+        console.log(`[INVENTORY] Слот оружия за спиной обновлен: ${this.bodyList[9].length} предметов`);
+    },
     convertServerInventoryItemsToClient(dbItems) {
         var client = {};
         for (var i = 0; i < dbItems.length; i++) {

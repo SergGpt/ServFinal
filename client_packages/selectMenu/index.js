@@ -30,6 +30,20 @@ mp.events.add({
                     break;
             }
         }
+
+        if (menuName === "carShowSetup" && eventName === "onItemSelected") {
+            if (e.itemName === "Поставить вход") {
+                mp.events.call("carshow.setup.action", "entry");
+            } else if (e.itemName === "Поставить выход / выдачу авто") {
+                mp.events.call("carshow.setup.action", "return");
+            } else if (e.itemName === "Поставить точку показа авто") {
+                mp.events.call("carshow.setup.action", "display");
+            } else if (e.itemName === "Поставить камеру") {
+                mp.events.call("carshow.setup.action", "camera");
+            } else if (e.itemName === "Закрыть") {
+                mp.events.call("carshow.setup.action", "close");
+            }
+        }
         
         // TODO: Обработка других событий меню...
     },
@@ -79,4 +93,3 @@ mp.events.add({
         mp.game.audio.playSoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true);
     },
 });
-
