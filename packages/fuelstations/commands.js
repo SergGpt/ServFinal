@@ -17,16 +17,26 @@ module.exports = {
             if (isNaN(bizId)) return player.call('notifications.push.error', ['Укажите корректный bizId', 'Ошибка']);
             if (!name) return player.call('notifications.push.error', ['Укажите название АЗС', 'Ошибка']);
 
-            const station = await fuelstations.createNewFuelStation({
-                bizId: bizId,
-                name: name,
-                x: player.position.x,
-                y: player.position.y,
-                z: player.position.z,
-                fuelPrice: 3
-            });
+            const normalizedBizId = bizId > 0 ? bizId : null;
+            if (normalizedBizId != null) {
+                const biz = call('bizes').getBizById(normalizedBizId);
+                if (!biz) return player.call('notifications.push.error', [`Бизнес #${normalizedBizId} не найден`, 'Ошибка']);
+            }
 
-            player.call('notifications.push.success', [`АЗС #${station.id} (${station.name}) создана`, 'Успешно']);
+            try {
+                const station = await fuelstations.createNewFuelStation({
+                    bizId: normalizedBizId,
+                    name: name,
+                    x: player.position.x,
+                    y: player.position.y,
+                    z: player.position.z,
+                    fuelPrice: 3
+                });
+
+                player.call('notifications.push.success', [`АЗС #${station.id} (${station.name}) создана`, 'Успешно']);
+            } catch (err) {
+                player.call('notifications.push.error', [err.message, 'Ошибка']);
+            }
         }
     },
     "/setfuelprice": {

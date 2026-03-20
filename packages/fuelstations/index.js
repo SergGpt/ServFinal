@@ -48,7 +48,7 @@ module.exports = {
     async createNewFuelStation(data) {
         const station = await db.Models.FuelStation.create({
             name: data.name,
-            bizId: data.bizId,
+            bizId: data.bizId != null ? data.bizId : null,
             x: data.x,
             y: data.y,
             z: data.z,
