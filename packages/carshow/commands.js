@@ -89,5 +89,14 @@ module.exports = {
             carshow.registerCarShow(dbCarShow);
             out.info(`Автосалон "${name}" создан. ID: ${dbCarShow.id}`, player);
         }
+    },
+    "/carshowedit": {
+        access: 6,
+        description: "Открыть меню настройки автосалона",
+        args: "[id]:n",
+        handler: (player, args, out) => {
+            if (!args[0]) return out.error('Укажите ID автосалона', player);
+            mp.events.call('carshow.setup.open', player, args[0]);
+        }
     }
 }

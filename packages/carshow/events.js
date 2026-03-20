@@ -29,8 +29,9 @@ module.exports = {
     "carshow.list.close": (player, carShowId) => {
         player.dimension = 0;
         let info = carshow.getCarShowInfoById(carShowId);
-        utils.setPlayerPosition(player, new mp.Vector3(info.returnX, info.returnY, info.returnZ));
-        player.heading = info.returnH;
+        let exitPos = carshow.getExitPosition(info);
+        utils.setPlayerPosition(player, new mp.Vector3(exitPos.x, exitPos.y, exitPos.z));
+        player.heading = info.returnH || 0;
     },
     "carshow.car.buy": (player, carId, primaryColor, secondaryColor) => {
         carshow.buyCarFromCarList(player, carId, primaryColor, secondaryColor);
@@ -70,5 +71,45 @@ module.exports = {
         }
         let info = carshow.getCarShowInfoById(player.carShowId);
         utils.setPlayerPosition(player, new mp.Vector3(info.x, info.y, info.z));
+    },
+    "carshow.setup.open": (player, carShowId) => {
+        let info = carshow.getCarShowInfoById(carShowId);
+        if (!info) return player.call('notifications.push.error', ['Автосалон не найден', 'Ошибка']);
+
+        player.carShowEditId = carShowId;
+        player.call('carshow.setup.show', [carShowId, info.name]);
+    },
+    "carshow.setup.apply": async (player, action) => {
+        if (!player.carShowEditId) return player.call('notifications.push.error', ['Сначала откройте /carshowedit [id]', 'Ошибка']);
+
+        const pos = player.position;
+        const heading = player.heading;
+        const sqlId = player.carShowEditId;
+        let updateData = null;
+        let message = null;
+
+        if (action === 'entry') {
+            updateData = { x: pos.x, y: pos.y, z: pos.z - 1 };
+            message = 'Точка входа автосалона обновлена';
+        } else if (action === 'return') {
+            updateData = { returnX: pos.x, returnY: pos.y, returnZ: pos.z, returnH: heading };
+            message = 'Точка выхода/выдачи авто обновлена';
+        } else if (action === 'display') {
+            updateData = { toX: pos.x, toY: pos.y, toZ: pos.z - 1, toH: heading };
+            message = 'Точка показа автомобиля обновлена';
+        } else if (action === 'camera') {
+            updateData = { cameraX: pos.x, cameraY: pos.y, cameraZ: pos.z };
+            message = 'Точка камеры обновлена';
+        } else if (action === 'close') {
+            player.call('selectMenu.hide');
+            return;
+        }
+
+        if (!updateData) return;
+
+        let updated = await carshow.updateCarShow(sqlId, updateData);
+        if (!updated) return player.call('notifications.push.error', ['Автосалон не найден', 'Ошибка']);
+
+        player.call('selectMenu.notification', [message]);
     }
 }
