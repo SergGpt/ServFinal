@@ -12,6 +12,45 @@ let carmarket;
 let timer;
 let utils;
 
+function rotateGarageOffset(baseX, baseY, heading, forward, right) {
+    const angle = (heading || 0) * Math.PI / 180;
+    const sin = Math.sin(angle);
+    const cos = Math.cos(angle);
+
+    return {
+        x: baseX + forward * sin + right * cos,
+        y: baseY + forward * cos - right * sin
+    };
+}
+
+function buildGarageFallbackPlaces(houseId, garage) {
+    const result = [];
+    const totalPlaces = Math.max(0, parseInt(garage.carPlaces) || 0);
+    if (!totalPlaces) return result;
+
+    const columns = totalPlaces >= 4 ? 2 : 1;
+    const sideSpacing = columns === 2 ? 2.8 : 0;
+    const rowSpacing = 5.5;
+
+    for (let i = 0; i < totalPlaces; i++) {
+        const row = Math.floor(i / columns);
+        const column = i % columns;
+        const right = columns === 1 ? 0 : (column === 0 ? -sideSpacing / 2 : sideSpacing / 2);
+        const forward = row * rowSpacing;
+        const pos = rotateGarageOffset(garage.x, garage.y, garage.rotation, forward, right);
+
+        result.push({
+            x: pos.x,
+            y: pos.y,
+            z: garage.z,
+            h: garage.rotation,
+            d: houseId
+        });
+    }
+
+    return result;
+}
+
 /// Economic constants
 let dropHouseMultiplier = 0.6;
 let holderImprovmentMultiplier = 0.01;
@@ -576,7 +615,12 @@ module.exports = {
         let garage = house.Interior.Garage;
         if (garage == null) return garagePlaces;
 
-        house.Interior.Garage.GaragePlaces.forEach(place => {
+        const savedPlaces = Array.isArray(house.Interior.Garage.GaragePlaces) ? house.Interior.Garage.GaragePlaces : [];
+        if (!savedPlaces.length && garage.carPlaces > 0) {
+            return garagePlaces.concat(buildGarageFallbackPlaces(house.id, garage));
+        }
+
+        savedPlaces.forEach(place => {
             garagePlaces.push({
                 x: place.x,
                 y: place.y,
