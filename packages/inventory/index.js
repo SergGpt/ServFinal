@@ -654,16 +654,14 @@ async addItem(player, itemId, params, callback = () => {}) {
     getWeaponModels() {
     if (!Array.isArray(this.bodyList[9])) return [];
 
-    return this.bodyList[9]
-        .map(x => {
-            const item = this.getInventoryItem(x);
-            if (!item) {
-                console.warn(`Inventory item not found in bodyList[9]: ${x}`);
-                return null;
-            }
-            return item.model;
-        })
-        .filter(model => model !== null);
+    return this.bodyList[9].map(x => {
+        const item = this.getInventoryItem(x);
+        if (!item) {
+            console.warn(`Inventory item not found in bodyList[9]: ${x}`);
+            return null;
+        }
+        return item.model || null;
+    });
 },
 getInventoryItem(itemId) {
     const item = this.inventoryItems[itemId];

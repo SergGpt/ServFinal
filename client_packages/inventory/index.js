@@ -218,6 +218,11 @@ mp.inventory = {
             var itemId = list[i];
             var model = models[i];
 
+            if (model == null) {
+                console.warn(`[INVENTORY] Weapon attachment model missing for itemId ${itemId}`);
+                continue;
+            }
+
             var bone = 24818;
             var pos = new mp.Vector3(0.2, -0.155, -0.1);
             var rot = new mp.Vector3(13, 180, 10);

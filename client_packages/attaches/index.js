@@ -87,6 +87,11 @@ mp.attachmentMngr = {
             model = mp.game.joaat(model);
         }
 
+        if (!Number.isInteger(model)) {
+            console.warn(`[ATTACHES] register skipped: invalid model for attachment ${id}`, model);
+            return;
+        }
+
         if (!this.attachments.hasOwnProperty(id)) {
             if (mp.game.streaming.isModelInCdimage(model)) {
                 this.attachments[id] = {
