@@ -58,6 +58,21 @@ function startClothesScan(player, out, options) {
 }
 
 module.exports = {
+    '/cshopedit': {
+        args: '[id]',
+        description: 'Настроить вход, место примерки и камеру магазина одежды',
+        access: 6,
+        handler: async (player, args, out) => {
+            const id = parseInt(args[0]);
+            if (isNaN(id)) return out.error('Используй: /cshopedit [id]', player);
+
+            const shop = await db.Models.ClothingShop.findOne({ where: { id } });
+            if (!shop) return out.error('Магазин не найден', player);
+
+            player.call('clothingShop.edit.open', [id]);
+            out.info(`Открыта настройка магазина одежды #${id}`, player);
+        }
+    },
     '/loadcshops': {
         args: '',
         description: 'Загрузка магазов одежды',

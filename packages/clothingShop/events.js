@@ -13,6 +13,14 @@ function capacityToPockets(capacity) {
     const rows = Math.max(1, Math.ceil(capacity / cols));
     return [cols, rows];
 }
+
+function isValidVector3(data) {
+    return data
+        && Number.isFinite(data.x)
+        && Number.isFinite(data.y)
+        && Number.isFinite(data.z);
+}
+
 module.exports = {
     "init": async () => {
         await clothingShop.init();
@@ -53,6 +61,29 @@ module.exports = {
     "clothingShop.exit": (player) => {
         player.dimension = 0;
         inventory.updateAllView(player);
+    },
+    "clothingShop.edit.save": async (player, shopId, rawData) => {
+        if (!player.account || player.account.admin < 6) return;
+
+        shopId = parseInt(shopId);
+        if (isNaN(shopId)) return player.call('notifications.push.error', ['Некорректный ID магазина', 'Ошибка']);
+
+        let data = null;
+        try {
+            data = JSON.parse(rawData);
+        } catch (e) {
+            return player.call('notifications.push.error', ['Не удалось прочитать данные меню', 'Ошибка']);
+        }
+
+        if (!data || !isValidVector3(data.enter) || !isValidVector3(data.place) || !isValidVector3(data.camera) || !Number.isFinite(data.place.h)) {
+            return player.call('notifications.push.error', ['Заполните вход, место примерки и камеру', 'Ошибка']);
+        }
+
+        const shop = await clothingShop.updateShopLayout(shopId, data);
+        if (!shop) return player.call('notifications.push.error', ['Магазин не найден', 'Ошибка']);
+
+        player.call('notifications.push.success', [`Настройки магазина одежды #${shopId} сохранены`, 'Успешно']);
+        player.call('clothingShop.edit.close');
     },
     "clothingShop.item.buy": (player, group, itemId, textureIndex) => {
         let shopId = player.currentClothingShopId;

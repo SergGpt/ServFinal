@@ -139,6 +139,49 @@ let rotation = {
 
 let debugMode = false;
 let debugText;
+let editClothingShopInfo = {
+    id: null,
+    enter: null,
+    place: null,
+    camera: null
+};
+let editMarkers = {
+    enter: null,
+    place: null,
+    camera: null
+};
+
+function destroyEditMarker(key) {
+    if (editMarkers[key] != null) {
+        editMarkers[key].destroy();
+        editMarkers[key] = null;
+    }
+}
+
+function updateEditMenuValue(index, value) {
+    mp.callCEFV(`if (selectMenu.menu && selectMenu.menu.name === "clothingShopEditMenu") selectMenu.menu.items[${index}].values = ${JSON.stringify([value])};`);
+}
+
+function resetEditClothingShopState() {
+    editClothingShopInfo = {
+        id: null,
+        enter: null,
+        place: null,
+        camera: null
+    };
+    destroyEditMarker('enter');
+    destroyEditMarker('place');
+    destroyEditMarker('camera');
+}
+
+function getGameplayCameraCoord() {
+    const camPos = mp.game.cam.getGameplayCamCoord();
+    return {
+        x: camPos.x,
+        y: camPos.y,
+        z: camPos.z
+    };
+}
 
 mp.events.add({
     'clothingShop.enter': (shopData) => {
@@ -181,6 +224,76 @@ mp.events.add({
         debugText = null;
 
         mp.events.callRemote('clothingShop.exit');
+    },
+    'clothingShop.edit.open': (shopId) => {
+        if (mp.busy.includes()) return;
+        if (!mp.busy.add('clothingShop.edit', false)) return;
+
+        resetEditClothingShopState();
+        editClothingShopInfo.id = shopId;
+        mp.callCEFV(`selectMenu.menu = cloneObj(selectMenu.menus["clothingShopEditMenu"]);`);
+        mp.callCEFV(`selectMenu.show = true`);
+    },
+    'clothingShop.edit.close': () => {
+        mp.busy.remove('clothingShop.edit');
+        mp.callCEFV(`selectMenu.show = false`);
+        resetEditClothingShopState();
+    },
+    'clothingShop.edit.enter': () => {
+        if (mp.players.local.vehicle) return mp.notify.error("Покиньте авто", "Ошибка");
+
+        editClothingShopInfo.enter = {
+            x: mp.players.local.position.x,
+            y: mp.players.local.position.y,
+            z: mp.players.local.position.z - 1.0
+        };
+
+        destroyEditMarker('enter');
+        editMarkers.enter = mp.markers.new(1, new mp.Vector3(editClothingShopInfo.enter.x, editClothingShopInfo.enter.y, editClothingShopInfo.enter.z - 0.05), 0.8, {
+            color: [245, 167, 66, 200],
+            visible: true,
+            dimension: 0
+        });
+        updateEditMenuValue(0, 'OK');
+    },
+    'clothingShop.edit.place': () => {
+        if (mp.players.local.vehicle) return mp.notify.error("Покиньте авто", "Ошибка");
+
+        editClothingShopInfo.place = {
+            x: mp.players.local.position.x,
+            y: mp.players.local.position.y,
+            z: mp.players.local.position.z,
+            h: mp.players.local.getHeading()
+        };
+
+        destroyEditMarker('place');
+        editMarkers.place = mp.markers.new(0, new mp.Vector3(editClothingShopInfo.place.x, editClothingShopInfo.place.y, editClothingShopInfo.place.z), 1, {
+            direction: new mp.Vector3(0, 0, 0),
+            rotation: new mp.Vector3(0, 0, 0),
+            color: [0, 255, 0, 255],
+            visible: true,
+            dimension: 0
+        });
+        updateEditMenuValue(1, 'OK');
+    },
+    'clothingShop.edit.camera': () => {
+        editClothingShopInfo.camera = getGameplayCameraCoord();
+
+        destroyEditMarker('camera');
+        editMarkers.camera = mp.markers.new(28, new mp.Vector3(editClothingShopInfo.camera.x, editClothingShopInfo.camera.y, editClothingShopInfo.camera.z), 0.2, {
+            color: [0, 170, 255, 255],
+            visible: true,
+            dimension: 0
+        });
+        updateEditMenuValue(2, 'OK');
+    },
+    'clothingShop.edit.save': () => {
+        if (editClothingShopInfo.id == null) return mp.notify.error("Магазин не выбран", "Ошибка");
+        if (editClothingShopInfo.enter == null) return mp.notify.error("Укажите вход в магазин", "Ошибка");
+        if (editClothingShopInfo.place == null) return mp.notify.error("Укажите место примерки", "Ошибка");
+        if (editClothingShopInfo.camera == null) return mp.notify.error("Укажите позицию камеры", "Ошибка");
+
+        mp.events.callRemote('clothingShop.edit.save', editClothingShopInfo.id, JSON.stringify(editClothingShopInfo));
     },
     'render': () => {
         if (rotation.left) player.setHeading(player.getHeading() - 2);
