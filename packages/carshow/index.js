@@ -17,32 +17,36 @@ module.exports = {
         await this.loadCarShowsFromDB();
         await this.loadCarListsFromDB();
     },
+    buildCarShowData(dbCarShowItem) {
+        return {
+            sqlId: dbCarShowItem.id,
+            name: dbCarShowItem.name,
+            x: dbCarShowItem.x,
+            y: dbCarShowItem.y,
+            z: dbCarShowItem.z,
+            cameraX: dbCarShowItem.cameraX,
+            cameraY: dbCarShowItem.cameraY,
+            cameraZ: dbCarShowItem.cameraZ,
+            toX: dbCarShowItem.toX,
+            toY: dbCarShowItem.toY,
+            toZ: dbCarShowItem.toZ,
+            toH: dbCarShowItem.toH,
+            returnX: dbCarShowItem.returnX,
+            returnY: dbCarShowItem.returnY,
+            returnZ: dbCarShowItem.returnZ,
+            returnH: dbCarShowItem.returnH,
+            blipId: dbCarShowItem.blipId,
+            blipColor: dbCarShowItem.blipColor
+        };
+    },
+    registerCarShow(dbCarShowItem) {
+        carShow.push(this.buildCarShowData(dbCarShowItem));
+        this.createCarShow(dbCarShowItem);
+    },
     async loadCarShowsFromDB() { /// Загрузка автосалонов из БД
         dbCarShow = await db.Models.CarShow.findAll();
         for (var i = 0; i < dbCarShow.length; i++) {
-            carShow.push({
-                sqlId: dbCarShow[i].id,
-                name: dbCarShow[i].name,
-                x: dbCarShow[i].x,
-                y: dbCarShow[i].y,
-                z: dbCarShow[i].z,
-                cameraX: dbCarShow[i].cameraX,
-                cameraY: dbCarShow[i].cameraY,
-                cameraZ: dbCarShow[i].cameraZ,
-                toX: dbCarShow[i].toX,
-                toY: dbCarShow[i].toY,
-                toZ: dbCarShow[i].toZ,
-                toH: dbCarShow[i].toH,
-                returnX: dbCarShow[i].returnX,
-                returnY: dbCarShow[i].returnY,
-                returnZ: dbCarShow[i].returnZ,
-                returnH: dbCarShow[i].returnH,
-                blipId: dbCarShow[i].blipId,
-                blipColor: dbCarShow[i].blipColor
-            });
-        }
-        for (var i = 0; i < dbCarShow.length; i++) {
-            this.createCarShow(dbCarShow[i]);
+            this.registerCarShow(dbCarShow[i]);
         }
         console.log(`[CARSHOW] Загружено автосалонов: ${i}`);
     },
