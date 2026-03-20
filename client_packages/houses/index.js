@@ -520,8 +520,24 @@ mp.events.add('house.add.garage.carSpawn', () => {
     id++;
     mp.events.callRemote("house.add.carSpawn", id, true);
 });
+
+function assignGarageCarId(idCar, attempts = 20) {
+    const localVehicle = mp.players.local.vehicle;
+    if (localVehicle) {
+        localVehicle.idCar = idCar;
+        return;
+    }
+
+    if (attempts <= 0) {
+        mp.notify.error("Машина для настройки гаража не появилась", "Ошибка");
+        return;
+    }
+
+    setTimeout(() => assignGarageCarId(idCar, attempts - 1), 100);
+}
+
 mp.events.add('house.add.carSpawn.ans', (id) => {
-    mp.players.local.vehicle.idCar = id;
+    assignGarageCarId(id);
 });
 mp.events.add('house.add.garage.addPlace', () => {
     if (!mp.players.local.vehicle) return mp.notify.error("Сядьте в авто", "Ошибка");
@@ -549,7 +565,7 @@ mp.events.add('house.add.garage.addPlace', () => {
 });
 mp.events.add('house.add.garage.removePlace', () => {
     if (!mp.players.local.vehicle) return mp.notify.error("Сядьте в авто", "Ошибка");
-    let index = addGarageInfo.GaragePlaces.findIndex(x => x.id = mp.players.local.vehicle.idCar);
+    let index = addGarageInfo.GaragePlaces.findIndex(x => x.id == mp.players.local.vehicle.idCar);
     let idCar = mp.players.local.vehicle.idCar;
     if (index == -1) return mp.notify.error("Авто не найдено в списке парковочных мест", "Ошибка");
     addGarageInfo.GaragePlaces[index].marker.destroy();
