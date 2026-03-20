@@ -181,7 +181,20 @@ function resetEditClothingShopState() {
 }
 
 function getGameplayCameraCoord() {
-    const camPos = mp.game.cam.getGameplayCamCoord();
+    let camPos = null;
+
+    if (mp.game.cam && typeof mp.game.cam.getGameplayCamCoord === 'function') {
+        camPos = mp.game.cam.getGameplayCamCoord();
+    } else if (mp.game.cam && typeof mp.game.cam.getFinalRenderedCamCoord === 'function') {
+        camPos = mp.game.cam.getFinalRenderedCamCoord();
+    } else {
+        camPos = new mp.Vector3(
+            mp.players.local.position.x,
+            mp.players.local.position.y,
+            mp.players.local.position.z + 1.0
+        );
+    }
+
     return {
         x: camPos.x,
         y: camPos.y,
