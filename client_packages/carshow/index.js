@@ -17,6 +17,13 @@ let controlsDisabled = false;
 let isTestDriving = false;
 
 let updateTimeout;
+let showcaseHeading = 0;
+let showcaseRotationSpeed = 0.15;
+
+function applyCurrentShowcaseHeading() {
+    if (!current || !mp.vehicles.exists(current)) return;
+    current.setHeading(showcaseHeading);
+}
 
 function ensureCarShowSetupMenu() {
     mp.callCEFV(`(function() {
@@ -61,6 +68,7 @@ mp.events.add('carshow.list.show', (inputList, inputInfo) => {
 
     list = inputList;
     carShowInfo = inputInfo;
+    showcaseHeading = carShowInfo.toH || 0;
     camera = mp.cameras.new('default', new mp.Vector3(carShowInfo.cameraX, carShowInfo.cameraY, carShowInfo.cameraZ), new mp.Vector3(0, 0, 0), 70);
     camera.pointAtCoord(carShowInfo.toX, carShowInfo.toY, carShowInfo.toZ);
     camera.setActive(true);
@@ -71,6 +79,7 @@ mp.events.add('carshow.list.show', (inputList, inputInfo) => {
     new mp.Vector3(carShowInfo.toX, carShowInfo.toY, carShowInfo.toZ),
     { dimension: mp.players.local.dimension } // <- добавлено
 )
+    applyCurrentShowcaseHeading();
 
     let models = inputList.map(x => {
         return {
@@ -93,6 +102,11 @@ mp.events.add('carshow.list.show', (inputList, inputInfo) => {
 mp.events.add('render', () => {
     if (controlsDisabled) {
         mp.game.controls.disableControlAction(1, 200, true);
+    }
+    if (controlsDisabled && !isTestDriving && current && mp.vehicles.exists(current)) {
+        showcaseHeading += showcaseRotationSpeed;
+        if (showcaseHeading >= 360) showcaseHeading -= 360;
+        applyCurrentShowcaseHeading();
     }
 });
 
@@ -126,6 +140,7 @@ mp.events.add('carshow.vehicle.show', (i) => {
     new mp.Vector3(carShowInfo.toX, carShowInfo.toY, carShowInfo.toZ),
     { dimension: mp.players.local.dimension } // <- добавлено
 );
+            applyCurrentShowcaseHeading();
         }
     }, 300);
 });
