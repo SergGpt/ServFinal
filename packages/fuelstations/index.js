@@ -45,6 +45,21 @@ module.exports = {
         label.isFuelStation = true;
         label.fuelStationId = station.id;
     },
+    async createNewFuelStation(data) {
+        const station = await db.Models.FuelStation.create({
+            name: data.name,
+            bizId: data.bizId,
+            x: data.x,
+            y: data.y,
+            z: data.z,
+            fuelPrice: data.fuelPrice || 3
+        });
+
+        if (!Array.isArray(dbFuelStations)) dbFuelStations = [];
+        dbFuelStations.push(station);
+        this.createFuelStation(station);
+        return station;
+    },
     parseFuelStations() {
         st.forEach((current) => {
             db.Models.FuelStation.create({

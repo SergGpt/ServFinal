@@ -6,6 +6,29 @@ module.exports = {
             player.spawn(new mp.Vector3(265.92852783203125, -1245.748291015625, 29.14651107788086));
         }
     },
+    "/fueladd": {
+        access: 6,
+        description: "Создать новую АЗС на позиции игрока",
+        args: "[bizId] [название]",
+        handler: async (player, args) => {
+            const bizId = parseInt(args[0]);
+            const name = args.slice(1).join(' ').trim();
+
+            if (isNaN(bizId)) return player.call('notifications.push.error', ['Укажите корректный bizId', 'Ошибка']);
+            if (!name) return player.call('notifications.push.error', ['Укажите название АЗС', 'Ошибка']);
+
+            const station = await fuelstations.createNewFuelStation({
+                bizId: bizId,
+                name: name,
+                x: player.position.x,
+                y: player.position.y,
+                z: player.position.z,
+                fuelPrice: 3
+            });
+
+            player.call('notifications.push.success', [`АЗС #${station.id} (${station.name}) создана`, 'Успешно']);
+        }
+    },
     "/setfuelprice": {
         access: 6,
         description: "Установить цену топлива на АЗС",
