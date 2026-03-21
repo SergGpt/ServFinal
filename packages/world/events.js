@@ -9,6 +9,7 @@ module.exports = {
     },
     "characterInit.done": (player) => {
         player.call(`world.doors.init`, [world.doors]);
+        player.call('city.blackout.set', [world.cityBlackout]);
     },
     // "world.doors.create": (player, hash, pos) => {
     //     if (typeof pos == 'string') pos = JSON.parse(pos);
@@ -30,5 +31,9 @@ module.exports = {
         data = JSON.parse(data);
         world.setObjectPos(data);
         terminal.info(`${player.name} изменил позицию объекта мира #${data.id}`);
+    },
+    "world.city.blackout.set": (player, state) => {
+        world.setCityBlackout(state);
+        terminal.info(`${player.name} ${state ? 'включил' : 'выключил'} отключение света в городе`);
     },
 }

@@ -9,6 +9,7 @@ let timer = call('timer');
 let death = call('death');
 let utils = call('utils');
 let moonshine = call('moonshine');
+let world = call('world');
 
 module.exports = {
 
@@ -49,6 +50,22 @@ module.exports = {
         args: "[сообщение]",
         handler: (player, args) => {
             mp.events.call('admin.notify.players.split', args.join(' '), `!{#ebc71b}${player.name}[${player.id}]: `);
+        }
+    },
+    "/citylight": {
+        access: 4,
+        description: "Включить или выключить уличное освещение в городе",
+        args: "[0|1]:b",
+        handler: (player, args) => {
+            const enabled = args[0];
+            world.setCityBlackout(enabled);
+
+            const stateText = enabled ? 'выключил' : 'включил';
+            mp.events.call('admin.notify.all', `!{#edffc2}[A] ${player.name} ${stateText} уличное освещение в городе`);
+            player.call('notifications.push.success', [
+                `Уличное освещение в городе ${enabled ? 'отключено' : 'включено'} для всех игроков`,
+                'Успешно'
+            ]);
         }
     },
     "/camhelp": {

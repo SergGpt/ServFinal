@@ -3,6 +3,7 @@
 mp.world = {
     // Показанные объекты для настройки
     debugObjects: [],
+    cityBlackout: false,
     clearDebugObjects() {
         this.debugObjects.forEach(obj => {
             obj.blip.destroy();
@@ -82,7 +83,13 @@ mp.events.add({
             });
         });
     },
+    "city.blackout.set": (state) => {
+        mp.world.cityBlackout = !!state;
+        mp.game.graphics.setBlackout(mp.world.cityBlackout);
+    },
     "render": () => {
+        mp.game.graphics.setBlackout(mp.world.cityBlackout);
+
         var start = Date.now();
         mp.world.debugObjects.forEach(obj => {
             if (!obj.db) return;

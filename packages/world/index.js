@@ -5,6 +5,8 @@ let utils = call('utils');
 module.exports = {
     // Двери
     doors: [],
+    // Глобальное состояние отключения света в городе
+    cityBlackout: false,
     // Объекты мира ГТА
     objects: {},
     // Колшейпы объектов (objId: colshape)
@@ -13,6 +15,14 @@ module.exports = {
     async init() {
         //this.loadDoorsFromDB();
         await this.loadWorldObjectsFromDB();
+    },
+    setCityBlackout(state) {
+        this.cityBlackout = !!state;
+
+        mp.players.forEach((player) => {
+            if (!player.character) return;
+            player.call('city.blackout.set', [this.cityBlackout]);
+        });
     },
     // async loadDoorsFromDB() {
     //     this.doors = await db.Models.Door.findAll();
