@@ -1,6 +1,7 @@
 let bizes;
 
 let customs;
+let customsRuntime = new Map();
 
 let modsConfig = {
     "11": "engineType",
@@ -77,7 +78,9 @@ module.exports = {
         console.log(`[TUNING] Загружены показатели транспорта: ${multipliers.length} шт.`);
     },
     createLSC(LSC) {
-        mp.blips.new(72, new mp.Vector3(LSC.x, LSC.y, LSC.z),
+        this.destroyLSC(LSC.id);
+
+        let blip = mp.blips.new(72, new mp.Vector3(LSC.x, LSC.y, LSC.z),
             {
                 name: 'Los Santos Customs',
                 color: 0,
@@ -87,9 +90,61 @@ module.exports = {
 
         shape.isCustoms = true;
         shape.customsId = LSC.id;
+        customsRuntime.set(LSC.id, { blip, shape });
+    },
+    destroyLSC(id) {
+        let runtime = customsRuntime.get(id);
+        if (!runtime) return;
+        if (runtime.blip) runtime.blip.destroy();
+        if (runtime.shape) runtime.shape.destroy();
+        customsRuntime.delete(id);
     },
     getCustomsDataById(id) {
         return customs.find(x => x.id == id);
+    },
+    async createCustoms(name, price, enterPos, tunePos, tuneH, returnPos, returnH) {
+        let bizId = await bizes.createBiz(name, price, this.business.type, enterPos);
+        let LSC = await db.Models.LosSantosCustoms.create({
+            bizId,
+            x: enterPos.x,
+            y: enterPos.y,
+            z: enterPos.z,
+            tuneX: tunePos.x,
+            tuneY: tunePos.y,
+            tuneZ: tunePos.z,
+            tuneH,
+            returnX: returnPos.x,
+            returnY: returnPos.y,
+            returnZ: returnPos.z,
+            returnH,
+            priceMultiplier: 1.0
+        });
+        customs.push(LSC);
+        this.createLSC(LSC);
+        return LSC;
+    },
+    async updateCustomsPoint(id, pointName, position, heading) {
+        let LSC = this.getCustomsDataById(id);
+        if (!LSC) return null;
+
+        let updateData = {};
+        switch (pointName) {
+            case 'enter':
+                updateData = { x: position.x, y: position.y, z: position.z };
+                break;
+            case 'tune':
+                updateData = { tuneX: position.x, tuneY: position.y, tuneZ: position.z, tuneH: heading };
+                break;
+            case 'return':
+                updateData = { returnX: position.x, returnY: position.y, returnZ: position.z, returnH: heading };
+                break;
+            default:
+                return null;
+        }
+
+        await LSC.update(updateData);
+        if (pointName === 'enter') this.createLSC(LSC);
+        return LSC;
     },
     getModsConfig() {
         return modsConfig;
