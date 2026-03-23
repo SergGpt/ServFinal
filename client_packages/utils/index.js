@@ -1,5 +1,7 @@
 "use strict";
 
+const mapResources = require("utils/mapResources.js");
+
 let playerMovingDisabled = false;
 let isCapsuleCollision = false;
 
@@ -162,29 +164,51 @@ mp.utils = {
         mp.game.object.doorControl(2529918806, 1855.685, 3683.93, 34.59282, false, 0.0, 0.0, 0.0);
 
     },
-    /// Загрузка IPL
+    /// Загрузка IPL и конфигурации интерьеров/MLO
     requestIpls() {
-        /// Больница
-        mp.game.streaming.requestIpl("coronertrash");
-        mp.game.streaming.requestIpl("Coroner_Int_On");
-        /// DMV
-        mp.game.streaming.requestIpl("ex_dt1_02_office_02b");
-        /// Трейлер Тревора
-        mp.game.streaming.requestIpl("TrevorsTrailerTidy");
-        /// Казино
-        mp.game.streaming.requestIpl("vw_casino_main");
-        mp.game.streaming.requestIpl("vw_casino_garage");
-        mp.game.streaming.requestIpl("vw_casino_carpark");
-        mp.game.streaming.requestIpl("vw_casino_penthouse");
+        const requestIpls = Array.isArray(mapResources.request) ? mapResources.request : [];
+        const removeIpls = Array.isArray(mapResources.remove) ? mapResources.remove : [];
+        const interiors = Array.isArray(mapResources.interiors) ? mapResources.interiors : [];
 
-        mp.game.streaming.removeIpl("rc12b_fixed");
-        mp.game.streaming.removeIpl("rc12b_destroyed");
-        mp.game.streaming.removeIpl("rc12b_default");
-        mp.game.streaming.removeIpl("rc12b_hospitalinterior_lod");
-        mp.game.streaming.removeIpl("rc12b_hospitalinterior");
-        /// Кастомная больница в пиллбокс
-        mp.game.streaming.requestIpl("hirurg_bath");
-        mp.game.streaming.requestIpl("elevator");
+        requestIpls.forEach((iplName) => {
+            if (!iplName) return;
+            mp.game.streaming.requestIpl(iplName);
+        });
+
+        removeIpls.forEach((iplName) => {
+            if (!iplName) return;
+            mp.game.streaming.removeIpl(iplName);
+        });
+
+        interiors.forEach((interiorConfig) => {
+            if (!interiorConfig || !interiorConfig.coords) return;
+
+            const { x, y, z } = interiorConfig.coords;
+            const interiorId = interiorConfig.id || mp.game.interior.getInteriorAtCoords(x, y, z);
+            if (!interiorId) return;
+
+            if (interiorConfig.pin) {
+                mp.game.interior.pinInteriorInMemory(interiorId);
+            }
+
+            if (Array.isArray(interiorConfig.props)) {
+                interiorConfig.props.forEach((propName) => {
+                    if (!propName) return;
+                    mp.game.interior.activateInteriorEntitySet(interiorId, propName);
+                });
+            }
+
+            if (Array.isArray(interiorConfig.disableProps)) {
+                interiorConfig.disableProps.forEach((propName) => {
+                    if (!propName) return;
+                    mp.game.interior.disableInteriorProp(interiorId, propName);
+                });
+            }
+
+            if (interiorConfig.refresh !== false) {
+                mp.game.interior.refreshInterior(interiorId);
+            }
+        });
     },
     // Получить позицию капота авто
     getHoodPosition(veh) {

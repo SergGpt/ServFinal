@@ -23,19 +23,15 @@ mp.events.add('render', () => {
 });
 require('./licenseNPC/licenseNPC_client.js');
 require('./attachmentsEditor/index.js');
-// В client_packages/index.js в самом начале добавьте:
-mp.game.streaming.requestIpl("tops01"); // замените на название вашего DLC
 
 
-/// Автоподключение клиентских модулей, игнорируем game_resources
+/// Автоподключение клиентских модулей
 mp.events.add('init', (activeModules) => {
     activeModules.forEach(moduleName => {
-        if (moduleName !== 'game_resources') { // исключаем папку с DLC
-            try {
-                require(moduleName);
-            } catch (e) {
-                console.error(`Ошибка при подключении модуля ${moduleName}:`, e);
-            }
+        try {
+            require(moduleName);
+        } catch (e) {
+            console.error(`Ошибка при подключении модуля ${moduleName}:`, e);
         }
     });
 
