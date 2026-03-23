@@ -1,6 +1,6 @@
 "use strict";
 
-module.exports = {
+exports = {
     /**
      * IPL, которые нужно запросить на клиенте.
      *
