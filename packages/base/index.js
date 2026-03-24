@@ -10,6 +10,10 @@ global.ignoreModules = require('./ignoreModules');
 let ignoreClientModules = require('./ignoreClientModules');
 let activeClientModules = [];
 global.activeServerModules = [];
+process.on('unhandledRejection', (reason) => {
+    console.error('[UNHANDLED_REJECTION]', reason);
+});
+
 
 /// Подключение функций любого существующего, включенного модуля
 /// Если модуль существует, возвращаются его функции (те что в module.exports, в index.js)

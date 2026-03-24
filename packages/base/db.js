@@ -27,7 +27,15 @@ module.exports = {
             },
         });
         this.loadModels();
-        callback();
+        this.sequelize.authenticate()
+            .then(() => this.sequelize.sync())
+            .then(() => {
+                console.log("[DATABASE] loaded.");
+                callback();
+            })
+            .catch((err) => {
+                console.error("[DATABASE] connection error:", err);
+            });
     },
     /// Загрузка моделей таблиц из папки 'db' в каждом из модулей, кроме игнорируемого
     loadModels: function() {
@@ -46,7 +54,5 @@ module.exports = {
             var model = this.Models[name];
             if (model.associate) model.associate(this.Models);
         }
-        this.sequelize.sync();
-        console.log("[DATABASE] loaded.");
     }
 };
