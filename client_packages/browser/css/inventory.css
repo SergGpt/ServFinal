@@ -24,8 +24,15 @@
     width: calc(46.4vh + 57.5vh + 46.4vh + 1.6vh);
     background: transparent;
     box-shadow: none;
-    padding: 0 0.2vh;
+    padding: 0 0.2vh 0.2vh;
     border-radius: 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+#inventory .close img {
+    cursor: pointer;
 }
 
 #inventory .body {
@@ -34,6 +41,15 @@
     grid-template-rows: 58.7vh;
     gap: 0.8vh;
     align-items: stretch;
+}
+
+#inventory.non-environment .body {
+    grid-template-columns: 46.4vh 57.5vh;
+}
+
+#inventory.non-environment .close,
+#inventory.non-environment .hotkeys {
+    width: calc(46.4vh + 57.5vh + 0.8vh);
 }
 
 #inventory .equipment {
@@ -476,7 +492,7 @@
 }
 
 #inventory .hands .slot img:first-child {
-    transform: scale(-1, 1);
+    transform: rotateY(180deg);
     margin-left: 14vh;
     margin-right: 0;
 }
