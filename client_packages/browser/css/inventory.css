@@ -1309,8 +1309,8 @@
 
 #inventory > .body {
     grid-gap: 0.4vh !important;
-    grid-template-columns: 57.5vh repeat(2, 46.4vh) !important;
-    grid-template-rows: 58.7vh 13.1vh 1fr !important;
+    grid-template-columns: 42vh 56.5vh 0 !important;
+    grid-template-rows: 58.7vh 10.2vh 1fr !important;
     height: 81.8vh !important;
     padding: 0 !important;
     background: transparent !important;
@@ -1319,15 +1319,15 @@
 }
 
 #inventory.non-environment > .body {
-    grid-template-columns: repeat(2, 46.4vh) !important;
+    grid-template-columns: 42vh 56.5vh !important;
 }
 
 #inventory > .body > div {
-    background-color: rgba(12, 12, 12, 0.8) !important;
-    padding: 1.8vh 2.1vh !important;
+    background-color: rgba(20, 20, 20, 0.78) !important;
+    padding: 1.2vh 1.5vh !important;
     border-radius: 1.2vh !important;
-    border: none !important;
-    box-shadow: none !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03) !important;
 }
 
 #inventory > .body .equipment {
@@ -1344,8 +1344,8 @@
     display: flex;
     font-size: 1.5vh !important;
     justify-content: flex-end;
-    margin-top: 1vh;
-    margin-bottom: 1.3vh;
+    margin-top: 0.4vh;
+    margin-bottom: 0.7vh;
     height: auto !important;
     padding: 0 !important;
     border: none !important;
@@ -1365,20 +1365,21 @@
 #inventory > .body .header > div:last-child {
     margin-right: 1.7vh;
     font-size: 1.5vh !important;
+    color: rgba(255, 255, 255, 0.88);
 }
 
 #inventory .body-items .column:empty,
 #inventory .items .column,
 #inventory .hotkeys > .key {
-    border-radius: 0.7vh !important;
-    background-color: rgba(255, 255, 255, 0.2) !important;
-    border: none !important;
+    border-radius: 0.55vh !important;
+    background-color: rgba(255, 255, 255, 0.14) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
     box-shadow: none !important;
 }
 
 #inventory .body-items .column:not(:empty),
 #inventory .hotkeys > .key.has {
-    background: rgba(255, 255, 255, 0.4) !important;
+    background: rgba(255, 255, 255, 0.2) !important;
 }
 
 #inventory .body-items .column.active,
@@ -1387,15 +1388,15 @@
 }
 
 #inventory .items .column {
-    height: 2.45vh !important;
-    width: 2.45vh !important;
-    border-radius: 0.4vh !important;
+    height: 2.25vh !important;
+    width: 2.25vh !important;
+    border-radius: 0.35vh !important;
 }
 
 #inventory .playerInventory > .block,
 #inventory .environment > .block {
-    margin-bottom: 1.9vh;
-    padding-right: 2.1vh;
+    margin-bottom: 0.8vh;
+    padding-right: 0.8vh;
     overflow-x: hidden;
     overflow-y: auto;
     height: 93%;
@@ -1403,17 +1404,17 @@
 
 #inventory .playerInventory .container .header,
 #inventory .environment .container .header {
-    background-color: rgba(255, 255, 255, 0.1) !important;
+    background-color: rgba(255, 255, 255, 0.08) !important;
     border-radius: 0.9vh !important;
     height: 3.5vh !important;
-    margin: 1.3vh 0 !important;
-    border: none !important;
+    margin: 0.8vh 0 !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
     padding: 0 0.9vh !important;
 }
 
 #inventory .playerInventory .container .title,
 #inventory .environment .container .title {
-    color: #aaa !important;
+    color: #d0d0d0 !important;
     font-size: 1.5vh !important;
     text-transform: none !important;
     font-weight: 500 !important;
@@ -1421,11 +1422,33 @@
     margin-left: 0.9vh !important;
 }
 
+#inventory > .body .equipment .body-items {
+    margin: 0.5vh 0 !important;
+    height: calc(100% - 6.5vh) !important;
+    border-radius: 0.8vh !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: none !important;
+}
+
 #inventory .hands {
     display: grid;
-    padding: 0 !important;
+    padding: 0.4vh 0 0 !important;
     margin: 0 !important;
-    border: none !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+#inventory .playerInventory > .block::-webkit-scrollbar,
+#inventory .environment > .block::-webkit-scrollbar,
+#inventory .pockets::-webkit-scrollbar {
+    width: 0.45vh !important;
+}
+
+#inventory .playerInventory > .block::-webkit-scrollbar-thumb,
+#inventory .environment > .block::-webkit-scrollbar-thumb,
+#inventory .pockets::-webkit-scrollbar-thumb {
+    background: #ffd800 !important;
+    border-radius: 10vh !important;
 }
 
 #inventory .hands .slot {
@@ -1436,7 +1459,8 @@
     justify-content: space-around;
     width: 100%;
     border-radius: 1.1vh !important;
-    background: transparent !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
 #inventory .hands img {
@@ -1446,21 +1470,28 @@
 
 #inventory .hotkeys {
     display: grid !important;
-    grid-column-end: span 2 !important;
+    grid-column: 1 / span 2 !important;
     grid-template-columns: repeat(9, 1fr) !important;
     grid-template-rows: repeat(1, 1fr) !important;
-    padding: 1.8vh 3vh !important;
-    grid-gap: 4.6vh !important;
+    padding: 0.6vh 0.8vh !important;
+    grid-gap: 0.7vh !important;
     height: auto !important;
-    margin-top: 0 !important;
-    border-radius: 1.2vh !important;
-    background-color: rgba(12, 12, 12, 0.8) !important;
-    border: none !important;
+    margin-top: 0.2vh !important;
+    border-radius: 1vh !important;
+    background-color: rgba(18, 18, 18, 0.82) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+#inventory .hotkeys > .key {
+    min-height: 4.5vh !important;
+    background-color: rgba(255, 255, 255, 0.09) !important;
 }
 
 #inventory .hotkeys .key .hotkey {
-    color: rgba(255, 255, 255, 0.35) !important;
-    font-size: 1.3vh !important;
+    color: rgba(255, 255, 255, 0.45) !important;
+    font-size: 1.15vh !important;
+    bottom: 0.25vh !important;
+    right: 0.35vh !important;
 }
 
 #inventory .item {
