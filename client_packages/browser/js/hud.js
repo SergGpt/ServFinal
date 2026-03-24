@@ -98,6 +98,12 @@ var hud = new Vue({
             this.date = `${day}.${month}.${year}`;
         },
         pretty(val) { return prettyMoney(val); },
+        shortMoney(val) {
+            const abs = Math.abs(Number(val) || 0);
+            if (abs >= 1000000) return `$${(val / 1000000).toFixed(1).replace(/\.0$/, '')}m`;
+            if (abs >= 1000) return `$${(val / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+            return `$${prettyMoney(val)}`;
+        },
         isKeyShow(name) { return true; },
     },
     mounted() {

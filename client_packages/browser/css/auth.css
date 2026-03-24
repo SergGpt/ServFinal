@@ -32,6 +32,48 @@
     height: 11.85vh;
 }
 
+#auth .bz-logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 1vh;
+    line-height: 1;
+    user-select: none;
+}
+
+#auth .bz-logo .bio {
+    color: #d6121f;
+    font-size: 9.5vh;
+    margin-bottom: .5vh;
+    text-shadow: 0 0 1.8vh rgba(214, 18, 31, 0.45), 0 .3vh .9vh rgba(0,0,0,.75);
+}
+
+#auth .bz-logo .wordmark {
+    font-family: "Russo One", "Bebas Neue", sans-serif;
+    font-size: 6.2vh;
+    font-weight: 900;
+    letter-spacing: .08vh;
+    text-transform: uppercase;
+    text-shadow: 0 .35vh .7vh rgba(0,0,0,.75);
+}
+
+#auth .bz-logo .wordmark .w {
+    color: #ececec;
+}
+
+#auth .bz-logo .wordmark .r {
+    color: #cf1625;
+}
+
+#auth .bz-logo .rp {
+    margin-top: .2vh;
+    font-family: "Russo One", "Bebas Neue", sans-serif;
+    font-size: 4.6vh;
+    letter-spacing: .28vh;
+    color: #f0f0f0;
+    text-shadow: 0 .28vh .6vh rgba(0,0,0,.75);
+}
+
 #auth .header {
     margin: 2.77vh auto;
     text-align: center;
