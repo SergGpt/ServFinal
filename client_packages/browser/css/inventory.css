@@ -56,6 +56,9 @@
     grid-column: 1;
     grid-row: 1;
     height: 54vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 #inventory .playerInventory {
@@ -136,7 +139,9 @@
     grid-template-rows: 3.7vh 4.7vh 4.7vh 1vh 7.4vh 11.2vh 9.3vh 6.5vh;
     /*repeat(22, 1fr);*/
     /*height: 61vh;*/
-    margin: 1vh 0.2vh;
+    margin: 0.8vh 0.2vh 0.4vh;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 #inventory .body-items .column {
@@ -436,7 +441,9 @@
     display: grid;
     /*grid-row-end: span 2;*/
     padding: 0;
-    margin-bottom: 0.9vh;
+    margin-top: auto;
+    margin-bottom: 0.4vh;
+    overflow: hidden;
 }
 
 #inventory .hands.active {
@@ -453,8 +460,9 @@
 }
 
 #inventory .hands .item {
-    height: 10vh;
-    width: 26vh;
+    height: 8.2vh;
+    width: 20.5vh;
+    max-width: 100%;
 }
 
 #inventory .hands .slot {
@@ -467,6 +475,8 @@
     /*margin: 0 auto;*/
     /* padding: 2vh; */
     width: 100%;
+    min-height: 8.8vh;
+    overflow: hidden;
 }
 
 #inventory .hands .slot.busy {
@@ -552,8 +562,9 @@
     grid-template-rows: 1fr;
     width: calc(43vh + 51vh + 43vh + 1.2vh);
     justify-items: center;
-    padding: 0.8vh 1.2vh;
+    padding: 0.7vh 1.2vh;
     grid-gap: 0.7vh;
+    margin-top: 0.2vh;
 }
 
 #inventory .hotkeys .item {
