@@ -2,179 +2,208 @@
     color: #fff;
     font-family: Roboto, sans-serif;
     height: 100%;
+    width: 100%;
     pointer-events: none;
     position: absolute;
-    width: 100%;
 }
 
 #hud > div { position: absolute; }
 
+/* top-right server badge */
 #hud .panel-right-top {
-    top: 16px;
-    right: 16px;
+    top: 1.2vh;
+    right: 1.6vh;
     display: flex;
     align-items: flex-start;
-    gap: 10px;
+    gap: .8vh;
     z-index: 100;
 }
 
 #hud .server-mini {
     text-align: right;
-    font-size: 13px;
+    font-size: 1.3vh;
     line-height: 1.2;
-    text-shadow: 0 1px 3px rgba(0,0,0,.65);
+    font-weight: 700;
+    text-shadow: 0 .2vh .6vh rgba(0,0,0,.75);
 }
 
 #hud .logo-mini {
     display: grid;
     justify-items: end;
-    gap: 2px;
+    gap: .2vh;
 }
 
 #hud .logo-mini .brand {
-    font-size: 34px;
+    font-size: 3.2vh;
+    font-family: 'Roboto Condensed', Roboto, sans-serif;
     font-weight: 700;
-    line-height: 1;
-    text-shadow: 0 2px 4px rgba(0,0,0,.45);
+    line-height: .9;
+    letter-spacing: .02em;
+    text-shadow: 0 .25vh .8vh rgba(0,0,0,.55);
 }
 
 #hud .logo-mini .tag {
-    background: #ffce2e;
-    color: #121212;
+    background: #ffcf26;
+    color: #111;
     font-weight: 900;
-    font-size: 12px;
-    padding: 3px 8px;
-    border-radius: 2px;
+    font-size: 1.1vh;
+    padding: .25vh .8vh;
+    border-radius: .2vh;
+    letter-spacing: .08em;
 }
 
+/* right-center keys */
 #hud .keys-right {
-    right: 24px;
-    top: 40%;
+    right: 2.3vh;
+    top: 44%;
     transform: translateY(-50%);
     display: grid;
-    gap: 7px;
+    gap: .8vh;
 }
 
 #hud .key-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    text-shadow: 0 1px 2px rgba(0,0,0,.6);
+    gap: .8vh;
+    text-shadow: 0 .15vh .4vh rgba(0,0,0,.7);
 }
 
 #hud .key-cap {
-    min-width: 24px;
-    height: 24px;
+    min-width: 2.4vh;
+    height: 2.4vh;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255,255,255,.9);
-    color: #111;
+    background: rgba(255,255,255,.92);
+    color: #101010;
     font-weight: 900;
-    border-radius: 6px;
-    font-size: 13px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.35);
+    border-radius: .55vh;
+    font-size: 1.3vh;
+    box-shadow: 0 .2vh .8vh rgba(0,0,0,.4);
 }
 
 #hud .key-name {
-    font-size: 25px;
+    font-size: 2.6vh;
     font-family: sf, Roboto, sans-serif;
     font-weight: 600;
     color: #f4f4f4;
+    line-height: 1;
 }
 
+/* right-bottom stats */
 #hud .panel-right-bottom {
-    right: 16px;
-    bottom: 16px;
+    right: 1.6vh;
+    bottom: 1.7vh;
 }
 
 #hud .status-card {
     display: grid;
-    grid-template-columns: 160px 150px;
-    gap: 10px;
-    background: rgba(12,12,12,.62);
-    border: 1px solid rgba(255,255,255,.12);
-    border-radius: 10px;
-    padding: 10px;
+    grid-template-columns: 16.5vh 14.7vh;
+    gap: 1vh;
+    background: rgba(10, 12, 15, .74);
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: .95vh;
+    padding: 1vh;
     backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 #hud .status-row {
     display: grid;
-    grid-template-columns: 16px 1fr 38px;
+    grid-template-columns: 1.5vh 1fr 3.8vh;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 7px;
+    gap: .7vh;
+    margin-bottom: .7vh;
 }
 
-#hud .status-row img { width: 14px; height: 14px; }
-#hud .status-row span { font-size: 13px; color: #dbedf7; }
+#hud .status-row img { width: 1.4vh; height: 1.4vh; }
+#hud .status-row span { font-size: 1.2vh; color: #dcecf7; }
 
 #hud .bar {
-    height: 7px;
+    height: .7vh;
     border-radius: 999px;
-    background: rgba(255,255,255,.2);
+    background: rgba(255,255,255,.24);
     overflow: hidden;
 }
 
 #hud .fill { height: 100%; border-radius: inherit; }
 #hud .fill.hunger { background: #f4b018; }
-#hud .fill.thirst { background: #15c6ff; }
+#hud .fill.thirst { background: #11d7ff; }
 
 #hud .status-right {
     display: grid;
-    align-content: space-between;
     justify-items: end;
+    align-content: space-between;
 }
 
 #hud .money-line {
-    font-size: 22px;
+    font-size: 2.05vh;
     font-weight: 700;
-    line-height: 1.1;
+    line-height: 1;
     color: #56f16d;
-    text-shadow: 0 0 10px rgba(63,210,84,.22);
+    text-shadow: 0 0 1vh rgba(63,210,84,.28);
 }
 
-#hud .money-line.bank { color: #ffffff; opacity: .88; font-size: 20px; }
-#hud .meta { font-size: 17px; font-weight: 600; opacity: .95; }
-
-#hud .left-bottom {
-    bottom: 16px;
+#hud .money-line.bank {
+    color: #fff;
+    opacity: .9;
+    font-size: 1.8vh;
 }
+
+#hud .meta {
+    font-size: 1.7vh;
+    font-weight: 600;
+    line-height: 1;
+}
+
+/* left-bottom nav */
+#hud .left-bottom { bottom: 1.7vh; }
 
 #hud .nav {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    background: rgba(20, 20, 24, 0.6);
-    border: 1px solid rgba(255,255,255,.15);
+    gap: 1vh;
+    padding: 1vh 1.2vh;
+    border-radius: .95vh;
+    background: rgba(15, 17, 21, .72);
+    border: 1px solid rgba(255,255,255,.14);
 }
 
-#hud .nav img { width: 17px; height: 17px; }
-#hud .nav .street { font-size: 38px; font-family: sf, Roboto, sans-serif; color: #ffcb27; line-height: 1; }
-#hud .nav .region { font-size: 19px; color: #cfd4dd; line-height: 1.1; }
-#hud .nav .temp-line { font-size: 38px; line-height: 1; margin-top: 4px; }
+#hud .nav img { width: 1.8vh; height: 1.8vh; }
+#hud .nav .street {
+    font-size: 3.8vh;
+    font-family: sf, Roboto, sans-serif;
+    color: #ffcb27;
+    line-height: .95;
+}
+#hud .nav .region {
+    font-size: 1.8vh;
+    color: #cfd4dd;
+    line-height: 1.05;
+}
+#hud .nav .temp-line {
+    font-size: 3.4vh;
+    line-height: 1;
+    margin-top: .4vh;
+}
 
-#hud .wanted { display: flex; margin-bottom: 8px; }
+#hud .wanted { display: flex; margin-bottom: .8vh; }
 #hud .wanted svg {
     fill: #fff;
-    height: 16px;
-    width: 16px;
-    margin-right: 5px;
+    width: 1.6vh;
+    height: 1.6vh;
+    margin-right: .5vh;
     opacity: .18;
 }
 #hud .wanted svg.paint { opacity: 1; fill: #ffdb4d; }
 
 #hud .arrest {
     display: grid;
-    gap: 4px;
+    gap: .4vh;
     grid-template-columns: min-content 14vh;
     margin-left: 135vh;
     margin-top: 3vh;
 }
-
 #hud .arrest .img img { width: 2.77vh; }
 #hud .arrest .scale { background: rgba(255,255,255,.25); border-radius: .2vh; }
 #hud .arrest .scale div { background: #fff; border-radius: .2vh; height: 100%; }
