@@ -4,47 +4,46 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(7, 12, 20, 0.72);
-    backdrop-filter: blur(8px);
     z-index: 2000;
-    font-family: 'Montserrat', 'Roboto', sans-serif;
+    font-family: Ubuntu, Roboto, sans-serif;
+    color: #ddd;
 }
 
 .container {
-    width: 1100px;
-    height: 640px;
-    display: flex;
-    background: linear-gradient(135deg, rgba(18, 25, 39, 0.95), rgba(7, 11, 19, 0.9));
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.55);
-    color: #f1f5ff;
-    overflow: hidden;
+    width: 151vh;
+    height: 81.8vh;
+    display: grid;
+    grid-template-columns: 26vh 1fr 38vh;
+    gap: 0.4vh;
+    padding: 0.4vh;
+}
+
+.container > * {
+    background-color: rgba(12, 12, 12, 0.8);
+    border-radius: 1.2vh;
 }
 
 .sectionHeading {
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
+    font-size: 1.4vh;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.55);
-    margin-bottom: 16px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #ffdf29;
+    margin-bottom: 1.2vh;
 }
 
 .quickSlots {
-    width: 170px;
-    padding: 32px 24px;
+    padding: 1.8vh 1.5vh;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(180deg, rgba(21, 31, 51, 0.4), rgba(12, 18, 30, 0.3));
-    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    overflow: hidden;
 }
 
 .quickSlot {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
+    display: grid;
+    grid-template-columns: 3vh 1fr;
+    gap: 0.8vh;
+    margin-bottom: 0.8vh;
 }
 
 .quickSlot:last-child {
@@ -52,274 +51,242 @@
 }
 
 .quickSlotIndex {
-    width: 26px;
-    height: 26px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.08);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.7);
+    border-radius: 0.7vh;
+    font-size: 1.3vh;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
 }
 
 .quickSlotBody {
-    flex: 1;
-    height: 68px;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(135deg, rgba(31, 45, 70, 0.28), rgba(15, 23, 42, 0.28));
+    min-height: 6.4vh;
+    border-radius: 1vh;
+    background: rgba(255, 255, 255, 0.2);
     display: flex;
     align-items: center;
-    padding: 12px;
-    gap: 12px;
+    gap: 1vh;
+    padding: 0.8vh 1vh;
 }
 
 .quickSlotIcon {
-    width: 36px;
-    height: 36px;
-    border-radius: 12px;
-    background: rgba(108, 175, 255, 0.15);
-    color: #8abfff;
+    width: 4.1vh;
+    height: 4.1vh;
+    border-radius: 0.5vh;
+    background: rgba(255, 255, 255, 0.3);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 1.6vh;
+    color: #fff;
 }
 
 .quickSlotInfo {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 0.2vh;
 }
 
 .quickSlotName {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 1.3vh;
+    line-height: 1.4vh;
+    color: #fff;
 }
 
-.quickSlotWeight {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.6);
-}
-
+.quickSlotWeight,
 .quickSlotEmpty {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.45);
+    font-size: 1.2vh;
+    color: #b9b9b9;
 }
 
 .inventorySection {
-    flex: 1;
-    padding: 32px;
+    padding: 1.8vh 2.1vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .inventoryHeader {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: flex-start;
+    margin-bottom: 1.2vh;
 }
 
 .inventoryHeader h2 {
     margin: 0;
-    font-size: 26px;
-    letter-spacing: 0.02em;
+    font-size: 1.9vh;
+    text-transform: uppercase;
+    color: #ffdf29;
 }
 
 .weightLabel {
-    margin-top: 4px;
-    font-size: 13px;
-    color: rgba(255, 255, 255, 0.6);
+    margin-top: 0.4vh;
+    font-size: 1.3vh;
+    color: #ddd;
 }
 
 .filters {
     display: flex;
-    gap: 12px;
+    gap: 0.6vh;
 }
 
 .filters button {
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    padding: 8px 18px;
-    font-size: 12px;
-    letter-spacing: 0.04em;
+    border: 0;
+    border-radius: 0.8vh;
+    background: rgba(255, 255, 255, 0.2);
+    color: #ddd;
+    height: 3vh;
+    padding: 0 1.3vh;
+    font-size: 1.1vh;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.6);
     cursor: pointer;
-    transition: all 0.25s ease;
 }
 
 .filters button:hover {
-    border-color: rgba(122, 187, 255, 0.55);
-    color: #9cccff;
+    background: rgba(255, 255, 255, 0.4);
+    color: #fff;
 }
 
 .filterActive {
-    background: linear-gradient(135deg, rgba(98, 169, 255, 0.3), rgba(55, 118, 229, 0.3));
-    border-color: rgba(122, 187, 255, 0.55) !important;
-    color: #d8e9ff !important;
+    background: #ffdf29 !important;
+    color: #111 !important;
+    font-weight: 700;
 }
 
 .inventoryGrid {
-    margin-top: 28px;
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 14px;
-    flex: 1;
+    grid-template-columns: repeat(8, 1fr);
+    grid-auto-rows: 7.6vh;
+    gap: 0.4vh;
+    overflow: auto;
+    padding-right: 0.4vh;
 }
 
 .inventorySlot {
     position: relative;
-    min-height: 100px;
-    border-radius: 18px;
-    border: 1px dashed rgba(255, 255, 255, 0.08);
-    background: rgba(18, 25, 39, 0.38);
+    border-radius: 0.7vh;
+    background: rgba(255, 255, 255, 0.2);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 12px 10px;
     text-align: center;
-    transition: border-color 0.25s ease, background 0.25s ease;
+    padding: 0.8vh;
+    min-height: 7.6vh;
 }
 
 .inventorySlotFilled {
-    border-style: solid;
-    border-color: rgba(126, 200, 255, 0.45);
-    background: linear-gradient(160deg, rgba(32, 64, 111, 0.45), rgba(16, 32, 62, 0.45));
-    box-shadow: inset 0 0 0 1px rgba(126, 200, 255, 0.25);
+    background: rgba(255, 255, 255, 0.4);
 }
 
 .slotIndex {
     position: absolute;
-    top: 10px;
-    left: 12px;
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.35);
+    top: 0.3vh;
+    left: 0.5vh;
+    font-size: 1.1vh;
+    color: #ffdf29;
+    font-weight: 700;
 }
 
 .itemIcon {
-    width: 46px;
-    height: 46px;
-    border-radius: 14px;
-    background: rgba(122, 187, 255, 0.18);
+    width: 3.8vh;
+    height: 3.8vh;
+    border-radius: 0.4vh;
+    background: rgba(255, 255, 255, 0.28);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
-    font-weight: 600;
-    color: #9fc9ff;
-    margin-bottom: 12px;
+    font-size: 1.4vh;
+    margin-bottom: 0.5vh;
 }
 
 .itemInfo {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    align-items: center;
+    gap: 0.2vh;
 }
 
 .itemName {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 1.2vh;
+    line-height: 1.2;
+    color: #fff;
 }
 
-.itemWeight {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.6);
-}
-
+.itemWeight,
 .emptyPlaceholder {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.4);
+    font-size: 1.1vh;
+    color: #b9b9b9;
 }
 
 .sectionGroup {
-    margin-top: 30px;
+    margin-top: 1.2vh;
 }
 
 .sectionSlots {
-    margin-top: 14px;
+    margin-top: 0.7vh;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
+    gap: 0.4vh;
 }
 
 .sectionSlot {
-    min-height: 72px;
+    min-height: 5.8vh;
 }
 
 .equipmentSection {
-    width: 280px;
-    padding: 32px 28px;
+    padding: 1.8vh 2.1vh;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(180deg, rgba(20, 27, 44, 0.45), rgba(10, 16, 30, 0.45));
-    border-left: 1px solid rgba(255, 255, 255, 0.06);
+    overflow: auto;
 }
 
 .equipmentLayout {
     display: grid;
-    grid-template-columns: 1fr 120px 1fr;
-    gap: 16px;
+    grid-template-columns: 1fr 10.7vh 1fr;
+    gap: 0.8vh;
 }
 
 .equipmentColumn {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 0.5vh;
 }
 
 .avatarPlaceholder {
-    position: relative;
     display: flex;
-    align-items: center;
     justify-content: center;
-}
-
-.avatarPlaceholder::before {
-    content: '';
-    position: absolute;
-    width: 120px;
-    height: 340px;
-    border-radius: 60px;
-    background: linear-gradient(180deg, rgba(67, 105, 168, 0.2), rgba(32, 51, 87, 0.2));
-    filter: drop-shadow(0 0 25px rgba(98, 169, 255, 0.35));
+    align-items: center;
 }
 
 .avatarCore {
-    width: 68px;
-    height: 240px;
-    border-radius: 34px;
-    background: linear-gradient(180deg, rgba(24, 37, 62, 0.55), rgba(16, 27, 47, 0.55));
-    border: 1px solid rgba(126, 200, 255, 0.18);
+    width: 8vh;
+    height: 27vh;
+    border-radius: 4vh;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .equipmentSlot {
+    min-height: 6vh;
+    border-radius: 0.7vh;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.7vh;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 10px 12px;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(18, 26, 42, 0.42);
-    min-height: 70px;
+    gap: 0.5vh;
 }
 
 .equipmentSlotFilled {
-    border-color: rgba(126, 200, 255, 0.45);
-    box-shadow: inset 0 0 0 1px rgba(126, 200, 255, 0.25);
+    background: rgba(255, 255, 255, 0.4);
 }
 
 .equipmentLabel {
-    font-size: 11px;
+    font-size: 1vh;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: rgba(255, 255, 255, 0.45);
+    color: #b9b9b9;
 }
 
 .equipmentBody {
@@ -327,73 +294,63 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #e6eeff;
-    font-size: 13px;
-    text-align: center;
+    font-size: 1.2vh;
+    color: #fff;
 }
 
 .equipmentEmpty {
-    color: rgba(255, 255, 255, 0.38);
-    font-size: 12px;
+    color: #b9b9b9;
 }
 
-.equipmentBottom {
-    margin-top: 20px;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-}
-
+.equipmentBottom,
 .handsSection {
-    margin-top: 24px;
+    margin-top: 0.9vh;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+    gap: 0.5vh;
 }
 
 .handSlot {
-    min-height: 90px;
+    min-height: 8vh;
 }
 
 .statsPanel {
-    margin-top: 28px;
-    padding: 18px;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(12, 18, 32, 0.55);
+    margin-top: 1.2vh;
+    padding: 1vh;
+    border-radius: 0.7vh;
+    background: rgba(255, 255, 255, 0.12);
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 0.8vh;
 }
 
 .statBlock {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 0.7vh;
 }
 
 .statDot {
-    width: 10px;
-    height: 10px;
+    width: 0.8vh;
+    height: 0.8vh;
     border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, #9cccff, #3b82f6);
-    box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
+    background: #ffdf29;
 }
 
 .statLabel {
-    font-size: 12px;
+    font-size: 1vh;
+    color: #b9b9b9;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: rgba(255, 255, 255, 0.6);
 }
 
 .statValue {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 1.2vh;
+    color: #fff;
+    font-weight: 700;
 }
 
 @media (max-width: 1280px) {
     .container {
-        transform: scale(0.92);
+        transform: scale(0.9);
     }
 }
