@@ -54,72 +54,48 @@
     <!-- ************************** VUE JS ************************** -->
     <!-- v-cloak в контейнерах VUE используется для того, что бы решить проблему мерцания UI при запуске -->
     <div v-cloak="v-cloak" id="hud" v-show="show || playerMenu.show">
-        <div class="panel-right-top">
-            <div class="info-logo">
-                <div>
-                    <div class="server block">
-                        <div class="info">
-                            <img src="img/hud/id.svg" />
-                            <div class="text-small">{{ playerId }}</div>
-                        </div>
-                        <div class="info">
-                            <img src="img/hud/players.svg" />
-                            <div class="text-small">{{ players }}</div>
-                        </div>
-                    </div>
-                    <div class="datetime text-small">
-                        <div><b>{{ time }}</b> {{ date }}</div>
-                    </div>
-                </div>
-                <div><img class="logo" src="img/hud/logo.png" /></div>
+        <div class="panel-right-top" v-show="showOnline">
+            <div class="server-mini">
+                <div class="line">Онлайн {{ players }}/{{ maxPlayers }}</div>
+                <div class="line">Ваш ID: {{ playerId }}</div>
             </div>
-            <div v-show="show" class="starvation">
-                <div class="satiety">
-                    <img src="img/hud/chicken.svg"/>
-                    <svg>
-                        <circle />
-                        <circle
-                            class="scale"
-                            :style="{
-                                strokeDasharray: `calc(6.28*1.79vh*${satiety/100}) calc(6.28*1.79vh)`
-                            }"
-                        />
-                    </svg>
-                </div>
-                <div class="thirst">
-                    <img src="img/hud/drop.svg"/>
-                    <svg>
-                        <circle />
-                        <circle
-                            class="scale"
-                            :style="{
-                                strokeDasharray: `calc(6.28*1.79vh*${thirst/100}) calc(6.28*1.79vh)`
-                            }"
-                        />
-                    </svg>
-            </div>
-            </div>
-            <div v-show="show && keysShow && !selectMenu.show" class="keys">
-                <div class="block text-small" v-show="isKeyShow(key.name)" v-for="key in keys" v-bind:key="key.key">
-                    <span class="r-bg" v-html="key.key"></span>
-                    {{ key.name }}
-                </div>
+            <div class="logo-mini">
+                <div class="brand">Classic</div>
+                <div class="tag">ROLEPLAY</div>
             </div>
         </div>
+
+        <div v-show="show && keysShow && !selectMenu.show" class="keys-right">
+            <div class="key-row" v-show="isKeyShow(key.name)" v-for="key in keys" v-bind:key="key.key">
+                <span class="key-cap" v-html="key.key"></span>
+                <span class="key-name">{{ key.name }}</span>
+            </div>
+        </div>
+
         <div v-show="show" class="panel-right-bottom">
-            <div class="money block">
-                <div class="cash">
-                    <div class="head text-small">На руках:</div>
-                    <div class="value text-h3"> $ {{ pretty(cash) }} </div>
+            <div class="status-card">
+                <div class="status-left">
+                    <div class="status-row">
+                        <img src="img/hud/chicken.svg"/>
+                        <div class="bar"><div class="fill hunger" :style="{ width: satiety + '%' }"></div></div>
+                        <span>{{ satiety }}%</span>
+                    </div>
+                    <div class="status-row">
+                        <img src="img/hud/drop.svg"/>
+                        <div class="bar"><div class="fill thirst" :style="{ width: thirst + '%' }"></div></div>
+                        <span>{{ thirst }}%</span>
+                    </div>
                 </div>
-                <div class="bank">
-                    <div class="head text-small">В банке:</div>
-                    <div class="value text-big"> $ {{ pretty(bank) }} </div>
+                <div class="status-right">
+                    <div class="money-line">$ {{ shortMoney(cash).replace('$','') }}</div>
+                    <div class="money-line bank">$ {{ shortMoney(bank).replace('$','') }}</div>
+                    <div class="meta">{{ time }}</div>
+                    <div class="meta">{{ date }}</div>
                 </div>
             </div>
         </div>
+
         <div v-show="show" class="left-bottom" v-bind:style="{left: leftWeather + 'px'}">
-            <div class="temperature text-bold">{{ temperature }}°C</div>
             <div v-show="show" class="wanted" v-if="wanted">
                 <svg
                     :class="{ paint: wanted >= n }"
@@ -131,23 +107,9 @@
             <div class="nav block">
                 <img src="img/hud/nav.svg" />
                 <div>
-                    <div class="region text-small">{{ region }}</div>
-                    <div class="street">{{ street }}</div>
-                </div>
-            </div>
-            <div class="l-keys">
-                <div class="voice">
-                    <svg viewBox="0 0 30 30" :class="{ on: voice }">
-                        <path d="M16.8453 5.9396H20.4359V5.43624C20.4359 2.41611 17.9863 0 14.9997 0C12.0131 0 9.56348 2.44966 9.56348 5.43624V5.97315C9.63059 5.97315 9.66415 5.9396 9.73126 5.97315H13.1541C13.6239 5.97315 13.993 6.34228 13.993 6.81208C13.993 7.28188 13.6239 7.65101 13.1541 7.65101H9.73126C9.66415 7.65101 9.63059 7.65101 9.56348 7.65101V9.36242C9.63059 9.36242 9.66415 9.32886 9.73126 9.36242H13.1541C13.6239 9.36242 13.993 9.73154 13.993 10.2013C13.993 10.6711 13.6239 11.0403 13.1541 11.0403H9.73126C9.66415 11.0403 9.63059 11.0403 9.56348 11.0403V12.7517C9.63059 12.7517 9.66415 12.7181 9.73126 12.7517H13.1541C13.6239 12.7517 13.993 13.1208 13.993 13.5906C13.993 14.0604 13.6239 14.4295 13.1541 14.4295H9.73126C9.66415 14.4295 9.63059 14.4295 9.56348 14.4295V14.9664C9.56348 17.8859 11.9796 20.302 14.9997 20.302C18.0198 20.302 20.4359 17.8523 20.4359 14.8658V14.3289H16.8453C16.3755 14.3289 16.0064 13.9597 16.0064 13.4899C16.0064 13.0201 16.3755 12.651 16.8453 12.651H20.4359V10.9732H16.8453C16.3755 10.9732 16.0064 10.604 16.0064 10.1342C16.0064 9.66443 16.3755 9.2953 16.8453 9.2953H20.4359V7.61745H16.8453C16.3755 7.61745 16.0064 7.24832 16.0064 6.77852C16.0064 6.30872 16.3755 5.9396 16.8453 5.9396Z" />
-                        <path d="M23.1209 10.0671C22.5504 10.0671 22.1142 10.5034 22.1142 11.0738V14.8658C22.1142 18.792 18.9263 21.9799 15.0001 21.9799C11.0739 21.9799 7.88598 18.792 7.88598 14.8658V11.0738C7.88598 10.5034 7.44974 10.0671 6.87927 10.0671C6.3088 10.0671 5.87256 10.5034 5.87256 11.0738V14.8658C5.87256 19.5302 9.36249 23.4228 13.9934 23.9598V27.9866H11.0068C10.4363 27.9866 10.0001 28.4228 10.0001 28.9933C10.0001 29.5638 10.4363 30 11.0068 30H18.9934C19.5638 30 20.0001 29.5638 20.0001 28.9933C20.0001 28.4228 19.5638 27.9866 18.9934 27.9866H16.0068V23.9598C20.6377 23.4564 24.1276 19.5302 24.1276 14.8658V11.0738C24.1276 10.5369 23.6914 10.0671 23.1209 10.0671Z" />
-                    </svg>
-                    <div>{{ voice_key }}</div>
-                </div>
-                <div class="menu">
-                    <svg viewBox="0 0 30 30">
-                        <path d="M9.9 16.8371C11.6625 16.8371 13.075 18.2634 13.075 20.0384V24.2996C13.075 26.0621 11.6625 27.4996 9.9 27.4996H5.675C3.925 27.4996 2.5 26.0621 2.5 24.2996V20.0384C2.5 18.2634 3.925 16.8371 5.675 16.8371H9.9ZM24.3251 16.8371C26.0751 16.8371 27.5001 18.2634 27.5001 20.0384V24.2996C27.5001 26.0621 26.0751 27.4996 24.3251 27.4996H20.1001C18.3376 27.4996 16.9251 26.0621 16.9251 24.2996V20.0384C16.9251 18.2634 18.3376 16.8371 20.1001 16.8371H24.3251ZM9.9 2.5C11.6625 2.5 13.075 3.9375 13.075 5.70125V9.9625C13.075 11.7375 11.6625 13.1625 9.9 13.1625H5.675C3.925 13.1625 2.5 11.7375 2.5 9.9625V5.70125C2.5 3.9375 3.925 2.5 5.675 2.5H9.9ZM24.3251 2.5C26.0751 2.5 27.5001 3.9375 27.5001 5.70125V9.9625C27.5001 11.7375 26.0751 13.1625 24.3251 13.1625H20.1001C18.3376 13.1625 16.9251 11.7375 16.9251 9.9625V5.70125C16.9251 3.9375 18.3376 2.5 20.1001 2.5H24.3251Z" />
-                    </svg>
-                    <div>{{ menu_key }}</div>
+                    <div class="street">{{ region }}</div>
+                    <div class="region text-small">{{ street }}</div>
+                    <div class="temp-line">{{ temperature }}°C</div>
                 </div>
             </div>
         </div>
