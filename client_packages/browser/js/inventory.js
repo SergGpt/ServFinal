@@ -724,10 +724,12 @@ var inventory = new Vue({
         itemStyle(item) {
             var isDraggable = this.itemDrag.item && this.itemDrag.item.sqlId == item.sqlId;
             var url = this.urlItemImg(item.itemId);
+            const cellSizeVh = 2.45;
+            const cellGapPx = 1;
             var style = {
                 backgroundImage: `url(${url})`,
-                height: `calc(${this.itemsInfo[item.itemId].height * 2.77}vh + ${(this.itemsInfo[item.itemId].height - 1) * 2}px)`, // Высота + отступ ( минус один отступ)
-                width: `calc(${this.itemsInfo[item.itemId].width * 2.77}vh + ${(this.itemsInfo[item.itemId].width - 1) * 2}px)`,
+                height: `calc(${this.itemsInfo[item.itemId].height * cellSizeVh}vh + ${(this.itemsInfo[item.itemId].height - 1) * cellGapPx}px)`,
+                width: `calc(${this.itemsInfo[item.itemId].width * cellSizeVh}vh + ${(this.itemsInfo[item.itemId].width - 1) * cellGapPx}px)`,
                 pointerEvents: (this.itemDrag.item) ? 'none' : '',
             };
             // if (item.params && item.params.health && !isDraggable && !item.found) {

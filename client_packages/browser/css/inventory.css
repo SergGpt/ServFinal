@@ -3,11 +3,12 @@
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) scale(0.9);
+    transform-origin: center center;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1vh;
+    gap: 0.8vh;
     opacity: 0;
     font-family: Ubuntu;
     z-index: 100;
@@ -21,7 +22,7 @@
 }
 
 #inventory .close {
-    width: calc(46.4vh + 57.5vh + 0.8vh);
+    width: calc(46.4vh + 57.5vh + 46.4vh + 1.6vh);
     background: transparent;
     box-shadow: none;
     padding: 0 0.2vh;
@@ -30,7 +31,7 @@
 
 #inventory .body {
     display: grid;
-    grid-template-columns: 46.4vh 57.5vh;
+    grid-template-columns: 46.4vh 57.5vh 46.4vh;
     grid-template-rows: 58.7vh;
     gap: 0.8vh;
     align-items: stretch;
@@ -49,9 +50,10 @@
 }
 
 #inventory .environment {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    max-height: 32vh;
+    grid-column: 3;
+    grid-row: 1;
+    height: 58.7vh;
+    max-height: 58.7vh;
 }
 
 #inventory .starvation {
@@ -532,10 +534,10 @@
     display: grid;
     grid-template-columns: repeat(9, 1fr);
     grid-template-rows: 1fr;
-    width: calc(46.4vh + 57.5vh + 0.8vh);
+    width: calc(46.4vh + 57.5vh + 46.4vh + 1.6vh);
     justify-items: center;
-    padding: 1.6vh 2.2vh;
-    grid-gap: 1.2vh;
+    padding: 1.2vh 1.8vh;
+    grid-gap: 0.9vh;
 }
 
 #inventory .hotkeys .item {
@@ -556,7 +558,7 @@
 }
 
 #inventory .hotkeys>.key {
-    width: 6.8vh;
+    width: 6.2vh;
     aspect-ratio: 1 / 1;
     /*align-items: center;
     background-repeat: no-repeat;
@@ -881,7 +883,16 @@
     height: 2.45vh;
     width: 2.45vh;
     border-radius: 0.4vh;
+    position: relative;
+    overflow: visible;
     /*margin: 0.07vh;*/
+}
+
+#inventory .items .column>.item {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 0;
 }
 
 #inventory .items .column.access {
