@@ -1290,7 +1290,7 @@
     height: 81.8vh !important;
     width: 151vh !important;
     font-family: Ubuntu, 'Roboto Condensed', sans-serif !important;
-    background: transparent !important;
+    background: rgba(8, 10, 12, 0.34) !important;
     border: none !important;
     box-shadow: none !important;
     backdrop-filter: none !important;
@@ -1313,7 +1313,7 @@
     grid-template-rows: 58.7vh 10.2vh 1fr !important;
     height: 81.8vh !important;
     padding: 0 !important;
-    background: transparent !important;
+    background: rgba(8, 10, 12, 0.42) !important;
     border: none !important;
     box-shadow: none !important;
 }
@@ -1369,15 +1369,17 @@
 }
 
 #inventory .body-items .column:empty,
+#inventory .pockets .items .column,
 #inventory .items .column,
 #inventory .hotkeys > .key {
     border-radius: 0.55vh !important;
-    background-color: rgba(255, 255, 255, 0.14) !important;
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    background-color: rgba(255, 255, 255, 0.11) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
     box-shadow: none !important;
 }
 
 #inventory .body-items .column:not(:empty),
+#inventory .pockets .items .column.busy,
 #inventory .hotkeys > .key.has {
     background: rgba(255, 255, 255, 0.2) !important;
 }
@@ -1391,6 +1393,21 @@
     height: 2.25vh !important;
     width: 2.25vh !important;
     border-radius: 0.35vh !important;
+}
+
+#inventory .pockets .items,
+#inventory .playerInventory .items,
+#inventory .environment .items {
+    gap: 2px !important;
+}
+
+#inventory .pockets .items .column,
+#inventory .playerInventory .items .column,
+#inventory .environment .items .column {
+    width: 2.25vh !important;
+    height: 2.25vh !important;
+    min-height: 2.25vh !important;
+    box-sizing: border-box;
 }
 
 #inventory .playerInventory > .block,
@@ -1426,7 +1443,7 @@
     margin: 0.5vh 0 !important;
     height: calc(100% - 6.5vh) !important;
     border-radius: 0.8vh !important;
-    background-color: rgba(255, 255, 255, 0.05) !important;
+    background-color: rgba(255, 255, 255, 0.08) !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
     box-shadow: none !important;
 }
@@ -1484,7 +1501,7 @@
 
 #inventory .hotkeys > .key {
     min-height: 4.5vh !important;
-    background-color: rgba(255, 255, 255, 0.09) !important;
+    background-color: rgba(255, 255, 255, 0.07) !important;
 }
 
 #inventory .hotkeys .key .hotkey {
