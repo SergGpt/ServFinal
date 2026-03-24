@@ -1286,9 +1286,9 @@
 
 /* ===== Screenshot-like inventory override ===== */
 #inventory {
-    width: 126vh;
-    height: 82vh;
-    background: rgba(8, 10, 12, 0.22) !important;
+    width: 118vh;
+    height: 76vh;
+    background: transparent !important;
     border: none !important;
     box-shadow: none !important;
     backdrop-filter: none;
@@ -1302,27 +1302,27 @@
 }
 
 #inventory > .body {
-    height: 73vh;
-    gap: 8px;
+    height: 66.8vh;
+    gap: 0.9vh;
     padding: 0;
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
-    grid-template-columns: 44vh 1fr 0;
+    grid-template-columns: 42.5vh 74.6vh 0;
 }
 
 #inventory.non-environment > .body {
-    grid-template-columns: 44vh 1fr;
+    grid-template-columns: 42.5vh 74.6vh;
 }
 
 #inventory > .body::before,
 #inventory > .body::after { display: none !important; }
 
 #inventory > .body > div {
-    border-radius: 12px;
-    background: rgba(18, 20, 24, .72) !important;
-    border: 1px solid rgba(255,255,255,.14) !important;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.05) !important;
+    border-radius: 0.95vh;
+    background: rgba(14, 14, 14, 0.72) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035) !important;
 }
 
 #inventory > .body > div::before,
@@ -1334,46 +1334,49 @@
 }
 
 #inventory > .body .header {
-    height: 42px;
-    padding: 0 14px;
+    height: 4.2vh;
+    padding: 0 1.5vh;
     align-items: center;
-    border-bottom: 1px solid rgba(255,255,255,.08);
-    background: rgba(8,8,8,.2);
+    border-bottom: 1px solid rgba(255, 255, 255, .09);
+    background: rgba(0, 0, 0, .12);
 }
 
 #inventory > .body .header .title {
     color: #ffd800;
-    font-size: 23px;
+    font-size: 2.55vh;
     font-family: 'Bebas Neue', sans-serif;
     letter-spacing: .06em;
+    text-transform: uppercase;
 }
 
 #inventory > .body .header > div:last-child {
     color: #fff;
     opacity: .85;
-    font-size: 16px;
+    font-size: 1.75vh;
 }
 
 #inventory > .body .equipment .body-items {
-    margin: 10px;
-    height: calc(100% - 66px);
-    border-radius: 8px;
+    margin: 1vh;
+    height: calc(100% - 7vh);
+    border-radius: 0.65vh;
     border: none;
-    background-color: rgba(70,70,70,.16);
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+    background-color: rgba(255, 255, 255, .06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
+    background-size: 60% !important;
+    background-position-y: 50% !important;
 }
 
 #inventory .body-items .column:empty,
 #inventory .pockets .items .column {
-    border-radius: 6px;
-    border: 1px solid rgba(255,255,255,.08) !important;
-    background: rgba(255,255,255,.12) !important;
+    border-radius: 0.45vh;
+    border: 1px solid rgba(255, 255, 255, .1) !important;
+    background: rgba(255, 255, 255, .16) !important;
     box-shadow: none !important;
 }
 
 #inventory .body-items .column:not(:empty),
 #inventory .pockets .items .column .item {
-    background-color: rgba(255,255,255,.2) !important;
+    background-color: rgba(255, 255, 255, .2) !important;
     filter: none !important;
     opacity: 1 !important;
 }
@@ -1386,74 +1389,83 @@
 
 #inventory > .body .playerInventory .block,
 #inventory > .body .environment .block {
-    padding: 10px;
-    gap: 8px;
+    padding: 0.95vh;
+    gap: 0.8vh;
     background: transparent;
 }
 
 #inventory > .body .playerInventory .container > .header,
 #inventory > .body .environment .container > .header {
-    height: 30px;
-    border-radius: 7px;
-    background: rgba(255,255,255,.08);
-    border: 1px solid rgba(255,255,255,.08);
-    padding: 0 10px;
-    margin-bottom: 8px;
+    height: 3.3vh;
+    border-radius: 0.55vh;
+    background: rgba(255, 255, 255, .08) !important;
+    border: 1px solid rgba(255, 255, 255, .08) !important;
+    padding: 0 1vh;
+    margin-bottom: 0.75vh;
 }
 
 #inventory > .body .playerInventory .container > .header .title,
 #inventory > .body .environment .container > .header .title {
-    color: #d7d7d7;
+    color: #cbcbcb !important;
     font-family: 'Roboto Condensed', sans-serif;
-    font-size: 15px;
+    font-size: 1.5vh;
     letter-spacing: .01em;
+}
+
+#inventory > .body .playerInventory .container > .header > img,
+#inventory > .body .environment .container > .header > img {
+    filter: grayscale(1) brightness(2.5) !important;
+    opacity: .7;
 }
 
 #inventory > .body .playerInventory .container > .header > div:last-child,
 #inventory > .body .environment .container > .header > div:last-child {
-    font-size: 15px;
+    font-size: 1.5vh;
+    color: rgba(255, 255, 255, .85);
 }
 
 #inventory .pockets {
-    max-height: 42vh;
+    max-height: 41vh;
     overflow: auto;
-    padding-right: 6px;
+    padding-right: 0.5vh;
 }
 
-#inventory .pockets::-webkit-scrollbar { width: 4px; }
+#inventory .pockets::-webkit-scrollbar { width: 0.45vh; }
 #inventory .pockets::-webkit-scrollbar-thumb {
     background: #ffd800;
     border-radius: 999px;
 }
 
 #inventory .hands {
-    margin: 0 10px 10px;
-    border-top: 1px solid rgba(255,255,255,.08);
+    margin: 0.4vh 1vh 1vh;
+    border-top: 1px solid rgba(255, 255, 255, .08);
+    padding-top: 0.85vh;
 }
 
 #inventory .hands .slot {
-    border-radius: 10px;
-    background: rgba(255,255,255,.07);
-    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 0.65vh;
+    background: rgba(255, 255, 255, .07);
+    border: 1px solid rgba(255, 255, 255, .1);
 }
 
 #inventory .hotkeys {
-    margin-top: 8px;
-    height: 8vh;
-    background: rgba(12, 14, 16, .75);
-    border-radius: 10px;
-    border: 1px solid rgba(255,255,255,.12);
-    padding: 8px;
-    gap: 10px;
+    margin-top: 0.9vh;
+    height: 6.6vh;
+    background: rgba(14, 14, 14, .74);
+    border-radius: 0.95vh;
+    border: 1px solid rgba(255, 255, 255, .14);
+    padding: 0.75vh;
+    gap: 0.75vh;
 }
 
 #inventory .hotkeys .key {
-    border-radius: 9px;
-    border: 1px solid rgba(255,255,255,.1);
-    background: rgba(255,255,255,.08);
+    border-radius: 0.62vh;
+    border: 1px solid rgba(255, 255, 255, .13);
+    background: rgba(255, 255, 255, .08);
+    box-shadow: none !important;
 }
 
 #inventory .hotkeys .key .hotkey {
-    color: rgba(255,255,255,.6);
-    font-size: 14px;
+    color: rgba(255, 255, 255, .52);
+    font-size: 1.45vh;
 }
