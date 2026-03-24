@@ -1,0 +1,10 @@
+<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="silver_grad" x1="12" y1="12" x2="68" y2="68" gradientUnits="userSpaceOnUse">
+<stop stop-color="#E4E9F2"/>
+<stop offset="1" stop-color="#B7C2D7"/>
+</linearGradient>
+</defs>
+<circle cx="40" cy="40" r="34" fill="url(#silver_grad)" stroke="#F8FAFF" stroke-width="4"/>
+<circle cx="40" cy="40" r="16" fill="#ffffff" opacity="0.3"/>
+</svg>

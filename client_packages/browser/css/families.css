@@ -1,0 +1,346 @@
+.families-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 3000;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.families-overlay.families-hidden {
+    display: none;
+}
+
+.families-window {
+    width: 70vw;
+    max-width: 1150px;
+    max-height: 85vh;
+    background: rgba(10, 14, 23, 0.95);
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    color: #fff;
+    overflow: hidden;
+}
+
+.families-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 28px;
+    background: linear-gradient(135deg, rgba(68, 100, 180, 0.85), rgba(40, 51, 90, 0.9));
+}
+
+.families-header .title {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+
+.families-close {
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.families-close:hover {
+    transform: scale(1.2);
+}
+
+.families-tabs {
+    display: flex;
+    background: rgba(15, 20, 33, 0.95);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.families-tabs button {
+    flex: 1;
+    padding: 16px 12px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.families-tabs button.active,
+.families-tabs button:hover {
+    background: rgba(90, 120, 210, 0.25);
+    color: #fff;
+}
+
+.families-content {
+    flex: 1;
+    padding: 24px 32px;
+    overflow-y: auto;
+}
+
+.families-section h3,
+.families-section h4 {
+    margin: 0 0 12px 0;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+}
+
+.families-section textarea,
+.families-section input,
+.families-section select {
+    width: 100%;
+    margin-bottom: 12px;
+    background: rgba(14, 19, 32, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: #fff;
+    resize: none;
+    font-size: 14px;
+}
+
+.families-section textarea {
+    min-height: 140px;
+}
+
+.families-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+.families-actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+}
+
+.families-actions button {
+    padding: 12px 18px;
+    border: none;
+    border-radius: 8px;
+    background: #5b74e8;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.families-actions button.danger {
+    background: #d9534f;
+}
+
+.families-actions button:hover {
+    background: #6f86ff;
+}
+
+.families-summary {
+    margin-top: 24px;
+    display: flex;
+    gap: 32px;
+    font-size: 15px;
+}
+
+.families-summary span {
+    opacity: 0.6;
+    margin-right: 6px;
+}
+
+.families-members table {
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(12, 16, 28, 0.85);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.families-members th,
+.families-members td {
+    padding: 12px 16px;
+    text-align: left;
+}
+
+.families-members tbody tr:nth-child(even) {
+    background: rgba(18, 24, 38, 0.9);
+}
+
+.families-members tbody tr.online td {
+    color: #72cc72;
+}
+
+.families-members tbody tr.offline td {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.families-members td button,
+.families-members td select {
+    margin-right: 6px;
+}
+
+.families-invite-form button,
+.families-rank-create button,
+.families-logo button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #5b74e8;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.families-invite-form button:hover,
+.families-rank-create button:hover,
+.families-logo button:hover {
+    background: #6f86ff;
+}
+
+.families-invite-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(14, 19, 32, 0.85);
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.families-invite-item .meta {
+    opacity: 0.7;
+    font-size: 13px;
+}
+
+.families-hint {
+    margin-top: 6px;
+    font-size: 13px;
+    opacity: 0.65;
+}
+
+.families-empty {
+    text-align: center;
+    opacity: 0.6;
+    padding: 40px 0;
+}
+
+.families-settings .families-rank {
+    background: rgba(12, 16, 28, 0.85);
+    padding: 16px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+}
+
+.families-settings .rank-header {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.families-settings .rank-header input[type="number"] {
+    max-width: 120px;
+}
+
+.families-settings .rank-perms {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.families-settings .rank-perms label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    opacity: 0.85;
+}
+
+.families-settings .rank-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.families-settings .rank-actions button {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    background: #5b74e8;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.families-settings .rank-actions button.danger {
+    background: #d9534f;
+}
+
+.families-settings .rank-actions button:hover {
+    background: #6f86ff;
+}
+
+.families-rank-create {
+    background: rgba(12, 16, 28, 0.85);
+    padding: 16px;
+    border-radius: 10px;
+}
+
+.families-list .families-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+.families-card {
+    background: rgba(14, 19, 32, 0.85);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 18px 16px;
+}
+
+.families-card img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    margin-bottom: 12px;
+    border-radius: 8px;
+}
+
+.families-card .card-name {
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.families-card .card-info {
+    font-size: 13px;
+    opacity: 0.75;
+    margin-bottom: 4px;
+}
+
+.families-create button {
+    margin-top: 12px;
+}
+
+@media (max-width: 1024px) {
+    .families-window {
+        width: 90vw;
+    }
+
+    .families-columns {
+        grid-template-columns: 1fr;
+    }
+}

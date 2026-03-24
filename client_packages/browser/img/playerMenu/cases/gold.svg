@@ -1,0 +1,10 @@
+<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="gold_grad" x1="14" y1="10" x2="66" y2="70" gradientUnits="userSpaceOnUse">
+<stop stop-color="#FAD961"/>
+<stop offset="1" stop-color="#F76B1C"/>
+</linearGradient>
+</defs>
+<circle cx="40" cy="40" r="34" fill="url(#gold_grad)" stroke="#FFE6A6" stroke-width="4"/>
+<path d="M40 22L47.7086 35.2772L62 38.0557L51 48.4443L53.4172 62L40 55.7772L26.5828 62L29 48.4443L18 38.0557L32.2914 35.2772L40 22Z" fill="rgba(255,255,255,0.35)"/>
+</svg>

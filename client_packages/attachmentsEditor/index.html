@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Attachments editor</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            display: flex; 
+            justify-content: flex-end; 
+            align-items: flex-start;
+
+            width: 100vw; 
+            height: 100vh; 
+            
+            margin: 0; 
+            background-color: transparent;
+
+
+            overflow: hidden;
+        }
+        #control-panel {
+            background-color: white;
+            padding: 1.85vh;
+            border-radius: 0.74vh;
+            box-shadow: 0 0.37vh 0.56vh rgba(0,0,0,0.1);
+
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+
+            gap: 0.93vh;
+        }
+
+        .info {
+          display: flex;
+          flex-direction: column;
+          gap: 0.93vh;
+        }
+
+        #panel-title {
+            width: 100%;
+            cursor: move;
+            background-color: #f1f1f1;
+            border-top-left-radius: 0.74vh;
+            border-top-right-radius: 0.74vh;
+
+            text-align: center;
+
+            user-select: none;
+            
+        }
+        .coord-group {
+            display: flex;
+            align-items: center;
+        }
+
+        h4 {
+          line-height: 0;
+        }
+        input[type="number"], input[type="range"] {
+            margin: 0 0.93vh;
+        }
+
+        input[type="range"] {
+          width: 27.78vh;
+        }
+
+        .actions {
+          width: 100%;
+          display: flex;
+          flex-direction: row;
+          justify-content: flex-end;
+          align-items: center;
+          gap: 0.93vh;
+        }
+
+        .actions button {
+          width: auto;
+          height: auto;
+          padding: 0.46vh 1.39vh;
+
+          background: none;
+          border: 0.09vh solid rgba(0, 0, 0, 0.4);
+          border-radius: 0.37vh;
+
+          cursor: pointer;
+
+          color: #000;
+
+          transition: all 0.2s ease-in-out;
+        }
+
+        .actions button:hover {
+          background: rgba(0, 0, 0);
+          color: #FFF;
+        }
+
+        .coord-title {
+          font-weight: bold;
+          font-size: 1.67vh;
+
+          padding: 0.46vh 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="control-panel">
+        <div id="panel-title">
+            <h3>Attachments editor</h3>
+        </div>
+        
+        <div class="info">
+          <div>
+            <label>Model:</label>
+            <input type="text" id="modelInput" placeholder="Model Name">
+          </div>
+          
+          <div>
+              <label>Bone:</label>
+              <input type="text" id="boneInput" placeholder="Bone id">
+          </div>
+        </div>
+        
+        <div class="coord-title">Offset</div>
+        <div class="coord-group">
+            X: 
+            <input type="number" id="offsetX" min="-5" max="5" value="0" step="0.01">
+            <input type="range" id="offsetXRange" min="-5" max="5" value="0" step="0.01">
+        </div>
+        <div class="coord-group">
+            Y: 
+            <input type="number" id="offsetY" min="-5" max="5" value="0" step="0.01">
+            <input type="range" id="offsetYRange" min="-5" max="5" value="0" step="0.01">
+        </div>
+        <div class="coord-group">
+            Z: 
+            <input type="number" id="offsetZ" min="-5" max="5" value="0" step="0.01">
+            <input type="range" id="offsetZRange" min="-5" max="5" value="0" step="0.01">
+        </div>
+        
+        <div class="coord-title">Rotation</div>
+        <div class="coord-group">
+            X: 
+            <input type="number" id="rotationX" min="-180" max="180" value="0" step="0.01">
+            <input type="range" id="rotationXRange" min="-180" max="180" value="0" step="0.01">
+        </div>
+        <div class="coord-group">
+            Y: 
+            <input type="number" id="rotationY" min="-180" max="180" value="0" step="0.01">
+            <input type="range" id="rotationYRange" min="-180" max="180" value="0" step="0.01">
+        </div>
+        <div class="coord-group">
+            Z: 
+            <input type="number" id="rotationZ" min="-180" max="180" value="0" step="0.01">
+            <input type="range" id="rotationZRange" min="-180" max="180" value="0" step="0.01">
+        </div>
+
+        <div class="actions">
+          <button onclick="onReset()">Reset</button>
+          <button onclick="onApply()">Apply</button>
+
+          <button onclick="onClose()">Close</button>
+        </div>
+    </div>
+
+    <script>
+        const controlPanel = document.getElementById('control-panel');
+        const panelTitle = document.getElementById('panel-title');
+        let isDragging = false;
+        let startX, startY;
+
+        let positions = {
+          "offsetX": 0,
+          "offsetY": 0,
+          "offsetZ": 0,
+          "rotationX": 0,
+          "rotationY": 0,
+          "rotationZ": 0,
+        };
+
+        let boneId = 0;
+        let modelName = '';
+
+        const modelInput = document.getElementById('modelInput');
+        const boneInput = document.getElementById('boneInput');
+
+        modelInput.addEventListener('input', (e) => {
+          modelName = e.target.value;
+        });
+
+        boneInput.addEventListener('input', (e) => {
+          boneId = parseInt(e.target.value);
+        });
+
+        ['offsetX', 'offsetY', 'offsetZ', 'rotationX', 'rotationY', 'rotationZ'].forEach(coord => {
+            const numberInput = document.getElementById(coord);
+            const rangeInput = document.getElementById(coord + 'Range');
+
+            numberInput.addEventListener('input', () => {
+                rangeInput.value = numberInput.value;
+                positions[coord] = parseFloat(numberInput.value);
+                onUpdatePosition();  
+            });
+            
+            rangeInput.addEventListener('input', () => {
+                numberInput.value = rangeInput.value;
+                positions[coord] = parseFloat(numberInput.value);
+                onUpdatePosition();
+            });
+
+        });
+
+        const onUpdatePosition = () => {
+          mp.trigger('cef::attachmentsEditor:updatePosition', JSON.stringify(positions)); 
+        }
+
+        panelTitle.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            isDragging = true;
+            startX = e.clientX - controlPanel.offsetLeft;
+            startY = e.clientY - controlPanel.offsetTop;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            
+            const x = e.clientX - startX;
+            const y = e.clientY - startY;
+            
+            controlPanel.style.position = 'absolute';
+            controlPanel.style.left = `${x}px`;
+            controlPanel.style.top = `${y}px`;
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (e.button === 0) {
+                isDragging = false;
+            }
+        });
+
+        const onReset = () => {
+          positions = {
+            "offsetX": 0,
+            "offsetY": 0,
+            "offsetZ": 0,
+            "rotationX": 0,
+            "rotationY": 0,
+            "rotationZ": 0,
+          },
+
+          modelName = '';
+          boneId = 0;
+
+          document.getElementById('modelInput').value = '';
+          document.getElementById('boneInput').value = '';
+
+          ['offsetX', 'offsetY', 'offsetZ', 'rotationX', 'rotationY', 'rotationZ'].forEach(coord => {
+            const numberInput = document.getElementById(coord);
+            const rangeInput = document.getElementById(coord + 'Range');
+
+            numberInput.addEventListener('input', () => {
+                rangeInput.value = 0
+            });
+            
+            rangeInput.addEventListener('input', () => {
+                numberInput.value = 0;
+            });
+          });
+
+
+
+          mp.trigger('cef::attachmentsEditor:reset');
+        }
+
+        const onApply = () => {
+          if (modelName == '') return;
+
+          mp.trigger('cef::attachmentsEditor:apply', modelName, boneId, JSON.stringify(positions));
+        }
+
+        const onClose = () => {
+          mp.trigger('cef::attachmentsEditor:close');
+        }
+    </script>
+</body>
+</html>

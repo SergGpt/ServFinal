@@ -1,0 +1,10 @@
+<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="diamond_grad" x1="16" y1="14" x2="64" y2="66" gradientUnits="userSpaceOnUse">
+<stop stop-color="#8EF7FF"/>
+<stop offset="1" stop-color="#4CC4FF"/>
+</linearGradient>
+</defs>
+<path d="M21 30L40 12L59 30L40 68L21 30Z" fill="url(#diamond_grad)" stroke="#B9F2FF" stroke-width="4"/>
+<path d="M40 12L50.5 30H29.5L40 12Z" fill="rgba(255,255,255,0.4)"/>
+</svg>

@@ -1,0 +1,305 @@
+var vehicles = call('vehicles');
+var parkings = call('parkings');
+var money = call('money');
+var houses = call('houses');
+var inventory = call('inventory');
+let timer = call('timer');
+var dbCarList;
+var dbCarShow;
+var carShow = [];
+var carList = [];
+
+const CARLIST_UPDATE_INTERVAL = 60 * 60 * 1000; /// Интервал заполнения автосалона автомобилями (в секундах)
+
+function getPointByHeading(position, heading, forward, right = 0, up = 0) {
+    const rad = heading * Math.PI / 180;
+    const forwardX = Math.sin(rad);
+    const forwardY = Math.cos(rad);
+    const rightX = Math.cos(rad);
+    const rightY = -Math.sin(rad);
+
+    return {
+        x: position.x + forwardX * forward + rightX * right,
+        y: position.y + forwardY * forward + rightY * right,
+        z: position.z + up
+    };
+}
+
+module.exports = {
+    testDrivePos: [-93.55802917480469, -1140.9552001953125, 25.179927825927734, 342.68597412109375],
+    async init() {
+        await this.loadCarShowsFromDB();
+        await this.loadCarListsFromDB();
+    },
+    buildCarShowData(dbCarShowItem) {
+        return {
+            sqlId: dbCarShowItem.id,
+            name: dbCarShowItem.name,
+            x: dbCarShowItem.x,
+            y: dbCarShowItem.y,
+            z: dbCarShowItem.z,
+            cameraX: dbCarShowItem.cameraX,
+            cameraY: dbCarShowItem.cameraY,
+            cameraZ: dbCarShowItem.cameraZ,
+            toX: dbCarShowItem.toX,
+            toY: dbCarShowItem.toY,
+            toZ: dbCarShowItem.toZ,
+            toH: dbCarShowItem.toH,
+            returnX: dbCarShowItem.returnX,
+            returnY: dbCarShowItem.returnY,
+            returnZ: dbCarShowItem.returnZ,
+            returnH: dbCarShowItem.returnH,
+            blipId: dbCarShowItem.blipId,
+            blipColor: dbCarShowItem.blipColor
+        };
+    },
+    registerCarShow(dbCarShowItem) {
+        const entry = this.buildCarShowData(dbCarShowItem);
+        entry.world = this.createCarShow(entry);
+        carShow.push(entry);
+    },
+    async loadCarShowsFromDB() { /// Загрузка автосалонов из БД
+        dbCarShow = await db.Models.CarShow.findAll();
+        for (var i = 0; i < dbCarShow.length; i++) {
+            this.registerCarShow(dbCarShow[i]);
+        }
+        console.log(`[CARSHOW] Загружено автосалонов: ${i}`);
+    },
+    createCarShow(carShow) {
+        const sqlId = carShow.sqlId || carShow.id;
+        const blip = mp.blips.new(carShow.blipId, new mp.Vector3(carShow.x, carShow.y, carShow.z), {
+            name: carShow.name,
+            color: carShow.blipColor,
+            shortRange: true,
+        });
+        const marker = mp.markers.new(1, new mp.Vector3(carShow.x, carShow.y, carShow.z), 1.6, {
+            direction: new mp.Vector3(carShow.x, carShow.y, carShow.z),
+            rotation: 0,
+            color: [255, 255, 125, 128],
+            visible: true,
+            dimension: 0
+        });
+        let shape = mp.colshapes.newSphere(carShow.x, carShow.y, carShow.z + 0.5, 2);
+        shape.isCarShow = true;
+        shape.carShowId = sqlId;
+
+        let shortName = carShow.name.split(' ')[0];
+        let label = mp.labels.new(`${shortName}`, new mp.Vector3(carShow.x, carShow.y, carShow.z + 1.7), {
+            los: false,
+            font: 0,
+            drawDistance: 10,
+        });
+        label.isCarShow = true;
+        label.carShowId = sqlId;
+
+        return { blip, marker, shape, label };
+    },
+    async loadCarListsFromDB() {
+        dbCarList = await db.Models.CarList.findAll();
+
+        for (var i = 0; i < dbCarList.length; i++) {
+            carList.push({
+                sqlId: dbCarList[i].id,
+                carShowId: dbCarList[i].carShowId,
+                count: dbCarList[i].count,
+                vehiclePropertyModel: dbCarList[i].vehiclePropertyModel,
+                percentage: dbCarList[i].percentage,
+                db: dbCarList[i]
+            });
+        }
+
+        for (var i = 0; i < carList.length; i++) { /// Устанавливаем характеристики для каждого автомобиля, расположенного в автосалоне
+            carList[i] = this.setCarListProperties(carList[i]);
+        }
+        carList.sort((a, b) => { 
+            return a.properties.price - b.properties.price;
+        });
+        console.log(`[CARSHOW] Загружено моделей авто для автосалонов: ${i}`);
+    },
+    getCarShowList(carShowId) {
+        var list = [];
+        for (var i = 0; i < carList.length; i++) {
+            if (carList[i].carShowId == carShowId) {
+                list.push(carList[i]);
+            }
+        }
+        return list;
+    },
+    setCarListProperties(veh) {
+        let properties = vehicles.getVehiclePropertiesByModel(veh.vehiclePropertyModel);
+        veh.properties = properties;
+        return veh;
+    },
+    generateRandomInt() {
+        return Math.floor(Math.random() * 1000);
+    },
+    getCarShowPropertyBySqlId(prop, sqlId) {
+        for (var i = 0; i < carShow.length; i++) {
+            if (carShow[i].sqlId == sqlId) {
+                return carShow[i][prop];
+            }
+        }
+    },
+    getExitPosition(info) {
+        return getPointByHeading(info, info.returnH || 0, -2.5, 0, 0);
+    },
+    getBuySpawnPosition(info) {
+        return getPointByHeading(info, info.returnH || 0, 4, 0, 0);
+    },
+    async updateCarShow(sqlId, data) {
+        const dbRecord = await db.Models.CarShow.findByPk(sqlId);
+        if (!dbRecord) return null;
+
+        await dbRecord.update(data);
+
+        const target = this.getCarShowInfoById(sqlId);
+        if (target) {
+            Object.assign(target, data);
+
+            if (data.x != null || data.y != null || data.z != null || data.name != null || data.blipId != null || data.blipColor != null) {
+                if (target.world) {
+                    if (target.world.blip) target.world.blip.destroy();
+                    if (target.world.marker) target.world.marker.destroy();
+                    if (target.world.shape) target.world.shape.destroy();
+                    if (target.world.label) target.world.label.destroy();
+                }
+                target.world = this.createCarShow(target);
+            }
+        }
+
+        return dbRecord;
+    },
+    async buyCarFromCarList(player, carId, primaryColor, secondaryColor) {
+        for (var i = 0; i < carList.length; i++) {
+            if (carList[i].sqlId == carId) {
+                if (player.character.cash < carList[i].properties.price) return player.call('carshow.car.buy.ans', [2]);
+                let carShowInfo = this.getCarShowInfoById(player.carShowId);
+                if (!vehicles.isAbleToBuyVehicle(player)) return player.call('carshow.car.buy.ans', [5]);
+
+                var cant = inventory.cantAdd(player, 33, {});
+                if (cant) return player.call('carshow.car.buy.ans', [7, {
+                    text: cant
+                }]);
+
+                let carToBuy = carList[i];
+                money.removeCash(player, carList[i].properties.price, async (result) => {
+                    if (result) {
+                        try {
+                            var carPlate = vehicles.generateVehiclePlate();
+                            let buySpawn = this.getBuySpawnPosition(carShowInfo || player.position);
+
+                            let now = new Date();
+
+                            var data = await db.Models.Vehicle.create({
+                                key: "private",
+                                owner: player.character.id,
+                                modelName: carToBuy.vehiclePropertyModel,
+                                color1: primaryColor,
+                                color2: secondaryColor,
+                                x: buySpawn.x,
+                                y: buySpawn.y,
+                                z: buySpawn.z,
+                                h: carShowInfo ? carShowInfo.returnH : player.heading,
+                                parkingDate: null,
+                                parkingId: 0,
+                                plate: carPlate,
+                                owners: 1,
+                                regDate: now
+                            });
+                            var veh = {
+                                key: "private",
+                                owner: player.character.id,
+                                modelName: carToBuy.vehiclePropertyModel,
+                                color1: primaryColor,
+                                color2: secondaryColor,
+                                x: buySpawn.x,
+                                y: buySpawn.y,
+                                z: buySpawn.z,
+                                h: carShowInfo ? carShowInfo.returnH : player.heading,
+                                parkingId: 0,
+                                parkingDate: null,
+                                fuel: 50,
+                                mileage: 0,
+                                plate: carPlate,
+                                engineState: 0,
+                                fuelState: 0,
+                                steeringState: 0,
+                                brakeState: 0,
+                                destroys: 0,
+                                owners: 1,
+                                regDate: now
+                            }
+                            veh.sqlId = data.id;
+                            veh.db = data;
+                            await vehicles.spawnVehicle(veh, 1);
+
+                            carToBuy.count = carToBuy.count - 1;
+                            let props = vehicles.getVehiclePropertiesByModel(data.modelName);
+                            player.vehicleList.push({
+                                id: data.id,
+                                name: props.name,
+                                plate: data.plate,
+                                regDate: data.regDate,
+                                owners: data.owners,
+                                vehType: props.vehType,
+                                price: props.price,
+                                parkingDate: data.parkingDate,
+                                dbInstance: data
+                            });
+
+                            player.call('carshow.car.buy.ans', [8, carToBuy]);
+
+                            inventory.fullDeleteItemsByParams(33, 'vehId', veh.db.id);
+                            // выдача ключей в инвентарь
+                            inventory.addItem(player, 33, {
+                                owner: player.character.id,
+                                vehId: veh.db.id,
+                                vehName: carToBuy.properties.name
+                            }, (e) => {
+                                if (e) return player.call('carmarket.car.buy.ans', [7, {
+                                    text: e
+                                }]);
+                            });
+
+                        } catch (err) {
+                            console.log(err);
+                            player.call('carshow.car.buy.ans', [2]);
+                        }
+                    } else {
+
+                        player.call('carshow.car.buy.ans', [3]);
+
+                    }
+                }, `Покупка в автосалоне т/с ${carToBuy.vehiclePropertyModel}`);
+
+            }
+        }
+    },
+    getCarShowInfoById(sqlId) {
+        for (var i = 0; i < carShow.length; i++) {
+            if (carShow[i].sqlId == sqlId) {
+                return carShow[i];
+            }
+        }
+    },
+    parseProps() {
+        for (let key in carshowdata) {
+            db.Models.VehicleProperties.create({
+                model: key,
+                name: carshowdata[key].name,
+                vehType: 0,
+                price: carshowdata[key].price,
+                maxFuel: 50,
+                consumption: 2
+            });
+        }
+    },
+    parseCarList() {
+        for (let key in carshowdata) {
+            db.Models.CarList.create({
+                carShowId: 1,
+                vehiclePropertyModel: key
+            });
+        }
+    }
+}

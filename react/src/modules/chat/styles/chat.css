@@ -1,0 +1,76 @@
+#chat-form-react {
+    height: 40vh;
+    max-height: 40vh;
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    color: white;
+    width: 60%;
+    max-width: 70vw;
+    font-size: 1.6vh;
+    z-index: -1;
+    font-family: chat-font;
+}
+
+#message-list-chat-react {
+    height: 25vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-top: 10px;
+    text-overflow: ellipsis;
+    user-select: none;
+    word-wrap: normal;
+}
+
+.block-input-chat-react {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.72);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    width: 100%;
+    padding: 8px 10px;
+    margin-left: 20px;
+}
+
+#chat-message-input-react {
+    width: 82%;
+    outline: none;
+    background: transparent;
+    border: none;
+    color: white;
+    display: inline-block;
+    margin-left: 1vw;
+    font-size: 1.6vh;
+    font-family: chat-font;
+}
+
+.tag-chat-react {
+    display: inline-block;
+    text-align: center;
+    color: white;
+}
+
+.message-chat-react {
+    width: 100%;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-all;
+    line-break: auto;
+    hyphens: manual;
+}
+
+.word-chat-react {
+    word-wrap: normal;
+    text-overflow: ellipsis;
+    text-shadow:
+        -0 -1px 0 #000000,
+        0 -1px 0 #000000,
+        -0 1px 0 #000000,
+        0 1px 0 #000000,
+        -1px -0 0 #000000,
+        1px -0 0 #000000,
+        -1px 0 0 #000000,
+        1px 0 0 #000000;
+
+    letter-spacing: 0.04em;
+}

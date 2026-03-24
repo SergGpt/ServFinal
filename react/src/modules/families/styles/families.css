@@ -1,0 +1,374 @@
+#familiesTablet,
+#familiesCreation {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 3000;
+    font-family: 'Montserrat', sans-serif;
+}
+
+#familiesTablet .families-window,
+#familiesCreation .families-window {
+    width: 70vw;
+    max-width: 1150px;
+    max-height: 85vh;
+    background: rgba(10, 14, 23, 0.95);
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    color: #fff;
+    overflow: hidden;
+}
+
+.families-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 28px;
+    background: linear-gradient(135deg, rgba(68, 100, 180, 0.85), rgba(40, 51, 90, 0.9));
+}
+
+.families-header .title {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+
+.families-close {
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.families-close:hover {
+    transform: scale(1.2);
+}
+
+.families-tabs {
+    display: flex;
+    background: rgba(15, 20, 33, 0.95);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.families-tabs button {
+    flex: 1;
+    padding: 16px 12px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.families-tabs button.active,
+.families-tabs button:hover {
+    background: rgba(90, 120, 210, 0.25);
+    color: #fff;
+}
+
+.families-content {
+    flex: 1;
+    padding: 24px 32px;
+    overflow-y: auto;
+}
+
+.families-section h3,
+.families-section h4 {
+    margin: 0 0 12px 0;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+}
+
+.families-section textarea,
+.families-section input,
+.families-section select {
+    width: 100%;
+    margin-bottom: 12px;
+    background: rgba(14, 19, 32, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: #fff;
+    resize: none;
+    font-size: 14px;
+}
+
+.families-section textarea {
+    min-height: 140px;
+}
+
+.families-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+.families-actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+}
+
+.families-actions button {
+    padding: 12px 18px;
+    border: none;
+    border-radius: 8px;
+    background: #5b74e8;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.families-actions button.danger {
+    background: #d9534f;
+}
+
+.families-actions button:hover {
+    background: #6f86ff;
+}
+
+.families-summary {
+    margin-top: 24px;
+    display: flex;
+    gap: 32px;
+    font-size: 15px;
+}
+
+.families-summary span {
+    opacity: 0.6;
+    margin-right: 6px;
+}
+
+.families-members table {
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(12, 16, 28, 0.85);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.families-members th,
+.families-members td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.families-members tr.online {
+    background: rgba(68, 118, 93, 0.25);
+}
+
+.families-members tr.offline {
+    background: rgba(60, 66, 82, 0.2);
+}
+
+.families-members button {
+    margin-right: 6px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(91, 116, 232, 0.85);
+    color: #fff;
+    cursor: pointer;
+}
+
+.families-members button.danger {
+    background: #d9534f;
+}
+
+.families-invite-form {
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.families-hint {
+    font-size: 13px;
+    opacity: 0.6;
+}
+
+.families-invite-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.families-invite-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: rgba(14, 19, 32, 0.85);
+    border-radius: 8px;
+}
+
+.families-invite-item .meta {
+    font-size: 13px;
+    opacity: 0.6;
+}
+
+.families-invite-item button {
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    background: rgba(91, 116, 232, 0.85);
+    color: #fff;
+    cursor: pointer;
+}
+
+.families-logo {
+    margin-bottom: 24px;
+}
+
+.families-ranks {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.families-rank {
+    padding: 16px;
+    background: rgba(14, 19, 32, 0.85);
+    border-radius: 10px;
+}
+
+.families-rank .rank-header {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.families-rank .rank-perms {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.families-rank .rank-perms label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    opacity: 0.85;
+}
+
+.families-rank .rank-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.families-rank .rank-actions button {
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    background: rgba(91, 116, 232, 0.85);
+    color: #fff;
+    cursor: pointer;
+}
+
+.families-rank .rank-actions button.danger {
+    background: #d9534f;
+}
+
+.families-rank-create {
+    padding: 16px;
+    background: rgba(14, 19, 32, 0.85);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.families-rank-create button {
+    align-self: flex-start;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 16px;
+    background: rgba(91, 116, 232, 0.85);
+    color: #fff;
+    cursor: pointer;
+}
+
+.families-rank-create .rank-perms {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+}
+
+.families-empty {
+    opacity: 0.6;
+    font-size: 14px;
+}
+
+.families-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 18px;
+}
+
+.families-card {
+    background: rgba(14, 19, 32, 0.85);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    text-align: center;
+}
+
+.families-card img {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 50%;
+    margin-bottom: 8px;
+}
+
+.families-card .card-name {
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.families-card .card-info {
+    font-size: 14px;
+    opacity: 0.7;
+}
+
+#familiesCreation .families-content {
+    background: rgba(12, 16, 28, 0.85);
+}
+
+.families-create textarea {
+    min-height: 100px;
+}
+
+.families-create button {
+    margin-top: 12px;
+    border: none;
+    border-radius: 6px;
+    padding: 12px 18px;
+    background: #5b74e8;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
