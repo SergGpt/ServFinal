@@ -1,5 +1,10 @@
 mp.attachmentMngr = {
     attachments: {},
+    debugEnabled: true,
+    debug: function(message) {
+        if (!this.debugEnabled) return;
+        mp.gui.chat.push(`!{#f39c12}[ATTACH-DEBUG] !{#ffffff}${message}`);
+    },
     resolveBoneIndex: function(entity, boneName) {
         let boneIndex = -1;
 
@@ -44,6 +49,7 @@ mp.attachmentMngr = {
 
                 const boneIndex = this.resolveBoneIndex(entity, attInfo.boneName);
                 if (boneIndex === -1) {
+                    this.debug(`addFor fail id=${id} bone=${attInfo.boneName} model=${attInfo.model} (bone not found)`);
                     console.warn(`[ATTACHES] Can't resolve bone for attachment ${id}, object destroyed`);
                     if (mp.objects.exists(object)) object.destroy();
                     return;
@@ -55,6 +61,7 @@ mp.attachmentMngr = {
                     attInfo.offset.x, attInfo.offset.y, attInfo.offset.z,
                     attInfo.rotation.x, attInfo.rotation.y, attInfo.rotation.z,
                     false, false, false, false, 2, true);
+                this.debug(`addFor ok id=${id} model=${attInfo.model} bone=${attInfo.boneName}->${boneIndex} pos=(${attInfo.offset.x.toFixed(3)},${attInfo.offset.y.toFixed(3)},${attInfo.offset.z.toFixed(3)}) rot=(${attInfo.rotation.x.toFixed(3)},${attInfo.rotation.y.toFixed(3)},${attInfo.rotation.z.toFixed(3)}) entity=${entity.remoteId}`);
 
                 entity.__attachmentObjects[id] = object;
 
@@ -135,10 +142,12 @@ mp.attachmentMngr = {
                 anim: anim,
                 lost: lost,
             };
+            this.debug(`register id=${id} model=${model} bone=${boneName}`);
 
             // Обновляем уже существующие инстансы аттача (если конфиг поменялся на лету)
             mp.players.forEach((player) => {
                 if (!player.__attachmentObjects || !player.__attachmentObjects.hasOwnProperty(id)) return;
+                this.debug(`reregister live id=${id} entity=${player.remoteId}`);
                 this.removeFor(player, id);
                 this.addFor(player, id);
             });
@@ -260,6 +269,7 @@ mp.events.addDataHandler("attachmentsData", (entity, data) => {
         // process outdated first
         for (let attachment of oldAttachments) {
             if (newAttachments.indexOf(attachment) === -1) {
+                if (entity.remoteId === mp.players.local.remoteId) mp.attachmentMngr.debug(`attachmentsData remove id=${attachment}`);
                 mp.attachmentMngr.removeFor(entity, attachment);
             }
         }
@@ -267,6 +277,7 @@ mp.events.addDataHandler("attachmentsData", (entity, data) => {
         // then new attachments
         for (let attachment of newAttachments) {
             if (oldAttachments.indexOf(attachment) === -1) {
+                if (entity.remoteId === mp.players.local.remoteId) mp.attachmentMngr.debug(`attachmentsData add id=${attachment}`);
                 mp.attachmentMngr.addFor(entity, attachment);
             }
         }
@@ -295,6 +306,10 @@ InitAttachmentsOnJoin();
 
 // для настройки аттачей
 mp.events.add({
+    "attaches.debug": (enabled = true) => {
+        mp.attachmentMngr.debugEnabled = !!enabled;
+        mp.gui.chat.push(`!{#2ecc71}[ATTACH-DEBUG] !{#ffffff}${mp.attachmentMngr.debugEnabled ? 'ON' : 'OFF'}`);
+    },
     "attaches.test": (model, bone, x, y, z, rX, rY, rZ) => {
         var player = mp.players.local;
         bone = player.getBoneIndex(bone);

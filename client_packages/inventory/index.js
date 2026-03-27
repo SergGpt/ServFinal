@@ -265,6 +265,9 @@ mp.inventory = {
             }
 
             mp.attachmentMngr.register(`weapon_${itemId}`, model, bone, pos, rot);
+            if (mp.attachmentMngr && mp.attachmentMngr.debugEnabled) {
+                mp.gui.chat.push(`!{#3498db}[INV-DEBUG] !{#ffffff}weapon_${itemId} model=${model} bone=${bone} pos=(${pos.x.toFixed(3)},${pos.y.toFixed(3)},${pos.z.toFixed(3)}) rot=(${rot.x.toFixed(3)},${rot.y.toFixed(3)},${rot.z.toFixed(3)})`);
+            }
             bodyList.push(itemId);
         }
         mp.callCEFV(`inventory.setBodyList(9, ${JSON.stringify(bodyList)})`)
