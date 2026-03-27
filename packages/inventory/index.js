@@ -22,6 +22,15 @@ const HAND_COMBAT_DEFAULTS = {
     },
 };
 
+const BACK_SLOT_ATTACHMENT_CONFIGS = [
+    { itemId: 25, model: 'prop_stat_pack_01', attachInfo: { bone: 57005, pos: [0.1, 0.0, 0.0], rot: [0, 0, 0], anim: 0 } },
+    { itemId: 48, model: 'w_sb_smg', attachInfo: { bone: 57005, pos: [0.05, 0.01, 0.02], rot: [0, 0, 0], anim: 0 } },
+    { itemId: 49, model: 'w_sg_sawnoff', attachInfo: { bone: 57005, pos: [0.05, 0.01, 0.02], rot: [0, 0, 0], anim: 0 } },
+    { itemId: 51, model: 'w_ar_bullpuprifle', attachInfo: { bone: 24818, pos: [0.2, -0.15, -0.1], rot: [13, -90, 7], anim: 0 } },
+    { itemId: 52, model: 'w_ar_assaultrifle_smg', attachInfo: { bone: 24818, pos: [0, 0, 0], rot: [0, 0, 0], anim: 0 } },
+];
+const BACK_SLOT_ITEM_IDS = BACK_SLOT_ATTACHMENT_CONFIGS.map(x => x.itemId);
+
 
 
 
@@ -56,7 +65,7 @@ module.exports = {
         6: [11],
         7: [10],
         8: [12],
-        9: [21, 22, 48, 49, 50, 52, /*70, 76, 91, 93, 96, 99, 100, 107, 136*/],
+        9: BACK_SLOT_ITEM_IDS,
         10: [13],
         11: [8],
         12: [9],
@@ -127,7 +136,7 @@ async loadInventoryItemsFromDB() {
 
     // Передаём на клиент уже распарсенные объекты
     this.clientInventoryItems = this.convertServerInventoryItemsToClient(parsedItems);
-    this.refreshBackWeaponList();
+    this.applyBackSlotWhitelist();
     console.log(`[INVENTORY] Предметы инвентаря загружены (${dbItems.length} шт.)`);
 
     // Опционально: сразу обновить всех игроков (чтобы изменения применялись без рестарта клиента)
@@ -139,16 +148,9 @@ async loadInventoryItemsFromDB() {
         console.error("[INVENTORY] Error broadcasting items to clients:", e);
     }
 },
-    refreshBackWeaponList() {
-        const legacyList = Array.isArray(this.bodyList[9]) ? this.bodyList[9] : [];
-        const weaponIds = Object.values(this.inventoryItems)
-            .filter(item => item && typeof item.model === 'string' && item.model.startsWith('weapon_'))
-            .map(item => item.id);
-
-        this.bodyList[9] = Array.from(new Set([...legacyList, ...weaponIds]))
-            .sort((a, b) => a - b);
-
-        console.log(`[INVENTORY] Слот оружия за спиной обновлен: ${this.bodyList[9].length} предметов`);
+    applyBackSlotWhitelist() {
+        this.bodyList[9] = BACK_SLOT_ITEM_IDS.slice();
+        console.log(`[INVENTORY] Слот за спиной (ручной whitelist): ${this.bodyList[9].join(", ")}`);
     },
     convertServerInventoryItemsToClient(dbItems) {
         var client = {};
@@ -664,27 +666,11 @@ getWeaponModels() {
     });
 },
 getWeaponAttachmentConfigs() {
-    if (!Array.isArray(this.bodyList[9])) return [];
-
-    return this.bodyList[9].map((itemId) => {
-        const item = this.getInventoryItem(itemId);
-        if (!item || !item.model) return null;
-
-        let attachInfo = item.attachInfo;
-        if (typeof attachInfo === "string") {
-            try {
-                attachInfo = JSON.parse(attachInfo);
-            } catch (e) {
-                attachInfo = null;
-            }
-        }
-
-        return {
-            itemId: itemId,
-            model: item.model,
-            attachInfo: attachInfo || null,
-        };
-    }).filter(Boolean);
+    return BACK_SLOT_ATTACHMENT_CONFIGS.map((entry) => ({
+        itemId: entry.itemId,
+        model: entry.model,
+        attachInfo: entry.attachInfo,
+    }));
 },
 getInventoryItem(itemId) {
     const item = this.inventoryItems[itemId];

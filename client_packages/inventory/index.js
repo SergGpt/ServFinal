@@ -8,54 +8,7 @@ mp.inventory = {
     handsBlock: false,
     handsBlockForce: false,
     groundItemMarker: {},
-    // Настройка аттачей на спине
-    backAttachInfo: {
-        41: { // Бейсбольная бита
-            bone: 24818,
-            pos: new mp.Vector3(0.25, -0.155, -0.1),
-            rot: new mp.Vector3(13, -90, 7)
-        },
-        52: { // Compact Rifle
-            bone: 24818,
-            pos: new mp.Vector3(0.2, -0.165, -0.1),
-            rot: new mp.Vector3(13, 180, 10)
-        },
-        53: { // MG
-            bone: 24818,
-            pos: new mp.Vector3(0.2, -0.165, -0.1),
-            rot: new mp.Vector3(13, 180, 10)
-        },
-        68: { // Клюшка
-            bone: 24818,
-            pos: new mp.Vector3(0.2, -0.145, -0.1),
-            rot: new mp.Vector3(13, -90, 10)
-        },
-        64: { // топор
-            bone: 24818,
-            pos: new mp.Vector3(0.2, -0.15, -0.1),
-            rot: new mp.Vector3(13, -90, 10)
-        },
-        74: { // каменный топор
-            bone: 24818,
-            pos: new mp.Vector3(0.2, -0.15, -0.1),
-            rot: new mp.Vector3(13, -90, 10)
-        },
-        104: { // Combat MG
-            bone: 24818,
-            pos: new mp.Vector3(0.2, -0.165, -0.1),
-            rot: new mp.Vector3(13, 180, 10)
-        },
-        105: { // Combat MK II
-            bone: 24818,
-            pos: new mp.Vector3(0.2, -0.165, -0.1),
-            rot: new mp.Vector3(13, 180, 10)
-        },
-        136: { // кирка
-            bone: 24818,
-            pos: new mp.Vector3(0.35, -0.1, -0.1),
-            rot: new mp.Vector3(0, -90, 10)
-        },
-    },
+    backSlotWhitelist: [25, 48, 49, 51, 52],
     lastActionTime: 0,
     waitActionTime: 1000,
     searchPlayer: null,
@@ -213,66 +166,44 @@ mp.inventory = {
             if (sqlId == itemSqlId) this.removeHotkey(key);
         }
     },
-    registerWeaponAttachments(attachmentsOrList, models = null) {
-        let attachments = [];
-
-        // Новый формат: [{ itemId, model, attachInfo }]
-        if (Array.isArray(attachmentsOrList) && attachmentsOrList.length && typeof attachmentsOrList[0] === 'object') {
-            attachments = attachmentsOrList;
-        } else {
-            // Legacy-формат: (list, models)
-            const list = Array.isArray(attachmentsOrList) ? attachmentsOrList : [];
-            const safeModels = Array.isArray(models) ? models : [];
-            attachments = list.map((itemId, index) => ({
-                itemId: itemId,
-                model: safeModels[index],
-                attachInfo: null
-            }));
-        }
-
+    registerWeaponAttachments(attachmentsOrList) {
+        const attachments = Array.isArray(attachmentsOrList) ? attachmentsOrList : [];
+        const allowedIds = new Set(this.backSlotWhitelist);
         const bodyList = [];
+
         for (let i = 0; i < attachments.length; i++) {
             const entry = attachments[i];
-            const itemId = entry.itemId;
+            if (!entry || typeof entry !== "object") continue;
+
+            const itemId = parseInt(entry.itemId, 10);
+            if (!Number.isInteger(itemId) || !allowedIds.has(itemId)) continue;
+
             const model = entry.model;
+            const dbAttach = (entry.attachInfo && typeof entry.attachInfo === "object") ? entry.attachInfo : {};
+            if (model == null) continue;
 
-            if (model == null) {
-                console.warn(`[INVENTORY] Weapon attachment model missing for itemId ${itemId}`);
-                continue;
+            let bone = 24818;
+            if (Number.isInteger(dbAttach.bone)) bone = dbAttach.bone;
+            else if (typeof dbAttach.bone === "string") {
+                const parsedBone = parseInt(dbAttach.bone, 10);
+                if (Number.isInteger(parsedBone) && !Number.isNaN(parsedBone)) bone = parsedBone;
             }
 
-            var bone = 24818;
-            var pos = new mp.Vector3(0.2, -0.155, -0.1);
-            var rot = new mp.Vector3(13, 180, 10);
-
-            const dbAttach = entry.attachInfo;
-            if (dbAttach && typeof dbAttach === 'object') {
-                if (Number.isInteger(dbAttach.bone)) bone = dbAttach.bone;
-                else if (typeof dbAttach.bone === 'string') {
-                    const parsedBone = parseInt(dbAttach.bone, 10);
-                    if (Number.isInteger(parsedBone) && !Number.isNaN(parsedBone)) bone = parsedBone;
-                }
-                if (Array.isArray(dbAttach.pos) && dbAttach.pos.length >= 3) {
-                    pos = new mp.Vector3(parseFloat(dbAttach.pos[0]) || 0, parseFloat(dbAttach.pos[1]) || 0, parseFloat(dbAttach.pos[2]) || 0);
-                }
-                if (Array.isArray(dbAttach.rot) && dbAttach.rot.length >= 3) {
-                    rot = new mp.Vector3(parseFloat(dbAttach.rot[0]) || 0, parseFloat(dbAttach.rot[1]) || 0, parseFloat(dbAttach.rot[2]) || 0);
-                }
-            } else if (this.backAttachInfo[itemId]) {
-                bone = this.backAttachInfo[itemId].bone;
-                pos = this.backAttachInfo[itemId].pos;
-                rot = this.backAttachInfo[itemId].rot;
-            }
+            const pos = new mp.Vector3(
+                Array.isArray(dbAttach.pos) ? (parseFloat(dbAttach.pos[0]) || 0) : 0,
+                Array.isArray(dbAttach.pos) ? (parseFloat(dbAttach.pos[1]) || 0) : 0,
+                Array.isArray(dbAttach.pos) ? (parseFloat(dbAttach.pos[2]) || 0) : 0
+            );
+            const rot = new mp.Vector3(
+                Array.isArray(dbAttach.rot) ? (parseFloat(dbAttach.rot[0]) || 0) : 0,
+                Array.isArray(dbAttach.rot) ? (parseFloat(dbAttach.rot[1]) || 0) : 0,
+                Array.isArray(dbAttach.rot) ? (parseFloat(dbAttach.rot[2]) || 0) : 0
+            );
 
             mp.attachmentMngr.register(`weapon_${itemId}`, model, bone, pos, rot);
-            if (mp.attachmentMngr && mp.attachmentMngr.debugEnabled) {
-                const debugLine = `!{3498db}[INV-DEBUG] !{ffffff}weapon_${itemId} model=${model} bone=${bone} pos=(${pos.x.toFixed(3)},${pos.y.toFixed(3)},${pos.z.toFixed(3)}) rot=(${rot.x.toFixed(3)},${rot.y.toFixed(3)},${rot.z.toFixed(3)})`;
-                if (mp.gui && mp.gui.chat && typeof mp.gui.chat.push === "function") {
-                    mp.gui.chat.push(debugLine);
-                }
-            }
             bodyList.push(itemId);
         }
+
         mp.callCEFV(`inventory.setBodyList(9, ${JSON.stringify(bodyList)})`)
     },
     disableControlActions() {
