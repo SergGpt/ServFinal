@@ -58,21 +58,13 @@ mp.attachmentMngr = {
                     return;
                 }
 
-                let attachBone = boneIndex;
-                if (typeof(attInfo.boneName) === "number") {
-                    attachBone = attInfo.boneName;
-                } else if (typeof(attInfo.boneName) === "string") {
-                    const parsedBone = parseInt(attInfo.boneName, 10);
-                    if (Number.isInteger(parsedBone) && !Number.isNaN(parsedBone)) attachBone = parsedBone;
-                }
-
                 // Используем старые стабильные флаги attachTo из исходного скрипта
                 object.attachTo(entity.handle,
-                    attachBone,
+                    boneIndex,
                     attInfo.offset.x, attInfo.offset.y, attInfo.offset.z,
                     attInfo.rotation.x, attInfo.rotation.y, attInfo.rotation.z,
                     false, false, false, false, 2, true);
-                this.debug(`addFor ok id=${id} model=${attInfo.model} bone=${attInfo.boneName}->${boneIndex} attachBone=${attachBone} pos=(${attInfo.offset.x.toFixed(3)},${attInfo.offset.y.toFixed(3)},${attInfo.offset.z.toFixed(3)}) rot=(${attInfo.rotation.x.toFixed(3)},${attInfo.rotation.y.toFixed(3)},${attInfo.rotation.z.toFixed(3)}) entity=${entity.remoteId}`);
+                this.debug(`addFor ok id=${id} model=${attInfo.model} boneName=${attInfo.boneName} boneIndex=${boneIndex} attachMode=boneIndex pos=(${attInfo.offset.x.toFixed(3)},${attInfo.offset.y.toFixed(3)},${attInfo.offset.z.toFixed(3)}) rot=(${attInfo.rotation.x.toFixed(3)},${attInfo.rotation.y.toFixed(3)},${attInfo.rotation.z.toFixed(3)}) entity=${entity.remoteId}`);
 
                 entity.__attachmentObjects[id] = object;
 
