@@ -266,7 +266,11 @@ mp.inventory = {
 
             mp.attachmentMngr.register(`weapon_${itemId}`, model, bone, pos, rot);
             if (mp.attachmentMngr && mp.attachmentMngr.debugEnabled) {
-                mp.gui.chat.push(`!{#3498db}[INV-DEBUG] !{#ffffff}weapon_${itemId} model=${model} bone=${bone} pos=(${pos.x.toFixed(3)},${pos.y.toFixed(3)},${pos.z.toFixed(3)}) rot=(${rot.x.toFixed(3)},${rot.y.toFixed(3)},${rot.z.toFixed(3)})`);
+                const debugLine = `!{3498db}[INV-DEBUG] !{ffffff}weapon_${itemId} model=${model} bone=${bone} pos=(${pos.x.toFixed(3)},${pos.y.toFixed(3)},${pos.z.toFixed(3)}) rot=(${rot.x.toFixed(3)},${rot.y.toFixed(3)},${rot.z.toFixed(3)})`;
+                if (mp.gui && mp.gui.chat && typeof mp.gui.chat.push === "function") {
+                    mp.gui.chat.push(debugLine);
+                }
+                mp.game.graphics.notify(`~b~[INV-DEBUG]~s~ weapon_${itemId} bone=${bone}`);
             }
             bodyList.push(itemId);
         }

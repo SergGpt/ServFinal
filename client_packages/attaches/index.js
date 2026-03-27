@@ -3,7 +3,11 @@ mp.attachmentMngr = {
     debugEnabled: true,
     debug: function(message) {
         if (!this.debugEnabled) return;
-        mp.gui.chat.push(`!{#f39c12}[ATTACH-DEBUG] !{#ffffff}${message}`);
+        const text = `!{f39c12}[ATTACH-DEBUG] !{ffffff}${message}`;
+        if (mp.gui && mp.gui.chat && typeof mp.gui.chat.push === "function") {
+            mp.gui.chat.push(text);
+        }
+        mp.game.graphics.notify(`~o~[ATTACH-DEBUG]~s~ ${message}`);
     },
     resolveBoneIndex: function(entity, boneName) {
         let boneIndex = -1;
@@ -308,7 +312,13 @@ InitAttachmentsOnJoin();
 mp.events.add({
     "attaches.debug": (enabled = true) => {
         mp.attachmentMngr.debugEnabled = !!enabled;
-        mp.gui.chat.push(`!{#2ecc71}[ATTACH-DEBUG] !{#ffffff}${mp.attachmentMngr.debugEnabled ? 'ON' : 'OFF'}`);
+        mp.attachmentMngr.debug(`debug ${mp.attachmentMngr.debugEnabled ? "ON" : "OFF"}`);
+    },
+    "attaches.dump": () => {
+        const player = mp.players.local;
+        const active = Array.isArray(player.__attachments) ? player.__attachments : [];
+        const spawned = player.__attachmentObjects ? Object.keys(player.__attachmentObjects) : [];
+        mp.attachmentMngr.debug(`dump active=[${active.join(", ")}] spawned=[${spawned.join(", ")}]`);
     },
     "attaches.test": (model, bone, x, y, z, rX, rY, rZ) => {
         var player = mp.players.local;
