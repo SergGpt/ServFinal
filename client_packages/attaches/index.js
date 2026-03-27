@@ -125,24 +125,25 @@ mp.attachmentMngr = {
             return;
         }
 
-        if (!this.attachments.hasOwnProperty(id)) {
-            if (mp.game.streaming.isModelInCdimage(model)) {
-                this.attachments[id] = {
-                    id: id,
-                    model: model,
-                    offset: offset,
-                    rotation: rotation,
-                    boneName: boneName,
-                    anim: anim,
-                    lost: lost,
-                };
-            } else {
-                //temp
-                //mp.game.graphics.notify(`Static Attachments Error: ~r~Invalid Model (0x${model.toString(16)})`);
-            }
+        if (mp.game.streaming.isModelInCdimage(model)) {
+            this.attachments[id] = {
+                id: id,
+                model: model,
+                offset: offset,
+                rotation: rotation,
+                boneName: boneName,
+                anim: anim,
+                lost: lost,
+            };
+
+            // Обновляем уже существующие инстансы аттача (если конфиг поменялся на лету)
+            mp.players.forEach((player) => {
+                if (!player.__attachmentObjects || !player.__attachmentObjects.hasOwnProperty(id)) return;
+                this.removeFor(player, id);
+                this.addFor(player, id);
+            });
         } else {
-            //temp
-            //mp.game.graphics.notify("Static Attachments Error: ~r~Duplicate Entry");
+            console.warn(`[ATTACHES] register skipped: model not in cdimage for attachment ${id}`, model);
         }
     },
 
