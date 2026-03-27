@@ -42,5 +42,6 @@ mp.callCEFVN = function (object) {
 }
 
 mp.events.add({
-    "callCEFR": mp.callCEFR
+    "callCEFR": mp.callCEFR,
+    "callCEFV": mp.callCEFV
 });

@@ -1085,3 +1085,70 @@
     fill: #F03636;
     box-shadow: 0 0 0.5vh #F03636;
 }
+
+#inventory-layout-editor {
+    position: fixed;
+    right: 2vh;
+    top: 2vh;
+    width: 34vh;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: rgba(10, 10, 10, 0.92);
+    color: #ddd;
+    border-radius: 1vh;
+    z-index: 999999;
+    padding: 1.2vh;
+    font-family: Ubuntu, sans-serif;
+    box-shadow: 0 0.8vh 2.4vh rgba(0, 0, 0, 0.45);
+}
+
+#inventory-layout-editor .editor-title {
+    color: #FFDF29;
+    font-size: 1.6vh;
+    font-weight: 700;
+    margin-bottom: 1vh;
+}
+
+#inventory-layout-editor .editor-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.4vh;
+    margin-bottom: 0.8vh;
+}
+
+#inventory-layout-editor .editor-row span {
+    font-size: 1.2vh;
+    color: #bbb;
+}
+
+#inventory-layout-editor .editor-row input {
+    height: 2.8vh;
+    border: 0;
+    border-radius: 0.6vh;
+    outline: none;
+    padding: 0 0.8vh;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-size: 1.2vh;
+}
+
+#inventory-layout-editor .editor-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6vh;
+    margin-top: 1vh;
+}
+
+#inventory-layout-editor .editor-actions button {
+    border: 0;
+    border-radius: 0.6vh;
+    height: 3vh;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    font-size: 1.15vh;
+}
+
+#inventory-layout-editor .editor-actions button:hover {
+    background: rgba(255, 223, 41, 0.3);
+}

@@ -2153,3 +2153,169 @@ var inventory = new Vue({
 // inventory.debug = true;
 // inventory.show = true;
 // inventory.enable = true;
+
+// ------------------ Inventory Layout Editor (Admin) ------------------
+(function () {
+    const fields = [{
+            key: 'rootGap',
+            label: 'Gap между панелями',
+            selector: '#inventory',
+            style: 'gap',
+        },
+        {
+            key: 'mainColumns',
+            label: 'Колонки main body',
+            selector: '#inventory .body',
+            style: 'gridTemplateColumns',
+        },
+        {
+            key: 'mainRows',
+            label: 'Высота main body',
+            selector: '#inventory .body',
+            style: 'gridTemplateRows',
+        },
+        {
+            key: 'mainWidth',
+            label: 'Ширина close/hotbar',
+            selector: '#inventory .close',
+            style: 'width',
+        },
+        {
+            key: 'hotbarWidth',
+            label: 'Ширина hotbar',
+            selector: '#inventory .hotkeys',
+            style: 'width',
+        },
+        {
+            key: 'hotbarPadding',
+            label: 'Padding hotbar',
+            selector: '#inventory .hotkeys',
+            style: 'padding',
+        },
+        {
+            key: 'hotbarGap',
+            label: 'Gap hotbar',
+            selector: '#inventory .hotkeys',
+            style: 'gridGap',
+        },
+        {
+            key: 'handsBottom',
+            label: 'Отступ блока рук снизу',
+            selector: '#inventory .hands',
+            style: 'marginBottom',
+        },
+        {
+            key: 'handsSlotWidth',
+            label: 'Ширина подложки рук',
+            selector: '#inventory .hands .slot',
+            style: 'width',
+        },
+        {
+            key: 'handsItemWidth',
+            label: 'Ширина предмета в руках',
+            selector: '#inventory .hands .item',
+            style: 'width',
+        },
+        {
+            key: 'handsItemHeight',
+            label: 'Высота предмета в руках',
+            selector: '#inventory .hands .item',
+            style: 'height',
+        },
+    ];
+
+    const editor = {
+        panel: null,
+        values: {},
+        open() {
+            if (this.panel) {
+                this.panel.style.display = 'block';
+                return;
+            }
+            this.readCurrentValues();
+            this.createPanel();
+        },
+        close() {
+            if (!this.panel) return;
+            this.panel.style.display = 'none';
+        },
+        readCurrentValues() {
+            this.values = {};
+            fields.forEach((field) => {
+                const el = document.querySelector(field.selector);
+                if (!el) return;
+                const val = window.getComputedStyle(el)[field.style] || '';
+                this.values[field.key] = val;
+            });
+        },
+        apply() {
+            fields.forEach((field) => {
+                const input = this.panel.querySelector(`[data-key="${field.key}"]`);
+                const el = document.querySelector(field.selector);
+                if (!input || !el) return;
+                el.style[field.style] = input.value.trim();
+                this.values[field.key] = input.value.trim();
+            });
+        },
+        reset() {
+            this.readCurrentValues();
+            fields.forEach((field) => {
+                const input = this.panel.querySelector(`[data-key="${field.key}"]`);
+                if (!input) return;
+                input.value = this.values[field.key] || '';
+            });
+        },
+        exportConfig() {
+            const cfg = {};
+            fields.forEach((field) => {
+                const input = this.panel.querySelector(`[data-key="${field.key}"]`);
+                cfg[field.key] = (input ? input.value : this.values[field.key]) || '';
+            });
+            return JSON.stringify(cfg, null, 2);
+        },
+        copyConfig() {
+            const text = this.exportConfig();
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    if (window.notifications) notifications.success(`UI Editor`, `Конфиг скопирован`);
+                }).catch(() => {
+                    window.prompt('Скопируй конфиг вручную:', text);
+                });
+            } else {
+                window.prompt('Скопируй конфиг вручную:', text);
+            }
+            return text;
+        },
+        createPanel() {
+            const panel = document.createElement('div');
+            panel.id = 'inventory-layout-editor';
+            panel.innerHTML = `
+                <div class="editor-title">Inventory UI Editor</div>
+                <div class="editor-list"></div>
+                <div class="editor-actions">
+                    <button data-action="apply">Apply</button>
+                    <button data-action="copy">Copy JSON</button>
+                    <button data-action="close">Close</button>
+                </div>
+            `;
+            const list = panel.querySelector('.editor-list');
+            fields.forEach((field) => {
+                const row = document.createElement('label');
+                row.className = 'editor-row';
+                row.innerHTML = `<span>${field.label}</span><input data-key="${field.key}" value="${this.values[field.key] || ''}" />`;
+                list.appendChild(row);
+            });
+            panel.addEventListener('click', (e) => {
+                const action = e.target && e.target.dataset ? e.target.dataset.action : null;
+                if (!action) return;
+                if (action === 'apply') return this.apply();
+                if (action === 'copy') return this.copyConfig();
+                if (action === 'close') return this.close();
+            });
+            document.body.appendChild(panel);
+            this.panel = panel;
+        },
+    };
+
+    window.inventoryLayoutEditor = editor;
+})();

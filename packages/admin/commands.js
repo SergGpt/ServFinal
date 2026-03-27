@@ -101,6 +101,27 @@ module.exports = {
             player.call('dev.camera.stickPed', [args[0] === 1]);
         }
     },
+    "/uiedit": {
+        access: 4,
+        description: "Открыть редактор UI (inventory) и экспортировать настройки",
+        args: "[open/close/export]",
+        handler: (player, args, out) => {
+            const action = (args[0] || "open").toLowerCase();
+            if (action === "open") {
+                player.call('callCEFV', ['window.inventoryLayoutEditor && window.inventoryLayoutEditor.open();']);
+                return out.info(`UI editor открыт`, player);
+            }
+            if (action === "close") {
+                player.call('callCEFV', ['window.inventoryLayoutEditor && window.inventoryLayoutEditor.close();']);
+                return out.info(`UI editor закрыт`, player);
+            }
+            if (action === "export") {
+                player.call('callCEFV', ['window.inventoryLayoutEditor && window.inventoryLayoutEditor.copyConfig();']);
+                return out.info(`Конфиг скопирован в буфер CEF`, player);
+            }
+            out.error(`Использование: /uiedit [open/close/export]`, player);
+        }
+    },
     "/campath": {
         access: 1,
         description: "Пролет по маршруту",
