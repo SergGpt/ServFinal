@@ -1090,9 +1090,9 @@
     position: fixed;
     right: 2vh;
     top: 2vh;
-    width: 40vh;
-    max-height: 94vh;
-    overflow-y: auto;
+    width: 48vh;
+    height: 48vh;
+    overflow: hidden;
     background: rgba(10, 10, 10, 0.92);
     color: #ddd;
     border-radius: 1vh;
@@ -1100,63 +1100,82 @@
     padding: 1.2vh;
     font-family: Ubuntu, sans-serif;
     box-shadow: 0 0.8vh 2.4vh rgba(0, 0, 0, 0.45);
+    display: grid;
+    grid-template-rows: min-content min-content 1fr min-content 10vh;
+    gap: 0.8vh;
 }
 
 #inventory-layout-editor .editor-title {
     color: #FFDF29;
     font-size: 1.6vh;
     font-weight: 700;
-    margin-bottom: 1vh;
+}
+
+#inventory-layout-editor .editor-help {
+    font-size: 1.1vh;
+    color: #a6a6a6;
+}
+
+#inventory-layout-editor .editor-list {
+    overflow-y: auto;
+    padding-right: 0.4vh;
 }
 
 #inventory-layout-editor .editor-row {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.4vh;
-    margin-bottom: 0.8vh;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 0.8vh;
+    margin-bottom: 0.5vh;
 }
 
 #inventory-layout-editor .editor-row span {
-    font-size: 1.2vh;
+    font-size: 1.1vh;
     color: #bbb;
 }
 
-#inventory-layout-editor .editor-row small {
-    font-size: 1vh;
-    color: #8f8f8f;
-    margin-top: -0.1vh;
-}
-
 #inventory-layout-editor .editor-row input {
-    height: 2.6vh;
+    height: 2.4vh;
     border: 0;
     border-radius: 0.6vh;
     outline: none;
-    padding: 0 0.8vh;
+    padding: 0 0.6vh;
     background: rgba(255, 255, 255, 0.15);
     color: #fff;
-    font-size: 1.2vh;
+    font-size: 1.1vh;
 }
 
 #inventory-layout-editor .editor-actions {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 0.6vh;
-    margin-top: 1vh;
+    gap: 0.5vh;
 }
 
 #inventory-layout-editor .editor-actions button {
     border: 0;
     border-radius: 0.6vh;
-    height: 2.8vh;
+    height: 2.5vh;
     cursor: pointer;
     background: rgba(255, 255, 255, 0.18);
     color: #fff;
-    font-size: 1.15vh;
+    font-size: 1.05vh;
 }
 
 #inventory-layout-editor .editor-actions button:hover {
     background: rgba(255, 223, 41, 0.3);
+}
+
+#inventory-layout-editor .editor-json {
+    width: 100%;
+    resize: none;
+    border: 0;
+    outline: none;
+    border-radius: 0.6vh;
+    background: rgba(255, 255, 255, 0.12);
+    color: #dcdcdc;
+    font-size: 1.05vh;
+    padding: 0.8vh;
+    font-family: Consolas, monospace;
 }
 
 .inventory-editor-highlight {
