@@ -32,17 +32,28 @@ function _hasAttachment(attachmentName) {
     return this._attachments.indexOf((typeof (attachmentName) === 'string') ? mp.joaat(attachmentName) : attachmentName) !== -1;
 }
 
-mp.events.add("player.joined", (player) => {
-    player._attachments = [];
-
+function initPlayerAttachments(player) {
+    if (!player) return;
+    if (!Array.isArray(player._attachments)) player._attachments = [];
     player.addAttachment = _addAttachmentWrap;
     player.hasAttachment = _hasAttachment;
+}
+
+mp.events.add("player.joined", (player) => {
+    initPlayerAttachments(player);
+});
+
+// Ресурс может перезапускаться при уже подключенных игроках.
+mp.players.forEach((player) => {
+    initPlayerAttachments(player);
 });
 
 mp.events.add("staticAttachments.Add", (player, hash) => {
+    if (typeof player.addAttachment !== "function") initPlayerAttachments(player);
     player.addAttachment(parseInt(hash, 36), false);
 });
 
 mp.events.add("staticAttachments.Remove", (player, hash) => {
+    if (typeof player.addAttachment !== "function") initPlayerAttachments(player);
     player.addAttachment(parseInt(hash, 36), true);
 });
