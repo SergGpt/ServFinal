@@ -724,10 +724,12 @@ var inventory = new Vue({
         itemStyle(item) {
             var isDraggable = this.itemDrag.item && this.itemDrag.item.sqlId == item.sqlId;
             var url = this.urlItemImg(item.itemId);
+            const cellSizeVh = 2.45;
+            const cellGapPx = 1;
             var style = {
                 backgroundImage: `url(${url})`,
-                height: `calc(${this.itemsInfo[item.itemId].height * 2.77}vh + ${(this.itemsInfo[item.itemId].height - 1) * 2}px)`, // Высота + отступ ( минус один отступ)
-                width: `calc(${this.itemsInfo[item.itemId].width * 2.77}vh + ${(this.itemsInfo[item.itemId].width - 1) * 2}px)`,
+                height: `calc(${this.itemsInfo[item.itemId].height * cellSizeVh}vh + ${(this.itemsInfo[item.itemId].height - 1) * cellGapPx}px)`,
+                width: `calc(${this.itemsInfo[item.itemId].width * cellSizeVh}vh + ${(this.itemsInfo[item.itemId].width - 1) * cellGapPx}px)`,
                 pointerEvents: (this.itemDrag.item) ? 'none' : '',
             };
             // if (item.params && item.params.health && !isDraggable && !item.found) {
@@ -2151,3 +2153,441 @@ var inventory = new Vue({
 // inventory.debug = true;
 // inventory.show = true;
 // inventory.enable = true;
+
+// ------------------ Inventory Layout Editor (Admin) ------------------
+(function () {
+    const fields = [{
+            key: 'rootGap',
+            label: 'Gap между панелями',
+            selector: '#inventory',
+            style: 'gap',
+        },
+        {
+            key: 'rootTop',
+            label: 'Позиция inventory top',
+            selector: '#inventory',
+            style: 'top',
+        },
+        {
+            key: 'rootLeft',
+            label: 'Позиция inventory left',
+            selector: '#inventory',
+            style: 'left',
+        },
+        {
+            key: 'rootTransform',
+            label: 'Transform inventory',
+            selector: '#inventory',
+            style: 'transform',
+        },
+        {
+            key: 'mainColumns',
+            label: 'Колонки main body',
+            selector: '#inventory .body',
+            style: 'gridTemplateColumns',
+        },
+        {
+            key: 'mainRows',
+            label: 'Высота main body',
+            selector: '#inventory .body',
+            style: 'gridTemplateRows',
+        },
+        {
+            key: 'mainGap',
+            label: 'Gap main body',
+            selector: '#inventory .body',
+            style: 'gap',
+        },
+        {
+            key: 'mainWidth',
+            label: 'Ширина close',
+            selector: '#inventory .close',
+            style: 'width',
+        },
+        {
+            key: 'closePadding',
+            label: 'Padding close',
+            selector: '#inventory .close',
+            style: 'padding',
+        },
+        {
+            key: 'equipmentHeight',
+            label: 'Высота экипировки',
+            selector: '#inventory .equipment',
+            style: 'height',
+        },
+        {
+            key: 'equipmentOverflow',
+            label: 'Overflow экипировки',
+            selector: '#inventory .equipment',
+            style: 'overflow',
+        },
+        {
+            key: 'equipmentPadding',
+            label: 'Padding экипировки',
+            selector: '#inventory .equipment',
+            style: 'padding',
+        },
+        {
+            key: 'playerHeight',
+            label: 'Высота инвентаря',
+            selector: '#inventory .playerInventory',
+            style: 'height',
+        },
+        {
+            key: 'playerPaddingRight',
+            label: 'Отступ справа playerInventory',
+            selector: '#inventory .playerInventory',
+            style: 'paddingRight',
+        },
+        {
+            key: 'environmentHeight',
+            label: 'Высота взаимодействия',
+            selector: '#inventory .environment',
+            style: 'height',
+        },
+        {
+            key: 'environmentMaxHeight',
+            label: 'Max-height взаимодействия',
+            selector: '#inventory .environment',
+            style: 'maxHeight',
+        },
+        {
+            key: 'bodyItemsGap',
+            label: 'Gap body-items',
+            selector: '#inventory .body-items',
+            style: 'gridGap',
+        },
+        {
+            key: 'bodyItemsMargin',
+            label: 'Margin body-items',
+            selector: '#inventory .body-items',
+            style: 'margin',
+        },
+        {
+            key: 'handsMarginTop',
+            label: 'Отступ блока рук сверху',
+            selector: '#inventory .hands',
+            style: 'marginTop',
+        },
+        {
+            key: 'handsBottom',
+            label: 'Отступ блока рук снизу',
+            selector: '#inventory .hands',
+            style: 'marginBottom',
+        },
+        {
+            key: 'handsPadding',
+            label: 'Padding блока рук',
+            selector: '#inventory .hands',
+            style: 'padding',
+        },
+        {
+            key: 'handsOverflow',
+            label: 'Overflow блока рук',
+            selector: '#inventory .hands',
+            style: 'overflow',
+        },
+        {
+            key: 'handsTransform',
+            label: 'Transform блока рук',
+            selector: '#inventory .hands',
+            style: 'transform',
+        },
+        {
+            key: 'handsSlotWidth',
+            label: 'Ширина подложки рук',
+            selector: '#inventory .hands .slot',
+            style: 'width',
+        },
+        {
+            key: 'handsSlotMinHeight',
+            label: 'Мин. высота слота рук',
+            selector: '#inventory .hands .slot',
+            style: 'minHeight',
+        },
+        {
+            key: 'handsSlotOverflow',
+            label: 'Overflow слота рук',
+            selector: '#inventory .hands .slot',
+            style: 'overflow',
+        },
+        {
+            key: 'handsSlotBusyWidth',
+            label: 'Ширина busy-подложки рук',
+            selector: '#inventory .hands .slot.busy',
+            style: 'width',
+        },
+        {
+            key: 'handsSlotBusyRadius',
+            label: 'Радиус busy-подложки рук',
+            selector: '#inventory .hands .slot.busy',
+            style: 'borderRadius',
+        },
+        {
+            key: 'handsItemWidth',
+            label: 'Ширина предмета в руках',
+            selector: '#inventory .hands .item',
+            style: 'width',
+        },
+        {
+            key: 'handsItemHeight',
+            label: 'Высота предмета в руках',
+            selector: '#inventory .hands .item',
+            style: 'height',
+        },
+        {
+            key: 'handsItemMargin',
+            label: 'Margin предмета в руках',
+            selector: '#inventory .hands .item',
+            style: 'margin',
+        },
+        {
+            key: 'handsItemTransform',
+            label: 'Transform предмета в руках',
+            selector: '#inventory .hands .item',
+            style: 'transform',
+        },
+        {
+            key: 'hotbarWidth',
+            label: 'Ширина hotbar',
+            selector: '#inventory .hotkeys',
+            style: 'width',
+        },
+        {
+            key: 'hotbarPadding',
+            label: 'Padding hotbar',
+            selector: '#inventory .hotkeys',
+            style: 'padding',
+        },
+        {
+            key: 'hotbarGap',
+            label: 'Gap hotbar',
+            selector: '#inventory .hotkeys',
+            style: 'gridGap',
+        },
+        {
+            key: 'hotbarMarginTop',
+            label: 'Margin-top hotbar',
+            selector: '#inventory .hotkeys',
+            style: 'marginTop',
+        },
+        {
+            key: 'hotbarKeyWidth',
+            label: 'Ширина key hotbar',
+            selector: '#inventory .hotkeys>.key',
+            style: 'width',
+        },
+        {
+            key: 'nonEnvMainColumns',
+            label: 'Колонки non-environment body',
+            selector: '#inventory.non-environment .body',
+            style: 'gridTemplateColumns',
+        },
+        {
+            key: 'nonEnvCloseWidth',
+            label: 'Ширина non-environment close',
+            selector: '#inventory.non-environment .close',
+            style: 'width',
+        },
+        {
+            key: 'nonEnvHotbarWidth',
+            label: 'Ширина non-environment hotbar',
+            selector: '#inventory.non-environment .hotkeys',
+            style: 'width',
+        },
+    ];
+
+    const editor = {
+        panel: null,
+        values: {},
+        highlighted: [],
+        storageKey: 'inventory.layout.editor.config',
+        open() {
+            if (this.panel) {
+                this.panel.style.display = 'block';
+                this.loadLocal(true);
+                return;
+            }
+            this.readCurrentValues();
+            this.createPanel();
+            this.loadLocal(true);
+        },
+        close() {
+            if (!this.panel) return;
+            this.panel.style.display = 'none';
+            this.clearHighlight();
+        },
+        readCurrentValues() {
+            this.values = {};
+            fields.forEach((field) => {
+                const el = document.querySelector(field.selector);
+                if (!el) return;
+                const val = window.getComputedStyle(el)[field.style] || '';
+                this.values[field.key] = val;
+            });
+        },
+        apply() {
+            fields.forEach((field) => {
+                const input = this.panel.querySelector(`[data-key="${field.key}"]`);
+                const el = document.querySelector(field.selector);
+                if (!input || !el) return;
+                el.style[field.style] = input.value.trim();
+                this.values[field.key] = input.value.trim();
+            });
+        },
+        reset() {
+            this.readCurrentValues();
+            fields.forEach((field) => {
+                const input = this.panel.querySelector(`[data-key="${field.key}"]`);
+                if (!input) return;
+                input.value = this.values[field.key] || '';
+            });
+        },
+        exportConfig() {
+            const cfg = {};
+            fields.forEach((field) => {
+                const input = this.panel.querySelector(`[data-key="${field.key}"]`);
+                cfg[field.key] = (input ? input.value : this.values[field.key]) || '';
+            });
+            return JSON.stringify(cfg, null, 2);
+        },
+        setJsonOutput(text) {
+            if (!this.panel) return;
+            const out = this.panel.querySelector('.editor-json');
+            if (out) out.value = text;
+        },
+        getConfigObject() {
+            const cfg = {};
+            fields.forEach((field) => {
+                const input = this.panel.querySelector(`[data-key="${field.key}"]`);
+                cfg[field.key] = (input ? input.value : this.values[field.key]) || '';
+            });
+            return cfg;
+        },
+        applyConfigObject(cfg, applyNow) {
+            if (!cfg || typeof cfg !== 'object') return;
+            fields.forEach((field) => {
+                if (!Object.prototype.hasOwnProperty.call(cfg, field.key)) return;
+                const input = this.panel.querySelector(`[data-key="${field.key}"]`);
+                if (input) input.value = cfg[field.key];
+            });
+            if (applyNow) this.apply();
+        },
+        copyConfig() {
+            const text = this.exportConfig();
+            this.setJsonOutput(text);
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    if (window.notifications) notifications.success(`UI Editor`, `Конфиг скопирован`);
+                }).catch(() => {
+                    window.prompt('Скопируй конфиг вручную:', text);
+                });
+            } else {
+                window.prompt('Скопируй конфиг вручную:', text);
+            }
+            return text;
+        },
+        saveLocal() {
+            const cfg = this.getConfigObject();
+            localStorage.setItem(this.storageKey, JSON.stringify(cfg));
+            this.setJsonOutput(JSON.stringify(cfg, null, 2));
+            if (window.notifications) notifications.success(`UI Editor`, `Сохранено локально`);
+        },
+        loadLocal(silent) {
+            const raw = localStorage.getItem(this.storageKey);
+            if (!raw) {
+                if (!silent && window.notifications) notifications.error(`UI Editor`, `Нет сохраненного конфига`);
+                return;
+            }
+            try {
+                const cfg = JSON.parse(raw);
+                this.applyConfigObject(cfg, true);
+                this.setJsonOutput(JSON.stringify(cfg, null, 2));
+                if (!silent && window.notifications) notifications.success(`UI Editor`, `Загружено из localStorage`);
+            } catch (e) {
+                if (!silent && window.notifications) notifications.error(`UI Editor`, `Ошибка чтения конфига`);
+            }
+        },
+        downloadConfig() {
+            const text = this.exportConfig();
+            this.setJsonOutput(text);
+            const blob = new Blob([text], {
+                type: 'application/json'
+            });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'inventory-layout-config.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(a.href), 0);
+        },
+        clearHighlight() {
+            if (!this.highlighted.length) return;
+            this.highlighted.forEach((el) => el.classList.remove('inventory-editor-highlight'));
+            this.highlighted = [];
+        },
+        highlightField(field) {
+            this.clearHighlight();
+            if (!field || !field.selector) return;
+            const list = document.querySelectorAll(field.selector);
+            if (!list || !list.length) return;
+            list.forEach((el) => {
+                el.classList.add('inventory-editor-highlight');
+                this.highlighted.push(el);
+            });
+        },
+        createPanel() {
+            const panel = document.createElement('div');
+            panel.id = 'inventory-layout-editor';
+            panel.innerHTML = `
+                <div class="editor-title">Inventory UI Editor</div>
+                <div class="editor-help">Выбери поле → блок подсветится. Меняй значение → Apply.</div>
+                <div class="editor-list"></div>
+                <div class="editor-actions">
+                    <button data-action="apply">Apply</button>
+                    <button data-action="save">Save Local</button>
+                    <button data-action="load">Load Local</button>
+                    <button data-action="download">Download JSON</button>
+                    <button data-action="copy">Copy JSON</button>
+                    <button data-action="close">Close</button>
+                </div>
+                <textarea class="editor-json" readonly></textarea>
+            `;
+            const list = panel.querySelector('.editor-list');
+            fields.forEach((field) => {
+                const row = document.createElement('label');
+                row.className = 'editor-row';
+                row.dataset.selector = field.selector;
+                row.title = field.selector;
+                row.innerHTML = `<span>${field.label}</span><input data-key="${field.key}" value="${this.values[field.key] || ''}" />`;
+                row.addEventListener('mouseenter', () => this.highlightField(field));
+                row.addEventListener('mouseleave', () => this.clearHighlight());
+                row.addEventListener('click', () => this.highlightField(field));
+                list.appendChild(row);
+            });
+            panel.addEventListener('focusin', (e) => {
+                const key = e.target && e.target.dataset ? e.target.dataset.key : null;
+                if (!key) return;
+                const field = fields.find((x) => x.key === key);
+                if (field) this.highlightField(field);
+            });
+            panel.addEventListener('click', (e) => {
+                const action = e.target && e.target.dataset ? e.target.dataset.action : null;
+                if (!action) return;
+                if (action === 'apply') return this.apply();
+                if (action === 'save') return this.saveLocal();
+                if (action === 'load') return this.loadLocal();
+                if (action === 'download') return this.downloadConfig();
+                if (action === 'copy') return this.copyConfig();
+                if (action === 'close') return this.close();
+            });
+            document.body.appendChild(panel);
+            this.panel = panel;
+            this.setJsonOutput(this.exportConfig());
+        },
+    };
+
+    window.inventoryLayoutEditor = editor;
+})();

@@ -1,30 +1,79 @@
 #inventory {
     color: #ddd;
-    display: grid;
-    grid-gap: 0.4vh;
-    grid-template-columns: 57.5vh repeat(2, 46.4vh);
-    grid-template-rows: 58.7vh 13.1vh 1fr;
-    height: 81.8vh;
-    left: 50%;
-    opacity: 0;
     position: absolute;
-    top: 50%;
-    transform: translate(-50%, -50%);
+    top: 8%;
+    left: 13%;
+    transform: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
     font-family: Ubuntu;
-    /*width: 151vh;*/
     z-index: 100;
-}
-
-#inventory.non-environment {
-    grid-template-columns: repeat(2, 46.4vh);
 }
 
 #inventory>div {
     background-color: rgba(12, 12, 12, 0.8);
-    /*background: #2225;*/
-    /*box-shadow: 0px 0px 0.5vh #aaa;*/
-    padding: 1.8vh 2.1vh;
+    box-shadow: 0 0.8vh 2.4vh rgba(0, 0, 0, 0.22);
+    padding: 1vh 1.2vh;
     border-radius: 1.2vh;
+}
+
+#inventory .close {
+    width: 1417.12px;
+    background: transparent;
+    box-shadow: none;
+    padding: 0px 2.084px 2.084px;
+    border-radius: 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+#inventory .close img {
+    cursor: pointer;
+}
+
+#inventory .body {
+    display: grid;
+    grid-template-columns: 458.48px 521px 427.22px;
+    grid-template-rows: 700px;
+    gap: 7px;
+    align-items: stretch;
+}
+
+#inventory.non-environment .body {
+    grid-template-columns: 44vh 50vh;
+}
+
+#inventory.non-environment .close,
+#inventory.non-environment .hotkeys {
+    width: calc(44vh + 50vh + 0.5vh);
+}
+
+#inventory .equipment {
+    grid-column: 1;
+    grid-row: 1;
+    height: 700px;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    padding: 10px;
+}
+
+#inventory .playerInventory {
+    grid-column: 2;
+    grid-row: 1;
+    height: 700px;
+    padding-right: 0px;
+}
+
+#inventory .environment {
+    grid-column: 3;
+    grid-row: 1;
+    height: 700px;
+    max-height: 700px;
 }
 
 #inventory .starvation {
@@ -86,13 +135,15 @@
 
 #inventory .body-items {
     display: grid;
-    grid-gap: 0.9vh;
+    grid-gap: 4px 4px;
     grid-template-columns: 13vh 10.7vh 1.4vh 2.8vh 5.6vh 2.9vh;
     /*repeat(15, 1fr);*/
     grid-template-rows: 3.7vh 4.7vh 4.7vh 1vh 7.4vh 11.2vh 9.3vh 6.5vh;
     /*repeat(22, 1fr);*/
     /*height: 61vh;*/
-    margin: 1.8vh 0.7vh;
+    margin: 7px 10px 7px;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 #inventory .body-items .column {
@@ -380,7 +431,6 @@
 }
 
 #inventory .environment {
-    grid-row-end: span 3;
     overflow-x: hidden;
     overflow-y: auto;
 }
@@ -389,14 +439,14 @@
     text-align: center;
 }
 
-#inventory .equipment {
-    grid-row-end: span 2;
-}
-
 #inventory .hands {
     display: grid;
     /*grid-row-end: span 2;*/
     padding: 0;
+    margin-top: auto;
+    margin-bottom: 10px;
+    overflow: visible;
+    transform: none;
 }
 
 #inventory .hands.active {
@@ -413,8 +463,11 @@
 }
 
 #inventory .hands .item {
-    height: 12vh;
-    width: 31vh;
+    height: 79.192px;
+    width: 183.392px;
+    max-width: 100%;
+    margin: 1px;
+    transform: none;
 }
 
 #inventory .hands .slot {
@@ -426,16 +479,19 @@
     justify-content: space-around;
     /*margin: 0 auto;*/
     /* padding: 2vh; */
-    width: 100%;
+    width: 82%;
+    margin: 0 auto;
+    min-height: 10px;
+    overflow: hidden;
 }
 
 #inventory .hands .slot.busy {
     background-image: none;
     background-color: rgba(255, 255, 255, 0.4);
     /* border: 1px solid #aaa; */
-    width: 100%;
-    margin: 0;
-    border-radius: 1.1vh;
+    width: 82%;
+    margin: 0 auto;
+    border-radius: 10px;
 }
 
 #inventory .hands .slot.focus {
@@ -453,7 +509,7 @@
 }
 
 #inventory .hands .slot img:first-child {
-    transform: scale(-1, 1);
+    transform: rotateY(180deg);
     margin-left: 14vh;
     margin-right: 0;
 }
@@ -508,16 +564,18 @@
 
 #inventory .hotkeys {
     display: grid;
-    grid-column-end: span 2;
     grid-template-columns: repeat(9, 1fr);
-    grid-template-rows: repeat(1, 1fr);
-    padding: 1.8vh 3vh;
-    grid-gap: 4.6vh;
+    grid-template-rows: 1fr;
+    width: 1200px;
+    justify-items: center;
+    padding: 10px 1px;
+    grid-gap: 7px 7px;
+    margin-top: 10px;
 }
 
 #inventory .hotkeys .item {
-    height: 4vh;
-    width: 4vh;
+    height: 62%;
+    width: 62%;
     position: relative;
     transform: translateY(-50%);
     top: 50%;
@@ -533,6 +591,8 @@
 }
 
 #inventory .hotkeys>.key {
+    width: 50px;
+    aspect-ratio: 1 / 1;
     /*align-items: center;
     background-repeat: no-repeat;
     background-position-x: center;
@@ -845,6 +905,7 @@
     margin: 0.49vh;
     width: fit-content;
     grid-gap: 1px;
+    position: relative;
 }
 
 #inventory .items .column {
@@ -856,7 +917,18 @@
     height: 2.45vh;
     width: 2.45vh;
     border-radius: 0.4vh;
+    position: relative;
+    overflow: visible;
     /*margin: 0.07vh;*/
+}
+
+#inventory .items .column>.item {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 0;
+    z-index: 25;
+    pointer-events: auto;
 }
 
 #inventory .items .column.access {
@@ -897,19 +969,19 @@
 }
 
 #inventory .playerInventory>.header div {
-    padding-right: 2vh;
+    padding-right: 0.8vh;
 }
 
 #inventory .playerInventory>.block {
-    margin-bottom: 1.9vh;
-    padding-right: 2.1vh;
+    margin-bottom: 1vh;
+    padding-right: 0.8vh;
     overflow-x: hidden;
     overflow-y: auto;
     height: 93%;
 }
 
 #inventory .playerInventory>.block .container {
-    width: 42vh;
+    width: 100%;
     display: flow-root;
 }
 
@@ -1019,4 +1091,102 @@
 #inventory .bin:hover svg path {
     fill: #F03636;
     box-shadow: 0 0 0.5vh #F03636;
+}
+
+#inventory-layout-editor {
+    position: fixed;
+    right: 2vh;
+    top: 2vh;
+    width: 48vh;
+    height: 48vh;
+    overflow: hidden;
+    background: rgba(10, 10, 10, 0.92);
+    color: #ddd;
+    border-radius: 1vh;
+    z-index: 999999;
+    padding: 1.2vh;
+    font-family: Ubuntu, sans-serif;
+    box-shadow: 0 0.8vh 2.4vh rgba(0, 0, 0, 0.45);
+    display: grid;
+    grid-template-rows: min-content min-content 1fr min-content 10vh;
+    gap: 0.8vh;
+}
+
+#inventory-layout-editor .editor-title {
+    color: #FFDF29;
+    font-size: 1.6vh;
+    font-weight: 700;
+}
+
+#inventory-layout-editor .editor-help {
+    font-size: 1.1vh;
+    color: #a6a6a6;
+}
+
+#inventory-layout-editor .editor-list {
+    overflow-y: auto;
+    padding-right: 0.4vh;
+}
+
+#inventory-layout-editor .editor-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 0.8vh;
+    margin-bottom: 0.5vh;
+}
+
+#inventory-layout-editor .editor-row span {
+    font-size: 1.1vh;
+    color: #bbb;
+}
+
+#inventory-layout-editor .editor-row input {
+    height: 2.4vh;
+    border: 0;
+    border-radius: 0.6vh;
+    outline: none;
+    padding: 0 0.6vh;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-size: 1.1vh;
+}
+
+#inventory-layout-editor .editor-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5vh;
+}
+
+#inventory-layout-editor .editor-actions button {
+    border: 0;
+    border-radius: 0.6vh;
+    height: 2.5vh;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    font-size: 1.05vh;
+}
+
+#inventory-layout-editor .editor-actions button:hover {
+    background: rgba(255, 223, 41, 0.3);
+}
+
+#inventory-layout-editor .editor-json {
+    width: 100%;
+    resize: none;
+    border: 0;
+    outline: none;
+    border-radius: 0.6vh;
+    background: rgba(255, 255, 255, 0.12);
+    color: #dcdcdc;
+    font-size: 1.05vh;
+    padding: 0.8vh;
+    font-family: Consolas, monospace;
+}
+
+.inventory-editor-highlight {
+    outline: 0.25vh solid rgba(255, 223, 41, 0.95) !important;
+    outline-offset: 0.15vh;
+    box-shadow: 0 0 1.2vh rgba(255, 223, 41, 0.55) !important;
 }
