@@ -1,12 +1,12 @@
 mp.attachmentMngr = {
     attachments: {},
-    debugEnabled: true,
+    debugEnabled: false,
     debug: function(message) {
+        if (!this.debugEnabled) return;
         const text = `!{f39c12}[ATTACH-DEBUG] !{ffffff}${message}`;
         if (mp.gui && mp.gui.chat && typeof mp.gui.chat.push === "function") {
             mp.gui.chat.push(text);
         }
-        mp.game.graphics.notify(`~o~[ATTACH-DEBUG]~s~ ${message}`);
     },
     resolveBoneIndex: function(entity, boneName) {
         let boneIndex = -1;
@@ -318,13 +318,12 @@ function InitAttachmentsOnJoin() {
 }
 
 InitAttachmentsOnJoin();
-mp.attachmentMngr.debug("client attach manager loaded (debug forced ON)");
 
 // для настройки аттачей
 mp.events.add({
     "attaches.debug": (enabled = true) => {
-        mp.attachmentMngr.debugEnabled = true;
-        mp.attachmentMngr.debug(`debug forced ON (requested=${enabled})`);
+        mp.attachmentMngr.debugEnabled = !!enabled;
+        mp.attachmentMngr.debug(`debug ${mp.attachmentMngr.debugEnabled ? "ON" : "OFF"}`);
     },
     "attaches.dump": () => {
         const player = mp.players.local;
