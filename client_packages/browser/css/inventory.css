@@ -16,12 +16,12 @@
 #inventory>div {
     background-color: rgba(12, 12, 12, 0.8);
     box-shadow: 0 0.8vh 2.4vh rgba(0, 0, 0, 0.22);
-    padding: 1.2vh 1.4vh;
+    padding: 1vh 1.2vh;
     border-radius: 1.2vh;
 }
 
 #inventory .close {
-    width: calc(43vh + 51vh + 43vh + 1.2vh);
+    width: calc(44vh + 50vh + 41vh + 1vh);
     background: transparent;
     box-shadow: none;
     padding: 0 0.2vh 0.2vh;
@@ -37,25 +37,25 @@
 
 #inventory .body {
     display: grid;
-    grid-template-columns: 43vh 51vh 43vh;
-    grid-template-rows: 54vh;
-    gap: 0.6vh;
+    grid-template-columns: 44vh 50vh 41vh;
+    grid-template-rows: 52vh;
+    gap: 0.5vh;
     align-items: stretch;
 }
 
 #inventory.non-environment .body {
-    grid-template-columns: 43vh 51vh;
+    grid-template-columns: 44vh 50vh;
 }
 
 #inventory.non-environment .close,
 #inventory.non-environment .hotkeys {
-    width: calc(43vh + 51vh + 0.6vh);
+    width: calc(44vh + 50vh + 0.5vh);
 }
 
 #inventory .equipment {
     grid-column: 1;
     grid-row: 1;
-    height: 54vh;
+    height: 52vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -64,14 +64,14 @@
 #inventory .playerInventory {
     grid-column: 2;
     grid-row: 1;
-    height: 54vh;
+    height: 52vh;
 }
 
 #inventory .environment {
     grid-column: 3;
     grid-row: 1;
-    height: 54vh;
-    max-height: 54vh;
+    height: 52vh;
+    max-height: 52vh;
 }
 
 #inventory .starvation {
@@ -442,7 +442,7 @@
     /*grid-row-end: span 2;*/
     padding: 0;
     margin-top: auto;
-    margin-bottom: 1vh;
+    margin-bottom: 1.8vh;
     overflow: hidden;
 }
 
@@ -460,9 +460,10 @@
 }
 
 #inventory .hands .item {
-    height: 8.2vh;
-    width: 20.5vh;
+    height: 7.6vh;
+    width: 17.6vh;
     max-width: 100%;
+    margin: 0 auto;
 }
 
 #inventory .hands .slot {
@@ -474,8 +475,9 @@
     justify-content: space-around;
     /*margin: 0 auto;*/
     /* padding: 2vh; */
-    width: 100%;
-    min-height: 8.8vh;
+    width: 82%;
+    margin: 0 auto;
+    min-height: 8.2vh;
     overflow: hidden;
 }
 
@@ -483,8 +485,8 @@
     background-image: none;
     background-color: rgba(255, 255, 255, 0.4);
     /* border: 1px solid #aaa; */
-    width: 100%;
-    margin: 0;
+    width: 82%;
+    margin: 0 auto;
     border-radius: 1.1vh;
 }
 
@@ -560,10 +562,10 @@
     display: grid;
     grid-template-columns: repeat(9, 1fr);
     grid-template-rows: 1fr;
-    width: calc(43vh + 51vh + 43vh + 1.2vh);
+    width: calc(44vh + 50vh + 41vh + 1vh);
     justify-items: center;
-    padding: 0.7vh 1.2vh;
-    grid-gap: 0.7vh;
+    padding: 0.6vh 1vh;
+    grid-gap: 0.6vh;
     margin-top: 0;
 }
 
@@ -585,7 +587,7 @@
 }
 
 #inventory .hotkeys>.key {
-    width: 5.4vh;
+    width: 5vh;
     aspect-ratio: 1 / 1;
     /*align-items: center;
     background-repeat: no-repeat;
