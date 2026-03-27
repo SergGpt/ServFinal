@@ -1121,6 +1121,12 @@
     color: #bbb;
 }
 
+#inventory-layout-editor .editor-row small {
+    font-size: 1vh;
+    color: #8f8f8f;
+    margin-top: -0.1vh;
+}
+
 #inventory-layout-editor .editor-row input {
     height: 2.6vh;
     border: 0;
@@ -1151,4 +1157,10 @@
 
 #inventory-layout-editor .editor-actions button:hover {
     background: rgba(255, 223, 41, 0.3);
+}
+
+.inventory-editor-highlight {
+    outline: 0.25vh solid rgba(255, 223, 41, 0.95) !important;
+    outline-offset: 0.15vh;
+    box-shadow: 0 0 1.2vh rgba(255, 223, 41, 0.55) !important;
 }

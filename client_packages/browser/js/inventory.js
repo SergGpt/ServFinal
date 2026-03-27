@@ -2401,6 +2401,7 @@ var inventory = new Vue({
     const editor = {
         panel: null,
         values: {},
+        highlighted: [],
         open() {
             if (this.panel) {
                 this.panel.style.display = 'block';
@@ -2412,6 +2413,7 @@ var inventory = new Vue({
         close() {
             if (!this.panel) return;
             this.panel.style.display = 'none';
+            this.clearHighlight();
         },
         readCurrentValues() {
             this.values = {};
@@ -2460,6 +2462,21 @@ var inventory = new Vue({
             }
             return text;
         },
+        clearHighlight() {
+            if (!this.highlighted.length) return;
+            this.highlighted.forEach((el) => el.classList.remove('inventory-editor-highlight'));
+            this.highlighted = [];
+        },
+        highlightField(field) {
+            this.clearHighlight();
+            if (!field || !field.selector) return;
+            const list = document.querySelectorAll(field.selector);
+            if (!list || !list.length) return;
+            list.forEach((el) => {
+                el.classList.add('inventory-editor-highlight');
+                this.highlighted.push(el);
+            });
+        },
         createPanel() {
             const panel = document.createElement('div');
             panel.id = 'inventory-layout-editor';
@@ -2476,8 +2493,18 @@ var inventory = new Vue({
             fields.forEach((field) => {
                 const row = document.createElement('label');
                 row.className = 'editor-row';
-                row.innerHTML = `<span>${field.label}</span><input data-key="${field.key}" value="${this.values[field.key] || ''}" />`;
+                row.dataset.selector = field.selector;
+                row.innerHTML = `<span>${field.label}</span><input data-key="${field.key}" value="${this.values[field.key] || ''}" /><small>${field.selector}</small>`;
+                row.addEventListener('mouseenter', () => this.highlightField(field));
+                row.addEventListener('mouseleave', () => this.clearHighlight());
+                row.addEventListener('click', () => this.highlightField(field));
                 list.appendChild(row);
+            });
+            panel.addEventListener('focusin', (e) => {
+                const key = e.target && e.target.dataset ? e.target.dataset.key : null;
+                if (!key) return;
+                const field = fields.find((x) => x.key === key);
+                if (field) this.highlightField(field);
             });
             panel.addEventListener('click', (e) => {
                 const action = e.target && e.target.dataset ? e.target.dataset.action : null;
