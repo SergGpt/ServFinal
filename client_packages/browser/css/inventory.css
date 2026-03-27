@@ -1090,8 +1090,8 @@
     position: fixed;
     right: 2vh;
     top: 2vh;
-    width: 34vh;
-    max-height: 90vh;
+    width: 40vh;
+    max-height: 94vh;
     overflow-y: auto;
     background: rgba(10, 10, 10, 0.92);
     color: #ddd;
@@ -1122,7 +1122,7 @@
 }
 
 #inventory-layout-editor .editor-row input {
-    height: 2.8vh;
+    height: 2.6vh;
     border: 0;
     border-radius: 0.6vh;
     outline: none;
@@ -1142,7 +1142,7 @@
 #inventory-layout-editor .editor-actions button {
     border: 0;
     border-radius: 0.6vh;
-    height: 3vh;
+    height: 2.8vh;
     cursor: pointer;
     background: rgba(255, 255, 255, 0.18);
     color: #fff;
