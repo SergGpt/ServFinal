@@ -1,5 +1,25 @@
 mp.attachmentMngr = {
     attachments: {},
+    resolveBoneIndex: function(entity, boneName) {
+        let boneIndex = -1;
+
+        if (typeof(boneName) === 'string') {
+            boneIndex = entity.getBoneIndexByName(boneName);
+        } else {
+            boneIndex = entity.getBoneIndex(boneName);
+        }
+
+        if (boneIndex !== -1) return boneIndex;
+
+        // Fallback к часто используемым костям персонажа (правая рука / спина / левая рука / позвоночник / голова)
+        const fallbackBones = [28422, 24818, 57005, 24816, 31086];
+        for (const fallbackBone of fallbackBones) {
+            boneIndex = entity.getBoneIndex(fallbackBone);
+            if (boneIndex !== -1) return boneIndex;
+        }
+
+        return -1;
+    },
 
     addFor: function(entity, id) {
         if (this.attachments.hasOwnProperty(id)) {
@@ -17,8 +37,15 @@ mp.attachmentMngr = {
                     }
                 }
 
+                const boneIndex = this.resolveBoneIndex(entity, attInfo.boneName);
+                if (boneIndex === -1) {
+                    console.warn(`[ATTACHES] Can't resolve bone for attachment ${id}, object destroyed`);
+                    if (mp.objects.exists(object)) object.destroy();
+                    return;
+                }
+
                 object.attachTo(entity.handle,
-                    (typeof(attInfo.boneName) === 'string') ? entity.getBoneIndexByName(attInfo.boneName) : entity.getBoneIndex(attInfo.boneName),
+                    boneIndex,
                     attInfo.offset.x, attInfo.offset.y, attInfo.offset.z,
                     attInfo.rotation.x, attInfo.rotation.y, attInfo.rotation.z,
                     false, false, false, false, 2, true);
