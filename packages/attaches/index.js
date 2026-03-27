@@ -1,8 +1,9 @@
 function serializeAttachments(attachments) {
-    return (attachments.map((hash) => (hash.toString(36)))).join("|");
+    return (attachments.map((hash) => ((hash >>> 0).toString(36)))).join("|");
 }
 
 function _addAttachment(entity, attachmentHash, remove) {
+    attachmentHash = (attachmentHash >>> 0);
     let idx = entity._attachments.indexOf(attachmentHash);
 
     if (idx === -1) {
@@ -24,12 +25,13 @@ function _addAttachmentWrap(attachmentName, remove) {
         _addAttachment(this, attachmentName, remove);
     }
     else if (to === "string") {
-        _addAttachment(this, mp.joaat(attachmentName), remove);
+        _addAttachment(this, (mp.joaat(attachmentName) >>> 0), remove);
     }
 }
 
 function _hasAttachment(attachmentName) {
-    return this._attachments.indexOf((typeof (attachmentName) === 'string') ? mp.joaat(attachmentName) : attachmentName) !== -1;
+    const normalized = ((typeof (attachmentName) === 'string') ? mp.joaat(attachmentName) : attachmentName) >>> 0;
+    return this._attachments.indexOf(normalized) !== -1;
 }
 
 function initPlayerAttachments(player) {
@@ -50,10 +52,10 @@ mp.players.forEach((player) => {
 
 mp.events.add("staticAttachments.Add", (player, hash) => {
     if (typeof player.addAttachment !== "function") initPlayerAttachments(player);
-    player.addAttachment(parseInt(hash, 36), false);
+    player.addAttachment((parseInt(hash, 36) >>> 0), false);
 });
 
 mp.events.add("staticAttachments.Remove", (player, hash) => {
     if (typeof player.addAttachment !== "function") initPlayerAttachments(player);
-    player.addAttachment(parseInt(hash, 36), true);
+    player.addAttachment((parseInt(hash, 36) >>> 0), true);
 });

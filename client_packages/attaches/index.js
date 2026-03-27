@@ -133,6 +133,7 @@ mp.attachmentMngr = {
         if (typeof(id) === 'string') {
             id = mp.game.joaat(id);
         }
+        id = (id >>> 0);
 
         if (typeof(model) === 'string') {
             model = mp.game.joaat(model);
@@ -171,6 +172,7 @@ mp.attachmentMngr = {
         if (typeof(id) === 'string') {
             id = mp.game.joaat(id);
         }
+        id = (id >>> 0);
 
         if (this.attachments.hasOwnProperty(id)) {
             this.attachments[id] = undefined;
@@ -181,6 +183,7 @@ mp.attachmentMngr = {
         if (typeof(attachmentName) === 'string') {
             attachmentName = mp.game.joaat(attachmentName);
         }
+        attachmentName = (attachmentName >>> 0);
 
         let entity = mp.players.local;
 
@@ -193,6 +196,7 @@ mp.attachmentMngr = {
         if (typeof(attachmentName) === 'string') {
             attachmentName = mp.game.joaat(attachmentName);
         }
+        attachmentName = (attachmentName >>> 0);
 
         let entity = mp.players.local;
 
@@ -213,7 +217,7 @@ mp.events.add("entityStreamIn", (entity) => {
 
     entity.hasAttachment = (name) => {
         if (!entity.__attachmentObjects) return false;
-        return entity.__attachmentObjects.hasOwnProperty(mp.game.joaat(name));
+        return entity.__attachmentObjects.hasOwnProperty(mp.game.joaat(name) >>> 0);
     };
 });
 
@@ -267,7 +271,7 @@ mp.events.add("playerStartEnterVehicle", () => {
 });
 
 mp.events.addDataHandler("attachmentsData", (entity, data) => {
-    let newAttachments = (data.length > 0) ? data.split('|').map(att => parseInt(att, 36)) : [];
+    let newAttachments = (data.length > 0) ? data.split('|').map(att => (parseInt(att, 36) >>> 0)) : [];
 
     if (entity.handle !== 0) {
         let oldAttachments = entity.__attachments;
@@ -302,13 +306,13 @@ function InitAttachmentsOnJoin() {
         let data = _player.getVariable("attachmentsData");
 
         if (data && data.length > 0) {
-            let atts = data.split('|').map(att => parseInt(att, 36));
+            let atts = data.split('|').map(att => (parseInt(att, 36) >>> 0));
             _player.__attachments = atts;
             _player.__attachmentObjects = {};
         }
         _player.hasAttachment = (name) => {
             if (!_player.__attachmentObjects) return false;
-            return _player.__attachmentObjects.hasOwnProperty(mp.game.joaat(name));
+            return _player.__attachmentObjects.hasOwnProperty(mp.game.joaat(name) >>> 0);
         };
     });
 }
