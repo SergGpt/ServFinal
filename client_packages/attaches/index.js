@@ -226,6 +226,24 @@ mp.events.add("render", () => {
             }
         }
     }
+
+    // Самовосстановление "зависших" аттачей (если объект отцепился и остался в мире)
+    if (!mp.attachmentMngr._repairAt || Date.now() >= mp.attachmentMngr._repairAt) {
+        mp.attachmentMngr._repairAt = Date.now() + 1000;
+        for (var aId in player.__attachmentObjects) {
+            const attId = parseInt(aId);
+            const attObject = player.__attachmentObjects[attId];
+            if (!attObject || !mp.objects.exists(attObject)) continue;
+            const dist = mp.game.system.vdist(
+                player.position.x, player.position.y, player.position.z,
+                attObject.position.x, attObject.position.y, attObject.position.z
+            );
+            if (dist > 4.0 && player.__attachments && player.__attachments.indexOf(attId) !== -1) {
+                mp.attachmentMngr.removeFor(player, attId);
+                mp.attachmentMngr.addFor(player, attId);
+            }
+        }
+    }
 });
 
 mp.events.add("playerStartEnterVehicle", () => {
