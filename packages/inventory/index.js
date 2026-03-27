@@ -189,7 +189,7 @@ convertServerInventoryItemToClient(item) {
         player.call("inventory.setMaxPlayerWeight", [this.maxPlayerWeight]);
         player.call("inventory.setMergeList", [this.mergeList]);
         player.call("inventory.setBlackList", [this.blackList]);
-        player.call("inventory.registerWeaponAttachments", [this.bodyList[9], this.getWeaponModels()]);
+        player.call("inventory.registerWeaponAttachments", [this.getWeaponAttachmentConfigs()]);
         console.log(`[INVENTORY] Для аккаунта ${player.account.login} загружена общая информация о настройках инвентаря`);
     },
     // Отправка общей информации о предмете
@@ -651,7 +651,7 @@ async addItem(player, itemId, params, callback = () => {}) {
         }
         return result;
     },
-    getWeaponModels() {
+getWeaponModels() {
     if (!Array.isArray(this.bodyList[9])) return [];
 
     return this.bodyList[9].map(x => {
@@ -662,6 +662,29 @@ async addItem(player, itemId, params, callback = () => {}) {
         }
         return item.model || null;
     });
+},
+getWeaponAttachmentConfigs() {
+    if (!Array.isArray(this.bodyList[9])) return [];
+
+    return this.bodyList[9].map((itemId) => {
+        const item = this.getInventoryItem(itemId);
+        if (!item || !item.model) return null;
+
+        let attachInfo = item.attachInfo;
+        if (typeof attachInfo === "string") {
+            try {
+                attachInfo = JSON.parse(attachInfo);
+            } catch (e) {
+                attachInfo = null;
+            }
+        }
+
+        return {
+            itemId: itemId,
+            model: item.model,
+            attachInfo: attachInfo || null,
+        };
+    }).filter(Boolean);
 },
 getInventoryItem(itemId) {
     const item = this.inventoryItems[itemId];

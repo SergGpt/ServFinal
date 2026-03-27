@@ -213,10 +213,28 @@ mp.inventory = {
             if (sqlId == itemSqlId) this.removeHotkey(key);
         }
     },
-    registerWeaponAttachments(list, models) {
-        for (var i = 0; i < list.length; i++) {
-            var itemId = list[i];
-            var model = models[i];
+    registerWeaponAttachments(attachmentsOrList, models = null) {
+        let attachments = [];
+
+        // Новый формат: [{ itemId, model, attachInfo }]
+        if (Array.isArray(attachmentsOrList) && attachmentsOrList.length && typeof attachmentsOrList[0] === 'object') {
+            attachments = attachmentsOrList;
+        } else {
+            // Legacy-формат: (list, models)
+            const list = Array.isArray(attachmentsOrList) ? attachmentsOrList : [];
+            const safeModels = Array.isArray(models) ? models : [];
+            attachments = list.map((itemId, index) => ({
+                itemId: itemId,
+                model: safeModels[index],
+                attachInfo: null
+            }));
+        }
+
+        const bodyList = [];
+        for (let i = 0; i < attachments.length; i++) {
+            const entry = attachments[i];
+            const itemId = entry.itemId;
+            const model = entry.model;
 
             if (model == null) {
                 console.warn(`[INVENTORY] Weapon attachment model missing for itemId ${itemId}`);
@@ -227,15 +245,25 @@ mp.inventory = {
             var pos = new mp.Vector3(0.2, -0.155, -0.1);
             var rot = new mp.Vector3(13, 180, 10);
 
-            if (this.backAttachInfo[itemId]) {
+            const dbAttach = entry.attachInfo;
+            if (dbAttach && typeof dbAttach === 'object') {
+                if (Number.isInteger(dbAttach.bone)) bone = dbAttach.bone;
+                if (Array.isArray(dbAttach.pos) && dbAttach.pos.length >= 3) {
+                    pos = new mp.Vector3(parseFloat(dbAttach.pos[0]) || 0, parseFloat(dbAttach.pos[1]) || 0, parseFloat(dbAttach.pos[2]) || 0);
+                }
+                if (Array.isArray(dbAttach.rot) && dbAttach.rot.length >= 3) {
+                    rot = new mp.Vector3(parseFloat(dbAttach.rot[0]) || 0, parseFloat(dbAttach.rot[1]) || 0, parseFloat(dbAttach.rot[2]) || 0);
+                }
+            } else if (this.backAttachInfo[itemId]) {
                 bone = this.backAttachInfo[itemId].bone;
                 pos = this.backAttachInfo[itemId].pos;
                 rot = this.backAttachInfo[itemId].rot;
             }
 
             mp.attachmentMngr.register(`weapon_${itemId}`, model, bone, pos, rot);
+            bodyList.push(itemId);
         }
-        mp.callCEFV(`inventory.setBodyList(9, ${JSON.stringify(list)})`)
+        mp.callCEFV(`inventory.setBodyList(9, ${JSON.stringify(bodyList)})`)
     },
     disableControlActions() {
         mp.game.controls.disableControlAction(1, 157, true);
