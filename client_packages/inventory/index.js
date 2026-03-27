@@ -248,6 +248,10 @@ mp.inventory = {
             const dbAttach = entry.attachInfo;
             if (dbAttach && typeof dbAttach === 'object') {
                 if (Number.isInteger(dbAttach.bone)) bone = dbAttach.bone;
+                else if (typeof dbAttach.bone === 'string') {
+                    const parsedBone = parseInt(dbAttach.bone, 10);
+                    if (Number.isInteger(parsedBone) && !Number.isNaN(parsedBone)) bone = parsedBone;
+                }
                 if (Array.isArray(dbAttach.pos) && dbAttach.pos.length >= 3) {
                     pos = new mp.Vector3(parseFloat(dbAttach.pos[0]) || 0, parseFloat(dbAttach.pos[1]) || 0, parseFloat(dbAttach.pos[2]) || 0);
                 }

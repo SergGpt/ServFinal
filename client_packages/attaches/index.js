@@ -4,7 +4,12 @@ mp.attachmentMngr = {
         let boneIndex = -1;
 
         if (typeof(boneName) === 'string') {
-            boneIndex = entity.getBoneIndexByName(boneName);
+            const numericBone = parseInt(boneName, 10);
+            if (Number.isInteger(numericBone) && !Number.isNaN(numericBone)) {
+                boneIndex = entity.getBoneIndex(numericBone);
+            } else {
+                boneIndex = entity.getBoneIndexByName(boneName);
+            }
         } else {
             boneIndex = entity.getBoneIndex(boneName);
         }
@@ -44,17 +49,12 @@ mp.attachmentMngr = {
                     return;
                 }
 
-                // Параметры как в рабочем attachmentsEditor (стабильнее для педов/оружия на спине)
+                // Используем старые стабильные флаги attachTo из исходного скрипта
                 object.attachTo(entity.handle,
                     boneIndex,
                     attInfo.offset.x, attInfo.offset.y, attInfo.offset.z,
                     attInfo.rotation.x, attInfo.rotation.y, attInfo.rotation.z,
-                    false,  // softPinning
-                    true,   // useSoftPinning
-                    false,  // collision
-                    true,   // isPed
-                    1,      // vertexIndex
-                    true);  // fixedRot
+                    false, false, false, false, 2, true);
 
                 entity.__attachmentObjects[id] = object;
 
@@ -227,23 +227,6 @@ mp.events.add("render", () => {
         }
     }
 
-    // Самовосстановление "зависших" аттачей (если объект отцепился и остался в мире)
-    if (!mp.attachmentMngr._repairAt || Date.now() >= mp.attachmentMngr._repairAt) {
-        mp.attachmentMngr._repairAt = Date.now() + 1000;
-        for (var aId in player.__attachmentObjects) {
-            const attId = parseInt(aId);
-            const attObject = player.__attachmentObjects[attId];
-            if (!attObject || !mp.objects.exists(attObject)) continue;
-            const dist = mp.game.system.vdist(
-                player.position.x, player.position.y, player.position.z,
-                attObject.position.x, attObject.position.y, attObject.position.z
-            );
-            if (dist > 4.0 && player.__attachments && player.__attachments.indexOf(attId) !== -1) {
-                mp.attachmentMngr.removeFor(player, attId);
-                mp.attachmentMngr.addFor(player, attId);
-            }
-        }
-    }
 });
 
 mp.events.add("playerStartEnterVehicle", () => {
