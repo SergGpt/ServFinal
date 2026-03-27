@@ -44,11 +44,17 @@ mp.attachmentMngr = {
                     return;
                 }
 
+                // Параметры как в рабочем attachmentsEditor (стабильнее для педов/оружия на спине)
                 object.attachTo(entity.handle,
                     boneIndex,
                     attInfo.offset.x, attInfo.offset.y, attInfo.offset.z,
                     attInfo.rotation.x, attInfo.rotation.y, attInfo.rotation.z,
-                    false, false, false, false, 2, true);
+                    false,  // softPinning
+                    true,   // useSoftPinning
+                    false,  // collision
+                    true,   // isPed
+                    1,      // vertexIndex
+                    true);  // fixedRot
 
                 entity.__attachmentObjects[id] = object;
 
