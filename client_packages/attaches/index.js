@@ -34,7 +34,7 @@ mp.attachmentMngr = {
         return -1;
     },
 
-    addFor: function(entity, id) {
+    addFor: function(entity, id, reason = "init", recreated = false) {
         if (this.attachments.hasOwnProperty(id)) {
             if (entity && entity.__attachmentObjects && !entity.__attachmentObjects.hasOwnProperty(id)) {
                 let attInfo = this.attachments[id];
@@ -52,7 +52,7 @@ mp.attachmentMngr = {
 
                 const boneIndex = this.resolveBoneIndex(entity, attInfo.boneName);
                 if (boneIndex === -1) {
-                    this.debug(`addFor fail id=${id} bone=${attInfo.boneName} model=${attInfo.model} (bone not found)`);
+                    this.debug(`addFor fail id=${id} boneName=${attInfo.boneName} boneIndex=${boneIndex} model=${attInfo.model} recreated=${recreated} reason=${reason} (bone not found)`);
                     console.warn(`[ATTACHES] Can't resolve bone for attachment ${id}, object destroyed`);
                     if (mp.objects.exists(object)) object.destroy();
                     return;
@@ -64,7 +64,7 @@ mp.attachmentMngr = {
                     attInfo.offset.x, attInfo.offset.y, attInfo.offset.z,
                     attInfo.rotation.x, attInfo.rotation.y, attInfo.rotation.z,
                     false, false, false, false, 2, true);
-                this.debug(`addFor ok id=${id} model=${attInfo.model} boneName=${attInfo.boneName} boneIndex=${boneIndex} attachMode=boneIndex pos=(${attInfo.offset.x.toFixed(3)},${attInfo.offset.y.toFixed(3)},${attInfo.offset.z.toFixed(3)}) rot=(${attInfo.rotation.x.toFixed(3)},${attInfo.rotation.y.toFixed(3)},${attInfo.rotation.z.toFixed(3)}) entity=${entity.remoteId}`);
+                this.debug(`addFor ok id=${id} model=${attInfo.model} boneName=${attInfo.boneName} boneIndex=${boneIndex} attachMode=boneIndex recreated=${recreated} reason=${reason} pos=(${attInfo.offset.x.toFixed(3)},${attInfo.offset.y.toFixed(3)},${attInfo.offset.z.toFixed(3)}) rot=(${attInfo.rotation.x.toFixed(3)},${attInfo.rotation.y.toFixed(3)},${attInfo.rotation.z.toFixed(3)}) entity=${entity.remoteId}`);
 
                 entity.__attachmentObjects[id] = object;
 
@@ -109,9 +109,16 @@ mp.attachmentMngr = {
         }
     },
 
+    reattachFor: function(entity, id, reason = "state_changed") {
+        if (!entity || !entity.__attachmentObjects) return;
+        const hadObject = entity.__attachmentObjects.hasOwnProperty(id);
+        if (hadObject) this.removeFor(entity, id);
+        this.addFor(entity, id, reason, hadObject);
+    },
+
     initFor: function(entity) {
         for (let attachment of entity.__attachments) {
-            mp.attachmentMngr.addFor(entity, attachment);
+            mp.attachmentMngr.addFor(entity, attachment, "stream_in", false);
         }
     },
 
@@ -285,7 +292,15 @@ mp.events.addDataHandler("attachmentsData", (entity, data) => {
         for (let attachment of newAttachments) {
             if (oldAttachments.indexOf(attachment) === -1) {
                 if (entity.remoteId === mp.players.local.remoteId) mp.attachmentMngr.debug(`attachmentsData add id=${attachment}`);
-                mp.attachmentMngr.addFor(entity, attachment);
+                mp.attachmentMngr.addFor(entity, attachment, "new_id", false);
+                continue;
+            }
+
+            if (entity.remoteId === mp.players.local.remoteId) {
+                const hasSpawnedObject = entity.__attachmentObjects && entity.__attachmentObjects.hasOwnProperty(attachment);
+                const reason = hasSpawnedObject ? "same_id_refresh" : "state_changed";
+                mp.attachmentMngr.debug(`attachmentsData reattach id=${attachment} reason=${reason}`);
+                mp.attachmentMngr.reattachFor(entity, attachment, reason);
             }
         }
     }

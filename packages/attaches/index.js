@@ -52,7 +52,12 @@ mp.players.forEach((player) => {
 
 mp.events.add("staticAttachments.Add", (player, hash) => {
     if (typeof player.addAttachment !== "function") initPlayerAttachments(player);
-    player.addAttachment((parseInt(hash, 36) >>> 0), false);
+    const attachmentHash = (parseInt(hash, 36) >>> 0);
+    if (player.hasAttachment(attachmentHash)) {
+        // Принудительный refresh: id тот же, но состояние (например слот "за спиной") могло измениться.
+        player.addAttachment(attachmentHash, true);
+    }
+    player.addAttachment(attachmentHash, false);
 });
 
 mp.events.add("staticAttachments.Remove", (player, hash) => {
