@@ -55,6 +55,11 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false,
             defaultValue: 3,
         },
+        points: {
+            type: DataTypes.TEXT('long'),
+            allowNull: true,
+            defaultValue: null,
+        },
     }, {
         timestamps: false,
         tableName: 'zombie_zones',

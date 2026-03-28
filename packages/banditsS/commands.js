@@ -65,4 +65,18 @@ module.exports = {
       }
     }
   },
+
+  "/z_zoneeditor": {
+    access: 2,
+    description: "Открыть меню редактора полигональной зомби-зоны.",
+    args: "",
+    handler: (player, args, out) => {
+      try {
+        player.call('z:zoneEditor:start', []);
+        if (out?.info) out.info(`${player.name} вызвал /z_zoneeditor`);
+      } catch (e) {
+        if (out?.error) out.error(`Ошибка /z_zoneeditor: ${e && e.message ? e.message : e}`, player);
+      }
+    }
+  },
 };

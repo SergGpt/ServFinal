@@ -10,7 +10,14 @@ const zombies = new Map(); // zid -> { ped, followRid, lastFollowAt, lastNudgeAt
 const pendingControllerAssign = new Map(); // zid -> { ver, at }
 
 const STEP_SPEED = 1.35;
-const ZOMBIE_WALK_CLIPSET = 'move_m@drunk@verydrunk';
+const DIST_SPEEDUP_FROM = 40.0;
+const ZOMBIE_STYLE_PRESETS = [
+    { name: 'stagger_heavy', clipset: 'move_m@drunk@verydrunk', speedMult: 0.95, fast: false },
+    { name: 'stagger_mid', clipset: 'move_m@drunk@moderatedrunk', speedMult: 1.0, fast: false },
+    { name: 'stagger_light', clipset: 'move_m@drunk@slightlydrunk', speedMult: 1.05, fast: false },
+    { name: 'normal_walk', clipset: null, speedMult: 1.1, fast: false },
+    { name: 'runner', clipset: null, speedMult: 1.35, fast: true },
+];
 const STOP_DIST  = 1.6;
 const FOLLOW_CD  = 700;
 const FOLLOW_COORD_REFRESH_MS = 700;
@@ -40,10 +47,15 @@ function lootDebug(msg){
     }
 }
 
-function applyZombieWalkStyle(ped) {
+function chooseZombieStyle(zid) {
+    const n = Math.abs(parseInt(zid, 10) || 0);
+    return ZOMBIE_STYLE_PRESETS[n % ZOMBIE_STYLE_PRESETS.length] || ZOMBIE_STYLE_PRESETS[0];
+}
+
+function applyZombieWalkStyle(ped, clipset = null) {
     try {
         if (!ped || !mp.peds.exists(ped)) return;
-        const style = ZOMBIE_WALK_CLIPSET;
+        const style = clipset;
         if (!style) {
             try { ped.resetMovementClipset(0.0); } catch {}
             return;
@@ -53,14 +65,18 @@ function applyZombieWalkStyle(ped) {
             let i = 0;
             while (!mp.game.streaming.hasClipSetLoaded(style) && i++ < 80) mp.game.wait(0);
         }
+        if (!mp.game.streaming.hasClipSetLoaded(style)) {
+            try { ped.resetMovementClipset(0.0); } catch {}
+            return;
+        }
         try { ped.setMovementClipset(style, 0.25); } catch {}
     } catch {}
 }
 
-function forceAggroPedState(ped){
+function forceAggroPedState(ped, clipset = null){
     try { if (!ped || !mp.peds.exists(ped)) return; } catch { return; }
 
-    applyZombieWalkStyle(ped);
+    applyZombieWalkStyle(ped, clipset);
 
     try { ped.setCanRagdoll(true); } catch {}
     try { ped.setBlockingOfNonTemporaryEvents(true); } catch {}
@@ -149,7 +165,7 @@ mp.events.add('render', () => {
 });
 
 // ====== подготовка педа ======
-function prepPed(ped){
+function prepPed(ped, obj = null){
     try{ mp.game.entity.setEntityAsMissionEntity(ped.handle,true,true);}catch{}
     try{ ped.setInvincible(true); }catch{}
     try{ mp.game.entity.setEntityProofs(ped.handle, true, true, true, true, true, true, true, true); }catch{}
@@ -157,8 +173,9 @@ function prepPed(ped){
     try{ ped.setBlockingOfNonTemporaryEvents(true); }catch{}
     try{ ped.setKeepTask(true); }catch{}
     try{ ped.setCanRagdoll(true); }catch{}
-    applyZombieWalkStyle(ped);
-    forceAggroPedState(ped);
+    const clipset = obj && obj.style ? obj.style.clipset : null;
+    applyZombieWalkStyle(ped, clipset);
+    forceAggroPedState(ped, clipset);
 }
 
 // ====== attach / detach ======
@@ -169,10 +186,12 @@ function attachIfZombie(ped){
     if (typeof zid !== 'number' || !zoneId) return false;
 
     if (!zombies.has(zid)) {
-        zombies.set(zid, { ped });
+        zombies.set(zid, { ped, style: chooseZombieStyle(zid) });
         dlog(`✅ streamIn zid=${zid} total=${zombies.size}`);
     }
-    prepPed(ped);
+    const obj = zombies.get(zid);
+    if (obj && !obj.style) obj.style = chooseZombieStyle(zid);
+    prepPed(ped, obj);
     return true;
 }
 function detachIfZombie(ped){
@@ -280,6 +299,20 @@ function findPlayerById(rid){
     return found;
 }
 
+function getAdaptiveZombieSpeed(obj, baseSpeed, dist) {
+    let speed = Number(baseSpeed) || STEP_SPEED;
+    const styleMult = obj && obj.style && typeof obj.style.speedMult === 'number' ? obj.style.speedMult : 1.0;
+    speed *= styleMult;
+
+    if (dist > DIST_SPEEDUP_FROM) {
+        const extraDist = dist - DIST_SPEEDUP_FROM;
+        const boost = 1 + Math.min(1.5, extraDist / 30.0);
+        speed *= boost;
+    }
+
+    return Math.max(0.65, Math.min(speed, 4.8));
+}
+
 
 function applyFollowTask(obj, ped, target, now, source = 'unknown') {
     try {
@@ -303,6 +336,7 @@ function applyFollowTask(obj, ped, target, now, source = 'unknown') {
 
         const dist = actualTarget.position.distanceTo(ped.position);
         const targetPos = actualTarget.position;
+        const adaptiveSpeed = getAdaptiveZombieSpeed(obj, speed, dist);
         dlog(`follow tick zid=${zid} source=${source} ctrl=${ctrl} rid=${targetRid} target=${actualTarget.id} dist=${dist.toFixed(2)}`);
         if (dist <= stopDist) {
             if (!obj.wasInStopRange) {
@@ -331,12 +365,12 @@ function applyFollowTask(obj, ped, target, now, source = 'unknown') {
                 obj.lastTaskTargetRid = targetRid;
                 obj.lastTaskTargetPos = { x: targetPos.x, y: targetPos.y, z: targetPos.z };
                 try { ped.clearTasks(); } catch {}
-                forceAggroPedState(ped);
-                ped.taskGoToCoordAnyMeans(targetPos.x, targetPos.y, targetPos.z, speed, 0, false, 0, 0.0);
-                dlog(`follow taskGoToCoordAnyMeans zid=${zid} target=${actualTarget.id} dist=${dist.toFixed(2)} moving=${moving}`);
+                forceAggroPedState(ped, obj && obj.style ? obj.style.clipset : null);
+                ped.taskGoToCoordAnyMeans(targetPos.x, targetPos.y, targetPos.z, adaptiveSpeed, 0, false, 0, 0.0);
+                dlog(`follow taskGoToCoordAnyMeans zid=${zid} target=${actualTarget.id} dist=${dist.toFixed(2)} speed=${adaptiveSpeed.toFixed(2)} moving=${moving}`);
 
                 try {
-                    ped.taskFollowToOffsetOfEntity(actualTarget.handle, 0, 0, 0, speed, 2000, stopDist, true);
+                    ped.taskFollowToOffsetOfEntity(actualTarget.handle, 0, 0, 0, adaptiveSpeed, 2000, stopDist, true);
                     dlog(`follow fallback taskFollowToOffsetOfEntity zid=${zid} target=${actualTarget.id}`);
                 } catch {}
             }
@@ -345,9 +379,9 @@ function applyFollowTask(obj, ped, target, now, source = 'unknown') {
         if ((!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= STUCK_CD) && !moving) {
             obj.lastNudgeAt = now;
             try { ped.clearTasks(); } catch {}
-            forceAggroPedState(ped);
-            ped.taskGoStraightToCoord(targetPos.x, targetPos.y, targetPos.z, speed, 1200, 0.0, 0.0);
-            dlog(`follow nudge taskGoStraightToCoord zid=${zid} dist=${dist.toFixed(2)}`);
+            forceAggroPedState(ped, obj && obj.style ? obj.style.clipset : null);
+            ped.taskGoStraightToCoord(targetPos.x, targetPos.y, targetPos.z, adaptiveSpeed, 1200, 0.0, 0.0);
+            dlog(`follow nudge taskGoStraightToCoord zid=${zid} dist=${dist.toFixed(2)} speed=${adaptiveSpeed.toFixed(2)}`);
         }
     } catch {}
 }
@@ -840,4 +874,204 @@ mp.keys.bind(0x6D, true, () => {
 mp.keys.bind(0x76, true, () => {
     VERBOSE = !VERBOSE;
     chat(`[Z] LOGS: ${VERBOSE ? 'ON':'OFF'}`, '#cfc');
+});
+
+// ============================
+// Zombie Zone Editor (polygon)
+// ============================
+const zoneEditor = {
+    active: false,
+    points: [],
+    zombieCount: 3,
+    respawnSec: 60,
+    name: '',
+};
+
+function zoneEditorNotify(text, type = 'info') {
+    try {
+        if (type === 'error') mp.notify.error(text, 'Zombies');
+        else mp.notify.info(text, 'Zombies');
+    } catch {}
+}
+
+function zoneEditorClearPreview() {
+    zoneEditor.points = [];
+}
+
+function zoneEditorClose(force = false) {
+    if (!zoneEditor.active && !force) return;
+    zoneEditor.active = false;
+    zoneEditorClearPreview();
+    try { mp.callCEFV('selectMenu.show = false'); } catch {}
+    try { mp.busy.remove('z.zone.editor'); } catch {}
+}
+
+function zoneEditorOpenMenu() {
+    const pointCount = zoneEditor.points.length;
+    const names = ['Zone Downtown', 'Zone East Side', 'Zone Harbor', 'Zone Vinewood', 'Zone Sandy', 'Zone Paleto'];
+    const zombieValues = Array.from({ length: 20 }, (_, i) => String(i + 1));
+    const respawnValues = [10, 20, 30, 45, 60, 90, 120, 180, 240, 300].map((v) => String(v));
+    const currentName = zoneEditor.name && zoneEditor.name.trim() ? zoneEditor.name.trim() : names[0];
+    const currentZombieIndex = Math.max(0, zombieValues.indexOf(String(zoneEditor.zombieCount)));
+    const currentRespawnIndex = Math.max(0, respawnValues.indexOf(String(zoneEditor.respawnSec)));
+    const currentNameIndex = Math.max(0, names.indexOf(currentName));
+
+    mp.callCEFV(`selectMenu.menu = {
+        name: "zombieZoneEditor",
+        header: "Редактор зомби-зоны",
+        items: [
+            { text: "Название", values: ${JSON.stringify(names)}, i: ${currentNameIndex} },
+            { text: "Кол-во зомби", values: ${JSON.stringify(zombieValues)}, i: ${currentZombieIndex} },
+            { text: "Респавн (сек)", values: ${JSON.stringify(respawnValues)}, i: ${currentRespawnIndex} },
+            { text: "Точек: ${pointCount}" },
+            { text: "Добавить точку (моя позиция)" },
+            { text: "Удалить последнюю точку" },
+            { text: "Очистить точки" },
+            { text: "Сохранить в БД" },
+            { text: "Закрыть редактор" }
+        ],
+        i: 0,
+        j: 0,
+        handler(eventName) {
+            var item = this.items[this.i];
+            var e = {
+                itemName: item.text,
+                itemValue: (item.i != null && item.values) ? item.values[item.i] : null,
+                valueIndex: item.i
+            };
+            if (eventName == 'onItemValueChanged') {
+                if (e.itemName == 'Название') mp.trigger('z:zoneEditor:setName', String(e.itemValue || ''));
+                if (e.itemName == 'Кол-во зомби') mp.trigger('z:zoneEditor:setZombieCount', parseInt(e.itemValue || '3'));
+                if (e.itemName == 'Респавн (сек)') mp.trigger('z:zoneEditor:setRespawnSec', parseInt(e.itemValue || '60'));
+            }
+            if (eventName == 'onItemSelected') {
+                if (e.itemName == 'Добавить точку (моя позиция)') mp.trigger('z:zoneEditor:addPoint');
+                if (e.itemName == 'Удалить последнюю точку') mp.trigger('z:zoneEditor:popPoint');
+                if (e.itemName == 'Очистить точки') mp.trigger('z:zoneEditor:clear');
+                if (e.itemName == 'Сохранить в БД') mp.trigger('z:zoneEditor:save');
+                if (e.itemName == 'Закрыть редактор') mp.trigger('z:zoneEditor:close');
+            }
+            if (eventName == 'onEscapePressed' || eventName == 'onBackspacePressed') {
+                mp.trigger('z:zoneEditor:close');
+            }
+        }
+    };`);
+    mp.callCEFV('selectMenu.show = true;');
+}
+
+function zoneEditorReopenMenu() {
+    if (!zoneEditor.active) return;
+    zoneEditorOpenMenu();
+}
+
+mp.events.add('z:zoneEditor:start', () => {
+    try {
+        if (!mp.busy.add('z.zone.editor', false)) return;
+    } catch {}
+
+    zoneEditor.active = true;
+    zoneEditor.points = [];
+    zoneEditor.zombieCount = 3;
+    zoneEditor.respawnSec = 60;
+    zoneEditor.name = '';
+    zoneEditorOpenMenu();
+    zoneEditorNotify('Редактор зомби-зоны открыт. Добавляйте точки из меню.');
+});
+
+mp.events.add('z:zoneEditor:addPoint', () => {
+    if (!zoneEditor.active) return;
+    const pos = mp.players.local.position;
+    zoneEditor.points.push({
+        x: Number(pos.x.toFixed(3)),
+        y: Number(pos.y.toFixed(3)),
+        z: Number(pos.z.toFixed(3)),
+    });
+    zoneEditorNotify(`Точка добавлена: ${zoneEditor.points.length}`);
+    zoneEditorReopenMenu();
+});
+
+mp.events.add('z:zoneEditor:popPoint', () => {
+    if (!zoneEditor.active) return;
+    if (!zoneEditor.points.length) {
+        zoneEditorNotify('Нет точек для удаления.', 'error');
+        return;
+    }
+    zoneEditor.points.pop();
+    zoneEditorNotify(`Удалена последняя точка. Осталось: ${zoneEditor.points.length}`);
+    zoneEditorReopenMenu();
+});
+
+mp.events.add('z:zoneEditor:clear', () => {
+    if (!zoneEditor.active) return;
+    zoneEditorClearPreview();
+    zoneEditorNotify('Точки очищены.');
+    zoneEditorReopenMenu();
+});
+
+mp.events.add('z:zoneEditor:setZombieCount', (value) => {
+    zoneEditor.zombieCount = Math.max(1, parseInt(value, 10) || 3);
+});
+
+mp.events.add('z:zoneEditor:setRespawnSec', (value) => {
+    zoneEditor.respawnSec = Math.max(1, parseInt(value, 10) || 60);
+});
+
+mp.events.add('z:zoneEditor:setName', (value) => {
+    zoneEditor.name = String(value || '').trim();
+});
+
+mp.events.add('z:zoneEditor:save', () => {
+    if (!zoneEditor.active) return;
+    if (zoneEditor.points.length < 3) {
+        zoneEditorNotify('Минимум 3 точки для сохранения зоны.', 'error');
+        return;
+    }
+
+    const payload = {
+        name: zoneEditor.name || `Zone_${Date.now()}`,
+        zombieCount: zoneEditor.zombieCount,
+        respawnSec: zoneEditor.respawnSec,
+        points: zoneEditor.points,
+    };
+
+    try {
+        mp.events.callRemote('zombies:zone:addPolygon', JSON.stringify(payload));
+        zoneEditorNotify('Зона отправлена на сохранение в БД.');
+        zoneEditorClose(true);
+    } catch {
+        zoneEditorNotify('Ошибка отправки сохранения зоны.', 'error');
+    }
+});
+
+mp.events.add('z:zoneEditor:close', () => {
+    zoneEditorClose();
+    zoneEditorNotify('Редактор зомби-зоны закрыт.');
+});
+
+mp.events.add('render', () => {
+    if (!zoneEditor.active || !zoneEditor.points.length) return;
+
+    for (let i = 0; i < zoneEditor.points.length; i++) {
+        const p = zoneEditor.points[i];
+        const v = new mp.Vector3(p.x, p.y, p.z);
+        mp.game.graphics.drawMarker(
+            1,
+            v.x, v.y, v.z - 1.0,
+            0, 0, 0,
+            0, 0, 0,
+            0.45, 0.45, 0.45,
+            255, 80, 80, 220,
+            false, true, 2, false, null, null, false
+        );
+
+        const next = zoneEditor.points[(i + 1) % zoneEditor.points.length];
+        if (!next) continue;
+        const shouldCloseShape = zoneEditor.points.length >= 3 || i < zoneEditor.points.length - 1;
+        if (!shouldCloseShape) continue;
+        mp.game.graphics.drawLine(
+            p.x, p.y, p.z + 0.1,
+            next.x, next.y, next.z + 0.1,
+            255, 120, 0, 255
+        );
+    }
 });
