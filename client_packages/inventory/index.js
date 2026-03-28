@@ -200,7 +200,7 @@ mp.inventory = {
                 Array.isArray(dbAttach.rot) ? (parseFloat(dbAttach.rot[2]) || 0) : 0
             );
 
-            mp.attachmentMngr.register(`weapon_${itemId}`, model, bone, pos, rot);
+            mp.attachmentMngr.register(`weapon_back_${itemId}`, model, bone, pos, rot);
             bodyList.push(itemId);
         }
 

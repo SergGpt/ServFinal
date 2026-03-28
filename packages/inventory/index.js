@@ -799,7 +799,10 @@ getName(itemId) {
         } else if (otherItems[item.itemId] != null) {
             otherItems[item.itemId](params);
         } else if (this.bodyList[9].includes(item.itemId)) {
-            timer.add(() => player.addAttachment(`weapon_${item.itemId}`), 300);
+            timer.add(() => {
+                player.addAttachment(`weapon_${item.itemId}`, true);
+                player.addAttachment(`weapon_back_${item.itemId}`);
+            }, 300);
             // this.removeWeapon(player, params.weaponHash);
         } else return debug(`Неподходящий тип предмета для тела, item.id: ${item.id}`);
 
@@ -860,6 +863,8 @@ getName(itemId) {
         } else if (otherItems[itemId] != null) {
             otherItems[itemId]();
         } else if (this.bodyList[9].includes(itemId)) {
+            player.addAttachment(`weapon_back_${itemId}`, true);
+            // cleanup legacy id, если остался от старого скрипта
             player.addAttachment(`weapon_${itemId}`, true);
         } else return console.log(`Неподходящий тип предмета для тела, itemId: ${itemId}`);
     },
