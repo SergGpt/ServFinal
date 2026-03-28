@@ -1,5 +1,12 @@
 "use strict";
 
+const HUD_EDITOR_LAYOUT_DEFAULT = {
+    rightTop: { x: 0, y: 0 },
+    rightBottom: { x: 0, y: 0 },
+    leftBottom: { x: 0, y: 0 },
+    arrest: { x: 0, y: 0 },
+};
+
 // Vue HUD
 var hud = new Vue({
     el: "#hud",
@@ -47,6 +54,22 @@ var hud = new Vue({
         localPos: { x: 0, y: 0 },
         coldTimer: -1,
         heatTimer: -1,
+        layout: JSON.parse(JSON.stringify(HUD_EDITOR_LAYOUT_DEFAULT)),
+        editor: {
+            enabled: false,
+            dragKey: null,
+            selectedKey: "rightTop",
+            startMouseX: 0,
+            startMouseY: 0,
+            startLayoutX: 0,
+            startLayoutY: 0,
+            blocks: [
+                { key: "rightTop", title: "Верхний правый блок" },
+                { key: "rightBottom", title: "Деньги" },
+                { key: "leftBottom", title: "Навигация и иконки" },
+                { key: "arrest", title: "Таймер заключения" },
+            ],
+        },
     },
     computed: {
         arrestProgressStyle() {
@@ -61,6 +84,13 @@ var hud = new Vue({
             let min = ((parseInt(this.arrestTime / 60) < 10) ? '0' : '') + parseInt(this.arrestTime / 60);
             let sec = ((parseInt(this.arrestTime % 60) < 10) ? '0' : '') + parseInt(this.arrestTime % 60);
             return `${min}:${sec}`;
+        },
+        leftBottomStyle() {
+            const pos = this.layout.leftBottom || { x: 0, y: 0 };
+            return {
+                left: `${this.leftWeather}px`,
+                transform: `translate(${pos.x}px, ${pos.y}px)`,
+            };
         },
     },
     watch: {
@@ -84,6 +114,102 @@ var hud = new Vue({
         },
     },
     methods: {
+        getDefaultLayout() {
+            return JSON.parse(JSON.stringify(HUD_EDITOR_LAYOUT_DEFAULT));
+        },
+        normalizeLayout(layout) {
+            const defaults = this.getDefaultLayout();
+            if (!layout || typeof layout !== "object") return defaults;
+
+            for (const key in defaults) {
+                const raw = layout[key] || {};
+                const x = Number(raw.x);
+                const y = Number(raw.y);
+                defaults[key] = {
+                    x: Number.isFinite(x) ? Math.round(x) : 0,
+                    y: Number.isFinite(y) ? Math.round(y) : 0,
+                };
+            }
+            return defaults;
+        },
+        applyLayout(layout) {
+            this.layout = this.normalizeLayout(layout);
+        },
+        editorBlockStyle(key) {
+            const pos = this.layout[key] || { x: 0, y: 0 };
+            return {
+                transform: `translate(${pos.x}px, ${pos.y}px)`,
+            };
+        },
+        editorBlockClass(key) {
+            return {
+                "editor-draggable": this.editor.enabled,
+                "dragging": this.editor.dragKey === key,
+                "editor-selected": this.editor.selectedKey === key,
+            };
+        },
+        selectEditorBlock(key) {
+            if (!this.editor.enabled) return;
+            this.editor.selectedKey = key;
+        },
+        editorBlockTitle(key) {
+            const block = this.editor.blocks.find((x) => x.key === key);
+            return block ? block.title : key;
+        },
+        setEditorMode(state) {
+            this.editor.enabled = !!state;
+            if (!this.editor.enabled) {
+                this.stopDrag();
+            }
+        },
+        startDrag(key, event) {
+            if (!this.editor.enabled || event.button !== 0) return;
+            event.preventDefault();
+
+            const current = this.layout[key] || { x: 0, y: 0 };
+            this.editor.selectedKey = key;
+            this.editor.dragKey = key;
+            this.editor.startMouseX = event.clientX;
+            this.editor.startMouseY = event.clientY;
+            this.editor.startLayoutX = current.x;
+            this.editor.startLayoutY = current.y;
+
+            window.addEventListener("mousemove", this._onEditorMouseMove);
+            window.addEventListener("mouseup", this._onEditorMouseUp);
+        },
+        onEditorMouseMove(event) {
+            if (!this.editor.dragKey) return;
+
+            const key = this.editor.dragKey;
+            const deltaX = event.clientX - this.editor.startMouseX;
+            const deltaY = event.clientY - this.editor.startMouseY;
+            this.layout[key] = {
+                x: Math.round(this.editor.startLayoutX + deltaX),
+                y: Math.round(this.editor.startLayoutY + deltaY),
+            };
+        },
+        stopDrag() {
+            this.editor.dragKey = null;
+            window.removeEventListener("mousemove", this._onEditorMouseMove);
+            window.removeEventListener("mouseup", this._onEditorMouseUp);
+        },
+        saveLayout() {
+            if (typeof mp !== "undefined" && typeof mp.trigger === "function") {
+                mp.trigger("hud.editor.save", JSON.stringify(this.layout));
+            }
+        },
+        resetLayout() {
+            this.applyLayout(this.getDefaultLayout());
+            this.editor.selectedKey = "rightTop";
+            this.saveLayout();
+        },
+        closeEditor() {
+            if (typeof mp !== "undefined" && typeof mp.trigger === "function") {
+                mp.trigger("hud.editor.toggle", false);
+                return;
+            }
+            this.setEditorMode(false);
+        },
         updateTime() {
             this.time = convertToMoscowDate(new Date()).toTimeString().replace(/(\d{2}:\d{2}).*/, '$1');
             if (this.time == "00:00") this.setDate();
@@ -101,6 +227,8 @@ var hud = new Vue({
         isKeyShow(name) { return true; },
     },
     mounted() {
+        this._onEditorMouseMove = this.onEditorMouseMove.bind(this);
+        this._onEditorMouseUp = this.stopDrag.bind(this);
         setInterval(this.updateTime, 1000);
         this.setDate();
     },

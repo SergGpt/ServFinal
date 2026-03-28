@@ -9,6 +9,7 @@ module.exports = {
     },
     "characterInit.done": (player) => {
         player.call('hud.load');
+        player.call('hud.editor.access', [player.character.admin > 0]);
 
         if (player.character.admin > 0) {
             player.call('hud.players.list.load', [hud.loadPlayers()]);
