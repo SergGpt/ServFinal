@@ -874,10 +874,22 @@ function syncAllZombieFollow() {
         controllerManager.checkTimeout(st);
         if (st.switching) return;
 
-        const target = chooseNearestTarget(mp, zone, st.ped.position, {
-            maxDistance: ZOMBIE_CONFIG.ai.maxTargetDistance,
+        const zoneAggroDistance = Math.max(
+            ZOMBIE_CONFIG.ai.maxTargetDistance,
+            (Number(zone.radius) || 30) * 3
+        );
+
+        let target = chooseNearestTarget(mp, zone, st.ped.position, {
+            maxDistance: zoneAggroDistance,
             dimension: st.ped.dimension,
         });
+
+        if (!target) {
+            // Для больших зон: если игрок есть в зоне, но далеко — всё равно принудительно цепляем цель.
+            target = chooseNearestTarget(mp, zone, st.ped.position, {
+                dimension: st.ped.dimension,
+            });
+        }
 
         if (!target) {
             st.ownerRid = null;
@@ -889,14 +901,6 @@ function syncAllZombieFollow() {
         }
 
         const distToTarget = dist3(st.ped.position, target.position);
-        if (distToTarget > ZOMBIE_CONFIG.ai.sleepWakeDistance) {
-            st.ownerRid = null;
-            if (st.state !== ZOMBIE_STATE.SLEEP) {
-                setZombieState(st, ZOMBIE_STATE.SLEEP, zlog, `far-target=${distToTarget.toFixed(1)}`);
-                setTaskIdle(st, 'sleep-far-target');
-            }
-            return;
-        }
 
         if (st.ownerRid !== target.id) {
             st.ownerRid = target.id;
@@ -914,8 +918,13 @@ function syncAllZombieFollow() {
         if (now - st.lastFollowSyncAt < ZOMBIE_CONFIG.timers.syncMs) return;
         st.lastFollowSyncAt = now;
 
-        setZombieState(st, ZOMBIE_STATE.CHASE, zlog, `target=${target.id}`);
-        setTaskFollow(st, 'sync-chase');
+        if (distToTarget > ZOMBIE_CONFIG.ai.sleepWakeDistance) {
+            setZombieState(st, ZOMBIE_STATE.CHASE, zlog, `far-aggro target=${target.id} dist=${distToTarget.toFixed(1)}`);
+            setTaskFollow(st, 'sync-long-range-aggro');
+        } else {
+            setZombieState(st, ZOMBIE_STATE.CHASE, zlog, `target=${target.id}`);
+            setTaskFollow(st, 'sync-chase');
+        }
         processStuck(st);
     });
 }
