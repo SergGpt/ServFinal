@@ -10,7 +10,14 @@ const zombies = new Map(); // zid -> { ped, followRid, lastFollowAt, lastNudgeAt
 const pendingControllerAssign = new Map(); // zid -> { ver, at }
 
 const STEP_SPEED = 1.35;
-const ZOMBIE_WALK_CLIPSET = 'move_m@drunk@verydrunk';
+const DIST_SPEEDUP_FROM = 40.0;
+const ZOMBIE_STYLE_PRESETS = [
+    { name: 'stagger_heavy', clipset: 'move_m@drunk@verydrunk', speedMult: 0.95, fast: false },
+    { name: 'stagger_mid', clipset: 'move_m@drunk@moderatedrunk', speedMult: 1.0, fast: false },
+    { name: 'stagger_light', clipset: 'move_m@drunk@slightlydrunk', speedMult: 1.05, fast: false },
+    { name: 'normal_walk', clipset: null, speedMult: 1.1, fast: false },
+    { name: 'runner', clipset: null, speedMult: 1.35, fast: true },
+];
 const STOP_DIST  = 1.6;
 const FOLLOW_CD  = 700;
 const FOLLOW_COORD_REFRESH_MS = 700;
@@ -40,10 +47,15 @@ function lootDebug(msg){
     }
 }
 
-function applyZombieWalkStyle(ped) {
+function chooseZombieStyle(zid) {
+    const n = Math.abs(parseInt(zid, 10) || 0);
+    return ZOMBIE_STYLE_PRESETS[n % ZOMBIE_STYLE_PRESETS.length] || ZOMBIE_STYLE_PRESETS[0];
+}
+
+function applyZombieWalkStyle(ped, clipset = null) {
     try {
         if (!ped || !mp.peds.exists(ped)) return;
-        const style = ZOMBIE_WALK_CLIPSET;
+        const style = clipset;
         if (!style) {
             try { ped.resetMovementClipset(0.0); } catch {}
             return;
@@ -53,14 +65,18 @@ function applyZombieWalkStyle(ped) {
             let i = 0;
             while (!mp.game.streaming.hasClipSetLoaded(style) && i++ < 80) mp.game.wait(0);
         }
+        if (!mp.game.streaming.hasClipSetLoaded(style)) {
+            try { ped.resetMovementClipset(0.0); } catch {}
+            return;
+        }
         try { ped.setMovementClipset(style, 0.25); } catch {}
     } catch {}
 }
 
-function forceAggroPedState(ped){
+function forceAggroPedState(ped, clipset = null){
     try { if (!ped || !mp.peds.exists(ped)) return; } catch { return; }
 
-    applyZombieWalkStyle(ped);
+    applyZombieWalkStyle(ped, clipset);
 
     try { ped.setCanRagdoll(true); } catch {}
     try { ped.setBlockingOfNonTemporaryEvents(true); } catch {}
@@ -149,7 +165,7 @@ mp.events.add('render', () => {
 });
 
 // ====== подготовка педа ======
-function prepPed(ped){
+function prepPed(ped, obj = null){
     try{ mp.game.entity.setEntityAsMissionEntity(ped.handle,true,true);}catch{}
     try{ ped.setInvincible(true); }catch{}
     try{ mp.game.entity.setEntityProofs(ped.handle, true, true, true, true, true, true, true, true); }catch{}
@@ -157,8 +173,9 @@ function prepPed(ped){
     try{ ped.setBlockingOfNonTemporaryEvents(true); }catch{}
     try{ ped.setKeepTask(true); }catch{}
     try{ ped.setCanRagdoll(true); }catch{}
-    applyZombieWalkStyle(ped);
-    forceAggroPedState(ped);
+    const clipset = obj && obj.style ? obj.style.clipset : null;
+    applyZombieWalkStyle(ped, clipset);
+    forceAggroPedState(ped, clipset);
 }
 
 // ====== attach / detach ======
@@ -169,10 +186,12 @@ function attachIfZombie(ped){
     if (typeof zid !== 'number' || !zoneId) return false;
 
     if (!zombies.has(zid)) {
-        zombies.set(zid, { ped });
+        zombies.set(zid, { ped, style: chooseZombieStyle(zid) });
         dlog(`✅ streamIn zid=${zid} total=${zombies.size}`);
     }
-    prepPed(ped);
+    const obj = zombies.get(zid);
+    if (obj && !obj.style) obj.style = chooseZombieStyle(zid);
+    prepPed(ped, obj);
     return true;
 }
 function detachIfZombie(ped){
@@ -280,6 +299,20 @@ function findPlayerById(rid){
     return found;
 }
 
+function getAdaptiveZombieSpeed(obj, baseSpeed, dist) {
+    let speed = Number(baseSpeed) || STEP_SPEED;
+    const styleMult = obj && obj.style && typeof obj.style.speedMult === 'number' ? obj.style.speedMult : 1.0;
+    speed *= styleMult;
+
+    if (dist > DIST_SPEEDUP_FROM) {
+        const extraDist = dist - DIST_SPEEDUP_FROM;
+        const boost = 1 + Math.min(1.5, extraDist / 30.0);
+        speed *= boost;
+    }
+
+    return Math.max(0.65, Math.min(speed, 4.8));
+}
+
 
 function applyFollowTask(obj, ped, target, now, source = 'unknown') {
     try {
@@ -303,6 +336,7 @@ function applyFollowTask(obj, ped, target, now, source = 'unknown') {
 
         const dist = actualTarget.position.distanceTo(ped.position);
         const targetPos = actualTarget.position;
+        const adaptiveSpeed = getAdaptiveZombieSpeed(obj, speed, dist);
         dlog(`follow tick zid=${zid} source=${source} ctrl=${ctrl} rid=${targetRid} target=${actualTarget.id} dist=${dist.toFixed(2)}`);
         if (dist <= stopDist) {
             if (!obj.wasInStopRange) {
@@ -331,12 +365,12 @@ function applyFollowTask(obj, ped, target, now, source = 'unknown') {
                 obj.lastTaskTargetRid = targetRid;
                 obj.lastTaskTargetPos = { x: targetPos.x, y: targetPos.y, z: targetPos.z };
                 try { ped.clearTasks(); } catch {}
-                forceAggroPedState(ped);
-                ped.taskGoToCoordAnyMeans(targetPos.x, targetPos.y, targetPos.z, speed, 0, false, 0, 0.0);
-                dlog(`follow taskGoToCoordAnyMeans zid=${zid} target=${actualTarget.id} dist=${dist.toFixed(2)} moving=${moving}`);
+                forceAggroPedState(ped, obj && obj.style ? obj.style.clipset : null);
+                ped.taskGoToCoordAnyMeans(targetPos.x, targetPos.y, targetPos.z, adaptiveSpeed, 0, false, 0, 0.0);
+                dlog(`follow taskGoToCoordAnyMeans zid=${zid} target=${actualTarget.id} dist=${dist.toFixed(2)} speed=${adaptiveSpeed.toFixed(2)} moving=${moving}`);
 
                 try {
-                    ped.taskFollowToOffsetOfEntity(actualTarget.handle, 0, 0, 0, speed, 2000, stopDist, true);
+                    ped.taskFollowToOffsetOfEntity(actualTarget.handle, 0, 0, 0, adaptiveSpeed, 2000, stopDist, true);
                     dlog(`follow fallback taskFollowToOffsetOfEntity zid=${zid} target=${actualTarget.id}`);
                 } catch {}
             }
@@ -345,9 +379,9 @@ function applyFollowTask(obj, ped, target, now, source = 'unknown') {
         if ((!obj.lastNudgeAt || (now - obj.lastNudgeAt) >= STUCK_CD) && !moving) {
             obj.lastNudgeAt = now;
             try { ped.clearTasks(); } catch {}
-            forceAggroPedState(ped);
-            ped.taskGoStraightToCoord(targetPos.x, targetPos.y, targetPos.z, speed, 1200, 0.0, 0.0);
-            dlog(`follow nudge taskGoStraightToCoord zid=${zid} dist=${dist.toFixed(2)}`);
+            forceAggroPedState(ped, obj && obj.style ? obj.style.clipset : null);
+            ped.taskGoStraightToCoord(targetPos.x, targetPos.y, targetPos.z, adaptiveSpeed, 1200, 0.0, 0.0);
+            dlog(`follow nudge taskGoStraightToCoord zid=${zid} dist=${dist.toFixed(2)} speed=${adaptiveSpeed.toFixed(2)}`);
         }
     } catch {}
 }
