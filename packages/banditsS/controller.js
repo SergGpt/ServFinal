@@ -7,6 +7,8 @@ const {
     playersInZone,
     isPlayerValidTarget,
     chooseNearestTarget,
+    normalizeZonePoints,
+    randomPointInPolygon,
 } = require('./zombie.utils');
 const { ZOMBIE_STATE, setZombieState } = require('./zombie.state');
 const { saveTask, clearTask, restoreTask } = require('./zombieTaskMemory');
@@ -52,6 +54,23 @@ async function getZombieZoneColumnSet() {
     return zombieZoneColumnSet;
 }
 
+async function ensureZombieZoneSchema() {
+    const dbRef = getDbRef();
+    if (!dbRef || !dbRef.sequelize) return;
+
+    try {
+        const cols = await getZombieZoneColumnSet();
+        if (cols && !cols.has('points')) {
+            await dbRef.sequelize.query('ALTER TABLE zombie_zones ADD COLUMN points LONGTEXT NULL');
+            zombieZoneColumnSet = null;
+            await getZombieZoneColumnSet();
+            infoLog('ZombieZone schema upgraded: added points column');
+        }
+    } catch (error) {
+        zlog(`ZombieZone schema ensure failed: ${error.message}`);
+    }
+}
+
 function buildLegacyZoneFromRow(row) {
     const src = row && typeof row.get === 'function' ? row.get({ plain: true }) : row;
     return {
@@ -66,7 +85,18 @@ function buildLegacyZoneFromRow(row) {
         respawnMs: src.respawnMs,
         maxZombieCount: src.maxZombieCount,
         waveSize: src.waveSize,
+        points: src.points || null,
     };
+}
+
+function parseZonePoints(rawPoints) {
+    try {
+        if (Array.isArray(rawPoints)) return normalizeZonePoints(rawPoints);
+        if (typeof rawPoints === 'string' && rawPoints.trim()) {
+            return normalizeZonePoints(JSON.parse(rawPoints));
+        }
+    } catch {}
+    return [];
 }
 
 function toRuntimeZone(raw) {
@@ -74,15 +104,35 @@ function toRuntimeZone(raw) {
     const zombieCount = Math.max(1, parseInt(raw.zombieCount, 10) || 3);
     const maxZombieCount = Math.max(zombieCount, parseInt(raw.maxZombieCount, 10) || zombieCount);
     const waveSize = Math.max(1, parseInt(raw.waveSize, 10) || zombieCount);
+    const points = parseZonePoints(raw.points);
+
+    let centerX = Number(raw.x) || 0;
+    let centerY = Number(raw.y) || 0;
+    let centerZ = Number(raw.z) || 0;
+    let computedRadius = radius;
+
+    if (points.length >= 3) {
+        const sum = points.reduce((acc, p) => {
+            acc.x += p.x;
+            acc.y += p.y;
+            acc.z += p.z;
+            return acc;
+        }, { x: 0, y: 0, z: 0 });
+        centerX = sum.x / points.length;
+        centerY = sum.y / points.length;
+        centerZ = sum.z / points.length;
+        computedRadius = Math.max(5, ...points.map((p) => dist3({ x: centerX, y: centerY, z: centerZ }, p)));
+    }
 
     return {
         id: parseInt(raw.id, 10),
         name: raw.name || `Zombie Zone #${raw.id}`,
-        x: Number(raw.x) || 0,
-        y: Number(raw.y) || 0,
-        z: Number(raw.z) || 0,
+        x: centerX,
+        y: centerY,
+        z: centerZ,
         dimension: Number(raw.dimension) || 0,
-        radius,
+        radius: computedRadius,
+        points,
         zombieCount,
         maxZombieCount,
         waveSize,
@@ -142,7 +192,8 @@ async function loadZonesFromDb(options = {}) {
                         .concat(cols.has('respawnMs') ? ['respawnMs'] : [])
                         .concat(cols.has('maxZombieCount') ? ['maxZombieCount'] : [])
                         .concat(cols.has('waveSize') ? ['waveSize'] : [])
-                        .concat(cols.has('dimension') ? ['dimension'] : []);
+                        .concat(cols.has('dimension') ? ['dimension'] : [])
+                        .concat(cols.has('points') ? ['points'] : []);
 
                     const [rows] = await dbRef.sequelize.query(`SELECT ${selected.join(', ')} FROM zombie_zones`);
                     dbZones = (rows || []).map((row) => buildLegacyZoneFromRow(row));
@@ -304,11 +355,26 @@ function spawnZombie(zone, owner, spawnIndex = 0) {
         spawnBaseY = Number(owner.position.y) || zone.y;
     }
 
-    const angle = Math.random() * Math.PI * 2;
-    const localSpawnRadius = Math.min(Math.max(6, zone.radius - 2), 24);
-    const d = 4 + Math.random() * Math.max(3, localSpawnRadius - 4);
-    let x = spawnBaseX + Math.cos(angle) * d;
-    let y = spawnBaseY + Math.sin(angle) * d;
+    let x = spawnBaseX;
+    let y = spawnBaseY;
+    const hasPolygon = Array.isArray(zone.points) && zone.points.length >= 3;
+
+    if (hasPolygon) {
+        const p = randomPointInPolygon(zone.points, {
+            x: zone.x,
+            y: zone.y,
+            z: zone.z,
+            radius: zone.radius,
+        });
+        x = p.x;
+        y = p.y;
+    } else {
+        const angle = Math.random() * Math.PI * 2;
+        const localSpawnRadius = Math.min(Math.max(6, zone.radius - 2), 24);
+        const d = 4 + Math.random() * Math.max(3, localSpawnRadius - 4);
+        x = spawnBaseX + Math.cos(angle) * d;
+        y = spawnBaseY + Math.sin(angle) * d;
+    }
 
     const distFromZoneCenter = dist3({ x, y, z: zone.z }, { x: zone.x, y: zone.y, z: zone.z });
     const maxDistFromCenter = Math.max(2, Number(zone.radius) - 1);
@@ -1157,6 +1223,104 @@ function registerEvents() {
             zlog(`zone-add error: ${e.message}`);
         }
     });
+
+    mp.events.add('zombies:zone:addPolygon', async (player, payloadRaw) => {
+        try {
+            if (!player || !mp.players.exists(player)) return;
+
+            const payloadClient = typeof payloadRaw === 'string' ? JSON.parse(payloadRaw) : (payloadRaw || {});
+            const zonePoints = normalizeZonePoints(payloadClient.points);
+            if (zonePoints.length < 3) {
+                player.outputChatBox('!{#ff6666}[Z] Нужно минимум 3 точки для полигональной зоны.');
+                return;
+            }
+
+            const zombieCount = Math.max(1, parseInt(payloadClient.zombieCount, 10) || 3);
+            const respawnSec = Math.max(1, parseInt(payloadClient.respawnSec, 10) || 60);
+            const respawnMs = respawnSec * 1000;
+            const maxZombieCount = Math.max(zombieCount, zombieCount * 6);
+            const zoneName = String(payloadClient.name || '').trim() || `Zone_${Date.now()}`;
+
+            const sum = zonePoints.reduce((acc, p) => {
+                acc.x += p.x;
+                acc.y += p.y;
+                acc.z += p.z;
+                return acc;
+            }, { x: 0, y: 0, z: 0 });
+            const center = {
+                x: sum.x / zonePoints.length,
+                y: sum.y / zonePoints.length,
+                z: sum.z / zonePoints.length,
+            };
+
+            const radius = Math.max(5, ...zonePoints.map((p) => dist3(center, p)));
+
+            const payload = {
+                name: zoneName,
+                x: center.x,
+                y: center.y,
+                z: center.z,
+                dimension: Number(player.dimension) || 0,
+                radius,
+                zombieCount,
+                respawnMs,
+                maxZombieCount,
+                waveSize: zombieCount,
+                points: JSON.stringify(zonePoints),
+            };
+
+            const dbRef = getDbRef();
+            const dbModel = dbRef && dbRef.Models ? dbRef.Models.ZombieZone : null;
+            let created = payload;
+
+            if (dbModel) {
+                try {
+                    created = await dbModel.create(payload);
+                } catch (error) {
+                    const message = String(error && error.message ? error.message : error);
+                    const hasUnknownColumn = /unknown column/i.test(message);
+                    if (!hasUnknownColumn) throw error;
+
+                    const cols = await getZombieZoneColumnSet();
+                    if (!cols || !cols.size) throw error;
+
+                    const legacyPayload = {
+                        x: payload.x,
+                        y: payload.y,
+                        z: payload.z,
+                    };
+
+                    if (cols.has('name')) legacyPayload.name = payload.name;
+                    if (cols.has('radius')) legacyPayload.radius = payload.radius;
+                    if (cols.has('zombieCount')) legacyPayload.zombieCount = payload.zombieCount;
+                    if (cols.has('respawnMs')) legacyPayload.respawnMs = payload.respawnMs;
+                    if (cols.has('maxZombieCount')) legacyPayload.maxZombieCount = payload.maxZombieCount;
+                    if (cols.has('waveSize')) legacyPayload.waveSize = payload.waveSize;
+                    if (cols.has('dimension')) legacyPayload.dimension = payload.dimension;
+                    if (cols.has('points')) legacyPayload.points = payload.points;
+
+                    created = await dbModel.create(legacyPayload);
+                    created = buildLegacyZoneFromRow(created);
+                }
+            } else {
+                const fallbackId = zones.size ? Math.max(...Array.from(zones.keys())) + 1 : 1;
+                created = { ...payload, id: fallbackId };
+            }
+
+            const zone = upsertZone(created);
+            player.outputChatBox(`!{#66ff66}[Z] Полигональная зона #${zone.id} сохранена: ${zone.name} | точек=${zone.points.length} | dim=${zone.dimension}`);
+            console.log(`[Z] polygon zone added id=${zone.id} name=${zone.name} points=${zone.points.length} dim=${zone.dimension}`);
+
+            if (isPlayerInZone(player, zone)) {
+                spawnZoneOnEnter(zone, player);
+            }
+        } catch (e) {
+            if (player && player.outputChatBox) {
+                player.outputChatBox(`!{#ff6666}[Z] Ошибка сохранения полигональной зоны: ${e.message}`);
+            }
+            zlog(`zone-add-polygon error: ${e.message}`);
+        }
+    });
 }
 
 function registerLoops() {
@@ -1208,6 +1372,7 @@ function registerLoops() {
 
 async function initZombieController() {
     registerEvents();
+    await ensureZombieZoneSchema();
     await loadZonesFromDb();
     registerLoops();
     console.log(`✅ Zombies server controller loaded (zones=${zones.size})`);

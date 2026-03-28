@@ -841,3 +841,203 @@ mp.keys.bind(0x76, true, () => {
     VERBOSE = !VERBOSE;
     chat(`[Z] LOGS: ${VERBOSE ? 'ON':'OFF'}`, '#cfc');
 });
+
+// ============================
+// Zombie Zone Editor (polygon)
+// ============================
+const zoneEditor = {
+    active: false,
+    points: [],
+    zombieCount: 3,
+    respawnSec: 60,
+    name: '',
+};
+
+function zoneEditorNotify(text, type = 'info') {
+    try {
+        if (type === 'error') mp.notify.error(text, 'Zombies');
+        else mp.notify.info(text, 'Zombies');
+    } catch {}
+}
+
+function zoneEditorClearPreview() {
+    zoneEditor.points = [];
+}
+
+function zoneEditorClose(force = false) {
+    if (!zoneEditor.active && !force) return;
+    zoneEditor.active = false;
+    zoneEditorClearPreview();
+    try { mp.callCEFV('selectMenu.show = false'); } catch {}
+    try { mp.busy.remove('z.zone.editor'); } catch {}
+}
+
+function zoneEditorOpenMenu() {
+    const pointCount = zoneEditor.points.length;
+    const names = ['Zone Downtown', 'Zone East Side', 'Zone Harbor', 'Zone Vinewood', 'Zone Sandy', 'Zone Paleto'];
+    const zombieValues = Array.from({ length: 20 }, (_, i) => String(i + 1));
+    const respawnValues = [10, 20, 30, 45, 60, 90, 120, 180, 240, 300].map((v) => String(v));
+    const currentName = zoneEditor.name && zoneEditor.name.trim() ? zoneEditor.name.trim() : names[0];
+    const currentZombieIndex = Math.max(0, zombieValues.indexOf(String(zoneEditor.zombieCount)));
+    const currentRespawnIndex = Math.max(0, respawnValues.indexOf(String(zoneEditor.respawnSec)));
+    const currentNameIndex = Math.max(0, names.indexOf(currentName));
+
+    mp.callCEFV(`selectMenu.menu = {
+        name: "zombieZoneEditor",
+        header: "Редактор зомби-зоны",
+        items: [
+            { text: "Название", values: ${JSON.stringify(names)}, i: ${currentNameIndex} },
+            { text: "Кол-во зомби", values: ${JSON.stringify(zombieValues)}, i: ${currentZombieIndex} },
+            { text: "Респавн (сек)", values: ${JSON.stringify(respawnValues)}, i: ${currentRespawnIndex} },
+            { text: "Точек: ${pointCount}" },
+            { text: "Добавить точку (моя позиция)" },
+            { text: "Удалить последнюю точку" },
+            { text: "Очистить точки" },
+            { text: "Сохранить в БД" },
+            { text: "Закрыть редактор" }
+        ],
+        i: 0,
+        j: 0,
+        handler(eventName) {
+            var item = this.items[this.i];
+            var e = {
+                itemName: item.text,
+                itemValue: (item.i != null && item.values) ? item.values[item.i] : null,
+                valueIndex: item.i
+            };
+            if (eventName == 'onItemValueChanged') {
+                if (e.itemName == 'Название') mp.trigger('z:zoneEditor:setName', String(e.itemValue || ''));
+                if (e.itemName == 'Кол-во зомби') mp.trigger('z:zoneEditor:setZombieCount', parseInt(e.itemValue || '3'));
+                if (e.itemName == 'Респавн (сек)') mp.trigger('z:zoneEditor:setRespawnSec', parseInt(e.itemValue || '60'));
+            }
+            if (eventName == 'onItemSelected') {
+                if (e.itemName == 'Добавить точку (моя позиция)') mp.trigger('z:zoneEditor:addPoint');
+                if (e.itemName == 'Удалить последнюю точку') mp.trigger('z:zoneEditor:popPoint');
+                if (e.itemName == 'Очистить точки') mp.trigger('z:zoneEditor:clear');
+                if (e.itemName == 'Сохранить в БД') mp.trigger('z:zoneEditor:save');
+                if (e.itemName == 'Закрыть редактор') mp.trigger('z:zoneEditor:close');
+            }
+            if (eventName == 'onEscapePressed' || eventName == 'onBackspacePressed') {
+                mp.trigger('z:zoneEditor:close');
+            }
+        }
+    };`);
+    mp.callCEFV('selectMenu.show = true;');
+}
+
+function zoneEditorReopenMenu() {
+    if (!zoneEditor.active) return;
+    zoneEditorOpenMenu();
+}
+
+mp.events.add('z:zoneEditor:start', () => {
+    try {
+        if (!mp.busy.add('z.zone.editor', false)) return;
+    } catch {}
+
+    zoneEditor.active = true;
+    zoneEditor.points = [];
+    zoneEditor.zombieCount = 3;
+    zoneEditor.respawnSec = 60;
+    zoneEditor.name = '';
+    zoneEditorOpenMenu();
+    zoneEditorNotify('Редактор зомби-зоны открыт. Добавляйте точки из меню.');
+});
+
+mp.events.add('z:zoneEditor:addPoint', () => {
+    if (!zoneEditor.active) return;
+    const pos = mp.players.local.position;
+    zoneEditor.points.push({
+        x: Number(pos.x.toFixed(3)),
+        y: Number(pos.y.toFixed(3)),
+        z: Number(pos.z.toFixed(3)),
+    });
+    zoneEditorNotify(`Точка добавлена: ${zoneEditor.points.length}`);
+    zoneEditorReopenMenu();
+});
+
+mp.events.add('z:zoneEditor:popPoint', () => {
+    if (!zoneEditor.active) return;
+    if (!zoneEditor.points.length) {
+        zoneEditorNotify('Нет точек для удаления.', 'error');
+        return;
+    }
+    zoneEditor.points.pop();
+    zoneEditorNotify(`Удалена последняя точка. Осталось: ${zoneEditor.points.length}`);
+    zoneEditorReopenMenu();
+});
+
+mp.events.add('z:zoneEditor:clear', () => {
+    if (!zoneEditor.active) return;
+    zoneEditorClearPreview();
+    zoneEditorNotify('Точки очищены.');
+    zoneEditorReopenMenu();
+});
+
+mp.events.add('z:zoneEditor:setZombieCount', (value) => {
+    zoneEditor.zombieCount = Math.max(1, parseInt(value, 10) || 3);
+});
+
+mp.events.add('z:zoneEditor:setRespawnSec', (value) => {
+    zoneEditor.respawnSec = Math.max(1, parseInt(value, 10) || 60);
+});
+
+mp.events.add('z:zoneEditor:setName', (value) => {
+    zoneEditor.name = String(value || '').trim();
+});
+
+mp.events.add('z:zoneEditor:save', () => {
+    if (!zoneEditor.active) return;
+    if (zoneEditor.points.length < 3) {
+        zoneEditorNotify('Минимум 3 точки для сохранения зоны.', 'error');
+        return;
+    }
+
+    const payload = {
+        name: zoneEditor.name || `Zone_${Date.now()}`,
+        zombieCount: zoneEditor.zombieCount,
+        respawnSec: zoneEditor.respawnSec,
+        points: zoneEditor.points,
+    };
+
+    try {
+        mp.events.callRemote('zombies:zone:addPolygon', JSON.stringify(payload));
+        zoneEditorNotify('Зона отправлена на сохранение в БД.');
+        zoneEditorClose(true);
+    } catch {
+        zoneEditorNotify('Ошибка отправки сохранения зоны.', 'error');
+    }
+});
+
+mp.events.add('z:zoneEditor:close', () => {
+    zoneEditorClose();
+    zoneEditorNotify('Редактор зомби-зоны закрыт.');
+});
+
+mp.events.add('render', () => {
+    if (!zoneEditor.active || !zoneEditor.points.length) return;
+
+    for (let i = 0; i < zoneEditor.points.length; i++) {
+        const p = zoneEditor.points[i];
+        const v = new mp.Vector3(p.x, p.y, p.z);
+        mp.game.graphics.drawMarker(
+            1,
+            v.x, v.y, v.z - 1.0,
+            0, 0, 0,
+            0, 0, 0,
+            0.45, 0.45, 0.45,
+            255, 80, 80, 220,
+            false, true, 2, false, null, null, false
+        );
+
+        const next = zoneEditor.points[(i + 1) % zoneEditor.points.length];
+        if (!next) continue;
+        const shouldCloseShape = zoneEditor.points.length >= 3 || i < zoneEditor.points.length - 1;
+        if (!shouldCloseShape) continue;
+        mp.game.graphics.drawLine(
+            p.x, p.y, p.z + 0.1,
+            next.x, next.y, next.z + 0.1,
+            255, 120, 0, 255
+        );
+    }
+});
