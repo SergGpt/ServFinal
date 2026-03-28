@@ -10,7 +10,9 @@ module.exports = {
                 if (raw === 0 || raw === 1) state = !!raw;
             }
 
+            player.call("hud.editor.access", [true]);
             player.call("hud.editor.toggle", [state]);
+            player.call("chat.message.push", [`!{#59dbff}HUD редактор: ${state == null ? 'переключен' : (state ? 'включен' : 'выключен')}`]);
         }
     },
 };
