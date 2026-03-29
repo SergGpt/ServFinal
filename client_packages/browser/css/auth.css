@@ -29,20 +29,26 @@
 }
 
 #auth .logo {
-    height: 18vh;
+    height: 24vh;
     width: auto;
+    max-width: 80vw;
 }
 
 #auth .header {
-    margin: 2.77vh auto;
+    margin: 1.8vh auto 2.2vh;
     text-align: center;
+    font-weight: 800;
+    letter-spacing: .08vh;
+    color: rgba(255, 255, 255, .95);
+    text-shadow: 0 .2vh .8vh rgba(0, 0, 0, .6), 0 0 1.4vh rgba(176, 0, 0, .45);
 }
 
 #auth .title {
-    color: rgba(255, 255, 255, .75);
+    color: rgba(255, 255, 255, .82);
     margin: 0 auto;
     text-align: center;
     width: 26.85vh;
+    text-shadow: 0 .1vh .5vh rgba(0, 0, 0, .45);
 }
 
 #auth .form {
