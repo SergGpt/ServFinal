@@ -29,7 +29,8 @@
 }
 
 #auth .logo {
-    height: 11.85vh;
+    height: 18vh;
+    width: auto;
 }
 
 #auth .header {
