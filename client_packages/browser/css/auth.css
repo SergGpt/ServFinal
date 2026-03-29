@@ -29,28 +29,20 @@
 }
 
 #auth .logo {
-    height: 20vh;
+    height: 28vh;
     width: auto;
-    max-width: 80vw;
-    display: block;
-    margin: 0 auto;
 }
 
 #auth .header {
-    margin: 2.2vh auto 2.2vh;
+    margin: 2.77vh auto;
     text-align: center;
-    font-weight: 800;
-    letter-spacing: .08vh;
-    color: rgba(255, 255, 255, .95);
-    text-shadow: 0 .2vh .7vh rgba(0, 0, 0, .45), 0 0 .9vh rgba(176, 0, 0, .3);
 }
 
 #auth .title {
-    color: rgba(255, 255, 255, .82);
+    color: rgba(255, 255, 255, .75);
     margin: 0 auto;
     text-align: center;
     width: 26.85vh;
-    text-shadow: 0 .1vh .5vh rgba(0, 0, 0, .45);
 }
 
 #auth .form {
