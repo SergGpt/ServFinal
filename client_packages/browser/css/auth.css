@@ -29,10 +29,10 @@
 }
 
 #auth .logo {
-    height: 30vh;
+    height: 34vh;
     width: auto;
-    margin-top: -2vh;
-    margin-bottom: .8vh;
+    margin-top: -1.5vh;
+    margin-bottom: 1vh;
 }
 
 #auth .header {
@@ -60,7 +60,7 @@
     flex: 1 0 auto;
     width: min-content;
     margin: 0 1.85vh;
-    margin-top: 1.6vh;
+    margin-top: 2.2vh;
 }
 
 #auth .form label {
