@@ -22,7 +22,7 @@
     display: flex;
     flex-direction: column;
     left: 50%;
-    top: 6.5vh;
+    top: 4vh;
     position: absolute;
     transform: translate(-50%);
     width: min-content;
@@ -31,6 +31,8 @@
 #auth .logo {
     height: 34vh;
     width: auto;
+    margin-top: -1.5vh;
+    margin-bottom: 1vh;
 }
 
 #auth .header {
@@ -48,6 +50,7 @@
 #auth .form {
     display: flex;
     flex: 1 0 auto;
+    justify-content: center;
 }
 
 #auth .form>div {
@@ -57,7 +60,7 @@
     flex: 1 0 auto;
     width: min-content;
     margin: 0 1.85vh;
-    margin-top: 4.63vh;
+    margin-top: 2.2vh;
 }
 
 #auth .form label {
