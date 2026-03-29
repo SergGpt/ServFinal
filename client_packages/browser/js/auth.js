@@ -300,13 +300,7 @@ var auth = new Vue({
             return headers[this.form];
         },
         title() {
-            let titles = [
-                "Для авторизации необходимо заполнить все поля ниже",
-                "Для регистрации необходимо заполнить все поля ниже",
-                "Для восстановления аккаунта укажите следующие данные",
-                "Для подтверждения необходимо указать код из сообщения"
-            ];
-            return titles[this.form];
+            return "";
         },
         updates() {
 //            return changelist.list.slice().reverse();
