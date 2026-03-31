@@ -29,7 +29,6 @@
 }
 
 #auth .logo {
-    order: 2;
     display: block;
     height: auto;
     width: min(45vh, 78vw);
@@ -59,7 +58,7 @@
 #auth .form {
     order: 1;
     display: flex;
-    flex: 1 0 auto;
+    flex: 0 0 auto;
     justify-content: center;
 }
 
