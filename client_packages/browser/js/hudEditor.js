@@ -53,6 +53,7 @@
         values: {},
         highlighted: [],
         storageKey: 'hud.layout.editor.config',
+        bordersEnabled: true,
         open() {
             if (this.panel) {
                 this.panel.style.display = 'block';
@@ -67,6 +68,22 @@
             if (!this.panel) return;
             this.panel.style.display = 'none';
             this.clearHighlight();
+        },
+        updateBordersButton() {
+            if (!this.panel) return;
+            const btn = this.panel.querySelector('[data-action="toggle-borders"]');
+            if (!btn) return;
+            btn.textContent = this.bordersEnabled ? 'Рамки: ON' : 'Рамки: OFF';
+        },
+        applyBordersState() {
+            const hud = document.querySelector('#hud');
+            if (!hud) return;
+            hud.classList.toggle('hud-editor-no-borders', !this.bordersEnabled);
+            this.updateBordersButton();
+        },
+        toggleBorders() {
+            this.bordersEnabled = !this.bordersEnabled;
+            this.applyBordersState();
         },
         readCurrentValues() {
             this.values = {};
@@ -100,6 +117,7 @@
         },
         apply() {
             fields.forEach((field) => this.applyField(field));
+            this.applyBordersState();
             this.setJsonOutput(this.exportConfig());
         },
         exportConfig() {
@@ -192,6 +210,7 @@
                     <button data-action="save">Save Local</button>
                     <button data-action="load">Load Local</button>
                     <button data-action="copy">Copy JSON</button>
+                    <button data-action="toggle-borders">Рамки: ON</button>
                     <button data-action="close">Close</button>
                 </div>
                 <textarea class="editor-json" readonly></textarea>
@@ -236,6 +255,7 @@
                 if (action === 'load') return this.loadLocal();
                 if (action === 'copy') return this.copyConfig();
                 if (action === 'close') return this.close();
+                if (action === 'toggle-borders') return this.toggleBorders();
                 if (action === 'nudge-plus' && key) return this.nudgeField(key, 1);
                 if (action === 'nudge-minus' && key) return this.nudgeField(key, -1);
             });
@@ -251,6 +271,7 @@
 
             document.body.appendChild(panel);
             this.panel = panel;
+            this.applyBordersState();
             this.setJsonOutput(this.exportConfig());
         },
     };

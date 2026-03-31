@@ -22,6 +22,10 @@
     border-radius: 2.77vh;
 }
 
+#hud.hud-editor-no-borders .block {
+    border-color: transparent !important;
+}
+
 #hud .block .r-bg {
     background: rgba(255, 255, 255, 0.15);
     border-radius: 2.77vh;
