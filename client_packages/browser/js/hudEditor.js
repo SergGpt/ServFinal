@@ -19,6 +19,8 @@
         { key: 'speedometerHeight', label: 'Speedometer: height', selector: '#speedometer', style: 'height', type: 'length', nudge: true },
         { key: 'speedometerPadding', label: 'Speedometer: padding', selector: '#speedometer', style: 'padding', type: 'length', nudge: true },
         { key: 'speedometerScale', label: 'Speedometer scale', selector: '#speedometer', style: 'transform', type: 'scale' },
+        { key: 'notificationsBottom', label: 'Push: bottom', selector: '#notifications', style: 'bottom', type: 'length', nudge: true },
+        { key: 'notificationsLeft', label: 'Push: left', selector: '#notifications', style: 'left', type: 'length', nudge: true },
         { key: 'logoHeight', label: 'Logo height', selector: '#hud .logo', style: 'height', type: 'length', nudge: true },
     ];
 
@@ -216,7 +218,7 @@
             panel.id = 'hud-layout-editor';
             panel.innerHTML = `
                 <div class="editor-title">HUD CSS Editor</div>
-                <div class="editor-help">Позиция, размер и потребности (еда/вода). Кнопки ±2 двигают без ручного ввода.</div>
+                <div class="editor-help">Позиция HUD, спидометра, push-уведомлений и потребностей. Кнопки ±2 двигают без ручного ввода.</div>
                 <div class="editor-list"></div>
                 <div class="editor-actions">
                     <button data-action="apply">Apply</button>
