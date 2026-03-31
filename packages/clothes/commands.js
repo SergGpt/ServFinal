@@ -364,4 +364,88 @@ module.exports = {
             player.setClothes(args[0], args[1], args[2], args[3]);
         }
     },
+    '/cleditor': {
+        args: '[тип] [sex: 0|1] [id]:n (id не обязателен; без id создается новая запись)',
+        description: 'Открыть меню создания/редактирования одежды через selectMenu',
+        access: 3,
+        handler: (player, args, out) => {
+            const allowedTypes = clothes.getTypes().filter((typeName) => {
+                return clothes.getIdsBySexType(0, typeName).length || clothes.getIdsBySexType(1, typeName).length;
+            });
+            if (!allowedTypes.length) return out.error("Нет доступных категорий одежды", player);
+
+            const requestedType = args[0] != null ? String(args[0]).toLowerCase() : null;
+            let type = requestedType && allowedTypes.includes(requestedType) ? requestedType : allowedTypes[0];
+            let sex = parseInt(args[1] != null ? args[1] : player.sex);
+            if (![0, 1].includes(sex)) sex = 1;
+
+            let ids = clothes.getIdsBySexType(sex, type);
+            if (!ids.length) {
+                sex = sex === 1 ? 0 : 1;
+                ids = clothes.getIdsBySexType(sex, type);
+            }
+            if (!ids.length) {
+                for (const altType of allowedTypes) {
+                    const maleIds = clothes.getIdsBySexType(1, altType);
+                    const femaleIds = clothes.getIdsBySexType(0, altType);
+                    if (maleIds.length) {
+                        type = altType;
+                        sex = 1;
+                        ids = maleIds;
+                        break;
+                    }
+                    if (femaleIds.length) {
+                        type = altType;
+                        sex = 0;
+                        ids = femaleIds;
+                        break;
+                    }
+                }
+            }
+            if (!ids.length) return out.error("Не удалось подобрать стартовый предмет для редактора", player);
+
+            let id = parseInt(args[2]);
+            const createMode = !Number.isFinite(id);
+            if (!createMode && !ids.includes(id)) id = ids[0];
+            const el = createMode ? null : clothes.getBySexTypeAndId(sex, type, id);
+            if (!createMode && !el) return out.error(`Предмет не найден: type=${type}, sex=${sex}, id=${id}`, player);
+
+            const item = createMode ? {
+                id: null,
+                name: "Новая одежда",
+                variation: 0,
+                price: 0,
+                class: 1,
+                textures: [0],
+                clime: (["hats", "pants", "shoes", "tops"].includes(type) ? [0, 100] : undefined),
+                pockets: (["pants", "tops"].includes(type) ? [2, 2] : undefined),
+                capacity: (type === "bags" ? 0 : undefined),
+                torso: (type === "tops" ? 0 : undefined),
+                undershirt: (type === "tops" ? 15 : undefined),
+                uTextures: (type === "tops" ? [0] : undefined),
+            } : {
+                id: el.id,
+                name: el.name,
+                variation: el.variation,
+                price: el.price,
+                class: el.class,
+                textures: el.textures,
+                clime: el.clime,
+                pockets: el.pockets,
+                capacity: el.capacity,
+                torso: el.torso,
+                undershirt: el.undershirt,
+                uTextures: el.uTextures,
+            };
+
+            player.call("clothes.editor.open", [JSON.stringify({
+                type,
+                sex,
+                types: allowedTypes,
+                ids,
+                createMode,
+                item
+            })]);
+        }
+    },
 }
