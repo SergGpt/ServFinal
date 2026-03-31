@@ -365,8 +365,8 @@ module.exports = {
         }
     },
     '/cleditor': {
-        args: '[тип] [sex: 0|1] [id]:n (все параметры необязательны)',
-        description: 'Открыть редактор одежды через selectMenu',
+        args: '[тип] [sex: 0|1] [id]:n (id не обязателен; без id создается новая запись)',
+        description: 'Открыть меню создания/редактирования одежды через selectMenu',
         access: 3,
         handler: (player, args, out) => {
             const allowedTypes = clothes.getTypes().filter((typeName) => {
@@ -405,30 +405,46 @@ module.exports = {
             if (!ids.length) return out.error("Не удалось подобрать стартовый предмет для редактора", player);
 
             let id = parseInt(args[2]);
-            if (!Number.isFinite(id) || !ids.includes(id)) id = ids[0];
+            const createMode = !Number.isFinite(id);
+            if (!createMode && !ids.includes(id)) id = ids[0];
+            const el = createMode ? null : clothes.getBySexTypeAndId(sex, type, id);
+            if (!createMode && !el) return out.error(`Предмет не найден: type=${type}, sex=${sex}, id=${id}`, player);
 
-            const el = clothes.getBySexTypeAndId(sex, type, id);
-            if (!el) return out.error(`Предмет не найден: type=${type}, sex=${sex}, id=${id}`, player);
+            const item = createMode ? {
+                id: null,
+                name: "Новая одежда",
+                variation: 0,
+                price: 0,
+                class: 1,
+                textures: [0],
+                clime: (["hats", "pants", "shoes", "tops"].includes(type) ? [0, 100] : undefined),
+                pockets: (["pants", "tops"].includes(type) ? [2, 2] : undefined),
+                capacity: (type === "bags" ? 0 : undefined),
+                torso: (type === "tops" ? 0 : undefined),
+                undershirt: (type === "tops" ? 15 : undefined),
+                uTextures: (type === "tops" ? [0] : undefined),
+            } : {
+                id: el.id,
+                name: el.name,
+                variation: el.variation,
+                price: el.price,
+                class: el.class,
+                textures: el.textures,
+                clime: el.clime,
+                pockets: el.pockets,
+                capacity: el.capacity,
+                torso: el.torso,
+                undershirt: el.undershirt,
+                uTextures: el.uTextures,
+            };
 
             player.call("clothes.editor.open", [JSON.stringify({
                 type,
                 sex,
                 types: allowedTypes,
                 ids,
-                item: {
-                    id: el.id,
-                    name: el.name,
-                    variation: el.variation,
-                    price: el.price,
-                    class: el.class,
-                    textures: el.textures,
-                    clime: el.clime,
-                    pockets: el.pockets,
-                    capacity: el.capacity,
-                    torso: el.torso,
-                    undershirt: el.undershirt,
-                    uTextures: el.uTextures,
-                }
+                createMode,
+                item
             })]);
         }
     },

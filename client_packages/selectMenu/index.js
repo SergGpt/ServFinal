@@ -49,7 +49,8 @@ mp.events.add({
             if (eventName === "onItemValueChanged") {
                 mp.events.call("clothes.editor.valueChanged", e.itemName, e.itemValue);
             } else if (eventName === "onItemSelected") {
-                if (e.itemName === "Сохранить") mp.events.call("clothes.editor.action", "save");
+                if (e.itemName === "Создать запись") mp.events.call("clothes.editor.action", "create");
+                if (e.itemName === "Сохранить изменения") mp.events.call("clothes.editor.action", "save");
                 if (e.itemName === "Закрыть") mp.events.call("clothes.editor.action", "close");
             } else if (eventName === "onBackspacePressed" || eventName === "onEscapePressed") {
                 mp.events.call("clothes.editor.action", "close");

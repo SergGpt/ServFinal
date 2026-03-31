@@ -106,7 +106,8 @@ const clothesEditor = {
             items.push({ text: "uTexture", values: s.uTextures, i: Math.max(0, s.uTextures.indexOf(s.uTexture)) });
         }
 
-        items.push({ text: "Сохранить" });
+        items.push({ text: "Создать запись" });
+        items.push({ text: "Сохранить изменения" });
         items.push({ text: "Закрыть" });
         return items;
     },
@@ -124,6 +125,7 @@ const clothesEditor = {
             type: payload.type,
             types: Array.isArray(payload.types) && payload.types.length ? payload.types : [payload.type],
             sex: payload.sex,
+            createMode: !!payload.createMode,
             ids: Array.isArray(payload.ids) ? payload.ids : [],
             id: payload.item.id,
             name: payload.item.name || "",
@@ -152,6 +154,10 @@ const clothesEditor = {
     save() {
         if (!this.state) return;
         mp.events.callRemote("clothes.editor.save", JSON.stringify(this.state));
+    },
+    create() {
+        if (!this.state) return;
+        mp.events.callRemote("clothes.editor.create", JSON.stringify(this.state));
     },
 };
 
@@ -192,6 +198,7 @@ mp.events.add({
     },
     "clothes.editor.action": (action) => {
         if (action === "save") clothesEditor.save();
+        if (action === "create") clothesEditor.create();
         if (action === "close") mp.events.call("selectMenu.hide");
     }
 });
