@@ -295,9 +295,10 @@
 
 #hud-layout-editor {
     position: fixed;
-    right: 2vh;
-    top: 2vh;
-    width: 34vh;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 46vh;
     max-height: 84vh;
     overflow: auto;
     background: rgba(8, 12, 18, 0.95);
@@ -313,7 +314,26 @@
 #hud-layout-editor .editor-title { font-weight: 700; margin-bottom: .5vh; }
 #hud-layout-editor .editor-help { opacity: .8; margin-bottom: .8vh; font-size: 1.2vh; }
 #hud-layout-editor .editor-list { display: grid; grid-gap: .4vh; }
-#hud-layout-editor .editor-row { display: grid; grid-template-columns: 1fr 1fr; align-items: center; grid-gap: .6vh; }
+
+#hud-layout-editor .editor-row {
+    display: grid;
+    grid-template-columns: 1fr 1.6fr;
+    align-items: center;
+    grid-gap: .6vh;
+}
+#hud-layout-editor .editor-input-wrap {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: .4vh;
+}
+#hud-layout-editor .editor-input-wrap button {
+    min-width: 3.6vh;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: .4vh;
+    cursor: pointer;
+}
 #hud-layout-editor .editor-row span { font-size: 1.2vh; opacity: .9; }
 #hud-layout-editor .editor-row input {
     background: rgba(255, 255, 255, 0.08);
