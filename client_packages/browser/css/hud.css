@@ -38,9 +38,8 @@
 }
 
 #hud .panel-right-top {
-    right: -46.723px;
-    top: 2.863px;
-    transform: scale(0.9);
+    right: -54.723px;
+    top: -9.137px;
     z-index: 101;
 }
 
@@ -231,7 +230,6 @@
 #hud .left-bottom {
     bottom: 27.277px;
     left: 317.966px;
-    transform: scale(1);
 }
 
 #hud .l-keys {
