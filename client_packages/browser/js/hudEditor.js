@@ -14,6 +14,11 @@
         { key: 'topPanelScale', label: 'Top panel scale', selector: '#hud .panel-right-top', style: 'transform', type: 'scale' },
         { key: 'bottomPanelScale', label: 'Bottom panel scale', selector: '#hud .panel-right-bottom', style: 'transform', type: 'scale' },
         { key: 'leftPanelScale', label: 'Left panel scale', selector: '#hud .left-bottom', style: 'transform', type: 'scale' },
+        { key: 'speedometerBottom', label: 'Speedometer: bottom', selector: '#speedometer', style: 'bottom', type: 'length', nudge: true },
+        { key: 'speedometerRight', label: 'Speedometer: right', selector: '#speedometer', style: 'right', type: 'length', nudge: true },
+        { key: 'speedometerHeight', label: 'Speedometer: height', selector: '#speedometer', style: 'height', type: 'length', nudge: true },
+        { key: 'speedometerPadding', label: 'Speedometer: padding', selector: '#speedometer', style: 'padding', type: 'length', nudge: true },
+        { key: 'speedometerScale', label: 'Speedometer scale', selector: '#speedometer', style: 'transform', type: 'scale' },
         { key: 'logoHeight', label: 'Logo height', selector: '#hud .logo', style: 'height', type: 'length', nudge: true },
     ];
 
@@ -79,6 +84,8 @@
             const hud = document.querySelector('#hud');
             if (!hud) return;
             hud.classList.toggle('hud-editor-no-borders', !this.bordersEnabled);
+            const speedometer = document.querySelector('#speedometer');
+            if (speedometer) speedometer.classList.toggle('hud-editor-no-borders', !this.bordersEnabled);
             this.updateBordersButton();
         },
         toggleBorders() {

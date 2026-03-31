@@ -26,6 +26,10 @@
     border-color: transparent !important;
 }
 
+#speedometer.hud-editor-no-borders {
+    border-color: transparent !important;
+}
+
 #hud .block .r-bg {
     background: rgba(255, 255, 255, 0.15);
     border-radius: 2.77vh;
