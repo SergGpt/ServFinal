@@ -12,7 +12,7 @@
 }
 
 #hud .logo {
-    height: 6.1vh;
+    height: 27.547px;
     margin-left: 2.77vh;
 }
 
@@ -37,8 +37,9 @@
 }
 
 #hud .panel-right-top {
-    right: 1.85vh;
-    top: 2.77vh;
+    right: -54.723px;
+    top: -9.137px;
+    transform: scale(0.9);
     z-index: 101;
 }
 
@@ -141,8 +142,8 @@
 
 #hud .starvation {
     position: fixed;
-    left: 2.2vh;
-    bottom: 14.8vh;
+    left: -1605.966px;
+    bottom: -576.034px;
     z-index: 120;
     display: flex;
     margin: 0;
@@ -152,10 +153,10 @@
 #hud .starvation>div {
     position: relative;
     display: flex;
-    margin-left: 1vh;
+    margin-left: 20.42px;
 
-    height: 3.88vh;
-    width: 3.88vh;
+    height: 42.422px;
+    width: 42.422px;
 }
 
 #hud .starvation>div:first-child {
@@ -195,10 +196,11 @@
 }
 
 #hud .panel-right-bottom {
-    right: 1.85vh;
-    bottom: 1.85vh;
+    right: 1388.277px;
+    bottom: -7.723px;
     display: flex;
     height: 11.57vh;
+    transform: scale(0);
 }
 
 #hud .money {
@@ -226,7 +228,9 @@
 }
 
 #hud .left-bottom {
-    bottom: 1.85vh;
+    bottom: 27.277px;
+    left: 321.966px;
+    transform: scale(1);
 }
 
 #hud .l-keys {
