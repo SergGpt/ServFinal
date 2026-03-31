@@ -29,10 +29,13 @@
 }
 
 #auth .logo {
-    height: 34vh;
-    width: auto;
-    margin-top: -1.5vh;
-    margin-bottom: 1vh;
+    display: block;
+    height: auto;
+    width: min(38vh, 70vw);
+    max-height: 30vh;
+    object-fit: contain;
+    margin: 0 auto 1.5vh;
+    filter: drop-shadow(0 1.2vh 2.4vh rgba(0, 0, 0, 0.45));
 }
 
 #auth .header {
