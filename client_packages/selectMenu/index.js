@@ -44,6 +44,17 @@ mp.events.add({
                 mp.events.call("carshow.setup.action", "close");
             }
         }
+
+        if (menuName === "clothesEditor") {
+            if (eventName === "onItemValueChanged") {
+                mp.events.call("clothes.editor.valueChanged", e.itemName, e.itemValue);
+            } else if (eventName === "onItemSelected") {
+                if (e.itemName === "Сохранить") mp.events.call("clothes.editor.action", "save");
+                if (e.itemName === "Закрыть") mp.events.call("clothes.editor.action", "close");
+            } else if (eventName === "onBackspacePressed" || eventName === "onEscapePressed") {
+                mp.events.call("clothes.editor.action", "close");
+            }
+        }
         
         // TODO: Обработка других событий меню...
     },

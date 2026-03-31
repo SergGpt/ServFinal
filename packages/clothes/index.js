@@ -119,6 +119,19 @@ module.exports = {
         return Object.keys(this.list[0]);
     },
 
+    getBySexTypeAndId(sex, type, id) {
+        if (!this.list[sex] || !this.list[sex][type]) return null;
+        return this.list[sex][type].find(x => x.id == id) || null;
+    },
+
+    getIdsBySexType(sex, type) {
+        if (!this.list[sex] || !this.list[sex][type]) return [];
+        return this.list[sex][type]
+            .map(x => Number(x.id))
+            .filter(x => Number.isFinite(x))
+            .sort((a, b) => a - b);
+    },
+
     getClothes(type, id) {
         // Ищем сперва у мужчин, потом у женщин, потом у всех дополнительных категорий
         var el = this.list[1]?.[type]?.find(x => x.id == id);

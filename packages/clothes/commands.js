@@ -364,4 +364,47 @@ module.exports = {
             player.setClothes(args[0], args[1], args[2], args[3]);
         }
     },
+    '/cleditor': {
+        args: '[тип] [sex: 0|1] [id]:n',
+        description: 'Открыть редактор одежды через selectMenu',
+        access: 3,
+        handler: (player, args, out) => {
+            const allowedTypes = clothes.getTypes();
+            const type = String(args[0] || "tops").toLowerCase();
+            const sex = parseInt(args[1] != null ? args[1] : player.sex);
+            const id = parseInt(args[2]);
+
+            if (!allowedTypes.includes(type)) {
+                return out.error(`Тип должен быть один из: ${allowedTypes.join(", ")}`, player);
+            }
+            if (![0, 1].includes(sex)) return out.error("Пол должен быть 0 (жен) или 1 (муж)", player);
+            if (!Number.isFinite(id)) return out.error("Укажите ID предмета", player);
+
+            const ids = clothes.getIdsBySexType(sex, type);
+            if (!ids.length) return out.error(`Нет предметов для type=${type}, sex=${sex}`, player);
+
+            const el = clothes.getBySexTypeAndId(sex, type, id);
+            if (!el) return out.error(`Предмет не найден: type=${type}, sex=${sex}, id=${id}`, player);
+
+            player.call("clothes.editor.open", [JSON.stringify({
+                type,
+                sex,
+                ids,
+                item: {
+                    id: el.id,
+                    name: el.name,
+                    variation: el.variation,
+                    price: el.price,
+                    class: el.class,
+                    textures: el.textures,
+                    clime: el.clime,
+                    pockets: el.pockets,
+                    capacity: el.capacity,
+                    torso: el.torso,
+                    undershirt: el.undershirt,
+                    uTextures: el.uTextures,
+                }
+            })]);
+        }
+    },
 }
