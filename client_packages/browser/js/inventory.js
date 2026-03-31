@@ -2590,4 +2590,5 @@ var inventory = new Vue({
     };
 
     window.inventoryLayoutEditor = editor;
+
 })();
