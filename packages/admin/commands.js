@@ -129,15 +129,15 @@ module.exports = {
         handler: (player, args, out) => {
             const action = (args[0] || "open").toLowerCase();
             if (action === "open") {
-                player.call('callCEFV', ['window.hudLayoutEditor && window.hudLayoutEditor.open();']);
+                player.call('callCEFV', ['(function waitHudEditor(i){ if (window.hudLayoutEditor && window.hudLayoutEditor.open) return window.hudLayoutEditor.open(); if (i < 20) return setTimeout(function(){ waitHudEditor(i + 1); }, 150); if (window.notifications) notifications.error("HUD Editor", "hudLayoutEditor не найден"); })(0);']);
                 return out.info(`HUD editor открыт`, player);
             }
             if (action === "close") {
-                player.call('callCEFV', ['window.hudLayoutEditor && window.hudLayoutEditor.close();']);
+                player.call('callCEFV', ['window.hudLayoutEditor && window.hudLayoutEditor.close && window.hudLayoutEditor.close();']);
                 return out.info(`HUD editor закрыт`, player);
             }
             if (action === "export") {
-                player.call('callCEFV', ['window.hudLayoutEditor && window.hudLayoutEditor.copyConfig();']);
+                player.call('callCEFV', ['window.hudLayoutEditor && window.hudLayoutEditor.copyConfig && window.hudLayoutEditor.copyConfig();']);
                 return out.info(`Конфиг HUD скопирован в буфер CEF`, player);
             }
             out.error(`Использование: /hudedit [open/close/export]`, player);
