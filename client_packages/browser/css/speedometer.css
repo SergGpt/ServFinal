@@ -1,11 +1,11 @@
 #speedometer {
-    border: 2px solid rgba(255, 255, 255, 0.15);
+    border: 2px solid transparent;
     border-radius: 2.77vh;
     box-sizing: border-box;
-    bottom: 1.85vh;
+    bottom: 18.42px;
     color: #fff;
     height: 11.57vh;
-    right: 23vh;
+    right: 10.42px;
     padding: 1.5vh 2.77vh;
     position: absolute;
     /* width: 29vh; */
