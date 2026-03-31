@@ -285,3 +285,60 @@
     opacity: 1;
     fill: #FFEB35;
 }
+
+#hud-layout-editor {
+    position: fixed;
+    right: 2vh;
+    top: 2vh;
+    width: 34vh;
+    max-height: 84vh;
+    overflow: auto;
+    background: rgba(8, 12, 18, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 1vh;
+    padding: 1vh;
+    color: #fff;
+    font-family: Roboto;
+    pointer-events: auto;
+    z-index: 100000;
+}
+
+#hud-layout-editor .editor-title { font-weight: 700; margin-bottom: .5vh; }
+#hud-layout-editor .editor-help { opacity: .8; margin-bottom: .8vh; font-size: 1.2vh; }
+#hud-layout-editor .editor-list { display: grid; grid-gap: .4vh; }
+#hud-layout-editor .editor-row { display: grid; grid-template-columns: 1fr 1fr; align-items: center; grid-gap: .6vh; }
+#hud-layout-editor .editor-row span { font-size: 1.2vh; opacity: .9; }
+#hud-layout-editor .editor-row input {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: .4vh;
+    padding: .4vh .6vh;
+    font-size: 1.2vh;
+}
+#hud-layout-editor .editor-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5vh; margin-top: .8vh; }
+#hud-layout-editor .editor-actions button {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: .5vh;
+    padding: .5vh;
+    font-size: 1.2vh;
+    cursor: pointer;
+}
+#hud-layout-editor .editor-json {
+    width: 100%;
+    min-height: 12vh;
+    margin-top: .8vh;
+    background: rgba(0, 0, 0, 0.35);
+    color: #c6f6d5;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: .5vh;
+    padding: .6vh;
+    font-size: 1.1vh;
+}
+
+.hud-editor-highlight {
+    outline: 2px dashed #67EDFF !important;
+    outline-offset: .2vh;
+}

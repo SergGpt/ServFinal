@@ -122,6 +122,27 @@ module.exports = {
             out.error(`Использование: /uiedit [open/close/export]`, player);
         }
     },
+    "/hudedit": {
+        access: 4,
+        description: "Открыть редактор HUD и экспортировать настройки",
+        args: "[open/close/export]",
+        handler: (player, args, out) => {
+            const action = (args[0] || "open").toLowerCase();
+            if (action === "open") {
+                player.call('callCEFV', ['window.hudLayoutEditor && window.hudLayoutEditor.open();']);
+                return out.info(`HUD editor открыт`, player);
+            }
+            if (action === "close") {
+                player.call('callCEFV', ['window.hudLayoutEditor && window.hudLayoutEditor.close();']);
+                return out.info(`HUD editor закрыт`, player);
+            }
+            if (action === "export") {
+                player.call('callCEFV', ['window.hudLayoutEditor && window.hudLayoutEditor.copyConfig();']);
+                return out.info(`Конфиг HUD скопирован в буфер CEF`, player);
+            }
+            out.error(`Использование: /hudedit [open/close/export]`, player);
+        }
+    },
     "/campath": {
         access: 1,
         description: "Пролет по маршруту",
