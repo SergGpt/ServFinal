@@ -74,6 +74,10 @@
             this.panel.style.display = 'none';
             this.clearHighlight();
         },
+        notify(message, type) {
+            if (!window.notifications || !notifications[type]) return;
+            notifications[type]('HUD Editor', message);
+        },
         updateBordersButton() {
             if (!this.panel) return;
             const btn = this.panel.querySelector('[data-action="toggle-borders"]');
@@ -91,6 +95,7 @@
         toggleBorders() {
             this.bordersEnabled = !this.bordersEnabled;
             this.applyBordersState();
+            this.notify(this.bordersEnabled ? 'Рамки включены' : 'Рамки выключены', 'success');
         },
         readCurrentValues() {
             this.values = {};
@@ -126,6 +131,7 @@
             fields.forEach((field) => this.applyField(field));
             this.applyBordersState();
             this.setJsonOutput(this.exportConfig());
+            this.notify('Изменения применены', 'success');
         },
         exportConfig() {
             const cfg = {};
@@ -157,12 +163,12 @@
             const payload = this.exportConfig();
             localStorage.setItem(this.storageKey, payload);
             this.setJsonOutput(payload);
-            if (window.notifications) notifications.success('HUD Editor', 'Сохранено локально');
+            this.notify('Сохранено локально', 'success');
         },
         loadLocal(silent) {
             const raw = localStorage.getItem(this.storageKey);
             if (!raw) {
-                if (!silent && window.notifications) notifications.error('HUD Editor', 'Нет сохраненного конфига');
+                if (!silent) this.notify('Нет сохраненного конфига', 'error');
                 return;
             }
             try {
@@ -173,9 +179,9 @@
                     if (input) input.value = cfg[field.key];
                 });
                 this.apply();
-                if (!silent && window.notifications) notifications.success('HUD Editor', 'Загружено из localStorage');
+                if (!silent) this.notify('Загружено из localStorage', 'success');
             } catch (e) {
-                if (!silent && window.notifications) notifications.error('HUD Editor', 'Ошибка чтения конфига');
+                if (!silent) this.notify('Ошибка чтения конфига', 'error');
             }
         },
         clearHighlight() {
