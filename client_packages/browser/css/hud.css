@@ -17,7 +17,7 @@
 }
 
 #hud .block {
-    border: 2px solid rgba(255, 255, 255, 0.15);
+    border: 2px solid transparent;
     box-sizing: border-box;
     border-radius: 2.77vh;
 }

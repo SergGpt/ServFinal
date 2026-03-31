@@ -1,5 +1,5 @@
 #speedometer {
-    border: 2px solid rgba(255, 255, 255, 0.15);
+    border: 2px solid transparent;
     border-radius: 2.77vh;
     box-sizing: border-box;
     bottom: 18.42px;
