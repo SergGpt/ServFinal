@@ -123,7 +123,7 @@ module.exports = {
         }
     },
     "/hudedit": {
-        access: 0,
+        access: 4,
         description: "Открыть редактор HUD и экспортировать настройки",
         args: "[action]:s?",
         handler: (player, args, out) => {

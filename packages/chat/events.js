@@ -120,9 +120,6 @@ module.exports = {
             case '/tp':
                 mp.events.call('/tp', player);
                 break;
-            case '/hudedit':
-                mp.events.call('admin.command.handle', player, command, args);
-                break;
             default:
                 if (!player.character.admin) return;
                 mp.events.call('admin.command.handle', player, command, args);
