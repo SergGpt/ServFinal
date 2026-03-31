@@ -86,6 +86,7 @@ const clothesEditor = {
     buildItems() {
         const s = this.state;
         const items = [
+            { text: "Тип", values: s.types, i: Math.max(0, s.types.indexOf(s.type)) },
             { text: "Пол", values: ["Женский (0)", "Мужской (1)"], i: s.sex === 1 ? 1 : 0 },
             { text: "ID", values: s.ids, i: Math.max(0, s.ids.indexOf(s.id)) },
             this.fieldEditable("Название", s.name),
@@ -121,6 +122,7 @@ const clothesEditor = {
         if (typeof payload === "string") payload = JSON.parse(payload);
         this.state = {
             type: payload.type,
+            types: Array.isArray(payload.types) && payload.types.length ? payload.types : [payload.type],
             sex: payload.sex,
             ids: Array.isArray(payload.ids) ? payload.ids : [],
             id: payload.item.id,
@@ -170,6 +172,11 @@ mp.events.add({
         else if (itemName === "Torso") s.torso = Number(value) || 0;
         else if (itemName === "Undershirt") s.undershirt = Number(value) || 0;
         else if (itemName === "uTexture") s.uTexture = Number(value) || 0;
+        else if (itemName === "Тип") {
+            s.type = String(value || s.type);
+            mp.events.callRemote("clothes.editor.load", s.type, s.sex, s.id);
+            return;
+        }
         else if (itemName === "Пол") {
             s.sex = String(value).includes("(1)") ? 1 : 0;
             const id = s.id;

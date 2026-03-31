@@ -16,11 +16,14 @@ module.exports = {
     },
     "clothes.editor.load": (player, type, sex, id) => {
         if (!player.account || player.account.admin < 3) return;
+        const allowedTypes = clothes.getTypes().filter((typeName) => {
+            return clothes.getIdsBySexType(0, typeName).length || clothes.getIdsBySexType(1, typeName).length;
+        });
         type = String(type || "").toLowerCase();
         sex = parseInt(sex);
         id = parseInt(id);
 
-        if (!clothes.getTypes().includes(type) || ![0, 1].includes(sex) || !Number.isFinite(id)) {
+        if (!allowedTypes.includes(type) || ![0, 1].includes(sex) || !Number.isFinite(id)) {
             return;
         }
 
@@ -34,6 +37,7 @@ module.exports = {
         player.call("clothes.editor.open", [JSON.stringify({
             type,
             sex,
+            types: allowedTypes,
             ids,
             item: {
                 id: el.id,
