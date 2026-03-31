@@ -2591,7 +2591,7 @@ var inventory = new Vue({
 
     window.inventoryLayoutEditor = editor;
 
-    if (!window.hudLayoutEditor) {
+    {
         const hudFields = [
             { key: 'panelRightTopTop', label: 'Top panel top', selector: '#hud .panel-right-top', style: 'top' },
             { key: 'panelRightTopRight', label: 'Top panel right', selector: '#hud .panel-right-top', style: 'right' },
