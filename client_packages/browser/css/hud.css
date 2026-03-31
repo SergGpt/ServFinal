@@ -132,9 +132,12 @@
 }
 
 #hud .starvation {
+    position: fixed;
+    left: 2.2vh;
+    bottom: 14.8vh;
+    z-index: 120;
     display: flex;
-    margin-top: 2.77vh;
-    margin-left: auto;
+    margin: 0;
     width: min-content;
 }
 
@@ -145,6 +148,10 @@
 
     height: 3.88vh;
     width: 3.88vh;
+}
+
+#hud .starvation>div:first-child {
+    margin-left: 0;
 }
 
 #hud .starvation>div svg {
