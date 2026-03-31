@@ -60,6 +60,7 @@
     display: flex;
     flex: 0 0 auto;
     justify-content: center;
+    margin-top: -4.5vh;
 }
 
 #auth .form>div {
