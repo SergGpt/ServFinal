@@ -39,15 +39,20 @@
 }
 
 #auth .header {
-    margin: 2.77vh auto;
+    margin: 0.8vh auto 0.4vh;
     text-align: center;
 }
 
 #auth .title {
     color: rgba(255, 255, 255, .75);
-    margin: 0 auto;
+    margin: 0 auto 0.6vh;
     text-align: center;
     width: 26.85vh;
+}
+
+#auth .header:empty,
+#auth .title:empty {
+    display: none;
 }
 
 #auth .form {
