@@ -104,7 +104,7 @@ module.exports = {
     "/uiedit": {
         access: 4,
         description: "Открыть редактор UI (inventory) и экспортировать настройки",
-        args: "[open/close/export]",
+        args: "[action]:s?",
         handler: (player, args, out) => {
             const action = (args[0] || "open").toLowerCase();
             if (action === "open") {
@@ -123,9 +123,9 @@ module.exports = {
         }
     },
     "/hudedit": {
-        access: 4,
+        access: 1,
         description: "Открыть редактор HUD и экспортировать настройки",
-        args: "[open/close/export]",
+        args: "[action]:s?",
         handler: (player, args, out) => {
             const action = (args[0] || "open").toLowerCase();
             if (action === "open") {
