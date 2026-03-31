@@ -285,4 +285,12 @@ module.exports = {
             console.log(`[CMD] ${player.name} stopped scantops`);
         }
     },
+    '/topcreator': {
+        args: '',
+        description: 'Открыть селект-меню конструктора tops с сохранением в БД',
+        access: 6,
+        handler: (player) => {
+            player.call('clothingShop.topCreator.open');
+        }
+    },
 };

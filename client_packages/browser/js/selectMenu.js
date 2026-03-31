@@ -6322,6 +6322,37 @@ var selectMenu = new Vue({
                     }
                 }
             },
+            "clothingTopCreator": {
+                name: "clothingTopCreator",
+                header: "Конструктор tops",
+                items: [],
+                i: 0,
+                j: 0,
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    var e = {
+                        menuName: this.name,
+                        itemName: item.text,
+                        itemIndex: this.i,
+                        itemValue: (item.i != null && item.values) ? item.values[item.i] : null,
+                        valueIndex: item.i,
+                    };
+
+                    if (eventName == 'onItemFocusChanged' || eventName == 'onItemValueChanged') {
+                        mp.trigger('clothingShop.topCreator.update', e.itemIndex, e.valueIndex);
+                    }
+
+                    if (eventName == 'onItemSelected') {
+                        if (e.itemName == 'Применить предпросмотр') mp.trigger('clothingShop.topCreator.apply');
+                        if (e.itemName == 'Сохранить в БД') mp.trigger('clothingShop.topCreator.save');
+                        if (e.itemName == 'Закрыть') mp.trigger('clothingShop.topCreator.close');
+                    }
+
+                    if (eventName == 'onBackspacePressed' || eventName == 'onEscapePressed') {
+                        mp.trigger('clothingShop.topCreator.close');
+                    }
+                }
+            },
             "clothingMain": {
                 name: "clothingMain",
                 header: "Одежда",
