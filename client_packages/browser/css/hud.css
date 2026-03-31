@@ -196,11 +196,10 @@
 }
 
 #hud .panel-right-bottom {
-    right: 10.42px;
-    bottom: 18.42px;
+    right: 1.85vh;
+    bottom: 1.85vh;
     display: flex;
     height: 11.57vh;
-    transform: scale(1);
 }
 
 #hud .money {
