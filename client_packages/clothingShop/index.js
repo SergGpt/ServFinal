@@ -152,6 +152,9 @@ let editMarkers = {
 };
 let topEditor = {
     active: false,
+    lastId: 0,
+    name: '',
+    drafts: {},
     sex: 1,
     variation: 0,
     texture: 0,
@@ -241,82 +244,68 @@ function addUniqueValue(list, value) {
     return list;
 }
 
-function openTopEditorMenu() {
-    const priceValues = [500, 1000, 1500, 2000, 3000, 5000].map(x => `$${x}`);
-    const classValues = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
-    const sexValues = ['Мужской', 'Женский'];
-    const currentPriceIndex = Math.max(0, priceValues.indexOf(`$${topEditor.price}`));
-    const currentClassIndex = Math.max(0, classValues.indexOf(String(topEditor.class)));
-    const currentSexIndex = topEditor.sex === 0 ? 1 : 0;
+function openTopEditorUi() {
+    mp.callCEFV(`(function(){
+        if (window.__topEditorInit) return;
+        window.__topEditorInit = true;
+        var root = document.createElement('div');
+        root.id = 'top-editor-pro';
+        root.style.cssText = 'position:fixed;right:2vh;top:10vh;width:38vh;background:rgba(15,15,18,.95);color:#fff;z-index:99999;padding:1.2vh;border:1px solid #333;border-radius:.6vh;font-family:Arial;';
+        root.innerHTML = '<div style="font-weight:700;margin-bottom:1vh;">Top Editor PRO</div>'
+        + '<div id="te-last" style="font-size:1.3vh;opacity:.8;margin-bottom:.8vh;"></div>'
+        + '<div style="display:flex;gap:.6vh;margin-bottom:.6vh;"><input id="te-var" placeholder="ID/Variation" style="flex:1"><button id="te-load">Показать</button><button id="te-prev">◀</button><button id="te-next">▶</button></div>'
+        + '<div style="display:flex;gap:.6vh;margin-bottom:.6vh;"><input id="te-name" placeholder="Название" style="flex:1"></div>'
+        + '<div style="display:flex;gap:.6vh;margin-bottom:.6vh;"><input id="te-price" placeholder="Цена" style="flex:1"><input id="te-pockets" placeholder="[4,4,5,5]" style="flex:1"></div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.4vh;margin-bottom:.6vh;">'
+        + '<button id="te-vm">Var-</button><button id="te-vp">Var+</button><button id="te-tm">Tex-</button><button id="te-tp">Tex+</button><button id="te-torsom">Torso-</button><button id="te-torsop">Torso+</button><button id="te-um">Under-</button><button id="te-up">Under+</button><button id="te-utm">UTex-</button><button id="te-utp">UTex+</button>'
+        + '</div>'
+        + '<div id="te-cur" style="font-size:1.2vh;opacity:.85;margin-bottom:.6vh;"></div>'
+        + '<div style="display:flex;gap:.6vh;"><button id="te-add" style="flex:1;background:#2f8f4e;color:white;">Добавить в БД</button><button id="te-close">Закрыть</button></div>';
+        document.body.appendChild(root);
+        var q=function(id){return document.getElementById(id)};
+        q('te-load').onclick=function(){ mp.trigger('clothingShop.topEditor.id.set', q('te-var').value); };
+        q('te-prev').onclick=function(){ mp.trigger('clothingShop.topEditor.id.shift', -1); };
+        q('te-next').onclick=function(){ mp.trigger('clothingShop.topEditor.id.shift', 1); };
+        q('te-vm').onclick=function(){ mp.trigger('clothingShop.topEditor.variation', -1); };
+        q('te-vp').onclick=function(){ mp.trigger('clothingShop.topEditor.variation', 1); };
+        q('te-tm').onclick=function(){ mp.trigger('clothingShop.topEditor.texture', -1); };
+        q('te-tp').onclick=function(){ mp.trigger('clothingShop.topEditor.texture', 1); };
+        q('te-torsom').onclick=function(){ mp.trigger('clothingShop.topEditor.torso', -1); };
+        q('te-torsop').onclick=function(){ mp.trigger('clothingShop.topEditor.torso', 1); };
+        q('te-um').onclick=function(){ mp.trigger('clothingShop.topEditor.undershirt', -1); };
+        q('te-up').onclick=function(){ mp.trigger('clothingShop.topEditor.undershirt', 1); };
+        q('te-utm').onclick=function(){ mp.trigger('clothingShop.topEditor.utex', -1); };
+        q('te-utp').onclick=function(){ mp.trigger('clothingShop.topEditor.utex', 1); };
+        q('te-close').onclick=function(){ mp.trigger('clothingShop.topEditor.close'); };
+        q('te-add').onclick=function(){ mp.trigger('clothingShop.topEditor.form.save', q('te-name').value, q('te-price').value, q('te-pockets').value); };
+        window.__topEditorSync = function(s){
+            q('te-last').innerText = 'Последний ID в БД: ' + s.lastId;
+            q('te-var').value = s.variation;
+            q('te-name').value = s.name;
+            q('te-price').value = s.price;
+            q('te-pockets').value = s.pockets;
+            q('te-cur').innerText = 'var=' + s.variation + ' tex=' + s.texture + ' torso=' + s.torso + ' under=' + s.undershirt + ' uTex=' + s.uTexture;
+        };
+    })();`);
+}
 
-    mp.callCEFV(`selectMenu.menu = {
-        name: "topEditorMenu",
-        header: "Top Editor PRO",
-        items: [
-            { text: "Пол", values: ${JSON.stringify(sexValues)}, i: ${currentSexIndex} },
-            { text: "Variation", values: ["${topEditor.variation}"], i: 0 },
-            { text: "Texture", values: ["${topEditor.texture}"], i: 0 },
-            { text: "Torso", values: ["${topEditor.torso}"], i: 0 },
-            { text: "Undershirt", values: ["${topEditor.undershirt}"], i: 0 },
-            { text: "uTexture", values: ["${topEditor.uTexture}"], i: 0 },
-            { text: "Цена", values: ${JSON.stringify(priceValues)}, i: ${currentPriceIndex} },
-            { text: "Класс", values: ${JSON.stringify(classValues)}, i: ${currentClassIndex} },
-            { text: "Textures: [${topEditor.textureList.join(',')}]" },
-            { text: "uTextures: [${topEditor.uTextureList.join(',')}]" },
-            { text: "Предыдущий variation" },
-            { text: "Следующий variation" },
-            { text: "Предыдущий texture" },
-            { text: "Следующий texture" },
-            { text: "Предыдущий torso" },
-            { text: "Следующий torso" },
-            { text: "Предыдущий undershirt" },
-            { text: "Следующий undershirt" },
-            { text: "Предыдущий uTexture" },
-            { text: "Следующий uTexture" },
-            { text: "Добавить texture в список" },
-            { text: "Добавить uTexture в список" },
-            { text: "Сбросить список textures" },
-            { text: "Сбросить список uTextures" },
-            { text: "Сохранить в БД" },
-            { text: "Закрыть" }
-        ],
-        i: 0,
-        j: 0,
-        handler(eventName) {
-            var item = this.items[this.i];
-            var e = {
-                itemName: item.text,
-                itemValue: (item.i != null && item.values) ? item.values[item.i] : null
-            };
-            if (eventName == 'onItemValueChanged') {
-                if (e.itemName == 'Пол') mp.trigger('clothingShop.topEditor.sex', e.itemValue == 'Женский' ? 0 : 1);
-                if (e.itemName == 'Цена') mp.trigger('clothingShop.topEditor.price', String(e.itemValue || '$1000'));
-                if (e.itemName == 'Класс') mp.trigger('clothingShop.topEditor.class', parseInt(e.itemValue || '1'));
-            }
-            if (eventName == 'onItemSelected') {
-                if (e.itemName == 'Предыдущий variation') mp.trigger('clothingShop.topEditor.variation', -1);
-                if (e.itemName == 'Следующий variation') mp.trigger('clothingShop.topEditor.variation', 1);
-                if (e.itemName == 'Предыдущий texture') mp.trigger('clothingShop.topEditor.texture', -1);
-                if (e.itemName == 'Следующий texture') mp.trigger('clothingShop.topEditor.texture', 1);
-                if (e.itemName == 'Предыдущий torso') mp.trigger('clothingShop.topEditor.torso', -1);
-                if (e.itemName == 'Следующий torso') mp.trigger('clothingShop.topEditor.torso', 1);
-                if (e.itemName == 'Предыдущий undershirt') mp.trigger('clothingShop.topEditor.undershirt', -1);
-                if (e.itemName == 'Следующий undershirt') mp.trigger('clothingShop.topEditor.undershirt', 1);
-                if (e.itemName == 'Предыдущий uTexture') mp.trigger('clothingShop.topEditor.utex', -1);
-                if (e.itemName == 'Следующий uTexture') mp.trigger('clothingShop.topEditor.utex', 1);
-                if (e.itemName == 'Добавить texture в список') mp.trigger('clothingShop.topEditor.texture.add');
-                if (e.itemName == 'Добавить uTexture в список') mp.trigger('clothingShop.topEditor.utex.add');
-                if (e.itemName == 'Сбросить список textures') mp.trigger('clothingShop.topEditor.texture.reset');
-                if (e.itemName == 'Сбросить список uTextures') mp.trigger('clothingShop.topEditor.utex.reset');
-                if (e.itemName == 'Сохранить в БД') mp.trigger('clothingShop.topEditor.save');
-                if (e.itemName == 'Закрыть') mp.trigger('clothingShop.topEditor.close');
-            }
-            if (eventName == 'onEscapePressed' || eventName == 'onBackspacePressed') {
-                mp.trigger('clothingShop.topEditor.close');
-            }
-        }
-    };`);
-    mp.callCEFV('selectMenu.show = true;');
+function syncTopEditorUi() {
+    const state = {
+        lastId: topEditor.lastId || 0,
+        variation: topEditor.variation,
+        texture: topEditor.texture,
+        torso: topEditor.torso,
+        undershirt: topEditor.undershirt,
+        uTexture: topEditor.uTexture,
+        name: topEditor.name || `Шмотка ${topEditor.variation}`,
+        price: topEditor.price || 100,
+        pockets: JSON.stringify(topEditor.pockets || [4, 4, 5, 5])
+    };
+    mp.callCEFV(`if (window.__topEditorSync) window.__topEditorSync(${JSON.stringify(state)});`);
+}
+
+function closeTopEditorUi() {
+    mp.callCEFV(`(function(){var el=document.getElementById('top-editor-pro'); if(el) el.remove(); window.__topEditorInit=false; window.__topEditorSync=null;})();`);
 }
 
 mp.events.add({
@@ -380,11 +369,13 @@ mp.events.add({
         mp.callCEFV(`selectMenu.show = false`);
         resetEditClothingShopState();
     },
-    'clothingShop.topEditor.open': () => {
+    'clothingShop.topEditor.open': (lastId) => {
         if (mp.busy.includes()) return;
         if (!mp.busy.add('clothingShop.topEditor', false)) return;
 
         topEditor.active = true;
+        topEditor.lastId = parseInt(lastId) || 0;
+        topEditor.drafts = {};
         topEditor.sex = player.getVariable('gender') ? 0 : 1;
         topEditor.variation = Math.max(0, player.getDrawableVariation(11));
         topEditor.texture = Math.max(0, player.getTextureVariation(11));
@@ -393,31 +384,54 @@ mp.events.add({
         topEditor.uTexture = Math.max(0, player.getTextureVariation(8));
         topEditor.textureList = [topEditor.texture];
         topEditor.uTextureList = [topEditor.uTexture];
-        topEditor.price = 1000;
-        topEditor.class = 1;
+        topEditor.name = `Шмотка ${topEditor.variation}`;
+        topEditor.price = 100;
         topEditor.pockets = [4, 4, 5, 5];
         topEditor.clime = [-10, 20];
         applyTopEditorLook();
-        openTopEditorMenu();
+        openTopEditorUi();
+        syncTopEditorUi();
     },
     'clothingShop.topEditor.close': () => {
         topEditor.active = false;
         mp.busy.remove('clothingShop.topEditor');
-        mp.callCEFV(`selectMenu.show = false`);
-    },
-    'clothingShop.topEditor.sex': (sex) => {
-        if (!topEditor.active) return;
-        sex = parseInt(sex);
-        if (sex !== 0 && sex !== 1) return;
-        topEditor.sex = sex;
+        closeTopEditorUi();
     },
     'clothingShop.topEditor.variation': (delta) => {
         if (!topEditor.active) return;
         delta = parseInt(delta);
         if (!Number.isFinite(delta)) return;
         topEditor.variation = Math.max(0, topEditor.variation + delta);
+        topEditor.name = `Шмотка ${topEditor.variation}`;
         applyTopEditorLook();
-        openTopEditorMenu();
+        syncTopEditorUi();
+    },
+    'clothingShop.topEditor.id.set': (value) => {
+        if (!topEditor.active) return;
+        value = parseInt(value);
+        if (!Number.isFinite(value) || value < 0) return;
+        topEditor.drafts[topEditor.variation] = {
+            name: topEditor.name,
+            price: topEditor.price,
+            pockets: topEditor.pockets
+        };
+        topEditor.variation = value;
+        const draft = topEditor.drafts[value] || topEditor.drafts[value - 1];
+        if (draft) {
+            topEditor.name = draft.name;
+            topEditor.price = draft.price;
+            topEditor.pockets = draft.pockets;
+        } else {
+            topEditor.name = `Шмотка ${value}`;
+        }
+        applyTopEditorLook();
+        syncTopEditorUi();
+    },
+    'clothingShop.topEditor.id.shift': (delta) => {
+        if (!topEditor.active) return;
+        delta = parseInt(delta);
+        if (!Number.isFinite(delta)) return;
+        mp.events.call('clothingShop.topEditor.id.set', topEditor.variation + delta);
     },
     'clothingShop.topEditor.texture': (delta) => {
         if (!topEditor.active) return;
@@ -425,7 +439,7 @@ mp.events.add({
         if (!Number.isFinite(delta)) return;
         topEditor.texture = Math.max(0, topEditor.texture + delta);
         applyTopEditorLook();
-        openTopEditorMenu();
+        syncTopEditorUi();
     },
     'clothingShop.topEditor.torso': (delta) => {
         if (!topEditor.active) return;
@@ -433,7 +447,7 @@ mp.events.add({
         if (!Number.isFinite(delta)) return;
         topEditor.torso = Math.max(0, topEditor.torso + delta);
         applyTopEditorLook();
-        openTopEditorMenu();
+        syncTopEditorUi();
     },
     'clothingShop.topEditor.undershirt': (delta) => {
         if (!topEditor.active) return;
@@ -441,7 +455,7 @@ mp.events.add({
         if (!Number.isFinite(delta)) return;
         topEditor.undershirt = Math.max(0, topEditor.undershirt + delta);
         applyTopEditorLook();
-        openTopEditorMenu();
+        syncTopEditorUi();
     },
     'clothingShop.topEditor.utex': (delta) => {
         if (!topEditor.active) return;
@@ -449,53 +463,35 @@ mp.events.add({
         if (!Number.isFinite(delta)) return;
         topEditor.uTexture = Math.max(0, topEditor.uTexture + delta);
         applyTopEditorLook();
-        openTopEditorMenu();
+        syncTopEditorUi();
     },
-    'clothingShop.topEditor.texture.add': () => {
+    'clothingShop.topEditor.form.save': (name, price, pocketsRaw) => {
         if (!topEditor.active) return;
+        topEditor.name = String(name || `Шмотка ${topEditor.variation}`).trim();
+        topEditor.price = Math.max(1, parseInt(price) || 100);
+        try {
+            const p = JSON.parse(pocketsRaw);
+            if (Array.isArray(p) && p.length) topEditor.pockets = p.map(x => parseInt(x)).filter(Number.isFinite);
+        } catch (e) {}
         topEditor.textureList = addUniqueValue(topEditor.textureList, topEditor.texture);
-        openTopEditorMenu();
-    },
-    'clothingShop.topEditor.utex.add': () => {
-        if (!topEditor.active) return;
         topEditor.uTextureList = addUniqueValue(topEditor.uTextureList, topEditor.uTexture);
-        openTopEditorMenu();
-    },
-    'clothingShop.topEditor.texture.reset': () => {
-        if (!topEditor.active) return;
-        topEditor.textureList = [topEditor.texture];
-        openTopEditorMenu();
-    },
-    'clothingShop.topEditor.utex.reset': () => {
-        if (!topEditor.active) return;
-        topEditor.uTextureList = [topEditor.uTexture];
-        openTopEditorMenu();
-    },
-    'clothingShop.topEditor.price': (priceText) => {
-        if (!topEditor.active) return;
-        const parsed = parseInt(String(priceText).replace('$', ''));
-        if (Number.isFinite(parsed) && parsed > 0) topEditor.price = parsed;
-    },
-    'clothingShop.topEditor.class': (value) => {
-        if (!topEditor.active) return;
-        value = parseInt(value);
-        if (Number.isFinite(value) && value > 0) topEditor.class = value;
-    },
-    'clothingShop.topEditor.save': () => {
-        if (!topEditor.active) return;
+        topEditor.drafts[topEditor.variation] = {
+            name: topEditor.name,
+            price: topEditor.price,
+            pockets: topEditor.pockets
+        };
         const payload = {
             sex: topEditor.sex,
             variation: topEditor.variation,
-            texture: topEditor.texture,
             textures: topEditor.textureList,
             torso: topEditor.torso,
             undershirt: topEditor.undershirt,
-            uTexture: topEditor.uTexture,
             uTextures: topEditor.uTextureList,
             price: topEditor.price,
-            class: topEditor.class,
+            class: 1,
             pockets: topEditor.pockets,
-            clime: topEditor.clime
+            clime: topEditor.clime,
+            name: topEditor.name
         };
         mp.events.callRemote('clothingShop.topEditor.save', JSON.stringify(payload));
     },

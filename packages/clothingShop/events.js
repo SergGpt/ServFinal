@@ -148,6 +148,7 @@ module.exports = {
 
         const sex = parseInt(data.sex);
         const variation = parseInt(data.variation);
+        const name = String(data.name || `Шмотка ${variation}`).trim().slice(0, 30);
         const torso = parseInt(data.torso);
         const undershirt = parseInt(data.undershirt);
         const price = parseInt(data.price);
@@ -167,7 +168,7 @@ module.exports = {
         if (clime.length !== 2) return player.call('notifications.push.error', ['Климат должен содержать 2 значения', 'Ошибка']);
 
         const model = await db.Models.ClothesTop.create({
-            name: `Top #${variation}`,
+            name,
             variation,
             pockets,
             clime,
