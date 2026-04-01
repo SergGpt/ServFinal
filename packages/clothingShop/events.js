@@ -21,6 +21,21 @@ function isValidVector3(data) {
         && Number.isFinite(data.z);
 }
 
+function parseIntArray(raw, fallback = [0]) {
+    if (Array.isArray(raw)) {
+        const list = raw.map((x) => parseInt(x)).filter((x) => Number.isFinite(x) && x >= 0);
+        return list.length ? list : fallback;
+    }
+    if (typeof raw !== 'string' || !raw.length) return fallback;
+
+    const list = raw
+        .split(',')
+        .map((x) => parseInt(x.trim()))
+        .filter((x) => Number.isFinite(x) && x >= 0);
+
+    return list.length ? list : fallback;
+}
+
 module.exports = {
     "init": async () => {
         await clothingShop.init();
@@ -84,6 +99,62 @@ module.exports = {
 
         player.call('notifications.push.success', [`Настройки магазина одежды #${shopId} сохранены`, 'Успешно']);
         player.call('clothingShop.edit.close');
+    },
+    "clothingShop.topCreator.save": async (player, rawData) => {
+        if (!player.account || player.account.admin < 6) return;
+
+        let data = null;
+        try {
+            data = JSON.parse(rawData);
+        } catch (e) {
+            return player.call('notifications.push.error', ['Не удалось прочитать данные конструктора', 'Ошибка']);
+        }
+
+        if (!data || typeof data !== 'object') {
+            return player.call('notifications.push.error', ['Некорректные данные конструктора', 'Ошибка']);
+        }
+
+        const payload = {
+            name: String(data.name || '').trim().slice(0, 30),
+            variation: parseInt(data.variation),
+            pockets: data.pockets || [2, 2],
+            clime: data.clime || [-10, 25],
+            price: parseInt(data.price),
+            textures: parseIntArray(data.textures, [0]),
+            sex: parseInt(data.sex),
+            torso: parseInt(data.torso),
+            undershirt: parseInt(data.undershirt),
+            uTextures: parseIntArray(data.uTextures, [0]),
+            class: parseInt(data.class)
+        };
+
+        if (Array.isArray(payload.clime) && payload.clime.length >= 2 && payload.clime[0] > payload.clime[1]) {
+            const temp = payload.clime[0];
+            payload.clime[0] = payload.clime[1];
+            payload.clime[1] = temp;
+        }
+
+        if (!payload.name.length) payload.name = `Top #${payload.variation}`;
+        if (!Number.isFinite(payload.variation) || payload.variation < 0) {
+            return player.call('notifications.push.error', ['variation должен быть >= 0', 'Ошибка']);
+        }
+        if (!Number.isFinite(payload.price) || payload.price < 0) {
+            return player.call('notifications.push.error', ['price должен быть >= 0', 'Ошибка']);
+        }
+        if (![0, 1].includes(payload.sex)) {
+            return player.call('notifications.push.error', ['sex должен быть 0 или 1', 'Ошибка']);
+        }
+        if (!Number.isFinite(payload.torso) || payload.torso < 0 || !Number.isFinite(payload.undershirt) || payload.undershirt < 0) {
+            return player.call('notifications.push.error', ['torso/undershirt должны быть >= 0', 'Ошибка']);
+        }
+        if (!Number.isFinite(payload.class) || payload.class < 1) payload.class = 1;
+
+        const created = await db.Models.ClothesTop.create(payload);
+        clothes.list[payload.sex].tops.push(created);
+        clothes.updateClientList();
+
+        player.call('notifications.push.success', [`Top #${created.id} сохранен в clothestops`, 'Успешно']);
+        player.call('clothingShop.topCreator.saved', [created.id]);
     },
     "clothingShop.item.buy": (player, group, itemId, textureIndex) => {
         let shopId = player.currentClothingShopId;

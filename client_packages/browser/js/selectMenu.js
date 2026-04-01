@@ -6322,6 +6322,46 @@ var selectMenu = new Vue({
                     }
                 }
             },
+            "clothingTopCreator": {
+                name: "clothingTopCreator",
+                header: "Конструктор tops",
+                items: [],
+                i: 0,
+                j: 0,
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    var e = {
+                        menuName: this.name,
+                        itemName: item.text,
+                        itemIndex: this.i,
+                        itemValue: (item.i != null && item.values) ? item.values[item.i] : null,
+                        valueIndex: item.i,
+                    };
+
+                    if (eventName == 'onItemFocusChanged' || eventName == 'onItemValueChanged') {
+                        mp.trigger('clothingShop.topCreator.update', e.itemIndex, e.valueIndex);
+                    }
+
+                    if (eventName == 'onItemSelected') {
+                        if (e.itemName == 'Название') mp.trigger('clothingShop.topCreator.requestInput', 'name');
+                        if (e.itemName == 'Variation ID') mp.trigger('clothingShop.topCreator.requestInput', 'variation');
+                        if (e.itemName == 'Кол-во textures') mp.trigger('clothingShop.topCreator.requestInput', 'texturesCount');
+                        if (e.itemName == 'Torso') mp.trigger('clothingShop.topCreator.requestInput', 'torso');
+                        if (e.itemName == 'Undershirt') mp.trigger('clothingShop.topCreator.requestInput', 'undershirt');
+                        if (e.itemName == 'Кол-во uTextures') mp.trigger('clothingShop.topCreator.requestInput', 'uTexturesCount');
+                        if (e.itemName == 'Цена') mp.trigger('clothingShop.topCreator.requestInput', 'price');
+                        if (e.itemName == 'Климат min') mp.trigger('clothingShop.topCreator.requestInput', 'climeMin');
+                        if (e.itemName == 'Климат max') mp.trigger('clothingShop.topCreator.requestInput', 'climeMax');
+                        if (e.itemName == 'Применить предпросмотр') mp.trigger('clothingShop.topCreator.apply');
+                        if (e.itemName == 'Сохранить в БД') mp.trigger('clothingShop.topCreator.save');
+                        if (e.itemName == 'Закрыть') mp.trigger('clothingShop.topCreator.close');
+                    }
+
+                    if (eventName == 'onBackspacePressed' || eventName == 'onEscapePressed') {
+                        mp.trigger('clothingShop.topCreator.close');
+                    }
+                }
+            },
             "clothingMain": {
                 name: "clothingMain",
                 header: "Одежда",

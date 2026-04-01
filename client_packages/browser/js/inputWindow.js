@@ -83,6 +83,59 @@ var inputWindow = new Vue({
                 this.show = false;
                 mp.trigger(`callRemote`, `casino.dice.offer.send`, JSON.stringify(data));
             }
+            if (this.name == 'topcreator_name') {
+                if (!this.value.length) return notifications.push(`error`, `Введите название`);
+                this.show = false;
+                mp.trigger('clothingShop.topCreator.input', 'name', this.value);
+            }
+            if (this.name == 'topcreator_variation') {
+                let value = parseInt(this.value);
+                if (isNaN(value) || value < 0 || value > 999999) return notifications.push(`error`, `ID от 0 до 999999`);
+                this.show = false;
+                mp.trigger('clothingShop.topCreator.input', 'variation', value);
+            }
+            if (this.name == 'topcreator_textures_count') {
+                let value = parseInt(this.value);
+                if (isNaN(value) || value <= 0 || value > 128) return notifications.push(`error`, `Кол-во от 1 до 128`);
+                this.show = false;
+                mp.trigger('clothingShop.topCreator.input', 'texturesCount', value);
+            }
+            if (this.name == 'topcreator_torso') {
+                let value = parseInt(this.value);
+                if (isNaN(value) || value < 0 || value > 999999) return notifications.push(`error`, `ID от 0 до 999999`);
+                this.show = false;
+                mp.trigger('clothingShop.topCreator.input', 'torso', value);
+            }
+            if (this.name == 'topcreator_undershirt') {
+                let value = parseInt(this.value);
+                if (isNaN(value) || value < 0 || value > 999999) return notifications.push(`error`, `ID от 0 до 999999`);
+                this.show = false;
+                mp.trigger('clothingShop.topCreator.input', 'undershirt', value);
+            }
+            if (this.name == 'topcreator_utextures_count') {
+                let value = parseInt(this.value);
+                if (isNaN(value) || value <= 0 || value > 128) return notifications.push(`error`, `Кол-во от 1 до 128`);
+                this.show = false;
+                mp.trigger('clothingShop.topCreator.input', 'uTexturesCount', value);
+            }
+            if (this.name == 'topcreator_price') {
+                let value = parseInt(this.value);
+                if (isNaN(value) || value < 0) return notifications.push(`error`, `Цена должна быть >= 0`);
+                this.show = false;
+                mp.trigger('clothingShop.topCreator.input', 'price', value);
+            }
+            if (this.name == 'topcreator_clime_min') {
+                let value = parseInt(this.value);
+                if (isNaN(value) || value < -100 || value > 100) return notifications.push(`error`, `Диапазон от -100 до 100`);
+                this.show = false;
+                mp.trigger('clothingShop.topCreator.input', 'climeMin', value);
+            }
+            if (this.name == 'topcreator_clime_max') {
+                let value = parseInt(this.value);
+                if (isNaN(value) || value < -100 || value > 100) return notifications.push(`error`, `Диапазон от -100 до 100`);
+                this.show = false;
+                mp.trigger('clothingShop.topCreator.input', 'climeMax', value);
+            }
         },
         decline() {
             if (this.name == 'money_giving') {
@@ -104,6 +157,9 @@ var inputWindow = new Vue({
                 this.show = false;
             }
             if (this.name == 'dice') {
+                this.show = false;
+            }
+            if (typeof this.name == 'string' && this.name.indexOf('topcreator_') === 0) {
                 this.show = false;
             }
         },
