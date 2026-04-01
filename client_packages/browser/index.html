@@ -1543,9 +1543,7 @@
                         <div class="moonshine-ui__title">САМОГОН УРАЛ</div>
                         <div class="moonshine-ui__subtitle">в Лос Сантос — ремесло премиум уровня</div>
                     </div>
-                    <div class="moonshine-ui__close" @click="close">
-                        <img src="img/inventory/close.svg" />
-                    </div>
+                    <button class="moonshine-ui__close" @click="close">×</button>
                 </div>
                 <div class="moonshine-ui__tabs">
                     <div class="moonshine-ui__tab" :class="{ 'moonshine-ui__tab--active': view === 'main' }" @click="switchView('main')">Работа</div>
@@ -1563,6 +1561,11 @@
                     <div class="moonshine-ui__card">
                         <div class="moonshine-ui__label">Ваши грядки</div>
                         <div class="moonshine-ui__value">{{ info.activePlots }} / {{ info.maxPlots }}</div>
+                    </div>
+                    <div class="moonshine-ui__card">
+                        <div class="moonshine-ui__label">Опыт работы</div>
+                        <div class="moonshine-ui__value">{{ info.skillPercent }}%</div>
+                        <div class="moonshine-ui__status moonshine-ui__status--good">{{ getNextLevelHint() }}</div>
                     </div>
                     <div class="moonshine-ui__actions">
                         <button class="moonshine-ui__btn" @click="close">Закрыть</button>

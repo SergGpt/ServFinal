@@ -13,6 +13,7 @@ var moonshineUi = new Vue({
             seedPrice: 0,
             dailyLimit: 0,
             seedsRemaining: 0,
+            skillPercent: 0,
         },
         buyAmount: 1,
         processing: false,
@@ -28,10 +29,10 @@ var moonshineUi = new Vue({
         },
     },
     methods: {
-        openMain(payload) {
+        openMain(payload, tabName) {
             this.setInfo(payload);
             this.show = true;
-            this.view = 'main';
+            this.view = tabName === 'vendor' ? 'vendor' : 'main';
             this.processing = false;
         },
         openVendor(payload) {
@@ -67,6 +68,7 @@ var moonshineUi = new Vue({
             this.info.seedPrice = Number(data.seedPrice) || 0;
             this.info.dailyLimit = Number(data.dailyLimit) || 0;
             this.info.seedsRemaining = Number(data.seedsRemaining) || 0;
+            this.info.skillPercent = Number(data.skillPercent) || 0;
         },
         close() {
             this.show = false;
@@ -103,6 +105,12 @@ var moonshineUi = new Vue({
         handleKeyup(event) {
             if (!this.show) return;
             if (event.key === 'Escape' || event.keyCode === 27) this.close();
+        },
+        getNextLevelHint() {
+            const skill = Number(this.info.skillPercent) || 0;
+            if (skill < 30) return `До следующего уровня выхода осталось ${30 - skill}% (будет 2 бутылки).`;
+            if (skill < 60) return `До следующего уровня выхода осталось ${60 - skill}% (будет 3 бутылки).`;
+            return 'Максимальный уровень выхода достигнут: 3 бутылки.';
         },
     },
     mounted() {

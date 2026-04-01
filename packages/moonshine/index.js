@@ -54,7 +54,6 @@ module.exports = {
 
     async init() {
         this.resetState();
-        this.createVendorZone();
         this.createMenuZone();
         this.createCraftZone();
         await this.loadPlotsFromDatabase();
@@ -72,7 +71,6 @@ module.exports = {
         this.plots.forEach(plot => {
             this.disposePlot(plot);
         });
-        this.destroyVendorZone();
         this.destroyMenuZone();
         this.destroyCraftZone();
         this.activeCrafts.forEach(session => {
@@ -86,7 +84,6 @@ module.exports = {
         if (this.plots.length) {
             this.plots.forEach(plot => this.disposePlot(plot));
         }
-        this.destroyVendorZone();
         this.destroyMenuZone();
         this.destroyCraftZone();
         this.plots = [];
@@ -226,15 +223,19 @@ module.exports = {
             if (action === 'menu') {
                 this.config.menu = this.config.menu || {};
                 this.config.menu.position = toPos();
+                this.config.vendor = this.config.vendor || {};
+                this.config.vendor.position = toPos();
                 this.createMenuZone();
                 player.call('selectMenu.notification', ['Точка меню самогонщика обновлена']);
                 return;
             }
             if (action === 'vendor') {
+                this.config.menu = this.config.menu || {};
+                this.config.menu.position = toPos();
                 this.config.vendor = this.config.vendor || {};
                 this.config.vendor.position = toPos();
-                this.createVendorZone();
-                player.call('selectMenu.notification', ['Точка продавца семян обновлена']);
+                this.createMenuZone();
+                player.call('selectMenu.notification', ['Единая точка меню/магазина обновлена']);
                 return;
             }
             if (action === 'craft') {
@@ -323,28 +324,7 @@ module.exports = {
         plot.colshape = null;
     },
 
-    createVendorZone() {
-        const pos = this.config.vendor.position;
-        if (!pos) return;
-        this.destroyVendorZone();
-        const vector = new mp.Vector3(pos.x, pos.y, pos.z);
-        this.vendorMarker = mp.markers.new(1, vector, 0.75, { color: [120, 200, 80, 120] });
-        this.vendorColshape = mp.colshapes.newSphere(vector.x, vector.y, vector.z, 1.5);
-        this.vendorColshape.onEnter = (player) => {
-            if (!this.isWorker(player)) return;
-            player.call('moonshine.vendor.enter');
-        };
-        this.vendorColshape.onExit = (player) => {
-            if (!player || !player.character) return;
-            player.call('moonshine.vendor.exit');
-        };
-        this.vendorBlip = mp.blips.new(431, new mp.Vector3(vector.x, vector.y, vector.z + 1.5), {
-            name: 'Продавец семян',
-            color: 11,
-            shortRange: true,
-            scale: 0.9,
-        });
-    },
+    createVendorZone() {},
 
     createMenuZone() {
         const menuConfig = this.config.menu || {};
@@ -916,24 +896,25 @@ module.exports = {
         };
     },
 
-    sendMenuUpdate(player) {
+    async sendMenuUpdate(player) {
         if (!player || !player.character) return;
-        const info = this.collectMenuData(player);
-        player.call('moonshine.menu.update', [info]);
+        const purchase = await this.getDailyPurchase(player);
+        player.moonshineDailyRemaining = purchase.remaining;
+        const data = this.collectMenuData(player);
+        player.call('moonshine.menu.update', [data]);
     },
 
-    openMainMenu(player) {
+    async openMainMenu(player, tab = 'main') {
         if (!player || !player.character) return;
+        const purchase = await this.getDailyPurchase(player);
+        player.moonshineDailyRemaining = purchase.remaining;
         const info = this.collectMenuData(player);
-        player.call('moonshine.menu.show', [info]);
+        player.call('moonshine.menu.show', [info, tab]);
     },
 
     async openVendor(player) {
-        if (!this.isWorker(player)) return;
-        const info = await this.getDailyPurchase(player);
-        player.moonshineDailyRemaining = info.remaining;
-        const data = this.collectMenuData(player);
-        player.call('moonshine.vendor.show', [data]);
+        if (!player || !player.character) return;
+        await this.openMainMenu(player, 'vendor');
     },
 
     startWork(player) {

@@ -9,7 +9,6 @@ let plotPositions = [];
 let currentPlot = null;
 let lastMarkerDimension = 0;
 let insideCraftZone = false;
-let insideVendorZone = false;
 let insideFarmZone = false;
 let craftUiOpen = false;
 let vendorData = null;
@@ -26,9 +25,9 @@ const markerColors = {
 };
 
 const plantModels = {
-    seeded: 'prop_cane_seedling',
-    sprout: 'prop_cane_seedling',
-    mature: 'prop_cane_mature',
+    seeded: 'prop_weed_01',
+    sprout: 'prop_weed_02',
+    mature: 'prop_weed_lrg_01a',
 };
 
 const STREAM_RADIUS = 65;
@@ -321,10 +320,6 @@ function updatePrompt() {
         mp.prompt.show('Нажмите <span>E</span>, чтобы использовать самогонный аппарат');
         return;
     }
-    if (insideVendorZone) {
-        mp.prompt.show('Нажмите <span>E</span>, чтобы купить семена');
-        return;
-    }
     mp.prompt.hide();
 }
 
@@ -360,13 +355,13 @@ function closeVendorMenu() {
     mp.callCEFV(`if (moonshineUi && moonshineUi.show) moonshineUi.close()`);
 }
 
-function openMainMenuUi(data) {
+function openMainMenuUi(data, tab = 'main') {
     const info = parsePayload(data, {});
     if (!moonshineUiBusyActive) {
         const added = mp.busy.add('moonshine.ui');
         moonshineUiBusyActive = added !== false ? true : mp.busy.includes('moonshine.ui');
     }
-    mp.callCEFV(`moonshineUi.openMain(${JSON.stringify(info || {})})`);
+    mp.callCEFV(`moonshineUi.openMain(${JSON.stringify(info || {})}, '${tab}')`);
 }
 
 function updateMainMenuUi(data) {
@@ -486,26 +481,17 @@ mp.events.add({
         insideFarmZone = false;
         updatePrompt();
     },
-    'moonshine.menu.show': (data) => {
-        openMainMenuUi(data);
+    'moonshine.menu.show': (data, tab) => {
+        openMainMenuUi(data, tab || 'main');
     },
     'moonshine.menu.hide': () => {
         closeMainMenuUi();
     },
-    'moonshine.vendor.enter': () => {
-        insideVendorZone = true;
-        updatePrompt();
-    },
-    'moonshine.vendor.exit': () => {
-        insideVendorZone = false;
-        closeVendorMenu();
-        updatePrompt();
-    },
     'moonshine.vendor.show': (data) => {
-        openVendorMenu(data);
+        openMainMenuUi(data, 'vendor');
     },
     'moonshine.vendor.hide': () => {
-        closeVendorMenu();
+        closeMainMenuUi();
     },
     'moonshine:buffState': (state) => {
         if (typeof state === 'string') {
@@ -555,7 +541,6 @@ mp.events.add({
         clearMarkers();
         currentPlot = null;
         insideCraftZone = false;
-        insideVendorZone = false;
         insideFarmZone = false;
         closeCraftUi();
         closeVendorMenu();
@@ -567,7 +552,6 @@ mp.events.add({
         clearMarkers();
         currentPlot = null;
         insideCraftZone = false;
-        insideVendorZone = false;
         insideFarmZone = false;
         closeCraftUi();
         closeVendorMenu();
@@ -619,10 +603,6 @@ mp.keys.bind(0x45, true, () => {
         if (!craftUiOpen) {
             mp.events.callRemote('moonshine.craft.menu');
         }
-        return;
-    }
-    if (insideVendorZone) {
-        mp.events.callRemote('moonshine.vendor.open');
         return;
     }
 });
