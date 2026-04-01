@@ -22,7 +22,10 @@ function isValidVector3(data) {
 }
 
 function parseIntArray(raw, fallback = [0]) {
-    if (Array.isArray(raw)) return raw.map((x) => parseInt(x)).filter((x) => Number.isFinite(x) && x >= 0);
+    if (Array.isArray(raw)) {
+        const list = raw.map((x) => parseInt(x)).filter((x) => Number.isFinite(x) && x >= 0);
+        return list.length ? list : fallback;
+    }
     if (typeof raw !== 'string' || !raw.length) return fallback;
 
     const list = raw
@@ -124,6 +127,12 @@ module.exports = {
             uTextures: parseIntArray(data.uTextures, [0]),
             class: parseInt(data.class)
         };
+
+        if (Array.isArray(payload.clime) && payload.clime.length >= 2 && payload.clime[0] > payload.clime[1]) {
+            const temp = payload.clime[0];
+            payload.clime[0] = payload.clime[1];
+            payload.clime[1] = temp;
+        }
 
         if (!payload.name.length) payload.name = `Top #${payload.variation}`;
         if (!Number.isFinite(payload.variation) || payload.variation < 0) {

@@ -151,29 +151,23 @@ let editMarkers = {
     camera: null
 };
 let topCreatorState = null;
+let topCreatorBackup = null;
 
-const topCreatorPresets = {
-    pockets: [
-        [1, 1],
-        [2, 2],
-        [3, 3],
-        [4, 4],
-        [2, 2, 2, 2]
-    ],
-    clime: [
-        [-20, 10],
-        [-10, 25],
-        [0, 35],
-        [10, 45]
-    ],
-    textures: [
-        '0',
-        '0,1',
-        '0,1,2',
-        '0,1,2,3',
-        '0,1,2,3,4'
-    ]
-};
+function getTopCreatorBaseBySex(sex) {
+    if (sex === 0) {
+        return {
+            top: 18,
+            torso: 18,
+            undershirt: 3
+        };
+    }
+
+    return {
+        top: 15,
+        torso: 15,
+        undershirt: 15
+    };
+}
 
 function destroyEditMarker(key) {
     if (editMarkers[key] != null) {
@@ -240,32 +234,30 @@ function buildTopCreatorMenu() {
 
     const values = {
         sex: ['Мужской (1)', 'Женский (0)'],
-        variation: Array.from({ length: 401 }, (_, i) => `${i}`),
-        texture: Array.from({ length: 41 }, (_, i) => `${i}`),
-        torso: Array.from({ length: 301 }, (_, i) => `${i}`),
-        undershirt: Array.from({ length: 301 }, (_, i) => `${i}`),
-        price: Array.from({ length: 61 }, (_, i) => `${i * 100}`),
-        class: Array.from({ length: 10 }, (_, i) => `${i + 1}`),
-        pockets: topCreatorPresets.pockets.map((x) => JSON.stringify(x)),
-        clime: topCreatorPresets.clime.map((x) => JSON.stringify(x)),
-        textures: topCreatorPresets.textures
+        texture: Array.from({ length: 31 }, (_, i) => `${i}`),
+        class: Array.from({ length: 20 }, (_, i) => `${i + 1}`),
+        pocketsX: Array.from({ length: 10 }, (_, i) => `${i + 1}`),
+        pocketsY: Array.from({ length: 10 }, (_, i) => `${i + 1}`)
     };
 
     const menu = {
         name: 'clothingTopCreator',
         header: 'Конструктор tops',
         items: [
+            { text: 'Название', values: [topCreatorState.name || ''] },
+            { text: 'Variation ID', values: [`${topCreatorState.variation}`] },
             { text: 'Пол', values: values.sex, i: topCreatorState.sex === 1 ? 0 : 1 },
-            { text: 'Variation', values: values.variation, i: Math.max(0, Math.min(400, topCreatorState.variation)) },
-            { text: 'Texture (preview)', values: values.texture, i: Math.max(0, Math.min(40, topCreatorState.texture)) },
-            { text: 'Torso', values: values.torso, i: Math.max(0, Math.min(300, topCreatorState.torso)) },
-            { text: 'Undershirt', values: values.undershirt, i: Math.max(0, Math.min(300, topCreatorState.undershirt)) },
-            { text: 'Цена', values: values.price, i: Math.max(0, Math.min(60, Math.floor(topCreatorState.price / 100))) },
-            { text: 'Класс', values: values.class, i: Math.max(0, Math.min(9, topCreatorState.class - 1)) },
-            { text: 'Карманы', values: values.pockets, i: Math.max(0, topCreatorPresets.pockets.findIndex((x) => JSON.stringify(x) === JSON.stringify(topCreatorState.pockets))) },
-            { text: 'Климат', values: values.clime, i: Math.max(0, topCreatorPresets.clime.findIndex((x) => JSON.stringify(x) === JSON.stringify(topCreatorState.clime))) },
-            { text: 'Текстуры tops', values: values.textures, i: Math.max(0, topCreatorPresets.textures.indexOf(topCreatorState.textures)) },
-            { text: 'Текстуры undershirt', values: values.textures, i: Math.max(0, topCreatorPresets.textures.indexOf(topCreatorState.uTextures)) },
+            { text: 'Texture preview', values: values.texture, i: Math.max(0, Math.min(30, topCreatorState.texture)) },
+            { text: 'Кол-во textures', values: [`${topCreatorState.texturesCount}`] },
+            { text: 'Torso', values: [`${topCreatorState.torso}`] },
+            { text: 'Undershirt', values: [`${topCreatorState.undershirt}`] },
+            { text: 'Кол-во uTextures', values: [`${topCreatorState.uTexturesCount}`] },
+            { text: 'Цена', values: [`${topCreatorState.price}`] },
+            { text: 'Класс', values: values.class, i: Math.max(0, Math.min(19, topCreatorState.class - 1)) },
+            { text: 'Карманы X', values: values.pocketsX, i: Math.max(0, Math.min(9, topCreatorState.pockets[0] - 1)) },
+            { text: 'Карманы Y', values: values.pocketsY, i: Math.max(0, Math.min(9, topCreatorState.pockets[1] - 1)) },
+            { text: 'Климат min', values: [`${topCreatorState.clime[0]}`] },
+            { text: 'Климат max', values: [`${topCreatorState.clime[1]}`] },
             { text: 'Применить предпросмотр' },
             { text: 'Сохранить в БД' },
             { text: 'Закрыть' }
@@ -278,9 +270,32 @@ function buildTopCreatorMenu() {
 
 function applyTopCreatorPreview() {
     if (!topCreatorState) return;
-    player.setComponentVariation(11, topCreatorState.variation, topCreatorState.texture, 0);
-    player.setComponentVariation(3, topCreatorState.torso, 0, 0);
-    player.setComponentVariation(8, topCreatorState.undershirt, 0, 0);
+    try {
+        player.setComponentVariation(11, topCreatorState.variation, topCreatorState.texture, 0);
+        player.setComponentVariation(3, topCreatorState.torso, 0, 0);
+        player.setComponentVariation(8, topCreatorState.undershirt, 0, 0);
+    } catch (e) {
+        mp.notify.error('Не удалось применить variation', 'Конструктор tops');
+    }
+}
+
+function openTopCreatorInput(name, header, hint, value = '') {
+    mp.callCEFV(`inputWindow.name = '${name}';
+inputWindow.header = ${JSON.stringify(header)};
+inputWindow.hint = ${JSON.stringify(hint)};
+inputWindow.inputHint = "Введите значение...";
+inputWindow.leftWord = "Принять";
+inputWindow.rightWord = "Отмена";
+inputWindow.value = ${JSON.stringify(String(value))};
+inputWindow.show = true;`);
+}
+
+function rebuildTopCreatorTextureRanges() {
+    if (!topCreatorState) return;
+    const texturesCount = Math.max(1, parseInt(topCreatorState.texturesCount) || 1);
+    const uTexturesCount = Math.max(1, parseInt(topCreatorState.uTexturesCount) || 1);
+    topCreatorState.textures = Array.from({ length: texturesCount }, (_, i) => i);
+    topCreatorState.uTextures = Array.from({ length: uTexturesCount }, (_, i) => i);
 }
 
 mp.events.add({
@@ -401,20 +416,36 @@ mp.events.add({
         mp.events.callRemote('clothingShop.edit.save', editClothingShopInfo.id, JSON.stringify(editClothingShopInfo));
     },
     'clothingShop.topCreator.open': () => {
+        topCreatorBackup = {
+            top: player.getDrawableVariation(11),
+            topTexture: player.getTextureVariation(11),
+            torso: player.getDrawableVariation(3),
+            undershirt: player.getDrawableVariation(8),
+            undershirtTexture: player.getTextureVariation(8)
+        };
+
         topCreatorState = {
             name: 'New Top',
             sex: 1,
-            variation: player.getDrawableVariation(11),
-            texture: player.getTextureVariation(11),
-            torso: player.getDrawableVariation(3),
-            undershirt: player.getDrawableVariation(8),
+            variation: 0,
+            texture: 0,
+            torso: 15,
+            undershirt: 15,
             price: 100,
             class: 1,
             pockets: [2, 2],
             clime: [-10, 25],
-            textures: '0',
-            uTextures: '0'
+            texturesCount: 1,
+            uTexturesCount: 1,
+            textures: [0],
+            uTextures: [0]
         };
+
+        const base = getTopCreatorBaseBySex(topCreatorState.sex);
+        topCreatorState.variation = base.top;
+        topCreatorState.torso = base.torso;
+        topCreatorState.undershirt = base.undershirt;
+
         buildTopCreatorMenu();
         applyTopCreatorPreview();
     },
@@ -425,19 +456,57 @@ mp.events.add({
         const val = parseInt(valueIndex);
         if (!Number.isFinite(idx) || !Number.isFinite(val)) return;
 
-        if (idx === 0) topCreatorState.sex = val === 0 ? 1 : 0;
-        if (idx === 1) topCreatorState.variation = val;
-        if (idx === 2) topCreatorState.texture = val;
-        if (idx === 3) topCreatorState.torso = val;
-        if (idx === 4) topCreatorState.undershirt = val;
-        if (idx === 5) topCreatorState.price = val * 100;
-        if (idx === 6) topCreatorState.class = val + 1;
-        if (idx === 7) topCreatorState.pockets = topCreatorPresets.pockets[val] || topCreatorPresets.pockets[0];
-        if (idx === 8) topCreatorState.clime = topCreatorPresets.clime[val] || topCreatorPresets.clime[0];
-        if (idx === 9) topCreatorState.textures = topCreatorPresets.textures[val] || '0';
-        if (idx === 10) topCreatorState.uTextures = topCreatorPresets.textures[val] || '0';
+        if (idx === 2) {
+            const nextSex = val === 0 ? 1 : 0;
+            topCreatorState.sex = nextSex;
+            const base = getTopCreatorBaseBySex(nextSex);
+            topCreatorState.variation = base.top;
+            topCreatorState.torso = base.torso;
+            topCreatorState.undershirt = base.undershirt;
+            buildTopCreatorMenu();
+        }
+        if (idx === 3) topCreatorState.texture = val;
+        if (idx === 9) topCreatorState.class = val + 1;
+        if (idx === 10) topCreatorState.pockets[0] = val + 1;
+        if (idx === 11) topCreatorState.pockets[1] = val + 1;
 
-        topCreatorState.name = `top_${topCreatorState.variation}_${topCreatorState.texture}`;
+        rebuildTopCreatorTextureRanges();
+        applyTopCreatorPreview();
+    },
+    'clothingShop.topCreator.requestInput': (field) => {
+        if (!topCreatorState) return;
+
+        if (field === 'name') return openTopCreatorInput('topcreator_name', 'Название одежды', 'Введите название', topCreatorState.name);
+        if (field === 'variation') return openTopCreatorInput('topcreator_variation', 'Variation ID', 'Введите ID от 0 до 999999', topCreatorState.variation);
+        if (field === 'texturesCount') return openTopCreatorInput('topcreator_textures_count', 'Кол-во textures', 'Введите количество текстур tops', topCreatorState.texturesCount);
+        if (field === 'torso') return openTopCreatorInput('topcreator_torso', 'Torso', 'Введите torso ID', topCreatorState.torso);
+        if (field === 'undershirt') return openTopCreatorInput('topcreator_undershirt', 'Undershirt', 'Введите undershirt ID', topCreatorState.undershirt);
+        if (field === 'uTexturesCount') return openTopCreatorInput('topcreator_utextures_count', 'Кол-во uTextures', 'Введите количество текстур undershirt', topCreatorState.uTexturesCount);
+        if (field === 'price') return openTopCreatorInput('topcreator_price', 'Цена', 'Введите цену', topCreatorState.price);
+        if (field === 'climeMin') return openTopCreatorInput('topcreator_clime_min', 'Климат min', 'Введите минимальную температуру', topCreatorState.clime[0]);
+        if (field === 'climeMax') return openTopCreatorInput('topcreator_clime_max', 'Климат max', 'Введите максимальную температуру', topCreatorState.clime[1]);
+    },
+    'clothingShop.topCreator.input': (field, rawValue) => {
+        if (!topCreatorState) return;
+
+        let value = rawValue;
+        if (field === 'name') {
+            topCreatorState.name = String(value || '').trim().slice(0, 30);
+        } else {
+            value = parseInt(value);
+            if (!Number.isFinite(value)) return mp.notify.error('Нужно число', 'Конструктор tops');
+            if (field === 'variation') topCreatorState.variation = Math.max(0, Math.min(999999, value));
+            if (field === 'texturesCount') topCreatorState.texturesCount = Math.max(1, Math.min(128, value));
+            if (field === 'torso') topCreatorState.torso = Math.max(0, Math.min(999999, value));
+            if (field === 'undershirt') topCreatorState.undershirt = Math.max(0, Math.min(999999, value));
+            if (field === 'uTexturesCount') topCreatorState.uTexturesCount = Math.max(1, Math.min(128, value));
+            if (field === 'price') topCreatorState.price = Math.max(0, value);
+            if (field === 'climeMin') topCreatorState.clime[0] = Math.max(-100, Math.min(100, value));
+            if (field === 'climeMax') topCreatorState.clime[1] = Math.max(-100, Math.min(100, value));
+        }
+
+        rebuildTopCreatorTextureRanges();
+        buildTopCreatorMenu();
         applyTopCreatorPreview();
     },
     'clothingShop.topCreator.apply': () => {
@@ -446,9 +515,16 @@ mp.events.add({
     },
     'clothingShop.topCreator.save': () => {
         if (!topCreatorState) return;
+        rebuildTopCreatorTextureRanges();
         mp.events.callRemote('clothingShop.topCreator.save', JSON.stringify(topCreatorState));
     },
     'clothingShop.topCreator.close': () => {
+        if (topCreatorBackup) {
+            player.setComponentVariation(11, topCreatorBackup.top, topCreatorBackup.topTexture, 0);
+            player.setComponentVariation(3, topCreatorBackup.torso, 0, 0);
+            player.setComponentVariation(8, topCreatorBackup.undershirt, topCreatorBackup.undershirtTexture, 0);
+        }
+        topCreatorBackup = null;
         topCreatorState = null;
         mp.callCEFV(`selectMenu.show = false`);
     },
