@@ -285,4 +285,13 @@ module.exports = {
             console.log(`[CMD] ${player.name} stopped scantops`);
         }
     },
+    '/topeditor': {
+        args: '',
+        description: 'Открыть select-меню редактора топов с сохранением в БД',
+        access: 6,
+        handler: (player, args, out) => {
+            player.call('clothingShop.topEditor.open');
+            out.info('Открыт редактор топов. Листайте и сохраните подходящий вариант.', player);
+        }
+    },
 };
