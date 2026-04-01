@@ -1247,6 +1247,36 @@
                 <div :class="['btn', {disable: amountSlots == maxSlots || price > coins }]" @click="localaddSlot()">Добавить слот</div>
             </div>
         </script>
+        <script type="text/x-template" id="player-menu-donate-cases">
+            <div class="sidebar-win donate-cases">
+                <div class="info">Ваш донат баланс: {{ coins }} TC</div>
+                <div class="record" v-for="c in state.cases" :key="c.id" style="margin-bottom:8px;">
+                    <div>{{ c.name }} ({{ c.priceDon }} TC) | В инвентаре: {{ invMap[c.id] || 0 }}</div>
+                    <div style="display:flex;gap:6px;margin-top:4px;">
+                        <input v-model.number="quantity" type="number" min="1" style="width:70px;" />
+                        <div class="btn" @click="buyCase(c.id, quantity)">Купить</div>
+                        <div class="btn" @click="openCase(c.id, quantity)">Открыть</div>
+                    </div>
+                </div>
+                <div v-if="isAdmin" class="info" style="margin-top:10px;">Админ редактор кейсов</div>
+                <div v-if="isAdmin" style="display:grid;gap:6px;">
+                    <input v-model="editor.caseId" placeholder="caseId (budget/standard/gold)"/>
+                    <input v-model="editor.name" placeholder="Название награды"/>
+                    <input v-model="editor.rarity" placeholder="rarity (common..legendary)"/>
+                    <input v-model="editor.type" placeholder="type (money/donate/vehicle/clothes)"/>
+                    <input v-model.number="editor.weight" placeholder="weight"/>
+                    <input v-model.number="editor.minAmount" placeholder="min"/>
+                    <input v-model.number="editor.maxAmount" placeholder="max"/>
+                    <input v-model="editor.modelName" placeholder="modelName для авто"/>
+                    <input v-model.number="editor.clothesId" placeholder="clothes variation id"/>
+                    <div class="btn" @click="onAddReward()">Добавить награду</div>
+                    <div class="record" v-for="r in editorState.customRewards" :key="r.id">
+                        #{{r.id}} {{r.caseId}} {{r.type}} {{r.name}}
+                        <span class="btn" @click="removeEditorReward(r.id)">Удалить</span>
+                    </div>
+                </div>
+            </div>
+        </script>
 
         <script type="text/x-template" id="player-menu-settings-main">
             <div class="sidebar-win settings-main">

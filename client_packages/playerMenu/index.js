@@ -92,6 +92,18 @@ mp.playerMenu = {
     setChips(count) {
         mp.callCEFV(`playerMenu.setChips(${count})`);
     },
+    setLootcasesState(data) {
+        mp.callCEFV(`playerMenu.setLootcasesState(${JSON.stringify(data)})`);
+    },
+    setLootcasesOpenResult(data) {
+        mp.callCEFV(`playerMenu.setLootcasesOpenResult(${JSON.stringify(data)})`);
+    },
+    setLootcasesEditorState(data) {
+        mp.callCEFV(`playerMenu.setLootcasesEditorState(${JSON.stringify(data)})`);
+    },
+    openDonateCasesEditor() {
+        mp.callCEFV(`playerMenu.openDonateCasesEditor()`);
+    },
 };
 
 mp.events.add({
@@ -175,5 +187,20 @@ mp.events.add({
     },
     "casino.chips.changed": (chips) => {
         mp.playerMenu.setChips(chips);
+    },
+    "lootcases.state": (data) => {
+        mp.playerMenu.setLootcasesState(data);
+    },
+    "lootcases.inventory": (data) => {
+        mp.playerMenu.setLootcasesState(data);
+    },
+    "lootcases.open.result": (data) => {
+        mp.playerMenu.setLootcasesOpenResult(data);
+    },
+    "lootcases.admin.editor.state": (data) => {
+        mp.playerMenu.setLootcasesEditorState(data);
+    },
+    "lootcases.admin.editor.open": () => {
+        mp.playerMenu.openDonateCasesEditor();
     },
 });
