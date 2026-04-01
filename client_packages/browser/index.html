@@ -1258,8 +1258,11 @@
                         <div class="btn" @click="openCase(c.id, quantity)">Открыть</div>
                     </div>
                 </div>
-                <div v-if="isAdmin" class="info" style="margin-top:10px;">Админ редактор кейсов</div>
-                <div v-if="isAdmin" style="display:grid;gap:6px;">
+                <div v-if="isAdmin && editorVisible" class="info" style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;">
+                    <span>Админ редактор кейсов</span>
+                    <span class="btn" @click="closeEditor()">Закрыть</span>
+                </div>
+                <div v-if="isAdmin && editorVisible" style="display:grid;gap:6px;">
                     <input v-model="editor.caseId" placeholder="caseId (budget/standard/gold)"/>
                     <input v-model="editor.name" placeholder="Название награды"/>
                     <input v-model="editor.rarity" placeholder="rarity (common..legendary)"/>
@@ -1275,6 +1278,7 @@
                         <span class="btn" @click="removeEditorReward(r.id)">Удалить</span>
                     </div>
                 </div>
+                <div v-if="isAdmin && !editorVisible" class="info" style="margin-top:10px;">Редактор кейсов открывается только командой /caseeditor</div>
             </div>
         </script>
 
