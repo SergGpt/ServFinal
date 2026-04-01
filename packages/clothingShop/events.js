@@ -135,5 +135,87 @@ module.exports = {
                     }
                 }, `Покупка одежды ${group}. Variation #${itemId}. Texture #${textureIndex}`);
             });
+        },
+    "clothingShop.topEditor.save": async (player, rawData) => {
+        if (!player.account || player.account.admin < 6) return;
+
+        let data = null;
+        try {
+            data = JSON.parse(rawData);
+        } catch (e) {
+            return player.call('notifications.push.error', ['Не удалось прочитать данные топа', 'Ошибка']);
         }
+
+        const sex = parseInt(data.sex);
+        const id = parseInt(data.id);
+        const variation = parseInt(data.variation);
+        const name = String(data.name || `Шмотка ${variation}`).trim().slice(0, 30);
+        const torso = parseInt(data.torso);
+        const undershirt = parseInt(data.undershirt);
+        const price = parseInt(data.price);
+        const itemClass = parseInt(data.class);
+        const textures = Array.isArray(data.textures) ? data.textures.map(x => parseInt(x)).filter(x => Number.isFinite(x) && x >= 0) : [];
+        const uTextures = Array.isArray(data.uTextures) ? data.uTextures.map(x => parseInt(x)).filter(x => Number.isFinite(x) && x >= 0) : [];
+        const pockets = Array.isArray(data.pockets) ? data.pockets.map(x => parseInt(x)).filter(Number.isFinite) : [4, 4, 5, 5];
+        const clime = Array.isArray(data.clime) ? data.clime.map(x => parseInt(x)).filter(Number.isFinite) : [-10, 20];
+
+        if (![sex, variation, torso, undershirt, price, itemClass].every(Number.isFinite)) {
+            return player.call('notifications.push.error', ['Некорректные параметры топа', 'Ошибка']);
+        }
+        if (![0, 1].includes(sex)) return player.call('notifications.push.error', ['Пол должен быть 0 или 1', 'Ошибка']);
+        if (!textures.length) return player.call('notifications.push.error', ['Добавьте хотя бы одну texture', 'Ошибка']);
+        if (!uTextures.length) return player.call('notifications.push.error', ['Добавьте хотя бы одну uTexture', 'Ошибка']);
+        if (!pockets.length) return player.call('notifications.push.error', ['Некорректные карманы', 'Ошибка']);
+        if (clime.length !== 2) return player.call('notifications.push.error', ['Климат должен содержать 2 значения', 'Ошибка']);
+
+        const payload = {
+            name,
+            variation,
+            pockets,
+            clime,
+            price,
+            textures,
+            sex,
+            torso,
+            undershirt,
+            uTextures,
+            class: itemClass
+        };
+        let model = null;
+        if (Number.isFinite(id) && id > 0) {
+            model = await db.Models.ClothesTop.findByPk(id);
+            if (model) await model.update(payload);
+        }
+        if (!model) model = await db.Models.ClothesTop.create(payload);
+
+        if (!clothes.list[sex]) clothes.list[sex] = { tops: [] };
+        if (!clothes.list[sex].tops) clothes.list[sex].tops = [];
+        const idx = clothes.list[sex].tops.findIndex(x => x.id == model.id);
+        if (idx >= 0) clothes.list[sex].tops[idx] = model;
+        else clothes.list[sex].tops.push(model);
+        clothes.updateClientList();
+
+        player.call('notifications.push.success', [`Топ сохранён в БД (ID: ${model.id})`, 'Успешно']);
+    },
+    "clothingShop.topEditor.load": async (player, id) => {
+        if (!player.account || player.account.admin < 6) return;
+        id = parseInt(id);
+        if (!Number.isFinite(id) || id <= 0) return;
+        const item = await db.Models.ClothesTop.findByPk(id);
+        if (!item) return player.call('notifications.push.error', ['Одежда с таким ID не найдена', 'Ошибка']);
+        player.call('clothingShop.topEditor.load.ans', [JSON.stringify({
+            id: item.id,
+            name: item.name,
+            variation: item.variation,
+            pockets: item.pockets,
+            clime: item.clime,
+            price: item.price,
+            textures: item.textures,
+            sex: item.sex,
+            torso: item.torso,
+            undershirt: item.undershirt,
+            uTextures: item.uTextures,
+            class: item.class
+        })]);
+    }
 };
