@@ -2,13 +2,14 @@
     border: 2px solid transparent;
     border-radius: 2.77vh;
     box-sizing: border-box;
-    bottom: 1.85vh;
+    bottom: 30.9px;
     color: #fff;
-    height: 11.57vh;
-    right: 23vh;
-    padding: 1.5vh 2.77vh;
+    height: 18.9px;
+    right: -11.1px;
+    padding: 110.9px;
     position: absolute;
     /* width: 29vh; */
+    transform: scale(1);
 }
 
 #speedometer.noActive,
