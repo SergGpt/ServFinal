@@ -147,6 +147,7 @@ module.exports = {
         }
 
         const sex = parseInt(data.sex);
+        const id = parseInt(data.id);
         const variation = parseInt(data.variation);
         const name = String(data.name || `Шмотка ${variation}`).trim().slice(0, 30);
         const torso = parseInt(data.torso);
@@ -167,7 +168,7 @@ module.exports = {
         if (!pockets.length) return player.call('notifications.push.error', ['Некорректные карманы', 'Ошибка']);
         if (clime.length !== 2) return player.call('notifications.push.error', ['Климат должен содержать 2 значения', 'Ошибка']);
 
-        const model = await db.Models.ClothesTop.create({
+        const payload = {
             name,
             variation,
             pockets,
@@ -179,13 +180,42 @@ module.exports = {
             undershirt,
             uTextures,
             class: itemClass
-        });
+        };
+        let model = null;
+        if (Number.isFinite(id) && id > 0) {
+            model = await db.Models.ClothesTop.findByPk(id);
+            if (model) await model.update(payload);
+        }
+        if (!model) model = await db.Models.ClothesTop.create(payload);
 
         if (!clothes.list[sex]) clothes.list[sex] = { tops: [] };
         if (!clothes.list[sex].tops) clothes.list[sex].tops = [];
-        clothes.list[sex].tops.push(model);
+        const idx = clothes.list[sex].tops.findIndex(x => x.id == model.id);
+        if (idx >= 0) clothes.list[sex].tops[idx] = model;
+        else clothes.list[sex].tops.push(model);
         clothes.updateClientList();
 
         player.call('notifications.push.success', [`Топ сохранён в БД (ID: ${model.id})`, 'Успешно']);
+    },
+    "clothingShop.topEditor.load": async (player, id) => {
+        if (!player.account || player.account.admin < 6) return;
+        id = parseInt(id);
+        if (!Number.isFinite(id) || id <= 0) return;
+        const item = await db.Models.ClothesTop.findByPk(id);
+        if (!item) return player.call('notifications.push.error', ['Одежда с таким ID не найдена', 'Ошибка']);
+        player.call('clothingShop.topEditor.load.ans', [JSON.stringify({
+            id: item.id,
+            name: item.name,
+            variation: item.variation,
+            pockets: item.pockets,
+            clime: item.clime,
+            price: item.price,
+            textures: item.textures,
+            sex: item.sex,
+            torso: item.torso,
+            undershirt: item.undershirt,
+            uTextures: item.uTextures,
+            class: item.class
+        })]);
     }
 };
