@@ -15,6 +15,7 @@ let craftUiOpen = false;
 let vendorData = null;
 let moonshineBuffState = { active: false, remainingMs: 0 };
 let craftBusyActive = false;
+let moonshineUiBusyActive = false;
 
 const markerColors = {
     empty: [140, 140, 140, 70],
@@ -341,19 +342,47 @@ function applyPlotUpdate(index, data) {
 function openVendorMenu(data) {
     data = parsePayload(data, {});
     vendorData = data || {};
-    mp.callCEFV(`selectMenu.menus['moonshineVendor'].init(${JSON.stringify(vendorData)})`);
-    mp.callCEFV(`selectMenu.showByName('moonshineVendor')`);
+    if (!moonshineUiBusyActive) {
+        const added = mp.busy.add('moonshine.ui');
+        moonshineUiBusyActive = added !== false ? true : mp.busy.includes('moonshine.ui');
+    }
+    mp.callCEFV(`moonshineUi.openVendor(${JSON.stringify(vendorData)})`);
 }
 
 function updateVendorMenu(data) {
     data = parsePayload(data, vendorData || {});
     vendorData = data || vendorData;
-    mp.callCEFV(`(function(){var info=${JSON.stringify(vendorData || {})};if(selectMenu.menus['moonshineVendor'])selectMenu.menus['moonshineVendor'].update(info);})()`);
+    mp.callCEFV(`moonshineUi.update(${JSON.stringify(vendorData || {})})`);
 }
 
 function closeVendorMenu() {
     vendorData = null;
-    mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineVendor') selectMenu.show = false;`);
+    mp.callCEFV(`if (moonshineUi && moonshineUi.show) moonshineUi.close()`);
+}
+
+function openMainMenuUi(data) {
+    const info = parsePayload(data, {});
+    if (!moonshineUiBusyActive) {
+        const added = mp.busy.add('moonshine.ui');
+        moonshineUiBusyActive = added !== false ? true : mp.busy.includes('moonshine.ui');
+    }
+    mp.callCEFV(`moonshineUi.openMain(${JSON.stringify(info || {})})`);
+}
+
+function updateMainMenuUi(data) {
+    const info = parsePayload(data, {});
+    mp.callCEFV(`moonshineUi.update(${JSON.stringify(info || {})})`);
+}
+
+function closeMainMenuUi() {
+    mp.callCEFV(`if (moonshineUi && moonshineUi.show) moonshineUi.close()`);
+}
+
+function handleMoonshineUiClosed() {
+    if (moonshineUiBusyActive) {
+        mp.busy.remove('moonshine.ui');
+        moonshineUiBusyActive = false;
+    }
 }
 
 function openCraftUi(data) {
@@ -445,9 +474,8 @@ mp.events.add({
         startPlotAction('harvest');
     },
     'moonshine.menu.update': (data) => {
-        const info = parsePayload(data, {});
-        const payload = JSON.stringify(info || {});
-        mp.callCEFV(`(function(){var info=${payload};if(selectMenu.menus['moonshineFarm'])selectMenu.menus['moonshineFarm'].update(info);if(selectMenu.menus['moonshineVendor'])selectMenu.menus['moonshineVendor'].update(info);})()`);
+        updateMainMenuUi(data);
+        updateVendorMenu(data);
     },
     'moonshine.menu.enter': () => {
         insideFarmZone = true;
@@ -459,13 +487,10 @@ mp.events.add({
         updatePrompt();
     },
     'moonshine.menu.show': (data) => {
-        const info = parsePayload(data, {});
-        const payload = JSON.stringify(info || {});
-        mp.callCEFV(`selectMenu.menus['moonshineFarm'].init(${payload})`);
-        mp.callCEFV(`selectMenu.showByName('moonshineFarm')`);
+        openMainMenuUi(data);
     },
     'moonshine.menu.hide': () => {
-        mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineFarm') selectMenu.show = false;`);
+        closeMainMenuUi();
     },
     'moonshine.vendor.enter': () => {
         insideVendorZone = true;
@@ -534,7 +559,8 @@ mp.events.add({
         insideFarmZone = false;
         closeCraftUi();
         closeVendorMenu();
-        mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineFarm') selectMenu.show = false;`);
+        closeMainMenuUi();
+        handleMoonshineUiClosed();
         mp.prompt.hide();
     },
     'playerQuit': () => {
@@ -545,8 +571,12 @@ mp.events.add({
         insideFarmZone = false;
         closeCraftUi();
         closeVendorMenu();
-        mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineFarm') selectMenu.show = false;`);
+        closeMainMenuUi();
+        handleMoonshineUiClosed();
         mp.prompt.hide();
+    },
+    'moonshine.ui.closed': () => {
+        handleMoonshineUiClosed();
     },
 });
 

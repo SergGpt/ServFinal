@@ -1,0 +1,168 @@
+#moonshineUi {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 6000;
+    font-family: 'Roboto', sans-serif;
+    color: #f7f2e8;
+}
+
+.moonshine-ui__window {
+    width: 560px;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 18px 52px rgba(0, 0, 0, 0.6);
+    background: linear-gradient(180deg, rgba(34, 24, 16, 0.96) 0%, rgba(18, 13, 9, 0.96) 100%);
+    border: 1px solid rgba(255, 172, 93, 0.3);
+}
+
+.moonshine-ui__header {
+    padding: 18px 22px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(90deg, #7f4a18 0%, #bc6a24 100%);
+}
+
+.moonshine-ui__title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+}
+
+.moonshine-ui__subtitle {
+    font-size: 12px;
+    opacity: 0.85;
+}
+
+.moonshine-ui__close {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    opacity: 0.75;
+}
+
+.moonshine-ui__close:hover {
+    opacity: 1;
+}
+
+.moonshine-ui__tabs {
+    display: flex;
+    gap: 10px;
+    padding: 16px 20px 8px;
+}
+
+.moonshine-ui__tab {
+    flex: 1;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 188, 124, 0.2);
+    text-align: center;
+    cursor: pointer;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.moonshine-ui__tab--active {
+    background: linear-gradient(90deg, #f6b36b 0%, #ff8f30 100%);
+    color: #1f140b;
+    border-color: transparent;
+}
+
+.moonshine-ui__body {
+    padding: 18px 22px 24px;
+}
+
+.moonshine-ui__card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 197, 140, 0.12);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+}
+
+.moonshine-ui__label {
+    color: rgba(247, 242, 232, 0.65);
+    font-size: 13px;
+}
+
+.moonshine-ui__value {
+    font-size: 16px;
+    margin-top: 4px;
+}
+
+.moonshine-ui__status {
+    margin-top: 6px;
+    font-size: 14px;
+}
+
+.moonshine-ui__status--bad {
+    color: #ff8b8b;
+}
+
+.moonshine-ui__status--good {
+    color: #8de7a7;
+}
+
+.moonshine-ui__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.moonshine-ui__counter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.moonshine-ui__counter button {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.moonshine-ui__counter input {
+    width: 62px;
+    text-align: center;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.2);
+    color: #fff;
+}
+
+.moonshine-ui__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.moonshine-ui__btn {
+    border: none;
+    border-radius: 9px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.moonshine-ui__btn--accent {
+    background: linear-gradient(90deg, #f6b36b 0%, #ff8f30 100%);
+    color: #22150b;
+}
+
+.moonshine-ui__btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
