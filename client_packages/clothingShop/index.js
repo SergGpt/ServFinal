@@ -279,7 +279,8 @@ function applyTopCreatorPreview() {
     }
 }
 
-function openTopCreatorInput(name, header, hint, value = '') {
+function openTopCreatorInput(name, header, hint, value) {
+    if (value == null) value = '';
     mp.callCEFV(`inputWindow.name = '${name}';
 inputWindow.header = ${JSON.stringify(header)};
 inputWindow.hint = ${JSON.stringify(hint)};

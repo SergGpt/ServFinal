@@ -159,7 +159,7 @@ var inputWindow = new Vue({
             if (this.name == 'dice') {
                 this.show = false;
             }
-            if (this.name.indexOf('topcreator_') === 0) {
+            if (typeof this.name == 'string' && this.name.indexOf('topcreator_') === 0) {
                 this.show = false;
             }
         },
