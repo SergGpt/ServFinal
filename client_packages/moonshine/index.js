@@ -9,12 +9,12 @@ let plotPositions = [];
 let currentPlot = null;
 let lastMarkerDimension = 0;
 let insideCraftZone = false;
-let insideVendorZone = false;
 let insideFarmZone = false;
 let craftUiOpen = false;
 let vendorData = null;
 let moonshineBuffState = { active: false, remainingMs: 0 };
 let craftBusyActive = false;
+let moonshineUiBusyActive = false;
 
 const markerColors = {
     empty: [140, 140, 140, 70],
@@ -25,9 +25,9 @@ const markerColors = {
 };
 
 const plantModels = {
-    seeded: 'prop_cane_seedling',
-    sprout: 'prop_cane_seedling',
-    mature: 'prop_cane_mature',
+    seeded: 'prop_weed_01',
+    sprout: 'prop_weed_02',
+    mature: 'prop_weed_lrg_01a',
 };
 
 const STREAM_RADIUS = 65;
@@ -35,6 +35,33 @@ const STREAM_RADIUS_SQ = STREAM_RADIUS * STREAM_RADIUS;
 const ACTION_BUSY_KEY = 'moonshine.action';
 
 let nextStreamUpdate = 0;
+
+function ensureMoonshineSetupMenu() {
+    mp.callCEFV(`(function() {
+        selectMenu.menus["moonshineSetup"] = {
+            name: "moonshineSetup",
+            header: "Настройка самогонщика",
+            items: [
+                { text: "Поставить точку меню работы" },
+                { text: "Поставить точку продавца семян" },
+                { text: "Поставить точку аппарата" },
+                { text: "Добавить грядку в текущей точке" },
+                { text: "Закрыть" }
+            ],
+            i: 0,
+            j: 0,
+            handler(eventName) {
+                var item = this.items[this.i];
+                var e = {
+                    menuName: this.name,
+                    itemName: item.text,
+                    itemIndex: this.i
+                };
+                mp.trigger("selectMenu.handler", this.name, eventName, JSON.stringify(e));
+            }
+        };
+    })()`);
+}
 
 function parsePayload(value, fallback) {
     if (typeof value === 'string') {
@@ -293,10 +320,6 @@ function updatePrompt() {
         mp.prompt.show('Нажмите <span>E</span>, чтобы использовать самогонный аппарат');
         return;
     }
-    if (insideVendorZone) {
-        mp.prompt.show('Нажмите <span>E</span>, чтобы купить семена');
-        return;
-    }
     mp.prompt.hide();
 }
 
@@ -314,19 +337,47 @@ function applyPlotUpdate(index, data) {
 function openVendorMenu(data) {
     data = parsePayload(data, {});
     vendorData = data || {};
-    mp.callCEFV(`selectMenu.menus['moonshineVendor'].init(${JSON.stringify(vendorData)})`);
-    mp.callCEFV(`selectMenu.showByName('moonshineVendor')`);
+    if (!moonshineUiBusyActive) {
+        const added = mp.busy.add('moonshine.ui');
+        moonshineUiBusyActive = added !== false ? true : mp.busy.includes('moonshine.ui');
+    }
+    mp.callCEFV(`moonshineUi.openVendor(${JSON.stringify(vendorData)})`);
 }
 
 function updateVendorMenu(data) {
     data = parsePayload(data, vendorData || {});
     vendorData = data || vendorData;
-    mp.callCEFV(`(function(){var info=${JSON.stringify(vendorData || {})};if(selectMenu.menus['moonshineVendor'])selectMenu.menus['moonshineVendor'].update(info);})()`);
+    mp.callCEFV(`moonshineUi.update(${JSON.stringify(vendorData || {})})`);
 }
 
 function closeVendorMenu() {
     vendorData = null;
-    mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineVendor') selectMenu.show = false;`);
+    mp.callCEFV(`if (moonshineUi && moonshineUi.show) moonshineUi.close()`);
+}
+
+function openMainMenuUi(data, tab = 'main') {
+    const info = parsePayload(data, {});
+    if (!moonshineUiBusyActive) {
+        const added = mp.busy.add('moonshine.ui');
+        moonshineUiBusyActive = added !== false ? true : mp.busy.includes('moonshine.ui');
+    }
+    mp.callCEFV(`moonshineUi.openMain(${JSON.stringify(info || {})}, '${tab}')`);
+}
+
+function updateMainMenuUi(data) {
+    const info = parsePayload(data, {});
+    mp.callCEFV(`moonshineUi.update(${JSON.stringify(info || {})})`);
+}
+
+function closeMainMenuUi() {
+    mp.callCEFV(`if (moonshineUi && moonshineUi.show) moonshineUi.close()`);
+}
+
+function handleMoonshineUiClosed() {
+    if (moonshineUiBusyActive) {
+        mp.busy.remove('moonshine.ui');
+        moonshineUiBusyActive = false;
+    }
 }
 
 function openCraftUi(data) {
@@ -418,9 +469,8 @@ mp.events.add({
         startPlotAction('harvest');
     },
     'moonshine.menu.update': (data) => {
-        const info = parsePayload(data, {});
-        const payload = JSON.stringify(info || {});
-        mp.callCEFV(`(function(){var info=${payload};if(selectMenu.menus['moonshineFarm'])selectMenu.menus['moonshineFarm'].update(info);if(selectMenu.menus['moonshineVendor'])selectMenu.menus['moonshineVendor'].update(info);})()`);
+        updateMainMenuUi(data);
+        updateVendorMenu(data);
     },
     'moonshine.menu.enter': () => {
         insideFarmZone = true;
@@ -431,29 +481,17 @@ mp.events.add({
         insideFarmZone = false;
         updatePrompt();
     },
-    'moonshine.menu.show': (data) => {
-        const info = parsePayload(data, {});
-        const payload = JSON.stringify(info || {});
-        mp.callCEFV(`selectMenu.menus['moonshineFarm'].init(${payload})`);
-        mp.callCEFV(`selectMenu.showByName('moonshineFarm')`);
+    'moonshine.menu.show': (data, tab) => {
+        openMainMenuUi(data, tab || 'main');
     },
     'moonshine.menu.hide': () => {
-        mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineFarm') selectMenu.show = false;`);
-    },
-    'moonshine.vendor.enter': () => {
-        insideVendorZone = true;
-        updatePrompt();
-    },
-    'moonshine.vendor.exit': () => {
-        insideVendorZone = false;
-        closeVendorMenu();
-        updatePrompt();
+        closeMainMenuUi();
     },
     'moonshine.vendor.show': (data) => {
-        openVendorMenu(data);
+        openMainMenuUi(data, 'vendor');
     },
     'moonshine.vendor.hide': () => {
-        closeVendorMenu();
+        closeMainMenuUi();
     },
     'moonshine:buffState': (state) => {
         if (typeof state === 'string') {
@@ -503,23 +541,26 @@ mp.events.add({
         clearMarkers();
         currentPlot = null;
         insideCraftZone = false;
-        insideVendorZone = false;
         insideFarmZone = false;
         closeCraftUi();
         closeVendorMenu();
-        mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineFarm') selectMenu.show = false;`);
+        closeMainMenuUi();
+        handleMoonshineUiClosed();
         mp.prompt.hide();
     },
     'playerQuit': () => {
         clearMarkers();
         currentPlot = null;
         insideCraftZone = false;
-        insideVendorZone = false;
         insideFarmZone = false;
         closeCraftUi();
         closeVendorMenu();
-        mp.callCEFV(`if (selectMenu.current && selectMenu.current.name === 'moonshineFarm') selectMenu.show = false;`);
+        closeMainMenuUi();
+        handleMoonshineUiClosed();
         mp.prompt.hide();
+    },
+    'moonshine.ui.closed': () => {
+        handleMoonshineUiClosed();
     },
 });
 
@@ -564,10 +605,6 @@ mp.keys.bind(0x45, true, () => {
         }
         return;
     }
-    if (insideVendorZone) {
-        mp.events.callRemote('moonshine.vendor.open');
-        return;
-    }
 });
 
 mp.events.add('moonshine.vendor.request', () => {
@@ -585,6 +622,15 @@ mp.events.add('moonshine.craft.ui.cancel', () => {
 mp.events.add('moonshine.craft.ui.closed', () => {
     if (!craftUiOpen) return;
     closeCraftUi();
+});
+
+mp.events.add('moonshine.setup.show', () => {
+    ensureMoonshineSetupMenu();
+    mp.events.call('selectMenu.show', 'moonshineSetup');
+});
+
+mp.events.add('moonshine.setup.action', (action) => {
+    mp.events.callRemote('moonshine.setup.apply', action);
 });
 
 let baseMaxHealth = null;

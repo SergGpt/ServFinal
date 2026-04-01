@@ -58,6 +58,12 @@ module.exports = {
     'moonshine.job.stop': (player) => {
         moonshine.stopWork(player);
     },
+    'moonshine.setup.open': (player) => {
+        moonshine.openSetupMenu(player);
+    },
+    'moonshine.setup.apply': (player, action) => {
+        moonshine.applySetupAction(player, action);
+    },
     'moonshine.craft.menu': (player) => {
         moonshine.openCraftMenu(player);
     },

@@ -61,7 +61,9 @@ module.exports = {
         if (!player.character) return;
         if (!job) job = player.character.job;
         if (typeof job == 'number') job = this.getJob(job);
+        if (!job) return null;
         var skills = player.character.jobSkills;
+        if (!Array.isArray(skills)) return null;
         for (var i = 0; i < skills.length; i++) {
             if (skills[i].jobId == job.id) return skills[i];
         }

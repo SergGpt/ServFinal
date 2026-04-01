@@ -1535,14 +1535,82 @@
 
 
         <!-- ------------------------ САМОГОННЫЙ АППАРАТ ------------------------ -->
+        <link rel="stylesheet" type="text/css" href="css/moonshineUi.css" />
+        <div v-cloak id="moonshineUi" v-if="show">
+            <div class="moonshine-ui__window">
+                <div class="moonshine-ui__header">
+                    <div>
+                        <div class="moonshine-ui__title">САМОГОН УРАЛ</div>
+                        <div class="moonshine-ui__subtitle">в Лос Сантос — ремесло премиум уровня</div>
+                    </div>
+                    <button class="moonshine-ui__close" @click="close">×</button>
+                </div>
+                <div class="moonshine-ui__tabs">
+                    <div class="moonshine-ui__tab" :class="{ 'moonshine-ui__tab--active': view === 'main' }" @click="switchView('main')">Работа</div>
+                    <div class="moonshine-ui__tab" :class="{ 'moonshine-ui__tab--active': view === 'vendor' }" @click="switchView('vendor')">Магазин семян</div>
+                </div>
+                <div class="moonshine-ui__body" v-if="view === 'main'">
+                    <div class="moonshine-ui__card">
+                        <div class="moonshine-ui__label">Статус работы</div>
+                        <div class="moonshine-ui__value" v-if="info.employed">Вы устроены самогонщиком</div>
+                        <div class="moonshine-ui__value" v-else>Вы не устроены</div>
+                        <div class="moonshine-ui__status moonshine-ui__status--bad" v-if="hasCurrentJob">
+                            Сейчас вы работаете: {{ info.currentJobName }}
+                        </div>
+                    </div>
+                    <div class="moonshine-ui__card">
+                        <div class="moonshine-ui__label">Ваши грядки</div>
+                        <div class="moonshine-ui__value">{{ info.activePlots }} / {{ info.maxPlots }}</div>
+                    </div>
+                    <div class="moonshine-ui__card">
+                        <div class="moonshine-ui__label">Опыт работы</div>
+                        <div class="moonshine-ui__value">{{ info.skillPercent }}%</div>
+                        <div class="moonshine-ui__status moonshine-ui__status--good">{{ getNextLevelHint() }}</div>
+                    </div>
+                    <div class="moonshine-ui__actions">
+                        <button class="moonshine-ui__btn" @click="close">Закрыть</button>
+                        <button class="moonshine-ui__btn moonshine-ui__btn--accent" :disabled="processing || (!info.employed && !info.canJoin)" @click="joinOrLeave">
+                            {{ info.employed ? 'Уволиться' : 'Устроиться' }}
+                        </button>
+                    </div>
+                </div>
+                <div class="moonshine-ui__body" v-else>
+                    <div class="moonshine-ui__card">
+                        <div class="moonshine-ui__row">
+                            <div>
+                                <div class="moonshine-ui__label">Цена за 1 семя</div>
+                                <div class="moonshine-ui__value">${{ info.seedPrice }}</div>
+                            </div>
+                            <div>
+                                <div class="moonshine-ui__label">Остаток лимита</div>
+                                <div class="moonshine-ui__value">{{ info.seedsRemaining }} / {{ info.dailyLimit }}</div>
+                            </div>
+                        </div>
+                        <div class="moonshine-ui__label">Выберите количество</div>
+                        <div class="moonshine-ui__counter">
+                            <button @click="addAmount(-1)">-</button>
+                            <input type="number" v-model.number="buyAmount" min="1" :max="info.seedsRemaining">
+                            <button @click="addAmount(1)">+</button>
+                        </div>
+                        <div class="moonshine-ui__status moonshine-ui__status--good">
+                            В инвентаре семян: {{ info.seeds }}
+                        </div>
+                    </div>
+                    <div class="moonshine-ui__actions">
+                        <button class="moonshine-ui__btn" @click="close">Закрыть</button>
+                        <button class="moonshine-ui__btn moonshine-ui__btn--accent" :disabled="!canBuy" @click="buySeeds">
+                            Купить семена
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <link rel="stylesheet" type="text/css" href="css/moonshineCraft.css" />
         <div v-cloak id="moonshineCraft" v-if="show">
             <div class="moonshine-craft__window">
                 <div class="moonshine-craft__header">
                     <div class="moonshine-craft__title">Самогонный аппарат</div>
-                    <div class="moonshine-craft__close" @click="closeWindow">
-                        <img src="img/inventory/close.svg" />
-                    </div>
+                    <button class="moonshine-craft__close" @click="closeWindow">×</button>
                 </div>
                 <div class="moonshine-craft__body">
                     <div class="moonshine-craft__stat">
@@ -1605,6 +1673,7 @@
             </div>
         </div>
 
+        <script src="js/moonshineUi.js"></script>
         <script src="js/moonshineCraft.js"></script>
         <!-- ------------------------ САМОГОННЫЙ АППАРАТ ------------------------ -->
 

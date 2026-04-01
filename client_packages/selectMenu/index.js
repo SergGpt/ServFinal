@@ -44,6 +44,20 @@ mp.events.add({
                 mp.events.call("carshow.setup.action", "close");
             }
         }
+
+        if (menuName === "moonshineSetup" && eventName === "onItemSelected") {
+            if (e.itemName === "Поставить точку меню работы") {
+                mp.events.call("moonshine.setup.action", "menu");
+            } else if (e.itemName === "Поставить точку продавца семян") {
+                mp.events.call("moonshine.setup.action", "vendor");
+            } else if (e.itemName === "Поставить точку аппарата") {
+                mp.events.call("moonshine.setup.action", "craft");
+            } else if (e.itemName === "Добавить грядку в текущей точке") {
+                mp.events.call("moonshine.setup.action", "plot");
+            } else if (e.itemName === "Закрыть") {
+                mp.events.call("moonshine.setup.action", "close");
+            }
+        }
         
         // TODO: Обработка других событий меню...
     },

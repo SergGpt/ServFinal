@@ -1203,6 +1203,18 @@ module.exports = {
             }
         }
     },
+    "/moonshinesetup": {
+        access: 6,
+        description: "Открыть меню настройки точек самогонщика",
+        args: "",
+        handler: (player, args, out) => {
+            if (!moonshine || moonshine.isEmpty) {
+                return notify.error(player, 'Модуль самогоноварения недоступен', 'Самогоноварение');
+            }
+            mp.events.call('moonshine.setup.open', player);
+            out.info('Меню настройки самогонщика открыто', player);
+        }
+    },
     "/removeaccount": {
         access: 6,
         description: "Удалить аккаунт игрока",
