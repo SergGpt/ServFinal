@@ -372,6 +372,7 @@ mp.events.add({
     'clothingShop.topEditor.open': (lastId) => {
         if (mp.busy.includes()) return;
         if (!mp.busy.add('clothingShop.topEditor', false)) return;
+        mp.gui.cursor.show(true, true);
 
         topEditor.active = true;
         topEditor.lastId = parseInt(lastId) || 0;
@@ -395,6 +396,7 @@ mp.events.add({
     'clothingShop.topEditor.close': () => {
         topEditor.active = false;
         mp.busy.remove('clothingShop.topEditor');
+        mp.gui.cursor.show(false, false);
         closeTopEditorUi();
     },
     'clothingShop.topEditor.variation': (delta) => {
