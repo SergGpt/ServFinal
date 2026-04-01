@@ -41,6 +41,7 @@
     right: -54.723px;
     top: -9.137px;
     z-index: 101;
+    transform: scale(0.9);
 }
 
 #hud .info-logo,
@@ -196,7 +197,7 @@
 }
 
 #hud .panel-right-bottom {
-    right: 1348px;
+    right: 1354px;
     bottom: -4.723px;
     display: flex;
     height: 11.57vh;
@@ -230,6 +231,7 @@
 #hud .left-bottom {
     bottom: 27.277px;
     left: 317.966px;
+    transform: scale(0.9);
 }
 
 #hud .l-keys {
