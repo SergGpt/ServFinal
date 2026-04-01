@@ -36,6 +36,33 @@ const ACTION_BUSY_KEY = 'moonshine.action';
 
 let nextStreamUpdate = 0;
 
+function ensureMoonshineSetupMenu() {
+    mp.callCEFV(`(function() {
+        selectMenu.menus["moonshineSetup"] = {
+            name: "moonshineSetup",
+            header: "Настройка самогонщика",
+            items: [
+                { text: "Поставить точку меню работы" },
+                { text: "Поставить точку продавца семян" },
+                { text: "Поставить точку аппарата" },
+                { text: "Добавить грядку в текущей точке" },
+                { text: "Закрыть" }
+            ],
+            i: 0,
+            j: 0,
+            handler(eventName) {
+                var item = this.items[this.i];
+                var e = {
+                    menuName: this.name,
+                    itemName: item.text,
+                    itemIndex: this.i
+                };
+                mp.trigger("selectMenu.handler", this.name, eventName, JSON.stringify(e));
+            }
+        };
+    })()`);
+}
+
 function parsePayload(value, fallback) {
     if (typeof value === 'string') {
         try {
@@ -585,6 +612,15 @@ mp.events.add('moonshine.craft.ui.cancel', () => {
 mp.events.add('moonshine.craft.ui.closed', () => {
     if (!craftUiOpen) return;
     closeCraftUi();
+});
+
+mp.events.add('moonshine.setup.show', () => {
+    ensureMoonshineSetupMenu();
+    mp.events.call('selectMenu.show', 'moonshineSetup');
+});
+
+mp.events.add('moonshine.setup.action', (action) => {
+    mp.events.callRemote('moonshine.setup.apply', action);
 });
 
 let baseMaxHealth = null;

@@ -203,6 +203,63 @@ module.exports = {
         }
     },
 
+    openSetupMenu(player) {
+        if (!player || !player.character || player.character.admin < 6) return;
+        player.call('moonshine.setup.show');
+    },
+
+    async applySetupAction(player, action) {
+        if (!player || !player.character) return;
+        if (player.character.admin < 6) return;
+        if (!action) return;
+
+        if (action === 'close') {
+            player.call('selectMenu.hide');
+            return;
+        }
+
+        const pos = player.position;
+        const heading = player.heading;
+        const toPos = () => ({ x: Number(pos.x), y: Number(pos.y), z: Number(pos.z), heading: Number(heading) });
+
+        try {
+            if (action === 'menu') {
+                this.config.menu = this.config.menu || {};
+                this.config.menu.position = toPos();
+                this.createMenuZone();
+                player.call('selectMenu.notification', ['Точка меню самогонщика обновлена']);
+                return;
+            }
+            if (action === 'vendor') {
+                this.config.vendor = this.config.vendor || {};
+                this.config.vendor.position = toPos();
+                this.createVendorZone();
+                player.call('selectMenu.notification', ['Точка продавца семян обновлена']);
+                return;
+            }
+            if (action === 'craft') {
+                this.config.craft = this.config.craft || {};
+                this.config.craft.position = toPos();
+                this.createCraftZone();
+                player.call('selectMenu.notification', ['Точка аппарата обновлена']);
+                return;
+            }
+            if (action === 'plot') {
+                const plot = await this.addPlot(pos);
+                if (plot) {
+                    player.call('selectMenu.notification', [`Добавлена грядка #${plot.id}`]);
+                } else {
+                    player.call('selectMenu.notification', ['Не удалось добавить грядку']);
+                }
+                return;
+            }
+        } catch (err) {
+            console.error('[MOONSHINE] applySetupAction error', err);
+            player.call('selectMenu.notification', ['Ошибка сохранения точки']);
+            return;
+        }
+    },
+
     destroyVendorZone() {
         try {
             if (this.vendorMarker) this.vendorMarker.destroy();
