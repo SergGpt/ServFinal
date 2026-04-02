@@ -6,6 +6,7 @@ const notifications = call('notifications');
 const donate = call('donate');
 const money = call('money');
 const chat = call('chat');
+const inventory = call('inventory');
 
 const CASES = [];
 const CASES_BY_ID = new Map();
@@ -129,8 +130,10 @@ function normaliseCase(caseConfig) {
     CASES_BY_ID.set(caseConfig.id, normalisedCase);
 }
 
-for (const caseConfig of config.cases) {
-    normaliseCase(caseConfig);
+function clearCasesCache() {
+    CASES.length = 0;
+    CASES_BY_ID.clear();
+    RARITY_ORDER.clear();
 }
 
 function ensurePlayerState(player) {
@@ -198,6 +201,27 @@ async function grantReward(player, reward, reason) {
         case 'donate': {
             const total = (player.account.donate || 0) + reward.amount;
             donate.setDonate(player, total, reason);
+            break;
+        }
+        case 'vehicle': {
+            const modelName = reward.metadata?.modelName;
+            if (!modelName) throw new Error('Для награды-авто не указан modelName');
+            const plate = `LC${randomInt(1000, 9999)}`;
+            await db.Models.Vehicle.create({
+                key: 'private', owner: player.character.id, modelName, color1: 0, color2: 0,
+                x: player.position.x, y: player.position.y, z: player.position.z, h: player.heading,
+                plate, fuel: 50, owners: 1,
+            });
+            notifications.success(player, `Транспорт ${modelName} добавлен в ваш гараж`, 'Кейсы');
+            break;
+        }
+        case 'clothes': {
+            const itemId = parseInt(reward.metadata?.itemId, 10);
+            const params = reward.metadata?.params || {};
+            if (!itemId) throw new Error('Для награды-одежды не указан itemId');
+            await new Promise((resolve, reject) => {
+                inventory.addItem(player, itemId, params, (e) => e ? reject(new Error(e)) : resolve());
+            });
             break;
         }
         default:
@@ -348,6 +372,7 @@ function makeReward(caseInfo, rarity, item) {
         rarityName: rarity.name,
         rarityColor: rarity.color,
         uniqueKey: item.uniqueKey || null,
+        metadata: item.metadata || null,
     };
 }
 
@@ -451,7 +476,28 @@ function summariseResults(results) {
 }
 
 module.exports = {
-    init() {
+    async rebuildCasesFromSources() {
+        clearCasesCache();
+        for (const caseConfig of config.cases) normaliseCase(caseConfig);
+        const customRows = await db.Models.LootboxCaseReward.findAll({ where: { isEnabled: true } });
+        for (const row of customRows) {
+            const caseInfo = CASES_BY_ID.get(row.caseId);
+            if (!caseInfo) continue;
+            const rarity = caseInfo.rarityMap.get(row.rarity);
+            if (!rarity) continue;
+            const item = {
+                id: `db_${row.id}`, weight: row.weight || 1, rarity: row.rarity, rarityName: rarity.name, rarityColor: rarity.color,
+                type: row.type, name: row.name, icon: row.icon || null, minAmount: row.minAmount, maxAmount: row.maxAmount,
+                uniqueKey: row.uniqueKey || null, metadata: row.metadata || null,
+            };
+            caseInfo.pool.push(item);
+            if (!caseInfo.poolByRarity.has(item.rarity)) caseInfo.poolByRarity.set(item.rarity, []);
+            caseInfo.poolByRarity.get(item.rarity).push(item);
+            caseInfo.preview.push(buildDisplayReward(item, rarity));
+        }
+    },
+    async init() {
+        await this.rebuildCasesFromSources();
         console.log(`[Lootcases] Loaded ${CASES.length} кейсов`);
     },
     async onCharacterInit(player) {
@@ -634,4 +680,37 @@ module.exports = {
             notifications.error(player, e.message || 'Не удалось поделиться', 'Кейсы');
         }
     },
+    async getAdminEditorData(player) {
+        const cases = CASES.map(serialiseCaseForClient);
+        const custom = await db.Models.LootboxCaseReward.findAll({ order: [['id', 'DESC']], limit: 200 });
+        const vehicles = await db.Models.VehicleProperties.findAll({ attributes: ['model', 'name'], order: [['name', 'ASC']], limit: 1000 });
+        const clothes = await db.Models.ClothesTop.findAll({ attributes: ['id', 'name', 'sex'], order: [['id', 'DESC']], limit: 300 });
+        player.call('lootcases.admin.editor.state', [{
+            cases,
+            customRewards: custom.map(x => x.get({ plain: true })),
+            vehicleCatalog: vehicles.map(v => ({ modelName: v.model, name: v.name })),
+            clothesCatalog: clothes.map(c => ({ id: c.id, name: c.name, sex: c.sex })),
+        }]);
+    },
+    async addAdminReward(player, payload) {
+        const caseInfo = getCase(payload.caseId);
+        if (!caseInfo) throw new Error('Кейс не найден');
+        if (!caseInfo.rarityMap.get(payload.rarity)) throw new Error('Редкость не найдена');
+        const type = payload.type;
+        if (!['money', 'donate', 'vehicle', 'clothes'].includes(type)) throw new Error('Недопустимый тип');
+        await db.Models.LootboxCaseReward.create({
+            caseId: payload.caseId, type, rarity: payload.rarity,
+            weight: Math.max(1, parseInt(payload.weight, 10) || 1),
+            name: payload.name || type, icon: payload.icon || null,
+            minAmount: Math.max(1, parseInt(payload.minAmount, 10) || 1),
+            maxAmount: Math.max(1, parseInt(payload.maxAmount, 10) || 1),
+            uniqueKey: payload.uniqueKey || null, metadata: payload.metadata || null, isEnabled: true,
+        });
+        await this.rebuildCasesFromSources();
+    },
+    async removeAdminReward(id) {
+        await db.Models.LootboxCaseReward.destroy({ where: { id } });
+        await this.rebuildCasesFromSources();
+    },
+
 };

@@ -243,6 +243,19 @@ let donateMenuData = {
             window: "player-menu-donate-warn",
             windowData: warnWindowData
         },
+        {
+            head: "Донат кейсы",
+            img: playerMenuSvgPaths.mailing,
+            window: "player-menu-donate-cases",
+            windowData: {
+                requestState() { mp.trigger(`callRemote`, `lootcases.menu.requestState`); },
+                buyCase(caseId, quantity) { mp.trigger(`callRemote`, `lootcases.buy`, caseId, quantity); },
+                openCase(caseId, quantity) { mp.trigger(`callRemote`, `lootcases.open`, caseId, quantity, `${Date.now()}_${Math.random()}`); },
+                requestEditor() { mp.trigger(`callRemote`, `lootcases.admin.editor.state.request`); },
+                addEditorReward(payload) { mp.trigger(`callRemote`, `lootcases.admin.editor.reward.add`, JSON.stringify(payload)); },
+                removeEditorReward(id) { mp.trigger(`callRemote`, `lootcases.admin.editor.reward.remove`, id); },
+            }
+        },
         // {
         //     head: "Добавление слота",
         //     img: playerMenuSvgPaths.expansion,
@@ -257,6 +270,10 @@ let referenceData = {
     amountInvitees: 4, // API: Кол-во приглашённых.
     amountCompleted: 0, // API: Кол-во выполнивших.
 }
+
+window.lootcasesState = { cases: [], inventory: [], donate: 0 };
+window.lootcasesEditorState = { customRewards: [], vehicleCatalog: [], clothesCatalog: [] };
+window.lootcasesEditorVisible = false;
 
 let menuBar = [{
         head: "Персонаж",
@@ -567,6 +584,29 @@ var playerMenu = new Vue({
         },
     },
     methods: {
+        setLootcasesState(data) {
+            if (typeof data === 'string') data = JSON.parse(data);
+            window.lootcasesState = Object.assign(window.lootcasesState || {}, data);
+        },
+        setLootcasesOpenResult(data) {
+            if (typeof data === 'string') data = JSON.parse(data);
+            window.lootcasesState = Object.assign(window.lootcasesState || {}, data ? { donate: data.donate, inventory: data.inventory } : {});
+            if (data && data.results && data.results[0]) notifications.push('success', `Выпало: ${data.results[0].reward.name}`);
+        },
+        setLootcasesEditorState(data) {
+            if (typeof data === 'string') data = JSON.parse(data);
+            window.lootcasesEditorState = data;
+        },
+        openDonateCasesEditor() {
+            this.show = true;
+            this.menuBarFocus = menuBar.find(x => x.head === "Донат");
+            settingsmainWindowData.currentWindow = "player-menu-window-sidebar";
+            window.lootcasesEditorVisible = true;
+            mp.trigger(`callRemote`, `lootcases.admin.editor.state.request`);
+        },
+        closeDonateCasesEditor() {
+            window.lootcasesEditorVisible = false;
+        },
         onClickMenuBarItem(name) {
             this.menuBarFocus = name;
             settingsmainWindowData.currentWindow = name.window;
@@ -1284,6 +1324,47 @@ Vue.component('player-menu-donate-addslot', {
             );
         }
     }
+});
+
+Vue.component('player-menu-donate-cases', {
+    template: "#player-menu-donate-cases",
+    props: {
+        requestState: Function,
+        buyCase: Function,
+        openCase: Function,
+        requestEditor: Function,
+        addEditorReward: Function,
+        removeEditorReward: Function,
+        coins: Number,
+    },
+    data: () => ({
+        quantity: 1,
+        selectedCase: null,
+        editor: { caseId: '', type: 'money', rarity: 'common', name: '', weight: 1, minAmount: 1, maxAmount: 1, modelName: '', clothesId: 0 },
+    }),
+    computed: {
+        state() { return window.lootcasesState || { cases: [], inventory: [] }; },
+        editorState() { return window.lootcasesEditorState || { customRewards: [] }; },
+        editorVisible() { return !!window.lootcasesEditorVisible; },
+        invMap() {
+            const map = {};
+            (this.state.inventory || []).forEach(x => map[x.caseId] = x.count);
+            return map;
+        },
+        isAdmin() { return (playerMenu.admin || 0) >= 5; },
+    },
+    methods: {
+        onAddReward() {
+            const payload = { ...this.editor, metadata: null };
+            if (payload.type === 'vehicle') payload.metadata = { modelName: payload.modelName };
+            if (payload.type === 'clothes') payload.metadata = { itemId: 7, params: { clothes: payload.clothesId } };
+            this.addEditorReward(payload);
+        },
+        closeEditor() {
+            window.lootcasesEditorVisible = false;
+        },
+    },
+    mounted() { this.requestState(); }
 });
 
 Vue.component('player-menu-settings-main', {

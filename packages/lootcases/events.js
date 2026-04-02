@@ -23,4 +23,23 @@ module.exports = {
     'lootcases.share': async (player, historyId) => {
         await lootcases.share(player, historyId);
     },
+    'lootcases.admin.editor.state.request': async (player) => {
+        if (!player.character || player.character.admin < 5) return;
+        await lootcases.getAdminEditorData(player);
+    },
+    'lootcases.admin.editor.reward.add': async (player, payloadRaw) => {
+        if (!player.character || player.character.admin < 5) return;
+        const payload = typeof payloadRaw === 'string' ? JSON.parse(payloadRaw) : payloadRaw;
+        try {
+            await lootcases.addAdminReward(player, payload);
+            await lootcases.getAdminEditorData(player);
+        } catch (e) {
+            player.call('lootcases.error', [{ message: e.message }]);
+        }
+    },
+    'lootcases.admin.editor.reward.remove': async (player, id) => {
+        if (!player.character || player.character.admin < 5) return;
+        await lootcases.removeAdminReward(parseInt(id, 10));
+        await lootcases.getAdminEditorData(player);
+    },
 };
