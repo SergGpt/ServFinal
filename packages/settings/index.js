@@ -10,7 +10,9 @@ module.exports = {
     moodCount: 7,
 
     apply(player, modified = null) {
-        if (modified.walking != null) walking.set(player, player.character.settings.walking);
-        if (modified.mood != null) mood.set(player, player.character.settings.mood);
+        if (!modified) return;
+
+        if (modified.walking != null) walking.set(player, modified.walking);
+        if (modified.mood != null) mood.set(player, modified.mood);
     }
 };

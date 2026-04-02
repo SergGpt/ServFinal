@@ -216,7 +216,7 @@ let setInfo = function() {
             job: "${charInfo.job}",
             house: "${charInfo.house}",
             biz: "${charInfo.biz}",
-            warns: ${charInfo.warnNumber}
+            warns: ${charInfo.warns}
         });`);
     });
     mp.callCEFV(`characterInfo.show = true;`);

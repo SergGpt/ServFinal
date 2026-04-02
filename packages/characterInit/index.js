@@ -107,6 +107,12 @@ module.exports = {
                 ]
             });
             for (let i = 0; i < player.characters.length; i++) {
+                if (!player.characters[i].settings) {
+                    player.characters[i].settings = await db.Models.CharacterSettings.create({
+                        characterId: player.characters[i].id,
+                    });
+                }
+
                 player.characters[i].CharacterInventories = await db.Models.CharacterInventory.findAll({
                     where: {
                         parentId: null,
