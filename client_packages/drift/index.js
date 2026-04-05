@@ -44,13 +44,14 @@ function applyVehicleSetup(setup) {
 
     const s = setup;
     const rearGrip = safeNumber(s.rearGrip, 0.86);
-    const steeringAngle = safeNumber(s.steeringAngle, 39);
+    const entryAggression = safeNumber(s.steeringAngle, 39);
     const handbrakePower = safeNumber(s.handbrakePower, 1);
 
-    const powerBoost = ((1 - rearGrip) * 12) + ((steeringAngle - 39) * 0.45) + ((handbrakePower - 1) * 4);
+    // База под стиль "JDM/Mark II": минимум вмешательства в руль, только легче сорвать заднюю ось.
+    const powerBoost = ((1 - rearGrip) * 12) + ((entryAggression - 39) * 0.25) + ((handbrakePower - 1) * 4);
     vehicle.setEnginePowerMultiplier(clamp(powerBoost, -2, 15));
     vehicle.setEngineTorqueMultiplier(clamp(1 + (powerBoost / 25), 0.9, 1.45));
-    const shouldReduceGrip = rearGrip < 0.94;
+    const shouldReduceGrip = rearGrip < 0.9;
     vehicle.setReduceGrip(shouldReduceGrip);
 }
 
@@ -72,7 +73,7 @@ function updateDriftPhysics() {
     const handbrake = mp.game.controls.isControlPressed(0, 76);
 
     const rearGrip = safeNumber(s.rearGrip, 0.86);
-    const steeringAngle = safeNumber(s.steeringAngle, 39);
+    const entryAggression = safeNumber(s.steeringAngle, 39);
     const handbrakePower = safeNumber(s.handbrakePower, 1);
 
     const steerIntent = Math.abs(steer) > 0;
@@ -80,7 +81,7 @@ function updateDriftPhysics() {
     const handbrakeKick = handbrake && speed > 10 ? 1 : 0;
     const driftIntent = canInitiate || handbrakeKick;
 
-    const basePower = ((1 - rearGrip) * 12) + ((steeringAngle - 39) * 0.45);
+    const basePower = ((1 - rearGrip) * 12) + ((entryAggression - 39) * 0.25);
     const intentBonus = driftIntent ? (3.5 + (handbrakePower - 1) * 2.5) : 0;
     const slipDamp = slipRatio * 3.2;
     const dynamicPower = clamp(basePower + intentBonus - slipDamp, -1, 12);
@@ -88,7 +89,7 @@ function updateDriftPhysics() {
     vehicle.setEnginePowerMultiplier(dynamicPower);
     vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 24, 0.9, 1.5));
 
-    const reduceGrip = driftIntent || (speed > 25 && slipRatio > 0.12 && rearGrip < 0.93);
+    const reduceGrip = driftIntent || (speed > 35 && slipRatio > 0.16 && rearGrip < 0.9);
     vehicle.setReduceGrip(reduceGrip);
 }
 
