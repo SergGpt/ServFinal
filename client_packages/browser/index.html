@@ -3275,7 +3275,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div v-else-if="tab === 'Basic'" v-html="slider('steeringAngle','Entry aggression','Агрессия входа в занос (без изменения дефолтного руля)') + slider('rearGrip','Rear grip','Сцепление задней оси (ниже = легче в занос)') + slider('handbrakePower','Handbrake power','Сила ручника для инициации дрифта')"></div>
+                        <div v-else-if="tab === 'Basic'" v-html="slider('steeringAngle','Max steer angle','Максимальный угол управления (мягкая коррекция)') + slider('rearGrip','Traction curve lateral','Сцепление задней оси (ниже = легче в занос)') + slider('handbrakePower','Handbrake force','Сила ручника для инициации дрифта') + slider('driveBias','Drive bias RWD↔FWD','0.0=FWD, 0.5=AWD, 1.0=RWD') + slider('suspensionRaise','Suspension raise','Высота подвески для баланса переноса веса') + slider('suspensionForce','Suspension force','Жесткость подвески в дрифте')"></div>
 
                         <div class="drift-actions">
                             <button class="primary" @click="apply">Apply</button>

@@ -48,12 +48,17 @@ function applyVehicleSetup(setup) {
     const rearGrip = safeNumber(s.rearGrip, 0.86);
     const entryAggression = safeNumber(s.steeringAngle, 39);
     const handbrakePower = safeNumber(s.handbrakePower, 1);
+    const driveBias = safeNumber(s.driveBias, 1.0);
+    const suspensionRaise = safeNumber(s.suspensionRaise, 0.0);
+    const suspensionForce = safeNumber(s.suspensionForce, 2.1);
 
     // База под стиль "JDM/Mark II": минимум вмешательства в руль, только легче сорвать заднюю ось.
-    const powerBoost = ((1 - rearGrip) * 2.2) + ((entryAggression - 39) * 0.12) + ((handbrakePower - 1) * 2.2);
+    const powerBoost = ((1 - rearGrip) * 2.2) + ((entryAggression - 39) * 0.12) + ((handbrakePower - 1) * 2.2) + ((driveBias - 0.5) * 1.2);
     vehicle.setEnginePowerMultiplier(clamp(powerBoost, -2, 15));
     vehicle.setEngineTorqueMultiplier(clamp(1 + (powerBoost / 35), 0.95, 1.25));
     vehicle.setReduceGrip(false);
+    try { vehicle.setHandling('fSuspensionRaise', clamp(suspensionRaise, -0.03, 0.03)); } catch (_) {}
+    try { vehicle.setHandling('fSuspensionForce', clamp(suspensionForce, 1.6, 2.8)); } catch (_) {}
 }
 
 function updateDriftPhysics() {
@@ -76,6 +81,8 @@ function updateDriftPhysics() {
     const rearGrip = safeNumber(s.rearGrip, 0.86);
     const entryAggression = safeNumber(s.steeringAngle, 39);
     const handbrakePower = safeNumber(s.handbrakePower, 1);
+    const driveBias = safeNumber(s.driveBias, 1.0);
+    const suspensionForce = safeNumber(s.suspensionForce, 2.1);
 
     const steerIntent = Math.abs(steer) > 0;
     const canInitiate = speed > 18 && steerIntent && throttle;
@@ -85,9 +92,10 @@ function updateDriftPhysics() {
     if (driftIntent || slipDrift) state.driftHoldUntil = Date.now() + 1400;
     const holdDrift = Date.now() < state.driftHoldUntil;
 
-    const basePower = ((1 - rearGrip) * 2.2) + ((entryAggression - 39) * 0.12);
+    const basePower = ((1 - rearGrip) * 2.2) + ((entryAggression - 39) * 0.12) + ((driveBias - 0.5) * 1.2);
     const intentBonus = (driftIntent || holdDrift) ? (1.8 + (handbrakePower - 1) * 1.6) : 0;
-    const slipDamp = slipRatio * 1.5;
+    const suspensionAssist = (suspensionForce - 2.1) * 0.4;
+    const slipDamp = slipRatio * (1.45 - suspensionAssist);
     let dynamicPower = basePower + intentBonus - slipDamp;
 
     // Не даем машине резко "тормозить двигателем" в заносе — сохраняем инерцию.

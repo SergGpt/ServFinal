@@ -36,10 +36,16 @@ module.exports = {
         steeringAngle: [32, 48],
         rearGrip: [0.72, 1.0],
         handbrakePower: [0.8, 1.45],
+        driveBias: [0, 1],
+        suspensionRaise: [-0.03, 0.03],
+        suspensionForce: [1.6, 2.8],
     },
     sliderSteps: {
         steeringAngle: 0.1,
         rearGrip: 0.001,
         handbrakePower: 0.01,
+        driveBias: 0.01,
+        suspensionRaise: 0.001,
+        suspensionForce: 0.01,
     },
 };
