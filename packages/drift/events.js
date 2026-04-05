@@ -97,6 +97,19 @@ function parseSettingsPayload(raw) {
     return {};
 }
 
+function canApplyDriftStateForDriver(vehicle) {
+    if (!vehicle || !mp.vehicles.exists(vehicle)) return false;
+    if (vehicle.key !== 'private') return false;
+    if (!vehicle.sqlId || !vehicle.db) return false;
+
+    const modelName = (vehicle.modelName || '').toLowerCase();
+    if (drift.config.blockedModels.includes(modelName)) return false;
+
+    const vehType = vehicle.properties && vehicle.properties.vehType;
+    if (!drift.config.allowedVehicleTypes.includes(vehType)) return false;
+    return true;
+}
+
 module.exports = {
     init: async () => {
         const workshops = await drift.loadWorkshops();
@@ -325,8 +338,7 @@ module.exports = {
 
     'vehicle.ready': async (player, vehicle, seat) => {
         if (!player.character || seat !== 0) return;
-        const validation = drift.canUseVehicle(vehicle, player);
-        if (!validation.ok) return player.call('drift.vehicle.state', [null]);
+        if (!canApplyDriftStateForDriver(vehicle)) return player.call('drift.vehicle.state', [null]);
 
         const setup = await drift.getOrCreateSetup(vehicle);
         if (!setup.installed) return player.call('drift.vehicle.state', [null]);

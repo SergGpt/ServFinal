@@ -45,10 +45,11 @@ function applyVehicleSetup(setup) {
     if (!vehicle || !setup) return;
 
     const rearGrip = safeNumber(setup.rearGrip, 0.86);
-    const gripDelta = clamp(0.86 - rearGrip, -0.1, 0.12);
-    const powerBoost = gripDelta * 5.2;
-    vehicle.setEnginePowerMultiplier(clamp(powerBoost, -1.2, 4.8));
-    vehicle.setEngineTorqueMultiplier(clamp(1 + (powerBoost / 40), 0.98, 1.14));
+    // Регулируем именно "зацеп колес с дорогой": меньше rearGrip = легче сорвать, больше rearGrip = больше тяги в зацеп.
+    const gripDelta = clamp(0.88 - rearGrip, -0.08, 0.16);
+    const powerBoost = gripDelta * 4.2;
+    vehicle.setEnginePowerMultiplier(clamp(powerBoost, -0.9, 4.2));
+    vehicle.setEngineTorqueMultiplier(clamp(1 + (powerBoost / 45), 0.99, 1.12));
     vehicle.setReduceGrip(false);
 }
 
@@ -78,25 +79,25 @@ function updateDriftPhysics() {
     if (driftIntent || slipDrift) state.driftHoldUntil = Date.now() + 1400;
     const holdDrift = Date.now() < state.driftHoldUntil;
 
-    const gripDelta = clamp(0.86 - rearGrip, -0.1, 0.12);
-    const basePower = gripDelta * 5.2;
-    const intentBonus = (driftIntent || holdDrift) ? 0.85 : 0;
-    const slipDamp = slipRatio * 1.2;
+    const gripDelta = clamp(0.88 - rearGrip, -0.08, 0.16);
+    const basePower = gripDelta * 4.2;
+    const intentBonus = (driftIntent || holdDrift) ? 0.55 : 0;
+    const slipDamp = slipRatio * 0.95;
     let dynamicPower = basePower + intentBonus - slipDamp;
 
     // Не даем машине резко "тормозить двигателем" в заносе — сохраняем инерцию.
     if (throttle) dynamicPower = Math.max(dynamicPower, 0.25);
     else if (holdDrift) dynamicPower = Math.max(dynamicPower, 0.18);
     else dynamicPower = Math.max(dynamicPower, 0.1);
-    dynamicPower = clamp(dynamicPower, 0.1, 5.2);
+    dynamicPower = clamp(dynamicPower, 0.12, 4.6);
 
     vehicle.setEnginePowerMultiplier(dynamicPower);
-    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 45, 1.0, 1.15));
+    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 48, 1.0, 1.11));
 
     const reduceGrip = Boolean(
         (handbrake && speed > 8) ||
-        (holdDrift && speed > 20) ||
-        (throttle && slipRatio > (0.3 + ((rearGrip - 0.72) * 0.04)) && speed > 34)
+        (holdDrift && rearGrip <= 0.84 && speed > 24 && slipRatio > 0.32) ||
+        (throttle && rearGrip <= 0.82 && slipRatio > 0.42 && speed > 38)
     );
     vehicle.setReduceGrip(reduceGrip);
 }
