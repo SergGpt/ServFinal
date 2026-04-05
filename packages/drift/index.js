@@ -87,8 +87,20 @@ function sanitizeSettings(payload = {}) {
     }
 
     // Compatibility with previous absolute handling values.
-    if ((normalizedPayload.steeringLock != null && Number(normalizedPayload.steeringLock) <= 2.0) ||
-        (normalizedPayload.tractionCurveMax != null && Number(normalizedPayload.tractionCurveMax) <= 3.5)) {
+    const legacyCheckValues = [
+        normalizedPayload.steeringLock,
+        normalizedPayload.tractionCurveMax,
+        normalizedPayload.tractionCurveMin,
+        normalizedPayload.initialDriveForce,
+        normalizedPayload.driveInertia,
+    ].filter(v => v != null).map(v => Number(v)).filter(v => Number.isFinite(v));
+    const hasLegacyFractional = legacyCheckValues.some(v => Math.abs(v - Math.round(v)) > 0.0001);
+    const looksLikeLegacyAbsolute = hasLegacyFractional && (
+        (normalizedPayload.steeringLock != null && Number(normalizedPayload.steeringLock) <= 2.0) ||
+        (normalizedPayload.tractionCurveMax != null && Number(normalizedPayload.tractionCurveMax) <= 3.5)
+    );
+
+    if (looksLikeLegacyAbsolute) {
         normalizedPayload.steeringLock = clamp(((Number(normalizedPayload.steeringLock) - 0.72) / 0.53) * 100, 0, 100);
         normalizedPayload.tractionCurveMax = clamp(((2.35 - Number(normalizedPayload.tractionCurveMax)) / 0.95) * 100, 0, 100);
         normalizedPayload.tractionCurveMin = clamp(((2.0 - Number(normalizedPayload.tractionCurveMin)) / 1.1) * 100, 0, 100);

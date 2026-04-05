@@ -349,6 +349,8 @@ module.exports = {
         if (!setup.installed || setup.activePreset === 'Stock') return player.call('drift.vehicle.state', [null]);
 
         const payload = drift.getClientPayload(setup);
+        const isZeroSetup = Object.values(payload.settings || {}).every(value => Number(value) === 0);
+        if (isZeroSetup) return player.call('drift.vehicle.state', [null]);
         player.call('drift.vehicle.state', [{
             vehicleId: vehicle.sqlId,
             settings: payload.settings,

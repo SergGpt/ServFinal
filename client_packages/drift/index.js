@@ -86,6 +86,13 @@ function applyVehicleSetup(setup) {
     if (!vehicle || !setup) return;
 
     const s = resolveSetup(setup);
+    if (!Object.keys(setup).length || Object.values(setup).every(v => Number(v) === 0)) {
+        vehicle.setEnginePowerMultiplier(0);
+        vehicle.setEngineTorqueMultiplier(1);
+        vehicle.setReduceGrip(false);
+        return;
+    }
+
     // Применяем только числовые handling-настройки, без FLAG_DRIFT_TYRES,
     // чтобы после покупки авто не превращалось в "мыло" до ручной настройки.
     setHandlingSafe(vehicle, 'fDriveBiasFront', s.driveBiasFront);
