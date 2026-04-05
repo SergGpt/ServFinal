@@ -12,8 +12,8 @@ var driftSetup = new Vue({
         builtinPresets: {},
         customPresets: [],
         maxSavedPresets: 8,
-        tab: 'Presets',
-        tabs: ['Presets', 'Suspension', 'Steering', 'Grip', 'Transmission', 'Brakes', 'Balance', 'Assist'],
+        tab: 'Basic',
+        tabs: ['Presets', 'Basic'],
         stats: { initiation: 0, stability: 0, angle: 0, control: 0, aggressiveness: 0 },
         newPresetName: '',
         selectedPreset: 'Street Drift',
@@ -86,11 +86,11 @@ var driftSetup = new Vue({
         calcStats(s) {
             const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
             return {
-                initiation: clamp(((1 - (s.rearGrip || 0.8)) * 42) + ((s.handbrakePower || 1) * 22) + ((s.slipFactor || 1) * 25)),
-                stability: clamp(((s.frontGrip || 0.9) * 36) + ((1 - (s.slipFactor || 1)) * 20) + ((s.stabilityBias || 0.5) * 44)),
-                angle: clamp((((s.steeringAngle || 40) - 28) * 2.2) + ((s.bodyRotationHelp || 0.5) * 28)),
-                control: clamp(((s.steeringResponse || 1) * 30) + ((s.counterSteerAssist || 0.3) * 25) + ((s.driftAssist || 0.8) * 25)),
-                aggressiveness: clamp(((s.torqueResponse || 1) * 35) + ((s.differentialLock || 0.5) * 25) + ((1 - (s.rearGrip || 0.8)) * 40)),
+                initiation: clamp(((1 - (s.rearGrip || 0.86)) * 160) + ((s.handbrakePower || 1) * 28)),
+                stability: clamp((s.rearGrip || 0.86) * 100),
+                angle: clamp((((s.steeringAngle || 39) - 32) * 7.2)),
+                control: clamp(((s.rearGrip || 0.86) * 55) + ((48 - (s.steeringAngle || 39)) * 3.3)),
+                aggressiveness: clamp(((1 - (s.rearGrip || 0.86)) * 170) + (((s.handbrakePower || 1) - 0.8) * 45)),
             };
         },
         inRange(key, value) {

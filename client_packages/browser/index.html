@@ -3275,13 +3275,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div v-else-if="tab === 'Suspension'" v-html="slider('suspensionFrontStiffness','Front suspension stiffness','Жесткость передней оси') + slider('suspensionRearStiffness','Rear suspension stiffness','Жесткость задней оси') + slider('suspensionFrontHeight','Front ride height','Высота передней части') + slider('suspensionRearHeight','Rear ride height','Высота задней части')"></div>
-                        <div v-else-if="tab === 'Steering'" v-html="slider('steeringAngle','Max steering angle','Максимальный угол поворота') + slider('steeringResponse','Steering response','Скорость реакции рулевого') + slider('counterSteerAssist','Counter-steer assist','Помощь контр-рулению')"></div>
-                        <div v-else-if="tab === 'Grip'" v-html="slider('frontGrip','Front grip multiplier','Сцепление передней оси') + slider('rearGrip','Rear grip multiplier','Сцепление задней оси') + slider('slipFactor','Drift slip factor','Коэффициент скольжения')"></div>
-                        <div v-else-if="tab === 'Transmission'" v-html="slider('torqueResponse','Torque response','Отклик тяги') + slider('finalDriveBias','Final drive bias','Поведение главной пары') + slider('differentialLock','Differential lock','Блокировка дифференциала')"></div>
-                        <div v-else-if="tab === 'Brakes'" v-html="slider('brakeBias','Brake force bias','Баланс тормозного усилия') + slider('handbrakePower','Handbrake power','Сила ручника') + slider('handbrakeResponse','Handbrake response','Отклик ручника')"></div>
-                        <div v-else-if="tab === 'Balance'" v-html="slider('frontRearBalance','Front/rear balance bias','Смещение баланса веса') + slider('bodyRotationHelp','Body rotation help','Помощь ротации кузова') + slider('stabilityBias','Stability bias','Стабильность')"></div>
-                        <div v-else-if="tab === 'Assist'" v-html="slider('driftAssist','Drift assist','Общий drift assist') + slider('beginnerAssist','Beginner stability assist','Поддержка для новичков') + slider('throttleSmoothing','Throttle smoothing','Сглаживание газа')"></div>
+                        <div v-else-if="tab === 'Basic'" v-html="slider('steeringAngle','Steering angle','Угол поворота колес') + slider('rearGrip','Rear grip','Сцепление задней оси (ниже = легче в занос)') + slider('handbrakePower','Handbrake power','Сила ручника для инициации дрифта')"></div>
 
                         <div class="drift-actions">
                             <button class="primary" @click="apply">Apply</button>

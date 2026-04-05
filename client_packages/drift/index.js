@@ -27,22 +27,16 @@ function getCurrentVehicle() {
     return vehicle;
 }
 
-function getBalanceFactor(settings) {
-    const bias = safeNumber(settings.frontRearBalance, 0);
-    return {
-        front: clamp(1 + (bias * 0.25), 0.8, 1.2),
-        rear: clamp(1 - (bias * 0.25), 0.8, 1.2),
-    };
-}
-
 function applyVehicleSetup(setup) {
     const vehicle = getCurrentVehicle();
     if (!vehicle || !setup) return;
 
     const s = setup;
-    const balance = getBalanceFactor(s);
+    const rearGrip = safeNumber(s.rearGrip, 0.86);
+    const steeringAngle = safeNumber(s.steeringAngle, 39);
+    const handbrakePower = safeNumber(s.handbrakePower, 1);
 
-    vehicle.setEnginePowerMultiplier((safeNumber(s.torqueResponse, 1) - 1) * 85);
+    vehicle.setEnginePowerMultiplier((1 - rearGrip) * 55);
     const setHandlingSafe = (field, value) => {
         try {
             vehicle.setHandling(field, value);
@@ -51,28 +45,13 @@ function applyVehicleSetup(setup) {
         }
     };
 
-    setHandlingSafe('fBrakeForce', clamp(safeNumber(s.handbrakePower, 1) * 0.9, 0.25, 1.8));
+    setHandlingSafe('fSteeringLock', clamp(steeringAngle, 32, 48));
+    setHandlingSafe('fTractionCurveMin', clamp(rearGrip, 0.72, 1.0));
+    setHandlingSafe('fBrakeForce', clamp(handbrakePower * 0.85, 0.45, 1.4));
+    setHandlingSafe('fHandBrakeForce', clamp(handbrakePower * 1.1, 0.8, 2.0));
+    setHandlingSafe('fLowSpeedTractionLossMult', clamp(1.15 + ((1 - rearGrip) * 0.9), 1.0, 1.45));
 
-    setHandlingSafe('fSteeringLock', safeNumber(s.steeringAngle, 40));
-    setHandlingSafe('fSteeringCurve', clamp(safeNumber(s.steeringResponse, 1), 0.4, 2));
-
-    setHandlingSafe('fTractionCurveMax', clamp((safeNumber(s.frontGrip, 0.9) * balance.front), 0.55, 2));
-    setHandlingSafe('fTractionCurveMin', clamp((safeNumber(s.rearGrip, 0.8) * balance.rear), 0.45, 1.7));
-    setHandlingSafe('fLowSpeedTractionLossMult', clamp(safeNumber(s.slipFactor, 1), 0.5, 2.5));
-
-    setHandlingSafe('fSuspensionForce', clamp((safeNumber(s.suspensionFrontStiffness, 1) + safeNumber(s.suspensionRearStiffness, 1)) / 2, 0.5, 2));
-    setHandlingSafe('fSuspensionRaise', clamp((safeNumber(s.suspensionFrontHeight, 0) + safeNumber(s.suspensionRearHeight, 0)) / 2, -0.12, 0.12));
-
-    setHandlingSafe('fInitialDriveForce', clamp(0.26 * safeNumber(s.finalDriveBias, 1) * safeNumber(s.torqueResponse, 1), 0.12, 0.5));
-    setHandlingSafe('fDriveInertia', clamp(1.0 + ((safeNumber(s.differentialLock, 0.5) - 0.5) * 0.8), 0.65, 1.5));
-
-    setHandlingSafe('fBrakeBiasFront', clamp(safeNumber(s.brakeBias, 0.6), 0.3, 0.8));
-    setHandlingSafe('fHandBrakeForce', clamp(safeNumber(s.handbrakePower, 1) * safeNumber(s.handbrakeResponse, 1), 0.5, 2.2));
-
-    setHandlingSafe('fTractionBiasFront', clamp(0.48 + (safeNumber(s.stabilityBias, 0.5) - 0.5) * 0.14, 0.35, 0.63));
-    setHandlingSafe('fTractionSpringDeltaMax', clamp(0.12 + safeNumber(s.bodyRotationHelp, 0.5) * 0.25, 0.08, 0.42));
-
-    vehicle.setReduceGrip(safeNumber(s.driftAssist, 1) > 0.05);
+    vehicle.setReduceGrip(rearGrip < 0.95);
 }
 
 function setUiState(enabled) {
