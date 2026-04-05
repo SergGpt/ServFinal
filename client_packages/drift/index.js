@@ -28,8 +28,9 @@ function resolveSetup(setup = {}) {
     const gripLossStrong = Math.pow(gripLossPct, 0.82);
     const anglePct = clamp(safeNumber(source.steeringAngle, 0), 0, 100) / 100;
     const frontGripPct = clamp(safeNumber(source.frontGripHighSpeed, 60), 0, 100) / 100;
+    const powerCoeff = clamp(safeNumber(source.powerCoeff, 100), 100, 200) / 100;
     return {
-        initialDriveForce: clamp(0.22 + (overpowerPct * 0.55), 0.22, 0.77),
+        initialDriveForce: clamp((0.22 + (overpowerPct * 0.55)) * powerCoeff, 0.22, 1.2),
         driveInertia: clamp(0.95 + (overpowerPct * 1.0), 0.95, 1.95),
         tractionCurveMin: clamp(2.0 - (gripLossStrong * 1.45), 0.55, 2.0),
         tractionCurveMax: clamp(2.35 - (gripLossStrong * 1.35), 1.0, 2.35),
@@ -40,6 +41,7 @@ function resolveSetup(setup = {}) {
         gripLossLevel: gripLossStrong,
         angleLevel: anglePct,
         frontGripLevel: frontGripPct,
+        powerCoeff,
     };
 }
 
@@ -135,8 +137,8 @@ function updateDriftPhysics() {
         0.65
     );
     setHandlingSafe(vehicle, 'fTractionBiasFront', dynamicFrontBias);
-    const basePower = setup.overpowerLevel * (0.26 + speedFactor * 0.5);
-    const intentBonus = (driftIntent || holdDrift) ? (0.2 + setup.overpowerLevel * 0.55) : 0;
+    const basePower = setup.overpowerLevel * (0.26 + speedFactor * 0.5) * setup.powerCoeff;
+    const intentBonus = (driftIntent || holdDrift) ? (0.2 + setup.overpowerLevel * 0.55) * setup.powerCoeff : 0;
     const slipDamp = slipRatio * (0.18 + (1 - rearSlipBias) * 0.16);
     let dynamicPower = basePower + intentBonus - slipDamp;
 
@@ -144,10 +146,10 @@ function updateDriftPhysics() {
     if (throttle) dynamicPower = Math.max(dynamicPower, 0.26);
     else if (holdDrift) dynamicPower = Math.max(dynamicPower, 0.2);
     else dynamicPower = Math.max(dynamicPower, 0.1);
-    dynamicPower = clamp(dynamicPower, 0.0, 1.95);
+    dynamicPower = clamp(dynamicPower, 0.0, 2.35);
 
     vehicle.setEnginePowerMultiplier(dynamicPower);
-    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 35, 1.0, 1.28));
+    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 30, 1.0, 1.35));
 
     // "Задняя ось больше, передняя немного":
     // в RAGE MP прямого раздельного API по осям нет, поэтому реализуем мягкую аппроксимацию:

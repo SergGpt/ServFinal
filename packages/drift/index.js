@@ -9,17 +9,18 @@ const defaultSettings = {
     rearGripLoss: 0,
     steeringAngle: 0,
     frontGripHighSpeed: 60,
+    powerCoeff: 100,
 };
 
 const builtinPresets = {
     'Street Drift': {
-        wheelOverpower: 24, rearGripLoss: 18, steeringAngle: 20, frontGripHighSpeed: 55,
+        wheelOverpower: 24, rearGripLoss: 18, steeringAngle: 20, frontGripHighSpeed: 55, powerCoeff: 120,
     },
     'Balance Drift': {
-        wheelOverpower: 45, rearGripLoss: 36, steeringAngle: 42, frontGripHighSpeed: 62,
+        wheelOverpower: 45, rearGripLoss: 36, steeringAngle: 42, frontGripHighSpeed: 62, powerCoeff: 145,
     },
     'Pro Drift': {
-        wheelOverpower: 72, rearGripLoss: 60, steeringAngle: 75, frontGripHighSpeed: 70,
+        wheelOverpower: 72, rearGripLoss: 60, steeringAngle: 75, frontGripHighSpeed: 70, powerCoeff: 170,
     },
 };
 
@@ -80,6 +81,9 @@ function sanitizeSettings(payload = {}) {
     }
     if (normalizedPayload.frontGripHighSpeed == null && normalizedPayload.tractionBiasFront != null) {
         normalizedPayload.frontGripHighSpeed = clamp(Number(normalizedPayload.tractionBiasFront), 0, 100);
+    }
+    if (normalizedPayload.powerCoeff == null && normalizedPayload.wheelOverpower != null) {
+        normalizedPayload.powerCoeff = 100;
     }
 
     Object.keys(defaultSettings).forEach((key) => {
@@ -188,12 +192,13 @@ function getStats(settings) {
     const gripDelta = clamp(s.rearGripLoss / 100, 0, 1);
     const angleBias = clamp(s.steeringAngle / 100, 0, 1);
     const frontGripBias = clamp(s.frontGripHighSpeed / 100, 0, 1);
+    const powerCoeffBias = clamp((s.powerCoeff - 100) / 100, 0, 1);
     const stats = {
-        initiation: 20 + (powerBias * 50) + (gripDelta * 20),
+        initiation: 20 + (powerBias * 50) + (gripDelta * 20) + (powerCoeffBias * 15),
         stability: 70 - (gripDelta * 40) + (frontGripBias * 30),
         angle: 15 + (powerBias * 20) + (gripDelta * 20) + (angleBias * 45),
         control: 70 - (powerBias * 20) - (gripDelta * 18) + (angleBias * 10) + (frontGripBias * 30),
-        aggressiveness: 20 + (powerBias * 35) + (gripDelta * 40),
+        aggressiveness: 20 + (powerBias * 35) + (gripDelta * 40) + (powerCoeffBias * 25),
     };
 
     Object.keys(stats).forEach((key) => {
