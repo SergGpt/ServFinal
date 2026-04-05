@@ -27,6 +27,13 @@ function getCurrentVehicle() {
     return vehicle;
 }
 
+function resetVehicleModifiers() {
+    const vehicle = getCurrentVehicle();
+    if (!vehicle) return;
+    vehicle.setEnginePowerMultiplier(0);
+    vehicle.setReduceGrip(false);
+}
+
 function applyVehicleSetup(setup) {
     const vehicle = getCurrentVehicle();
     if (!vehicle || !setup) return;
@@ -36,22 +43,12 @@ function applyVehicleSetup(setup) {
     const steeringAngle = safeNumber(s.steeringAngle, 39);
     const handbrakePower = safeNumber(s.handbrakePower, 1);
 
-    vehicle.setEnginePowerMultiplier((1 - rearGrip) * 55);
-    const setHandlingSafe = (field, value) => {
-        try {
-            vehicle.setHandling(field, value);
-        } catch (_) {
-            // ignore rare per-model handling exceptions
-        }
-    };
+    // Безопасное применение: только нативно поддерживаемые RageMP методы.
+    const powerBoost = ((1 - rearGrip) * 16) + ((steeringAngle - 39) * 0.55) + ((handbrakePower - 1) * 5);
+    vehicle.setEnginePowerMultiplier(clamp(powerBoost, -2, 15));
 
-    setHandlingSafe('fSteeringLock', clamp(steeringAngle, 32, 48));
-    setHandlingSafe('fTractionCurveMin', clamp(rearGrip, 0.72, 1.0));
-    setHandlingSafe('fBrakeForce', clamp(handbrakePower * 0.85, 0.45, 1.4));
-    setHandlingSafe('fHandBrakeForce', clamp(handbrakePower * 1.1, 0.8, 2.0));
-    setHandlingSafe('fLowSpeedTractionLossMult', clamp(1.15 + ((1 - rearGrip) * 0.9), 1.0, 1.45));
-
-    vehicle.setReduceGrip(rearGrip < 0.95);
+    const shouldReduceGrip = rearGrip < 0.94 || handbrakePower > 1.08;
+    vehicle.setReduceGrip(shouldReduceGrip);
 }
 
 function setUiState(enabled) {
@@ -113,12 +110,13 @@ mp.events.add('drift.preset.list', (list) => {
 });
 
 mp.events.add('drift.vehicle.state', (payload) => {
-    if (!payload) return;
+    if (!payload) return resetVehicleModifiers();
     state.appliedVehicleId = payload.vehicleId;
     applyVehicleSetup(payload.settings);
 });
 
 mp.events.add('playerExitVehicle', () => {
+    resetVehicleModifiers();
     state.appliedVehicleId = null;
 });
 
