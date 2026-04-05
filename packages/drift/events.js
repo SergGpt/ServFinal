@@ -236,6 +236,26 @@ module.exports = {
         }]);
     },
 
+    'drift.setup.delete': async (player) => {
+        if (!player.character) return;
+        const vehicle = getCurrentUiVehicle(player) || await resolvePlayerVehicle(player);
+        if (!vehicle) return;
+
+        await db.Models.VehicleDriftSetup.destroy({ where: { vehicleId: vehicle.sqlId } });
+        vehicle.setVariable('drift:installed', false);
+        vehicle.setVariable('drift:settings', null);
+
+        player.call('drift.setup.sync', [{
+            conversionInstalled: false,
+            settings: drift.defaultSettings,
+            activePreset: 'Stock',
+            driftEnabled: false,
+            customPresets: [],
+            stats: drift.getStats(drift.defaultSettings),
+        }]);
+        drift.notifyInfo(player, 'Drift конфиг удален, автомобиль возвращен в дефолт');
+    },
+
     'drift.preset.save': async (player, presetName, settingsRaw) => {
         if (!player.character) return;
         const vehicle = getCurrentUiVehicle(player) || await resolvePlayerVehicle(player);

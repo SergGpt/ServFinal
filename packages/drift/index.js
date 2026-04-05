@@ -10,17 +10,20 @@ const defaultSettings = {
     steeringAngle: 0,
     frontGripHighSpeed: 60,
     powerCoeff: 100,
+    diffLock: 0,
+    limiterLock: 0,
+    limiterSmoke: 0,
 };
 
 const builtinPresets = {
     'Street Drift': {
-        wheelOverpower: 24, rearGripLoss: 18, steeringAngle: 20, frontGripHighSpeed: 55, powerCoeff: 120,
+        wheelOverpower: 24, rearGripLoss: 18, steeringAngle: 20, frontGripHighSpeed: 55, powerCoeff: 120, diffLock: 0, limiterLock: 0, limiterSmoke: 0,
     },
     'Balance Drift': {
-        wheelOverpower: 45, rearGripLoss: 36, steeringAngle: 42, frontGripHighSpeed: 62, powerCoeff: 145,
+        wheelOverpower: 45, rearGripLoss: 36, steeringAngle: 42, frontGripHighSpeed: 62, powerCoeff: 145, diffLock: 1, limiterLock: 0, limiterSmoke: 0,
     },
     'Pro Drift': {
-        wheelOverpower: 72, rearGripLoss: 60, steeringAngle: 75, frontGripHighSpeed: 70, powerCoeff: 170,
+        wheelOverpower: 72, rearGripLoss: 60, steeringAngle: 75, frontGripHighSpeed: 70, powerCoeff: 170, diffLock: 1, limiterLock: 1, limiterSmoke: 1,
     },
 };
 

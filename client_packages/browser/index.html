@@ -3252,11 +3252,17 @@
                         <div v-if="tab === 'Basic'" v-html="slider('steeringAngle','Выворот руля (0–100)','Увеличивает угол удержания машины в заносе')"></div>
                         <div v-if="tab === 'Basic'" v-html="slider('frontGripHighSpeed','Зацеп передних колес на скорости (0–100)','Добавляет держак передней оси после ~80 км/ч для контроля')"></div>
                         <div v-if="tab === 'Basic'" v-html="slider('powerCoeff','Коэффициент мощности (x1..x2)','100 = текущая мощность, 200 = усиление в 2 раза')"></div>
+                        <div class="drift-actions">
+                            <button class="ghost" @click="toggleFlag('diffLock')">Diff Lock: {{ Number(settings.diffLock||0) >= 1 ? 'ON' : 'OFF' }}</button>
+                            <button class="ghost" @click="toggleFlag('limiterLock')">Limiter Lock: {{ Number(settings.limiterLock||0) >= 1 ? 'ON' : 'OFF' }}</button>
+                            <button class="ghost" @click="toggleFlag('limiterSmoke')">Limiter Smoke: {{ Number(settings.limiterSmoke||0) >= 1 ? 'ON' : 'OFF' }}</button>
+                        </div>
 
                         <div class="drift-actions">
                             <button class="primary" @click="apply">Apply</button>
                             <button class="ghost" @click="preview">Preview</button>
                             <button class="warn" @click="reset">Reset</button>
+                            <button class="warn" @click="deleteConfig">Delete config</button>
                         </div>
                     </div>
                 </div>

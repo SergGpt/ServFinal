@@ -65,6 +65,15 @@ var driftSetup = new Vue({
         },
         apply() { this.notify('apply', this.settings); },
         reset() { this.notify('reset'); },
+        deleteConfig() {
+            if (!confirm('Удалить drift конфиг для этого авто?')) return;
+            this.notify('delete');
+        },
+        toggleFlag(key) {
+            const next = Number(this.settings[key] || 0) >= 1 ? 0 : 1;
+            this.$set(this.settings, key, next);
+            this.preview();
+        },
         savePreset() {
             if (!this.newPresetName.trim()) return;
             this.notify('savePreset', { name: this.newPresetName.trim(), settings: this.settings });

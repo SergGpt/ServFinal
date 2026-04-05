@@ -38,6 +38,9 @@ module.exports = {
         steeringAngle: [0, 100],
         frontGripHighSpeed: [0, 100],
         powerCoeff: [100, 200],
+        diffLock: [0, 1],
+        limiterLock: [0, 1],
+        limiterSmoke: [0, 1],
     },
     sliderSteps: {
         wheelOverpower: 1,
@@ -45,5 +48,8 @@ module.exports = {
         steeringAngle: 1,
         frontGripHighSpeed: 1,
         powerCoeff: 1,
+        diffLock: 1,
+        limiterLock: 1,
+        limiterSmoke: 1,
     },
 };

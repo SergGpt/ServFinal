@@ -41,6 +41,9 @@ function resolveSetup(setup = {}) {
         angleLevel: anglePct,
         frontGripLevel: frontGripPct,
         powerCoeff,
+        diffLock: safeNumber(source.diffLock, 0) >= 1,
+        limiterLock: safeNumber(source.limiterLock, 0) >= 1,
+        limiterSmoke: safeNumber(source.limiterSmoke, 0) >= 1,
     };
 }
 
@@ -92,6 +95,11 @@ function applyVehicleSetup(setup) {
     setHandlingSafe(vehicle, 'fInitialDriveForce', s.initialDriveForce);
     setHandlingSafe(vehicle, 'fDriveInertia', s.driveInertia);
     setHandlingSafe(vehicle, 'fSteeringLock', s.steeringLock);
+    if (s.diffLock) {
+        setHandlingSafe(vehicle, 'fLowSpeedTractionLossMult', 1.45);
+    } else {
+        setHandlingSafe(vehicle, 'fLowSpeedTractionLossMult', 1.0);
+    }
     vehicle.setEnginePowerMultiplier(0);
     vehicle.setEngineTorqueMultiplier(1);
     vehicle.setReduceGrip(false);
@@ -145,6 +153,22 @@ function updateDriftPhysics() {
 
     vehicle.setEnginePowerMultiplier(dynamicPower);
     vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 30, 1.0, 1.35));
+
+    if (setup.limiterLock && throttle) {
+        try {
+            mp.game.vehicle.setVehicleHighGear(vehicle.handle, 2);
+            mp.game.vehicle.setVehicleCurrentGear(vehicle.handle, 2);
+        } catch (_) {}
+    }
+
+    if (setup.limiterSmoke && throttle && speed > 20) {
+        try {
+            mp.game.vehicle.setVehicleTyreSmokeColor(vehicle.handle, 210, 210, 210);
+            mp.game.vehicle.setVehicleBurnout(vehicle.handle, true);
+        } catch (_) {}
+    } else {
+        try { mp.game.vehicle.setVehicleBurnout(vehicle.handle, false); } catch (_) {}
+    }
 
     // "Задняя ось больше, передняя немного":
     // в RAGE MP прямого раздельного API по осям нет, поэтому реализуем мягкую аппроксимацию:
@@ -253,6 +277,9 @@ mp.events.add('drift.setup.action', (action, payloadRaw) => {
             return;
         case 'reset':
             mp.events.callRemote('drift.setup.reset');
+            return;
+        case 'delete':
+            mp.events.callRemote('drift.setup.delete');
             return;
         case 'savePreset':
             if (!payload) return;
