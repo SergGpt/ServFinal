@@ -23,19 +23,33 @@ function safeNumber(value, fallback = 0) {
 
 function resolveSetup(setup = {}) {
     const source = setup || {};
+    const pct = (key) => clamp(safeNumber(source[key], 0), 0, 100) / 100;
+    const steerPct = pct('steeringLock');
+    const trMaxPct = pct('tractionCurveMax');
+    const trMinPct = pct('tractionCurveMin');
+    const lowPct = pct('lowSpeedTractionLossMult');
+    const forcePct = pct('initialDriveForce');
+    const inertiaPct = pct('driveInertia');
+    const brakePct = pct('brakeBiasFront');
+    const compPct = pct('suspensionCompDamp');
+    const rebPct = pct('suspensionReboundDamp');
+    const comYPct = pct('comShiftY');
+    const comZPct = pct('comShiftZ');
+    const frontBiasPct = pct('driveBiasFront');
     return {
-        driveBiasFront: clamp(safeNumber(source.driveBiasFront, 0.0), 0.0, 0.5),
-        steeringLock: clamp(safeNumber(source.steeringLock, 0.9), 0.55, 1.25),
-        tractionCurveMax: clamp(safeNumber(source.tractionCurveMax, 1.9), 1.4, 3.0),
-        tractionCurveMin: clamp(safeNumber(source.tractionCurveMin, 1.4), 0.9, 2.3),
-        lowSpeedTractionLossMult: clamp(safeNumber(source.lowSpeedTractionLossMult, 1.2), 0.7, 2.2),
-        initialDriveForce: clamp(safeNumber(source.initialDriveForce, 0.3), 0.12, 0.6),
-        driveInertia: clamp(safeNumber(source.driveInertia, 1.1), 0.7, 1.8),
-        brakeBiasFront: clamp(safeNumber(source.brakeBiasFront, 0.45), 0.35, 0.7),
-        suspensionCompDamp: clamp(safeNumber(source.suspensionCompDamp, 1.3), 0.7, 2.2),
-        suspensionReboundDamp: clamp(safeNumber(source.suspensionReboundDamp, 1.7), 0.8, 2.6),
-        comShiftY: clamp(safeNumber(source.comShiftY, 0.2), -0.1, 0.4),
-        comShiftZ: clamp(safeNumber(source.comShiftZ, -0.2), -0.35, 0.1),
+        driveBiasFront: clamp(frontBiasPct * 0.2, 0.0, 0.2),
+        steeringLock: clamp(0.72 + (steerPct * 0.53), 0.72, 1.25),
+        tractionCurveMax: clamp(2.35 - (trMaxPct * 0.95), 1.4, 2.35),
+        tractionCurveMin: clamp(2.0 - (trMinPct * 1.1), 0.9, 2.0),
+        lowSpeedTractionLossMult: clamp(0.85 + (lowPct * 1.35), 0.85, 2.2),
+        initialDriveForce: clamp(0.22 + (forcePct * 0.38), 0.22, 0.6),
+        driveInertia: clamp(0.95 + (inertiaPct * 0.85), 0.95, 1.8),
+        brakeBiasFront: clamp(0.58 - (brakePct * 0.23), 0.35, 0.58),
+        suspensionCompDamp: clamp(1.0 + (compPct * 1.2), 1.0, 2.2),
+        suspensionReboundDamp: clamp(1.2 + (rebPct * 1.4), 1.2, 2.6),
+        comShiftY: clamp(comYPct * 0.4, 0.0, 0.4),
+        comShiftZ: clamp(-0.08 - (comZPct * 0.27), -0.35, -0.08),
+        rearSlipLevel: clamp(((trMaxPct + trMinPct) / 2), 0, 1),
     };
 }
 
@@ -87,7 +101,7 @@ function applyVehicleSetup(setup) {
     setHandlingSafe(vehicle, 'vecCentreOfMassOffset', new mp.Vector3(0.0, s.comShiftY, s.comShiftZ));
 
     // Slight global helper so drift remains smooth even on desynced surfaces.
-    const gripAssist = clamp((s.tractionCurveMax - s.tractionCurveMin) / 1.6, 0, 1);
+    const gripAssist = s.rearSlipLevel;
     vehicle.setEnginePowerMultiplier(clamp(gripAssist * 0.25, 0, 0.5));
     vehicle.setEngineTorqueMultiplier(clamp(1 + (s.driveInertia - 1.0) * 0.05, 0.95, 1.1));
     vehicle.setReduceGrip(false);
@@ -123,7 +137,7 @@ function updateDriftPhysics() {
     // - основа мягкая,
     // - срыв приходит от входа (руль+газ/ручник),
     // - при отпускании газа угол не "отрубается" мгновенно.
-    const rearSlipBias = clamp((setup.tractionCurveMax - setup.tractionCurveMin) / 1.6, 0, 1);
+    const rearSlipBias = setup.rearSlipLevel;
     const basePower = rearSlipBias * 0.28;
     const intentBonus = (driftIntent || holdDrift) ? (0.12 + rearSlipBias * 0.28) : 0;
     const slipDamp = slipRatio * (0.25 + (1 - rearSlipBias) * 0.22);

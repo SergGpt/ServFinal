@@ -328,7 +328,7 @@ module.exports = {
 
         presets.splice(index, 1);
         setup.presets = JSON.stringify(presets);
-        if (setup.activePreset === presetName) setup.activePreset = 'Street Drift';
+        if (setup.activePreset === presetName) setup.activePreset = 'Stock';
         await setup.save();
 
         player.call('drift.preset.list', [presets]);

@@ -17,7 +17,7 @@ module.exports = (sequelize, DataTypes) => {
         },
         activePreset: {
             type: DataTypes.STRING(64),
-            defaultValue: 'Street Drift',
+            defaultValue: 'Stock',
             allowNull: false,
         },
         settings: {

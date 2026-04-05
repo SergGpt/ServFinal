@@ -87,15 +87,10 @@ var driftSetup = new Vue({
         },
         calcStats(s) {
             const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
-            const tractionCurveMax = Number(s.tractionCurveMax == null ? 1.9 : s.tractionCurveMax);
-            const tractionCurveMin = Number(s.tractionCurveMin == null ? 1.4 : s.tractionCurveMin);
-            const steeringLock = Number(s.steeringLock == null ? 0.9 : s.steeringLock);
-            const initialDriveForce = Number(s.initialDriveForce == null ? 0.3 : s.initialDriveForce);
-            const lowSpeedLoss = Number(s.lowSpeedTractionLossMult == null ? 1.2 : s.lowSpeedTractionLossMult);
-            const gripDelta = Math.max(0, Math.min(1, (tractionCurveMax - tractionCurveMin) / 1.6));
-            const angleBias = Math.max(0, Math.min(1, (steeringLock - 0.55) / 0.7));
-            const powerBias = Math.max(0, Math.min(1, (initialDriveForce - 0.12) / 0.48));
-            const lowSpeedBias = Math.max(0, Math.min(1, (lowSpeedLoss - 0.7) / 1.5));
+            const gripDelta = Math.max(0, Math.min(1, ((Number(s.tractionCurveMax || 0) + Number(s.tractionCurveMin || 0)) / 200)));
+            const angleBias = Math.max(0, Math.min(1, Number(s.steeringLock || 0) / 100));
+            const powerBias = Math.max(0, Math.min(1, Number(s.initialDriveForce || 0) / 100));
+            const lowSpeedBias = Math.max(0, Math.min(1, Number(s.lowSpeedTractionLossMult || 0) / 100));
             return {
                 initiation: clamp(25 + (lowSpeedBias * 45) + (powerBias * 20)),
                 stability: clamp(80 - (gripDelta * 26)),

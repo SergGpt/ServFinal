@@ -3247,18 +3247,18 @@
                         <button class="buy" @click="purchase">Купить conversion за ${{ conversionPrice }}</button>
                     </div>
                     <div v-else>
-                        <div v-if="tab === 'Basic'" v-html="slider('driveBiasFront','Привод (Front Bias)','0.0 = чистый RWD, выше = больше тяги на перед')"></div>
-                        <div v-if="tab === 'Basic'" v-html="slider('steeringLock','Угол руля','Больше значение = легче держать угол в дрифте')"></div>
-                        <div v-if="tab === 'Basic'" v-html="slider('tractionCurveMax','Общее сцепление','Базовый держак покрышек')"></div>
-                        <div v-if="tab === 'Basic'" v-html="slider('tractionCurveMin','Сцепление в заносе','Ниже = легче уходит в скольжение, сложнее контроль')"></div>
-                        <div v-if="tab === 'Basic'" v-html="slider('lowSpeedTractionLossMult','Срыв на низкой скорости','Помогает инициировать дрифт на малой скорости')"></div>
-                        <div v-if="tab === 'Basic'" v-html="slider('initialDriveForce','Сила разгона','Чем выше, тем легче срывать зад газом')"></div>
-                        <div v-if="tab === 'Basic'" v-html="slider('driveInertia','Отклик двигателя','Скорость реакции машины на газ')"></div>
-                        <div v-if="tab === 'Basic'" v-html="slider('brakeBiasFront','Баланс тормозов','Ниже = больше тормоза назад, проще закидывать')"></div>
-                        <div v-if="tab === 'Basic'" v-html="slider('suspensionCompDamp','Подвеска: сжатие','Стабильность при перекладках')"></div>
-                        <div v-if="tab === 'Basic'" v-html="slider('suspensionReboundDamp','Подвеска: отбой','Стабильность возврата кузова')"></div>
-                        <div v-if="tab === 'Basic'" v-html="slider('comShiftY','Центр массы Y','Смещение назад/вперёд для баланса')"></div>
-                        <div v-if="tab === 'Basic'" v-html="slider('comShiftZ','Центр массы Z','Ниже = устойчивее, выше = резче реакции')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('driveBiasFront','Привод (0–100)','0 = дефолт, больше = стабильнее за счет тяги на перед')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('steeringLock','Угол руля (0–100)','0 = дефолт, увеличивай постепенно для большего угла')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('tractionCurveMax','Общее сцепление (0–100)','0 = дефолт, выше = больше срыв в скольжение')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('tractionCurveMin','Сцепление в заносе (0–100)','0 = дефолт, выше = легче держать занос')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('lowSpeedTractionLossMult','Срыв на малой скорости (0–100)','0 = дефолт, повышай для лёгкой инициации')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('initialDriveForce','Сила разгона (0–100)','0 = дефолт, больше = легче сорвать зад газом')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('driveInertia','Отклик двигателя (0–100)','0 = дефолт, больше = резче отклик на газ')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('brakeBiasFront','Баланс тормозов (0–100)','0 = дефолт, больше = охотнее закидывает корму')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('suspensionCompDamp','Подвеска: сжатие (0–100)','0 = дефолт, повышай для стабильных перекладок')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('suspensionReboundDamp','Подвеска: отбой (0–100)','0 = дефолт, выше = меньше раскачка')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('comShiftY','Центр массы Y (0–100)','0 = дефолт, больше = смещение массы назад')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('comShiftZ','Центр массы Z (0–100)','0 = дефолт, больше = ниже центр массы')"></div>
 
                         <div class="drift-actions">
                             <button class="primary" @click="apply">Apply</button>

@@ -5,35 +5,35 @@ const notifications = call('notifications');
 let workshops = [];
 
 const defaultSettings = {
-    driveBiasFront: 0.0,
-    steeringLock: 0.72,
-    tractionCurveMax: 2.35,
-    tractionCurveMin: 2.0,
-    lowSpeedTractionLossMult: 0.85,
-    initialDriveForce: 0.22,
-    driveInertia: 0.95,
-    brakeBiasFront: 0.58,
-    suspensionCompDamp: 1.0,
-    suspensionReboundDamp: 1.2,
-    comShiftY: 0.0,
-    comShiftZ: -0.08,
+    driveBiasFront: 0,
+    steeringLock: 0,
+    tractionCurveMax: 0,
+    tractionCurveMin: 0,
+    lowSpeedTractionLossMult: 0,
+    initialDriveForce: 0,
+    driveInertia: 0,
+    brakeBiasFront: 0,
+    suspensionCompDamp: 0,
+    suspensionReboundDamp: 0,
+    comShiftY: 0,
+    comShiftZ: 0,
 };
 
 const builtinPresets = {
     'Street Drift': {
-        driveBiasFront: 0.0, steeringLock: 0.72, tractionCurveMax: 2.35, tractionCurveMin: 2.0,
-        lowSpeedTractionLossMult: 0.85, initialDriveForce: 0.22, driveInertia: 0.95,
-        brakeBiasFront: 0.58, suspensionCompDamp: 1.0, suspensionReboundDamp: 1.2, comShiftY: 0.0, comShiftZ: -0.08,
+        driveBiasFront: 8, steeringLock: 20, tractionCurveMax: 18, tractionCurveMin: 22,
+        lowSpeedTractionLossMult: 24, initialDriveForce: 25, driveInertia: 20,
+        brakeBiasFront: 18, suspensionCompDamp: 16, suspensionReboundDamp: 16, comShiftY: 10, comShiftZ: 12,
     },
     'Balance Drift': {
-        driveBiasFront: 0.0, steeringLock: 0.92, tractionCurveMax: 1.9, tractionCurveMin: 1.35,
-        lowSpeedTractionLossMult: 1.2, initialDriveForce: 0.3, driveInertia: 1.1,
-        brakeBiasFront: 0.45, suspensionCompDamp: 1.3, suspensionReboundDamp: 1.7, comShiftY: 0.2, comShiftZ: -0.2,
+        driveBiasFront: 12, steeringLock: 40, tractionCurveMax: 38, tractionCurveMin: 45,
+        lowSpeedTractionLossMult: 42, initialDriveForce: 45, driveInertia: 42,
+        brakeBiasFront: 40, suspensionCompDamp: 38, suspensionReboundDamp: 36, comShiftY: 28, comShiftZ: 30,
     },
     'Pro Drift': {
-        driveBiasFront: 0.0, steeringLock: 1.02, tractionCurveMax: 1.8, tractionCurveMin: 1.2,
-        lowSpeedTractionLossMult: 1.45, initialDriveForce: 0.35, driveInertia: 1.2,
-        brakeBiasFront: 0.42, suspensionCompDamp: 1.45, suspensionReboundDamp: 1.9, comShiftY: 0.24, comShiftZ: -0.24,
+        driveBiasFront: 20, steeringLock: 70, tractionCurveMax: 68, tractionCurveMin: 74,
+        lowSpeedTractionLossMult: 70, initialDriveForce: 72, driveInertia: 65,
+        brakeBiasFront: 68, suspensionCompDamp: 60, suspensionReboundDamp: 58, comShiftY: 46, comShiftZ: 52,
     },
 };
 
@@ -65,23 +65,41 @@ function sanitizeSettings(payload = {}) {
     if (normalizedPayload.tractionCurveMin == null && normalizedPayload.rearGrip != null) {
         const rearGrip = Number(normalizedPayload.rearGrip);
         if (Number.isFinite(rearGrip)) {
-            const mapped = clamp(rearGrip, 0.9, 2.3);
+            const mapped = clamp((2.3 - rearGrip) / 1.4, 0, 1) * 100;
             normalizedPayload.tractionCurveMin = mapped;
-            normalizedPayload.tractionCurveMax = clamp(mapped + 0.45, 1.4, 3.0);
+            normalizedPayload.tractionCurveMax = mapped;
         }
     }
     if (normalizedPayload.tractionCurveMin == null && normalizedPayload.dirtPower != null) {
         const dirtPower = clamp(Number(normalizedPayload.dirtPower) || 0, 0, 1);
-        normalizedPayload.tractionCurveMin = clamp(1.75 - (dirtPower * 0.6), 0.9, 2.3);
-        normalizedPayload.tractionCurveMax = clamp(2.25 - (dirtPower * 0.5), 1.4, 3.0);
-        normalizedPayload.lowSpeedTractionLossMult = clamp(0.9 + dirtPower, 0.7, 2.2);
+        const mapped = dirtPower * 100;
+        normalizedPayload.tractionCurveMin = mapped;
+        normalizedPayload.tractionCurveMax = mapped;
+        normalizedPayload.lowSpeedTractionLossMult = mapped;
     }
     if (normalizedPayload.tractionCurveMin == null && normalizedPayload.slipStrength != null) {
         const slip = clamp((Number(normalizedPayload.slipStrength) || 0) / 100, 0, 1);
-        normalizedPayload.tractionCurveMin = clamp(1.75 - (slip * 0.65), 0.9, 2.3);
-        normalizedPayload.tractionCurveMax = clamp(2.3 - (slip * 0.5), 1.4, 3.0);
-        normalizedPayload.lowSpeedTractionLossMult = clamp(0.9 + (slip * 0.9), 0.7, 2.2);
-        normalizedPayload.steeringLock = clamp(0.78 + (slip * 0.26), 0.55, 1.25);
+        const mapped = slip * 100;
+        normalizedPayload.tractionCurveMin = mapped;
+        normalizedPayload.tractionCurveMax = mapped;
+        normalizedPayload.lowSpeedTractionLossMult = mapped;
+        normalizedPayload.steeringLock = mapped;
+    }
+
+    // Compatibility with previous absolute handling values.
+    if ((normalizedPayload.steeringLock != null && Number(normalizedPayload.steeringLock) <= 2.0) ||
+        (normalizedPayload.tractionCurveMax != null && Number(normalizedPayload.tractionCurveMax) <= 3.5)) {
+        normalizedPayload.steeringLock = clamp(((Number(normalizedPayload.steeringLock) - 0.72) / 0.53) * 100, 0, 100);
+        normalizedPayload.tractionCurveMax = clamp(((2.35 - Number(normalizedPayload.tractionCurveMax)) / 0.95) * 100, 0, 100);
+        normalizedPayload.tractionCurveMin = clamp(((2.0 - Number(normalizedPayload.tractionCurveMin)) / 1.1) * 100, 0, 100);
+        normalizedPayload.lowSpeedTractionLossMult = clamp(((Number(normalizedPayload.lowSpeedTractionLossMult) - 0.85) / 1.35) * 100, 0, 100);
+        normalizedPayload.initialDriveForce = clamp(((Number(normalizedPayload.initialDriveForce) - 0.22) / 0.38) * 100, 0, 100);
+        normalizedPayload.driveInertia = clamp(((Number(normalizedPayload.driveInertia) - 0.95) / 0.85) * 100, 0, 100);
+        normalizedPayload.brakeBiasFront = clamp(((0.58 - Number(normalizedPayload.brakeBiasFront)) / 0.23) * 100, 0, 100);
+        normalizedPayload.suspensionCompDamp = clamp(((Number(normalizedPayload.suspensionCompDamp) - 1.0) / 1.2) * 100, 0, 100);
+        normalizedPayload.suspensionReboundDamp = clamp(((Number(normalizedPayload.suspensionReboundDamp) - 1.2) / 1.4) * 100, 0, 100);
+        normalizedPayload.comShiftY = clamp((Number(normalizedPayload.comShiftY) / 0.4) * 100, 0, 100);
+        normalizedPayload.comShiftZ = clamp((Math.abs(Number(normalizedPayload.comShiftZ || 0)) / 0.35) * 100, 0, 100);
     }
 
     Object.keys(defaultSettings).forEach((key) => {
@@ -186,10 +204,10 @@ function getClientPayload(setup) {
 
 function getStats(settings) {
     const s = sanitizeSettings(settings);
-    const gripDelta = clamp((s.tractionCurveMax - s.tractionCurveMin) / 1.6, 0, 1);
-    const angleBias = clamp((s.steeringLock - 0.55) / 0.7, 0, 1);
-    const powerBias = clamp((s.initialDriveForce - 0.12) / 0.48, 0, 1);
-    const lowSpeedBias = clamp((s.lowSpeedTractionLossMult - 0.7) / 1.5, 0, 1);
+    const gripDelta = clamp((s.tractionCurveMax + s.tractionCurveMin) / 200, 0, 1);
+    const angleBias = clamp(s.steeringLock / 100, 0, 1);
+    const powerBias = clamp(s.initialDriveForce / 100, 0, 1);
+    const lowSpeedBias = clamp(s.lowSpeedTractionLossMult / 100, 0, 1);
     const stats = {
         initiation: 25 + (lowSpeedBias * 45) + (powerBias * 20),
         stability: 80 - (gripDelta * 26) + ((s.suspensionReboundDamp - 0.8) * 8),
