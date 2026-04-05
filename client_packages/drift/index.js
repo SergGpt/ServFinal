@@ -26,11 +26,11 @@ function resolveSetup(setup = {}) {
     const overpowerPct = clamp(safeNumber(source.wheelOverpower, 0), 0, 100) / 100;
     const gripLossPct = clamp(safeNumber(source.rearGripLoss, 0), 0, 100) / 100;
     return {
-        initialDriveForce: clamp(0.22 + (overpowerPct * 0.28), 0.22, 0.5),
-        driveInertia: clamp(0.95 + (overpowerPct * 0.55), 0.95, 1.5),
-        tractionCurveMin: clamp(2.0 - (gripLossPct * 0.7), 1.3, 2.0),
-        tractionCurveMax: clamp(2.35 - (gripLossPct * 0.5), 1.7, 2.35),
-        tractionBiasFront: clamp(0.50 + (gripLossPct * 0.08), 0.5, 0.58),
+        initialDriveForce: clamp(0.22 + (overpowerPct * 0.45), 0.22, 0.67),
+        driveInertia: clamp(0.95 + (overpowerPct * 0.85), 0.95, 1.8),
+        tractionCurveMin: clamp(2.0 - (gripLossPct * 1.2), 0.8, 2.0),
+        tractionCurveMax: clamp(2.35 - (gripLossPct * 1.15), 1.2, 2.35),
+        tractionBiasFront: clamp(0.50 + (gripLossPct * 0.12), 0.5, 0.62),
         overpowerLevel: overpowerPct,
         gripLossLevel: gripLossPct,
     };
@@ -119,19 +119,20 @@ function updateDriftPhysics() {
     // - срыв приходит от входа (руль+газ/ручник),
     // - при отпускании газа угол не "отрубается" мгновенно.
     const rearSlipBias = setup.gripLossLevel;
-    const basePower = setup.overpowerLevel * 0.18;
-    const intentBonus = (driftIntent || holdDrift) ? (0.1 + setup.overpowerLevel * 0.22) : 0;
-    const slipDamp = slipRatio * (0.3 + (1 - rearSlipBias) * 0.25);
+    const speedFactor = clamp((speed - 35) / 120, 0, 1);
+    const basePower = setup.overpowerLevel * (0.22 + speedFactor * 0.32);
+    const intentBonus = (driftIntent || holdDrift) ? (0.16 + setup.overpowerLevel * 0.38) : 0;
+    const slipDamp = slipRatio * (0.24 + (1 - rearSlipBias) * 0.18);
     let dynamicPower = basePower + intentBonus - slipDamp;
 
     // Не даем машине резко "тормозить двигателем" в заносе — сохраняем инерцию.
     if (throttle) dynamicPower = Math.max(dynamicPower, 0.26);
     else if (holdDrift) dynamicPower = Math.max(dynamicPower, 0.2);
     else dynamicPower = Math.max(dynamicPower, 0.1);
-    dynamicPower = clamp(dynamicPower, 0.0, 0.65);
+    dynamicPower = clamp(dynamicPower, 0.0, 1.45);
 
     vehicle.setEnginePowerMultiplier(dynamicPower);
-    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 60, 1.0, 1.1));
+    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 45, 1.0, 1.18));
 
     // "Задняя ось больше, передняя немного":
     // в RAGE MP прямого раздельного API по осям нет, поэтому реализуем мягкую аппроксимацию:
