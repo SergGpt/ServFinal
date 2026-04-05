@@ -50,11 +50,10 @@ function applyVehicleSetup(setup) {
     const handbrakePower = safeNumber(s.handbrakePower, 1);
 
     // База под стиль "JDM/Mark II": минимум вмешательства в руль, только легче сорвать заднюю ось.
-    const powerBoost = ((1 - rearGrip) * 6.5) + ((entryAggression - 39) * 0.25) + ((handbrakePower - 1) * 4);
+    const powerBoost = ((1 - rearGrip) * 2.2) + ((entryAggression - 39) * 0.12) + ((handbrakePower - 1) * 2.2);
     vehicle.setEnginePowerMultiplier(clamp(powerBoost, -2, 15));
-    vehicle.setEngineTorqueMultiplier(clamp(1 + (powerBoost / 25), 0.9, 1.45));
-    const shouldReduceGrip = Boolean(rearGrip < 0.86);
-    vehicle.setReduceGrip(shouldReduceGrip);
+    vehicle.setEngineTorqueMultiplier(clamp(1 + (powerBoost / 35), 0.95, 1.25));
+    vehicle.setReduceGrip(false);
 }
 
 function updateDriftPhysics() {
@@ -86,8 +85,8 @@ function updateDriftPhysics() {
     if (driftIntent || slipDrift) state.driftHoldUntil = Date.now() + 1400;
     const holdDrift = Date.now() < state.driftHoldUntil;
 
-    const basePower = ((1 - rearGrip) * 6.5) + ((entryAggression - 39) * 0.25);
-    const intentBonus = (driftIntent || holdDrift) ? (2.2 + (handbrakePower - 1) * 2.0) : 0;
+    const basePower = ((1 - rearGrip) * 2.2) + ((entryAggression - 39) * 0.12);
+    const intentBonus = (driftIntent || holdDrift) ? (1.8 + (handbrakePower - 1) * 1.6) : 0;
     const slipDamp = slipRatio * 1.5;
     let dynamicPower = basePower + intentBonus - slipDamp;
 
@@ -98,12 +97,12 @@ function updateDriftPhysics() {
     dynamicPower = clamp(dynamicPower, 0.1, 12);
 
     vehicle.setEnginePowerMultiplier(dynamicPower);
-    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 26, 1.0, 1.45));
+    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 32, 1.0, 1.3));
 
     const reduceGrip = Boolean(
         (handbrake && speed > 8) ||
-        (holdDrift && speed > 20 && rearGrip < 0.9) ||
-        (throttle && slipRatio > 0.18 && speed > 30 && rearGrip < 0.84)
+        (holdDrift && speed > 20) ||
+        (throttle && slipRatio > (0.2 + ((rearGrip - 0.72) * 0.08)) && speed > 30)
     );
     vehicle.setReduceGrip(reduceGrip);
 }
