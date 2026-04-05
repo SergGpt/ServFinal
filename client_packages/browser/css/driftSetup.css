@@ -1,0 +1,22 @@
+#driftSetup { position: absolute; inset: 0; pointer-events: none; }
+#driftSetup .drift-wrap { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 74vw; max-width: 1200px; background: rgba(12,14,20,.95); border: 1px solid #6d4cf3; border-radius: 12px; color: #fff; pointer-events: all; padding: 18px; font-family: Montserrat, Arial; }
+#driftSetup .drift-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+#driftSetup .drift-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+#driftSetup .drift-tabs button { background: #1d2133; color: #ddd; border: none; border-radius: 6px; padding: 8px 10px; }
+#driftSetup .drift-tabs .active { background: #6d4cf3; color: #fff; }
+#driftSetup .drift-content { display: grid; grid-template-columns: 1fr 280px; gap: 14px; }
+#driftSetup .drift-panel { background: #171b2b; border-radius: 8px; padding: 12px; min-height: 420px; }
+#driftSetup .drift-row { display: grid; grid-template-columns: 1fr 70px; gap: 8px; align-items: center; margin-bottom: 10px; }
+#driftSetup .drift-row input { grid-column: 1 / -1; }
+#driftSetup .drift-row small { opacity: .65; display:block; font-size: 11px; }
+#driftSetup .drift-stat { margin-bottom: 12px; }
+#driftSetup .drift-stat .bar { height: 8px; background:#2a3047; border-radius: 5px; overflow: hidden; }
+#driftSetup .drift-stat .fill { height: 100%; background: linear-gradient(90deg,#5c6bff,#a162ff); }
+#driftSetup .drift-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top: 10px; }
+#driftSetup button { cursor:pointer; border:none; border-radius: 6px; padding:8px 12px; }
+#driftSetup .buy { background:#5c9c42; color:#fff; }
+#driftSetup .primary { background:#6d4cf3; color:#fff; }
+#driftSetup .warn { background:#c05f3f; color:#fff; }
+#driftSetup .ghost { background:#2a3047; color:#fff; }
+#driftSetup .preset-item { display:flex; justify-content:space-between; align-items:center; background:#21263a; padding:8px; border-radius:6px; margin-bottom:6px; }
+#driftSetup .preset-item .buttons button { margin-left: 5px; }

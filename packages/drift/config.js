@@ -1,44 +1,49 @@
 "use strict";
 
 module.exports = {
-    // Список моделей авто, которые участвуют в дрифте (редактируйте под свой сервер)
-    driftVehicles: [
-        "futo",
-        "sultan",
-        "elegy",
-        "elegy2",
-        "jester",
-        "banshee",
-        "tampa",
-        "coquette",
-        "kuruma",
-        "schafter3",
+    conversionPrice: 125000,
+    maxSavedPresets: 8,
+    allowedVehicleTypes: [0],
+    blockedModels: [
+        'caddy',
+        'caddy2',
+        'caddy3',
+        'towtruck',
+        'towtruck2',
+        'tractor',
+        'ripley',
     ],
-    // Настройки дыма
-    smoke: {
-        drift: {
-            dict: "core",
-            name: "exp_grd_tire_smoke",
-            scaleMin: 0.35,
-            scaleMax: 1.1,
+    workshops: [
+        {
+            id: 1,
+            name: 'Drift Workshop LS',
+            position: { x: -337.695, y: -136.863, z: 39.009 },
+            radius: 3.0,
+            marker: {
+                type: 36,
+                color: [147, 84, 255, 180],
+                scale: 1.2,
+            },
+            blip: {
+                sprite: 72,
+                color: 58,
+                shortRange: true,
+                name: 'Drift Workshop',
+            },
         },
-        burnout: {
-            dict: "core",
-            name: "exp_grd_tire_smoke",
-            scaleMin: 0.5,
-            scaleMax: 1.3,
-        },
+    ],
+    sliderLimits: {
+        wheelOverpower: [0, 100],
+        rearGripLoss: [0, 100],
+        steeringAngle: [0, 100],
+        frontGripHighSpeed: [0, 100],
+        powerCoeff: [100, 200],
     },
-    // Минимальная скорость для дрифта (м/с)
-    speedMin: 9,
-    // Минимальный угол скольжения (градусы)
-    angleMin: 15,
-    // Максимальная скорость для бернаута (м/с)
-    burnoutSpeedMax: 4,
-    // Интервал синхронизации состояния дрифта (мс)
-    syncIntervalMs: 250,
-    // Интервал обновления дыма (мс)
-    smokeIntervalMs: 100,
-    // Включать уменьшение сцепления (drift-настройка)
-    reduceGrip: true,
+    sliderSteps: {
+        wheelOverpower: 1,
+        rearGripLoss: 1,
+        steeringAngle: 1,
+        frontGripHighSpeed: 1,
+        powerCoeff: 1,
+    },
 };
