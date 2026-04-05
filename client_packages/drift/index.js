@@ -34,8 +34,7 @@ function resolveSetup(setup = {}) {
         driveInertia: clamp(0.95 + (overpowerPct * 1.0), 0.95, 1.95),
         tractionCurveMin: clamp(2.0 - (gripLossStrong * 1.45), 0.55, 2.0),
         tractionCurveMax: clamp(2.35 - (gripLossStrong * 1.35), 1.0, 2.35),
-        tractionBiasFrontBase: clamp(0.50 + (gripLossStrong * 0.09), 0.5, 0.59),
-        tractionBiasFrontHighSpeed: clamp(0.52 + (frontGripPct * 0.13), 0.52, 0.65),
+        tractionBiasFrontBase: clamp(0.52 + (frontGripPct * 0.13), 0.52, 0.65),
         steeringLock: clamp(0.72 + (anglePct * 0.58), 0.72, 1.30),
         overpowerLevel: overpowerPct,
         gripLossLevel: gripLossStrong,
@@ -130,12 +129,8 @@ function updateDriftPhysics() {
     // - при отпускании газа угол не "отрубается" мгновенно.
     const rearSlipBias = setup.gripLossLevel;
     const speedFactor = clamp((speed - 35) / 120, 0, 1);
-    const frontGripFactor = clamp((speed - 80) / 90, 0, 1) * setup.frontGripLevel;
-    const dynamicFrontBias = clamp(
-        setup.tractionBiasFrontBase + ((setup.tractionBiasFrontHighSpeed - setup.tractionBiasFrontBase) * frontGripFactor),
-        0.5,
-        0.65
-    );
+    // Передний зацеп всегда активен, без порога по скорости.
+    const dynamicFrontBias = clamp(setup.tractionBiasFrontBase, 0.52, 0.65);
     setHandlingSafe(vehicle, 'fTractionBiasFront', dynamicFrontBias);
     const basePower = setup.overpowerLevel * (0.26 + speedFactor * 0.5) * setup.powerCoeff;
     const intentBonus = (driftIntent || holdDrift) ? (0.2 + setup.overpowerLevel * 0.55) * setup.powerCoeff : 0;
