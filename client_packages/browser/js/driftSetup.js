@@ -87,15 +87,13 @@ var driftSetup = new Vue({
         },
         calcStats(s) {
             const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
-            const gripDelta = Math.max(0, Math.min(1, ((Number(s.tractionCurveMax || 0) + Number(s.tractionCurveMin || 0)) / 200)));
-            const angleBias = Math.max(0, Math.min(1, Number(s.steeringLock || 0) / 100));
-            const powerBias = Math.max(0, Math.min(1, Number(s.initialDriveForce || 0) / 100));
-            const lowSpeedBias = Math.max(0, Math.min(1, Number(s.lowSpeedTractionLossMult || 0) / 100));
+            const powerBias = Math.max(0, Math.min(1, Number(s.wheelOverpower || 0) / 100));
+            const gripDelta = Math.max(0, Math.min(1, Number(s.rearGripLoss || 0) / 100));
             return {
-                initiation: clamp(25 + (lowSpeedBias * 45) + (powerBias * 20)),
-                stability: clamp(80 - (gripDelta * 26)),
-                angle: clamp(18 + (angleBias * 67)),
-                control: clamp(72 - (gripDelta * 18)),
+                initiation: clamp(20 + (powerBias * 50) + (gripDelta * 20)),
+                stability: clamp(92 - (gripDelta * 45)),
+                angle: clamp(15 + (powerBias * 35) + (gripDelta * 30)),
+                control: clamp(86 - (powerBias * 20) - (gripDelta * 18)),
                 aggressiveness: clamp(20 + (powerBias * 35) + (gripDelta * 40)),
             };
         },

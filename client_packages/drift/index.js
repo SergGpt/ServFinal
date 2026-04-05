@@ -23,33 +23,16 @@ function safeNumber(value, fallback = 0) {
 
 function resolveSetup(setup = {}) {
     const source = setup || {};
-    const pct = (key) => clamp(safeNumber(source[key], 0), 0, 100) / 100;
-    const steerPct = pct('steeringLock');
-    const trMaxPct = pct('tractionCurveMax');
-    const trMinPct = pct('tractionCurveMin');
-    const lowPct = pct('lowSpeedTractionLossMult');
-    const forcePct = pct('initialDriveForce');
-    const inertiaPct = pct('driveInertia');
-    const brakePct = pct('brakeBiasFront');
-    const compPct = pct('suspensionCompDamp');
-    const rebPct = pct('suspensionReboundDamp');
-    const comYPct = pct('comShiftY');
-    const comZPct = pct('comShiftZ');
-    const frontBiasPct = pct('driveBiasFront');
+    const overpowerPct = clamp(safeNumber(source.wheelOverpower, 0), 0, 100) / 100;
+    const gripLossPct = clamp(safeNumber(source.rearGripLoss, 0), 0, 100) / 100;
     return {
-        driveBiasFront: clamp(frontBiasPct * 0.2, 0.0, 0.2),
-        steeringLock: clamp(0.72 + (steerPct * 0.53), 0.72, 1.25),
-        tractionCurveMax: clamp(2.35 - (trMaxPct * 0.95), 1.4, 2.35),
-        tractionCurveMin: clamp(2.0 - (trMinPct * 1.1), 0.9, 2.0),
-        lowSpeedTractionLossMult: clamp(0.85 + (lowPct * 1.35), 0.85, 2.2),
-        initialDriveForce: clamp(0.22 + (forcePct * 0.38), 0.22, 0.6),
-        driveInertia: clamp(0.95 + (inertiaPct * 0.85), 0.95, 1.8),
-        brakeBiasFront: clamp(0.58 - (brakePct * 0.23), 0.35, 0.58),
-        suspensionCompDamp: clamp(1.0 + (compPct * 1.2), 1.0, 2.2),
-        suspensionReboundDamp: clamp(1.2 + (rebPct * 1.4), 1.2, 2.6),
-        comShiftY: clamp(comYPct * 0.4, 0.0, 0.4),
-        comShiftZ: clamp(-0.08 - (comZPct * 0.27), -0.35, -0.08),
-        rearSlipLevel: clamp(((trMaxPct + trMinPct) / 2), 0, 1),
+        initialDriveForce: clamp(0.22 + (overpowerPct * 0.28), 0.22, 0.5),
+        driveInertia: clamp(0.95 + (overpowerPct * 0.55), 0.95, 1.5),
+        tractionCurveMin: clamp(2.0 - (gripLossPct * 0.7), 1.3, 2.0),
+        tractionCurveMax: clamp(2.35 - (gripLossPct * 0.5), 1.7, 2.35),
+        tractionBiasFront: clamp(0.50 + (gripLossPct * 0.08), 0.5, 0.58),
+        overpowerLevel: overpowerPct,
+        gripLossLevel: gripLossPct,
     };
 }
 
@@ -93,24 +76,15 @@ function applyVehicleSetup(setup) {
         return;
     }
 
-    // Применяем только числовые handling-настройки, без FLAG_DRIFT_TYRES,
-    // чтобы после покупки авто не превращалось в "мыло" до ручной настройки.
-    setHandlingSafe(vehicle, 'fDriveBiasFront', s.driveBiasFront);
-    setHandlingSafe(vehicle, 'fSteeringLock', s.steeringLock);
+    // Без "чит-скольжения": не используем reduceGrip / drift tyres.
+    // Делаем срыв только через избыток мощности + уменьшение зацепа задней оси.
     setHandlingSafe(vehicle, 'fTractionCurveMax', s.tractionCurveMax);
     setHandlingSafe(vehicle, 'fTractionCurveMin', s.tractionCurveMin);
-    setHandlingSafe(vehicle, 'fLowSpeedTractionLossMult', s.lowSpeedTractionLossMult);
+    setHandlingSafe(vehicle, 'fTractionBiasFront', s.tractionBiasFront);
     setHandlingSafe(vehicle, 'fInitialDriveForce', s.initialDriveForce);
     setHandlingSafe(vehicle, 'fDriveInertia', s.driveInertia);
-    setHandlingSafe(vehicle, 'fBrakeBiasFront', s.brakeBiasFront);
-    setHandlingSafe(vehicle, 'fSuspensionCompDamp', s.suspensionCompDamp);
-    setHandlingSafe(vehicle, 'fSuspensionReboundDamp', s.suspensionReboundDamp);
-    setHandlingSafe(vehicle, 'vecCentreOfMassOffset', new mp.Vector3(0.0, s.comShiftY, s.comShiftZ));
-
-    // Slight global helper so drift remains smooth even on desynced surfaces.
-    const gripAssist = s.rearSlipLevel;
-    vehicle.setEnginePowerMultiplier(clamp(gripAssist * 0.25, 0, 0.5));
-    vehicle.setEngineTorqueMultiplier(clamp(1 + (s.driveInertia - 1.0) * 0.05, 0.95, 1.1));
+    vehicle.setEnginePowerMultiplier(0);
+    vehicle.setEngineTorqueMultiplier(1);
     vehicle.setReduceGrip(false);
 }
 
@@ -144,31 +118,26 @@ function updateDriftPhysics() {
     // - основа мягкая,
     // - срыв приходит от входа (руль+газ/ручник),
     // - при отпускании газа угол не "отрубается" мгновенно.
-    const rearSlipBias = setup.rearSlipLevel;
-    const basePower = rearSlipBias * 0.28;
-    const intentBonus = (driftIntent || holdDrift) ? (0.12 + rearSlipBias * 0.28) : 0;
-    const slipDamp = slipRatio * (0.25 + (1 - rearSlipBias) * 0.22);
+    const rearSlipBias = setup.gripLossLevel;
+    const basePower = setup.overpowerLevel * 0.18;
+    const intentBonus = (driftIntent || holdDrift) ? (0.1 + setup.overpowerLevel * 0.22) : 0;
+    const slipDamp = slipRatio * (0.3 + (1 - rearSlipBias) * 0.25);
     let dynamicPower = basePower + intentBonus - slipDamp;
 
     // Не даем машине резко "тормозить двигателем" в заносе — сохраняем инерцию.
     if (throttle) dynamicPower = Math.max(dynamicPower, 0.26);
     else if (holdDrift) dynamicPower = Math.max(dynamicPower, 0.2);
     else dynamicPower = Math.max(dynamicPower, 0.1);
-    dynamicPower = clamp(dynamicPower, 0.06, 1.35);
+    dynamicPower = clamp(dynamicPower, 0.0, 0.65);
 
     vehicle.setEnginePowerMultiplier(dynamicPower);
-    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 90, 1.0, 1.07));
+    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 60, 1.0, 1.1));
 
     // "Задняя ось больше, передняя немного":
     // в RAGE MP прямого раздельного API по осям нет, поэтому реализуем мягкую аппроксимацию:
     // reduceGrip включается только в моменты drift intent/hold и достаточно выраженного slip.
     // За счёт этого перед остаётся относительно стабильным, а срыв ощущается в основном по корме.
-    const reduceGrip = Boolean(
-        (handbrake && speed > 8) ||
-        ((driftIntent || holdDrift) && speed > 20 && slipRatio > (0.34 - rearSlipBias * 0.12)) ||
-        (throttle && speed > 34 && slipRatio > (0.52 - rearSlipBias * 0.14))
-    );
-    vehicle.setReduceGrip(reduceGrip);
+    vehicle.setReduceGrip(false);
 }
 
 function setUiState(enabled) {
