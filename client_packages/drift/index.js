@@ -25,18 +25,19 @@ function resolveSetup(setup = {}) {
     const source = setup || {};
     const overpowerPct = clamp(safeNumber(source.wheelOverpower, 0), 0, 100) / 100;
     const gripLossPct = clamp(safeNumber(source.rearGripLoss, 0), 0, 100) / 100;
+    const gripLossStrong = Math.pow(gripLossPct, 0.82);
     const anglePct = clamp(safeNumber(source.steeringAngle, 0), 0, 100) / 100;
     const frontGripPct = clamp(safeNumber(source.frontGripHighSpeed, 60), 0, 100) / 100;
     return {
         initialDriveForce: clamp(0.22 + (overpowerPct * 0.55), 0.22, 0.77),
         driveInertia: clamp(0.95 + (overpowerPct * 1.0), 0.95, 1.95),
-        tractionCurveMin: clamp(2.0 - (gripLossPct * 1.2), 0.8, 2.0),
-        tractionCurveMax: clamp(2.35 - (gripLossPct * 1.15), 1.2, 2.35),
-        tractionBiasFrontBase: clamp(0.50 + (gripLossPct * 0.07), 0.5, 0.57),
+        tractionCurveMin: clamp(2.0 - (gripLossStrong * 1.45), 0.55, 2.0),
+        tractionCurveMax: clamp(2.35 - (gripLossStrong * 1.35), 1.0, 2.35),
+        tractionBiasFrontBase: clamp(0.50 + (gripLossStrong * 0.09), 0.5, 0.59),
         tractionBiasFrontHighSpeed: clamp(0.52 + (frontGripPct * 0.13), 0.52, 0.65),
         steeringLock: clamp(0.72 + (anglePct * 0.58), 0.72, 1.30),
         overpowerLevel: overpowerPct,
-        gripLossLevel: gripLossPct,
+        gripLossLevel: gripLossStrong,
         angleLevel: anglePct,
         frontGripLevel: frontGripPct,
     };
@@ -136,7 +137,7 @@ function updateDriftPhysics() {
     setHandlingSafe(vehicle, 'fTractionBiasFront', dynamicFrontBias);
     const basePower = setup.overpowerLevel * (0.26 + speedFactor * 0.5);
     const intentBonus = (driftIntent || holdDrift) ? (0.2 + setup.overpowerLevel * 0.55) : 0;
-    const slipDamp = slipRatio * (0.24 + (1 - rearSlipBias) * 0.18);
+    const slipDamp = slipRatio * (0.18 + (1 - rearSlipBias) * 0.16);
     let dynamicPower = basePower + intentBonus - slipDamp;
 
     // Не даем машине резко "тормозить двигателем" в заносе — сохраняем инерцию.
