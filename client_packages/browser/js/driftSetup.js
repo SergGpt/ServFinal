@@ -87,13 +87,13 @@ var driftSetup = new Vue({
         },
         calcStats(s) {
             const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
-            const rearGrip = Number(s.rearGrip || 0.86);
+            const dirtPower = Number(s.dirtPower == null ? 0.35 : s.dirtPower);
             return {
-                initiation: clamp((1 - rearGrip) * 230),
-                stability: clamp(rearGrip * 100),
-                angle: clamp(((1 - rearGrip) * 145) + 30),
-                control: clamp((rearGrip * 75) + 10),
-                aggressiveness: clamp((1 - rearGrip) * 260),
+                initiation: clamp(35 + (dirtPower * 65)),
+                stability: clamp(88 - (dirtPower * 42)),
+                angle: clamp(25 + (dirtPower * 70)),
+                control: clamp(82 - (dirtPower * 28)),
+                aggressiveness: clamp(20 + (dirtPower * 75)),
             };
         },
         inRange(key, value) {

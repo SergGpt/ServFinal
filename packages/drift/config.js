@@ -33,9 +33,9 @@ module.exports = {
         },
     ],
     sliderLimits: {
-        rearGrip: [0.72, 1.0],
+        dirtPower: [0.0, 1.0],
     },
     sliderSteps: {
-        rearGrip: 0.0005,
+        dirtPower: 0.01,
     },
 };

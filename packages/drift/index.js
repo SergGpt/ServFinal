@@ -5,13 +5,13 @@ const notifications = call('notifications');
 let workshops = [];
 
 const defaultSettings = {
-    rearGrip: 0.86,
+    dirtPower: 0.35,
 };
 
 const builtinPresets = {
-    'Street Drift': { rearGrip: 0.90 },
-    'Balance Drift': { rearGrip: 0.86 },
-    'Pro Drift': { rearGrip: 0.82 },
+    'Street Drift': { dirtPower: 0.28 },
+    'Balance Drift': { dirtPower: 0.35 },
+    'Pro Drift': { dirtPower: 0.48 },
 };
 
 function clamp(value, min, max) {
@@ -36,9 +36,19 @@ function sanitizeSettings(payload = {}) {
     const sanitized = { ...defaultSettings };
     const limits = config.sliderLimits;
     const steps = config.sliderSteps || {};
+    const normalizedPayload = { ...(payload || {}) };
+
+    // Backward compatibility for old DB/UI payloads where only rearGrip existed.
+    if (normalizedPayload.dirtPower == null && normalizedPayload.rearGrip != null) {
+        const rearGrip = Number(normalizedPayload.rearGrip);
+        if (Number.isFinite(rearGrip)) {
+            const mapped = clamp((1 - rearGrip) / 0.28, 0, 1);
+            normalizedPayload.dirtPower = mapped;
+        }
+    }
 
     Object.keys(defaultSettings).forEach((key) => {
-        const value = Number(payload[key]);
+        const value = Number(normalizedPayload[key]);
         const [min, max] = limits[key] || [defaultSettings[key], defaultSettings[key]];
         if (!Number.isFinite(value)) {
             sanitized[key] = clamp(defaultSettings[key], min, max);
@@ -139,11 +149,11 @@ function getClientPayload(setup) {
 function getStats(settings) {
     const s = sanitizeSettings(settings);
     const stats = {
-        initiation: (1 - s.rearGrip) * 230,
-        stability: s.rearGrip * 100,
-        angle: ((1 - s.rearGrip) * 145) + 30,
-        control: (s.rearGrip * 75) + 10,
-        aggressiveness: (1 - s.rearGrip) * 260,
+        initiation: 35 + (s.dirtPower * 65),
+        stability: 88 - (s.dirtPower * 42),
+        angle: 25 + (s.dirtPower * 70),
+        control: 82 - (s.dirtPower * 28),
+        aggressiveness: 20 + (s.dirtPower * 75),
     };
 
     Object.keys(stats).forEach((key) => {

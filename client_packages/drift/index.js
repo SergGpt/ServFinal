@@ -21,6 +21,16 @@ function safeNumber(value, fallback = 0) {
     return Number.isFinite(numeric) ? numeric : fallback;
 }
 
+function resolveDirtPower(setup) {
+    if (!setup) return 0.35;
+    if (setup.dirtPower != null) return clamp(safeNumber(setup.dirtPower, 0.35), 0, 1);
+    if (setup.rearGrip != null) {
+        const rearGrip = safeNumber(setup.rearGrip, 0.86);
+        return clamp((1 - rearGrip) / 0.28, 0, 1);
+    }
+    return 0.35;
+}
+
 function getCurrentVehicle() {
     const player = mp.players.local;
     if (!player || !player.vehicle) return null;
@@ -44,12 +54,11 @@ function applyVehicleSetup(setup) {
     const vehicle = getCurrentVehicle();
     if (!vehicle || !setup) return;
 
-    const rearGrip = safeNumber(setup.rearGrip, 0.86);
-    // Регулируем именно "зацеп колес с дорогой": меньше rearGrip = легче сорвать, больше rearGrip = больше тяги в зацеп.
-    const gripDelta = clamp(0.88 - rearGrip, -0.08, 0.16);
-    const powerBoost = gripDelta * 4.2;
-    vehicle.setEnginePowerMultiplier(clamp(powerBoost, -0.9, 4.2));
-    vehicle.setEngineTorqueMultiplier(clamp(1 + (powerBoost / 45), 0.99, 1.12));
+    const dirtPower = resolveDirtPower(setup);
+    // Базовый эффект "как по грунту", но мягкий: без резкого срыва на ровном газу.
+    const basePower = 0.12 + (dirtPower * 0.32);
+    vehicle.setEnginePowerMultiplier(clamp(basePower, 0.1, 1.25));
+    vehicle.setEngineTorqueMultiplier(clamp(1.0 + (dirtPower * 0.03), 1.0, 1.08));
     vehicle.setReduceGrip(false);
 }
 
@@ -70,7 +79,7 @@ function updateDriftPhysics() {
     const throttle = mp.game.controls.isControlPressed(0, 71);
     const handbrake = mp.game.controls.isControlPressed(0, 76);
 
-    const rearGrip = safeNumber(s.rearGrip, 0.86);
+    const dirtPower = resolveDirtPower(s);
     const steerIntent = Math.abs(steer) > 0;
     const canInitiate = speed > 18 && steerIntent && throttle;
     const handbrakeKick = handbrake && speed > 10;
@@ -79,25 +88,32 @@ function updateDriftPhysics() {
     if (driftIntent || slipDrift) state.driftHoldUntil = Date.now() + 1400;
     const holdDrift = Date.now() < state.driftHoldUntil;
 
-    const gripDelta = clamp(0.88 - rearGrip, -0.08, 0.16);
-    const basePower = gripDelta * 4.2;
-    const intentBonus = (driftIntent || holdDrift) ? 0.55 : 0;
-    const slipDamp = slipRatio * 0.95;
+    // Эффект скольжения как на рыхлой поверхности:
+    // - основа мягкая,
+    // - срыв приходит от входа (руль+газ/ручник),
+    // - при отпускании газа угол не "отрубается" мгновенно.
+    const basePower = 0.1 + (dirtPower * 0.3);
+    const intentBonus = (driftIntent || holdDrift) ? (0.22 + dirtPower * 0.42) : 0;
+    const slipDamp = slipRatio * (0.34 + dirtPower * 0.22);
     let dynamicPower = basePower + intentBonus - slipDamp;
 
     // Не даем машине резко "тормозить двигателем" в заносе — сохраняем инерцию.
-    if (throttle) dynamicPower = Math.max(dynamicPower, 0.25);
-    else if (holdDrift) dynamicPower = Math.max(dynamicPower, 0.18);
+    if (throttle) dynamicPower = Math.max(dynamicPower, 0.26);
+    else if (holdDrift) dynamicPower = Math.max(dynamicPower, 0.2);
     else dynamicPower = Math.max(dynamicPower, 0.1);
-    dynamicPower = clamp(dynamicPower, 0.12, 4.6);
+    dynamicPower = clamp(dynamicPower, 0.1, 1.65);
 
     vehicle.setEnginePowerMultiplier(dynamicPower);
-    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 48, 1.0, 1.11));
+    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 90, 1.0, 1.07));
 
+    // "Задняя ось больше, передняя немного":
+    // в RAGE MP прямого раздельного API по осям нет, поэтому реализуем мягкую аппроксимацию:
+    // reduceGrip включается только в моменты drift intent/hold и достаточно выраженного slip.
+    // За счёт этого перед остаётся относительно стабильным, а срыв ощущается в основном по корме.
     const reduceGrip = Boolean(
         (handbrake && speed > 8) ||
-        (holdDrift && rearGrip <= 0.84 && speed > 24 && slipRatio > 0.32) ||
-        (throttle && rearGrip <= 0.82 && slipRatio > 0.42 && speed > 38)
+        ((driftIntent || holdDrift) && speed > 20 && slipRatio > (0.27 - dirtPower * 0.08)) ||
+        (throttle && speed > 34 && slipRatio > (0.48 - dirtPower * 0.1))
     );
     vehicle.setReduceGrip(reduceGrip);
 }
