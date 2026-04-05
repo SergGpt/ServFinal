@@ -8,17 +8,18 @@ const defaultSettings = {
     wheelOverpower: 0,
     rearGripLoss: 0,
     steeringAngle: 0,
+    frontGripHighSpeed: 60,
 };
 
 const builtinPresets = {
     'Street Drift': {
-        wheelOverpower: 24, rearGripLoss: 18, steeringAngle: 20,
+        wheelOverpower: 24, rearGripLoss: 18, steeringAngle: 20, frontGripHighSpeed: 55,
     },
     'Balance Drift': {
-        wheelOverpower: 45, rearGripLoss: 36, steeringAngle: 42,
+        wheelOverpower: 45, rearGripLoss: 36, steeringAngle: 42, frontGripHighSpeed: 62,
     },
     'Pro Drift': {
-        wheelOverpower: 72, rearGripLoss: 60, steeringAngle: 75,
+        wheelOverpower: 72, rearGripLoss: 60, steeringAngle: 75, frontGripHighSpeed: 70,
     },
 };
 
@@ -76,6 +77,9 @@ function sanitizeSettings(payload = {}) {
     }
     if (normalizedPayload.steeringAngle == null && normalizedPayload.steeringLock != null) {
         normalizedPayload.steeringAngle = clamp(Number(normalizedPayload.steeringLock), 0, 100);
+    }
+    if (normalizedPayload.frontGripHighSpeed == null && normalizedPayload.tractionBiasFront != null) {
+        normalizedPayload.frontGripHighSpeed = clamp(Number(normalizedPayload.tractionBiasFront), 0, 100);
     }
 
     Object.keys(defaultSettings).forEach((key) => {
@@ -183,11 +187,12 @@ function getStats(settings) {
     const powerBias = clamp(s.wheelOverpower / 100, 0, 1);
     const gripDelta = clamp(s.rearGripLoss / 100, 0, 1);
     const angleBias = clamp(s.steeringAngle / 100, 0, 1);
+    const frontGripBias = clamp(s.frontGripHighSpeed / 100, 0, 1);
     const stats = {
         initiation: 20 + (powerBias * 50) + (gripDelta * 20),
-        stability: 92 - (gripDelta * 45),
+        stability: 70 - (gripDelta * 40) + (frontGripBias * 30),
         angle: 15 + (powerBias * 20) + (gripDelta * 20) + (angleBias * 45),
-        control: 86 - (powerBias * 20) - (gripDelta * 18) + (angleBias * 10),
+        control: 70 - (powerBias * 20) - (gripDelta * 18) + (angleBias * 10) + (frontGripBias * 30),
         aggressiveness: 20 + (powerBias * 35) + (gripDelta * 40),
     };
 

@@ -36,10 +36,12 @@ module.exports = {
         wheelOverpower: [0, 100],
         rearGripLoss: [0, 100],
         steeringAngle: [0, 100],
+        frontGripHighSpeed: [0, 100],
     },
     sliderSteps: {
         wheelOverpower: 1,
         rearGripLoss: 1,
         steeringAngle: 1,
+        frontGripHighSpeed: 1,
     },
 };

@@ -26,16 +26,19 @@ function resolveSetup(setup = {}) {
     const overpowerPct = clamp(safeNumber(source.wheelOverpower, 0), 0, 100) / 100;
     const gripLossPct = clamp(safeNumber(source.rearGripLoss, 0), 0, 100) / 100;
     const anglePct = clamp(safeNumber(source.steeringAngle, 0), 0, 100) / 100;
+    const frontGripPct = clamp(safeNumber(source.frontGripHighSpeed, 60), 0, 100) / 100;
     return {
         initialDriveForce: clamp(0.22 + (overpowerPct * 0.55), 0.22, 0.77),
         driveInertia: clamp(0.95 + (overpowerPct * 1.0), 0.95, 1.95),
         tractionCurveMin: clamp(2.0 - (gripLossPct * 1.2), 0.8, 2.0),
         tractionCurveMax: clamp(2.35 - (gripLossPct * 1.15), 1.2, 2.35),
-        tractionBiasFront: clamp(0.50 + (gripLossPct * 0.12), 0.5, 0.62),
+        tractionBiasFrontBase: clamp(0.50 + (gripLossPct * 0.07), 0.5, 0.57),
+        tractionBiasFrontHighSpeed: clamp(0.52 + (frontGripPct * 0.13), 0.52, 0.65),
         steeringLock: clamp(0.72 + (anglePct * 0.58), 0.72, 1.30),
         overpowerLevel: overpowerPct,
         gripLossLevel: gripLossPct,
         angleLevel: anglePct,
+        frontGripLevel: frontGripPct,
     };
 }
 
@@ -83,7 +86,7 @@ function applyVehicleSetup(setup) {
     // Делаем срыв только через избыток мощности + уменьшение зацепа задней оси.
     setHandlingSafe(vehicle, 'fTractionCurveMax', s.tractionCurveMax);
     setHandlingSafe(vehicle, 'fTractionCurveMin', s.tractionCurveMin);
-    setHandlingSafe(vehicle, 'fTractionBiasFront', s.tractionBiasFront);
+    setHandlingSafe(vehicle, 'fTractionBiasFront', s.tractionBiasFrontBase);
     setHandlingSafe(vehicle, 'fInitialDriveForce', s.initialDriveForce);
     setHandlingSafe(vehicle, 'fDriveInertia', s.driveInertia);
     setHandlingSafe(vehicle, 'fSteeringLock', s.steeringLock);
@@ -124,6 +127,13 @@ function updateDriftPhysics() {
     // - при отпускании газа угол не "отрубается" мгновенно.
     const rearSlipBias = setup.gripLossLevel;
     const speedFactor = clamp((speed - 35) / 120, 0, 1);
+    const frontGripFactor = clamp((speed - 80) / 90, 0, 1) * setup.frontGripLevel;
+    const dynamicFrontBias = clamp(
+        setup.tractionBiasFrontBase + ((setup.tractionBiasFrontHighSpeed - setup.tractionBiasFrontBase) * frontGripFactor),
+        0.5,
+        0.65
+    );
+    setHandlingSafe(vehicle, 'fTractionBiasFront', dynamicFrontBias);
     const basePower = setup.overpowerLevel * (0.26 + speedFactor * 0.5);
     const intentBonus = (driftIntent || holdDrift) ? (0.2 + setup.overpowerLevel * 0.55) : 0;
     const slipDamp = slipRatio * (0.24 + (1 - rearSlipBias) * 0.18);
