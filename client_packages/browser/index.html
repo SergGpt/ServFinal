@@ -38,6 +38,7 @@
     <link rel="stylesheet" type="text/css" href="css/fishing.css"/>
     <link rel="stylesheet" type="text/css" href="css/materialsTimer.css"/>
     <link rel="stylesheet" type="text/css" href="css/gungame.css"/>
+    <link rel="stylesheet" type="text/css" href="css/driftSetup.css"/>
     <script src="js/main.js"></script>
 
     <!-- development version, includes helpful console warnings -->
@@ -3227,6 +3228,79 @@
         </div>
     </div>
 
+    <div id="driftSetup" v-if="show">
+        <div class="drift-wrap">
+            <div class="drift-header">
+                <div>
+                    <div class="text-h3">Drift Setup — {{ vehicleName }}</div>
+                    <div class="text-small">Активный билд: {{ activePreset }}</div>
+                </div>
+                <button class="ghost" @click="closeUi">Close</button>
+            </div>
+            <div class="drift-tabs">
+                <button v-for="item in tabs" :key="item" :class="{ active: tab === item }" @click="tab = item">{{ item }}</button>
+            </div>
+            <div class="drift-content">
+                <div class="drift-panel">
+                    <div v-if="!conversionInstalled">
+                        <p>На этот автомобиль еще не установлен drift conversion.</p>
+                        <button class="buy" @click="purchase">Купить conversion за ${{ conversionPrice }}</button>
+                    </div>
+                    <div v-else>
+                        <div v-if="tab === 'Presets'">
+                            <div class="drift-row">
+                                <div><strong>Load preset</strong><small>Загрузите встроенный или сохраненный билд</small></div>
+                                <select v-model="selectedPreset">
+                                    <option v-for="name in presetOptions()" :key="name" :value="name">{{ name }}</option>
+                                </select>
+                            </div>
+                            <div class="drift-actions">
+                                <button class="primary" @click="loadPreset">Load preset</button>
+                                <button class="primary" @click="apply">Apply</button>
+                            </div>
+                            <div style="margin-top: 12px;">
+                                <div class="drift-row">
+                                    <div><strong>Save preset</strong><small>Сохраните текущую конфигурацию для этой машины</small></div>
+                                    <input type="text" v-model="newPresetName" maxlength="32" placeholder="Название билда" />
+                                </div>
+                                <button class="primary" @click="savePreset">Save preset</button>
+                            </div>
+                            <div style="margin-top: 12px;">
+                                <div class="preset-item" v-for="preset in customPresets" :key="preset.name">
+                                    <div>{{ preset.name }}</div>
+                                    <div class="buttons">
+                                        <button class="ghost" @click="renamePreset(preset.name)">Rename</button>
+                                        <button class="warn" @click="deletePreset(preset.name)">Delete</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else-if="tab === 'Suspension'" v-html="slider('suspensionFrontStiffness','Front suspension stiffness','Жесткость передней оси') + slider('suspensionRearStiffness','Rear suspension stiffness','Жесткость задней оси') + slider('suspensionFrontHeight','Front ride height','Высота передней части') + slider('suspensionRearHeight','Rear ride height','Высота задней части')"></div>
+                        <div v-else-if="tab === 'Steering'" v-html="slider('steeringAngle','Max steering angle','Максимальный угол поворота') + slider('steeringResponse','Steering response','Скорость реакции рулевого') + slider('counterSteerAssist','Counter-steer assist','Помощь контр-рулению')"></div>
+                        <div v-else-if="tab === 'Grip'" v-html="slider('frontGrip','Front grip multiplier','Сцепление передней оси') + slider('rearGrip','Rear grip multiplier','Сцепление задней оси') + slider('slipFactor','Drift slip factor','Коэффициент скольжения')"></div>
+                        <div v-else-if="tab === 'Transmission'" v-html="slider('torqueResponse','Torque response','Отклик тяги') + slider('finalDriveBias','Final drive bias','Поведение главной пары') + slider('differentialLock','Differential lock','Блокировка дифференциала')"></div>
+                        <div v-else-if="tab === 'Brakes'" v-html="slider('brakeBias','Brake force bias','Баланс тормозного усилия') + slider('handbrakePower','Handbrake power','Сила ручника') + slider('handbrakeResponse','Handbrake response','Отклик ручника')"></div>
+                        <div v-else-if="tab === 'Balance'" v-html="slider('frontRearBalance','Front/rear balance bias','Смещение баланса веса') + slider('bodyRotationHelp','Body rotation help','Помощь ротации кузова') + slider('stabilityBias','Stability bias','Стабильность')"></div>
+                        <div v-else-if="tab === 'Assist'" v-html="slider('driftAssist','Drift assist','Общий drift assist') + slider('beginnerAssist','Beginner stability assist','Поддержка для новичков') + slider('throttleSmoothing','Throttle smoothing','Сглаживание газа')"></div>
+
+                        <div class="drift-actions">
+                            <button class="primary" @click="apply">Apply</button>
+                            <button class="ghost" @click="preview">Preview</button>
+                            <button class="warn" @click="reset">Reset</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="drift-panel">
+                    <div class="drift-stat" v-for="(value, name) in stats" :key="name">
+                        <div>{{ name }} — {{ value }}%</div>
+                        <div class="bar"><div class="fill" :style="{ width: value + '%' }"></div></div>
+                    </div>
+                    <p class="text-small">Подсказка: для тандема повышайте stability и control, для больших углов — angle и aggressiveness.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.1.2/howler.core.min.js"
             integrity="sha256-q2vnVvwrx3RbYXPyAwx7c2npmULQg2VdCXBoJ5+iigs=" crossorigin="anonymous"></script>
 
@@ -3278,6 +3352,7 @@
     <script src="js/materialsTimer.js"></script>
     <script src="js/gungame.js"></script>
     <script src="js/factions.js"></script>
+    <script src="js/driftSetup.js"></script>
 </body>
 
 </html>

@@ -1,264 +1,184 @@
 "use strict";
 
-const defaultConfig = {
-    driftVehicles: [],
-    smoke: {
-        drift: {
-            dict: "core",
-            name: "exp_grd_tire_smoke",
-            scaleMin: 0.35,
-            scaleMax: 1.1,
-        },
-        burnout: {
-            dict: "core",
-            name: "exp_grd_tire_smoke",
-            scaleMin: 0.5,
-            scaleMax: 1.3,
-        },
-    },
-    speedMin: 9,
-    angleMin: 15,
-    burnoutSpeedMax: 4,
-    syncIntervalMs: 250,
-    smokeIntervalMs: 100,
-    reduceGrip: true,
-};
+const LOCAL_KEY = 0x45;
+const busyName = 'driftSetup';
 
 const state = {
-    config: { ...defaultConfig },
-    driftVehicleHashes: new Set(),
-    lastSyncAt: 0,
-    lastSent: { active: false, mode: null, scale: 0 },
-    smokeByVehicle: new Map(),
-    lastVehicle: null,
+    isNearWorkshop: false,
+    uiOpen: false,
+    currentVehicleSetup: null,
+    appliedVehicleId: null,
 };
-
-const wheelBones = ["wheel_lf", "wheel_rf", "wheel_lr", "wheel_rr"];
-
-mp.events.add("drift.config", (config) => {
-    state.config = {
-        ...defaultConfig,
-        ...config,
-        smoke: {
-            ...defaultConfig.smoke,
-            ...(config?.smoke || {}),
-        },
-    };
-    state.driftVehicleHashes.clear();
-    (state.config.driftVehicles || []).forEach((model) => {
-        state.driftVehicleHashes.add(mp.game.joaat(model));
-    });
-});
 
 function clamp(value, min, max) {
-    return Math.min(Math.max(value, min), max);
+    return Math.max(min, Math.min(max, value));
 }
 
-function getVehicleKey(vehicle) {
-    return vehicle?.remoteId ?? vehicle?.id ?? vehicle?.handle;
+function safeNumber(value, fallback = 0) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
 }
 
-function isEligibleVehicle(vehicle) {
-    if (!vehicle || !mp.vehicles.exists(vehicle)) return false;
-    return state.driftVehicleHashes.has(vehicle.model);
-}
-
-function getSlipAngle(vehicle) {
-    const velocity = mp.game.entity.getEntityVelocity(vehicle.handle);
-    const speed = Math.sqrt((velocity.x ** 2) + (velocity.y ** 2));
-    if (speed < 0.1) return 0;
-
-    const heading = mp.game.entity.getEntityHeading(vehicle.handle) * (Math.PI / 180);
-    const forward = { x: Math.sin(heading), y: Math.cos(heading) };
-    const dot = (forward.x * velocity.x + forward.y * velocity.y) / speed;
-    const angle = Math.acos(clamp(dot, -1, 1)) * (180 / Math.PI);
-
-    return angle;
-}
-
-function detectMode(vehicle, speed) {
-    const isAccel = mp.game.controls.isControlPressed(0, 71);
-    const isBrake = mp.game.controls.isControlPressed(0, 72);
-    const isHandbrake = mp.game.controls.isControlPressed(0, 76);
-    if (speed <= state.config.burnoutSpeedMax && isAccel && (isBrake || isHandbrake)) {
-        return "burnout";
-    }
-
-    const angle = getSlipAngle(vehicle);
-    if (speed >= state.config.speedMin && angle >= state.config.angleMin) {
-        return "drift";
-    }
-
-    return null;
-}
-
-function getScaleForSpeed(mode, speed) {
-    const smokeConfig = state.config.smoke[mode];
-    if (!smokeConfig) return 1;
-    const maxSpeed = state.config.speedMin * 2;
-    const normalized = clamp(speed / Math.max(maxSpeed, 1), 0, 1);
-    return smokeConfig.scaleMin + ((smokeConfig.scaleMax - smokeConfig.scaleMin) * normalized);
-}
-
-function applyReduceGrip(vehicle, shouldApply) {
-    if (!vehicle || !mp.vehicles.exists(vehicle)) return;
-    vehicle.setReduceGrip(shouldApply);
-}
-
-function ensureAssetLoaded(dict) {
-    if (mp.game.streaming.hasNamedPtfxAssetLoaded(dict)) return true;
-    mp.game.streaming.requestNamedPtfxAsset(dict);
-    return false;
-}
-
-function startSmoke(vehicle, mode, scale) {
-    const smokeConfig = state.config.smoke[mode];
-    if (!smokeConfig) return null;
-    if (!ensureAssetLoaded(smokeConfig.dict)) return null;
-
-    const handles = [];
-    wheelBones.forEach((boneName) => {
-        const boneIndex = vehicle.getBoneIndexByName(boneName);
-        if (boneIndex === -1) return;
-        mp.game.graphics.setPtfxAssetNextCall(smokeConfig.dict);
-        const handle = mp.game.graphics.startParticleFxLoopedOnEntityBone(
-            smokeConfig.name,
-            vehicle.handle,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            boneIndex,
-            scale,
-            false,
-            false,
-            false,
-        );
-        handles.push(handle);
-    });
-
-    return handles;
-}
-
-function stopSmoke(vehicleKey) {
-    const current = state.smokeByVehicle.get(vehicleKey);
-    if (!current) return;
-    current.handles.forEach((handle) => {
-        mp.game.graphics.stopParticleFxLooped(handle, false);
-    });
-    state.smokeByVehicle.delete(vehicleKey);
-}
-
-function updateSmoke(vehicle, driftState) {
-    const vehicleKey = getVehicleKey(vehicle);
-    if (!driftState?.active) {
-        stopSmoke(vehicleKey);
-        return;
-    }
-
-    const mode = driftState.mode === "burnout" ? "burnout" : "drift";
-    const scale = clamp(Number(driftState.scale) || 1, 0.1, 2);
-    const existing = state.smokeByVehicle.get(vehicleKey);
-    if (!existing || existing.mode !== mode) {
-        stopSmoke(vehicleKey);
-        const handles = startSmoke(vehicle, mode, scale);
-        if (!handles || handles.length === 0) return;
-        state.smokeByVehicle.set(vehicleKey, { mode, handles, scale });
-        return;
-    }
-
-    if (Math.abs(existing.scale - scale) > 0.05) {
-        existing.handles.forEach((handle) => {
-            mp.game.graphics.setParticleFxLoopedScale(handle, scale);
-        });
-        existing.scale = scale;
-    }
-}
-
-function syncStateIfNeeded(nextState) {
-    const now = Date.now();
-    const lastSent = state.lastSent;
-    const scaleDiff = Math.abs((nextState.scale || 0) - (lastSent.scale || 0));
-    if (
-        nextState.active === lastSent.active &&
-        nextState.mode === lastSent.mode &&
-        scaleDiff < 0.05
-    ) {
-        return;
-    }
-    if (now - state.lastSyncAt < state.config.syncIntervalMs) return;
-
-    mp.events.callRemote("drift.state.update", nextState.active, nextState.mode, nextState.scale);
-    state.lastSent = { ...nextState };
-    state.lastSyncAt = now;
-}
-
-function updateLocalState() {
+function getCurrentVehicle() {
     const player = mp.players.local;
+    if (!player || !player.vehicle) return null;
     const vehicle = player.vehicle;
-    if (!vehicle || vehicle.getPedInSeat(-1) !== player.handle) {
-        if (state.lastVehicle) {
-            applyReduceGrip(state.lastVehicle, false);
-            state.lastVehicle = null;
-        }
-        syncStateIfNeeded({ active: false, mode: null, scale: 0 });
-        return;
-    }
-
-    const eligible = isEligibleVehicle(vehicle);
-    if (state.lastVehicle && state.lastVehicle !== vehicle) {
-        applyReduceGrip(state.lastVehicle, false);
-    }
-    state.lastVehicle = vehicle;
-    applyReduceGrip(vehicle, eligible && state.config.reduceGrip);
-
-    if (!eligible) {
-        syncStateIfNeeded({ active: false, mode: null, scale: 0 });
-        updateSmoke(vehicle, { active: false });
-        return;
-    }
-
-    const speed = mp.game.entity.getEntitySpeed(vehicle.handle);
-    const mode = detectMode(vehicle, speed);
-    const active = Boolean(mode);
-    const scale = active ? getScaleForSpeed(mode, speed) : 0;
-
-    const nextState = { active, mode, scale };
-    syncStateIfNeeded(nextState);
-    updateSmoke(vehicle, nextState);
+    if (vehicle.getPedInSeat(-1) !== player.handle) return null;
+    return vehicle;
 }
 
-function updateRemoteSmoke() {
-    const activeVehicles = new Set();
-    mp.vehicles.forEachInStreamRange((vehicle) => {
-        if (!vehicle || !mp.vehicles.exists(vehicle)) return;
-        const vehicleKey = getVehicleKey(vehicle);
-        activeVehicles.add(vehicleKey);
-        if (vehicle === mp.players.local.vehicle) return;
-        const driftState = vehicle.getVariable("drift:state");
-        updateSmoke(vehicle, driftState);
-    });
+function getBalanceFactor(settings) {
+    const bias = safeNumber(settings.frontRearBalance, 0);
+    return {
+        front: clamp(1 + (bias * 0.25), 0.8, 1.2),
+        rear: clamp(1 - (bias * 0.25), 0.8, 1.2),
+    };
+}
 
-    for (const vehicleKey of state.smokeByVehicle.keys()) {
-        if (!activeVehicles.has(vehicleKey)) {
-            stopSmoke(vehicleKey);
-        }
+function applyVehicleSetup(setup) {
+    const vehicle = getCurrentVehicle();
+    if (!vehicle || !setup) return;
+
+    const s = setup;
+    const balance = getBalanceFactor(s);
+
+    vehicle.setEnginePowerMultiplier((safeNumber(s.torqueResponse, 1) - 1) * 85);
+    vehicle.setBrakePower(clamp(safeNumber(s.handbrakePower, 1) * 1.1, 0.5, 2));
+
+    mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fSteeringLock', safeNumber(s.steeringAngle, 40));
+    mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fSteeringCurve', clamp(safeNumber(s.steeringResponse, 1), 0.4, 2));
+
+    mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fTractionCurveMax', clamp((safeNumber(s.frontGrip, 0.9) * balance.front), 0.55, 2));
+    mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fTractionCurveMin', clamp((safeNumber(s.rearGrip, 0.8) * balance.rear), 0.45, 1.7));
+    mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fLowSpeedTractionLossMult', clamp(safeNumber(s.slipFactor, 1), 0.5, 2.5));
+
+    mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fSuspensionForce', clamp((safeNumber(s.suspensionFrontStiffness, 1) + safeNumber(s.suspensionRearStiffness, 1)) / 2, 0.5, 2));
+    mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fSuspensionRaise', clamp((safeNumber(s.suspensionFrontHeight, 0) + safeNumber(s.suspensionRearHeight, 0)) / 2, -0.12, 0.12));
+
+    mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fInitialDriveForce', clamp(0.26 * safeNumber(s.finalDriveBias, 1) * safeNumber(s.torqueResponse, 1), 0.12, 0.5));
+    mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fDriveInertia', clamp(1.0 + ((safeNumber(s.differentialLock, 0.5) - 0.5) * 0.8), 0.65, 1.5));
+
+    mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fBrakeBiasFront', clamp(safeNumber(s.brakeBias, 0.6), 0.3, 0.8));
+    mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fHandBrakeForce', clamp(safeNumber(s.handbrakePower, 1) * safeNumber(s.handbrakeResponse, 1), 0.5, 2.2));
+
+    mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fTractionBiasFront', clamp(0.48 + (safeNumber(s.stabilityBias, 0.5) - 0.5) * 0.14, 0.35, 0.63));
+    mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fTractionSpringDeltaMax', clamp(0.12 + safeNumber(s.bodyRotationHelp, 0.5) * 0.25, 0.08, 0.42));
+
+    vehicle.setReduceGrip(safeNumber(s.driftAssist, 1) > 0.05);
+}
+
+function setUiState(enabled) {
+    state.uiOpen = enabled;
+    if (enabled) {
+        mp.busy.add(busyName, true);
+        mp.events.call('hud.enable', false);
+        mp.game.ui.displayRadar(false);
+    } else {
+        mp.busy.remove(busyName);
+        mp.events.call('hud.enable', true);
+        mp.game.ui.displayRadar(true);
     }
 }
 
-const runDriftTick = () => {
-    try {
-        updateLocalState();
-        updateRemoteSmoke();
-    } catch (err) {
-        // защита от редких ошибок в стриме
-    }
-};
+mp.keys.bind(LOCAL_KEY, true, () => {
+    if (mp.busy.includes() && !mp.busy.includes(busyName)) return;
+    if (!state.isNearWorkshop || state.uiOpen) return;
+    mp.events.callRemote('drift.workshop.interact');
+});
 
-if (mp.timer && typeof mp.timer.addInterval === 'function') {
-    mp.timer.addInterval(runDriftTick, state.config.smokeIntervalMs);
-} else {
-    setInterval(runDriftTick, state.config.smokeIntervalMs);
-}
+mp.events.add('drift.workshop.enter', () => {
+    state.isNearWorkshop = true;
+});
+
+mp.events.add('drift.workshop.exit', () => {
+    state.isNearWorkshop = false;
+    if (!state.uiOpen) mp.events.call('prompt.hide');
+});
+
+mp.events.add('drift.ui.open', (payload) => {
+    state.currentVehicleSetup = payload;
+    setUiState(true);
+    mp.callCEFV(`driftSetup.open(${JSON.stringify(payload)})`);
+});
+
+mp.events.add('drift.setup.purchase.ans', (success, payload) => {
+    if (!state.uiOpen) return;
+    if (success && payload) {
+        state.currentVehicleSetup = { ...state.currentVehicleSetup, ...payload };
+        mp.callCEFV(`driftSetup.onConversionPurchased(${JSON.stringify(payload)})`);
+        applyVehicleSetup(payload.settings);
+    }
+});
+
+mp.events.add('drift.setup.sync', (payload) => {
+    if (!payload) return;
+    state.currentVehicleSetup = {
+        ...(state.currentVehicleSetup || {}),
+        ...payload,
+    };
+    if (payload.settings) applyVehicleSetup(payload.settings);
+    if (state.uiOpen) mp.callCEFV(`driftSetup.onServerSync(${JSON.stringify(payload)})`);
+});
+
+mp.events.add('drift.preset.list', (list) => {
+    if (!state.uiOpen) return;
+    mp.callCEFV(`driftSetup.customPresets = ${JSON.stringify(list || [])}`);
+});
+
+mp.events.add('drift.vehicle.state', (payload) => {
+    if (!payload) return;
+    state.appliedVehicleId = payload.vehicleId;
+    applyVehicleSetup(payload.settings);
+});
+
+mp.events.add('playerExitVehicle', () => {
+    state.appliedVehicleId = null;
+});
+
+mp.events.add('drift.setup.action', (action, payloadRaw) => {
+    if (!action) return;
+
+    let payload = null;
+    if (typeof payloadRaw === 'string' && payloadRaw.length > 0) {
+        try { payload = JSON.parse(payloadRaw); } catch (_) { payload = null; }
+    }
+
+    switch (action) {
+        case 'close':
+            setUiState(false);
+            mp.callCEFV('driftSetup.close()');
+            mp.events.callRemote('drift.ui.close');
+            return;
+        case 'purchase':
+            mp.events.callRemote('drift.setup.purchase');
+            return;
+        case 'apply':
+            mp.events.callRemote('drift.setup.apply', payload || {});
+            if (payload) applyVehicleSetup(payload);
+            return;
+        case 'reset':
+            mp.events.callRemote('drift.setup.reset');
+            return;
+        case 'savePreset':
+            if (!payload) return;
+            mp.events.callRemote('drift.preset.save', payload.name, payload.settings || {});
+            return;
+        case 'loadPreset':
+            if (!payload) return;
+            mp.events.callRemote('drift.preset.load', payload.name);
+            return;
+        case 'renamePreset':
+            if (!payload) return;
+            mp.events.callRemote('drift.preset.rename', payload.oldName, payload.newName);
+            return;
+        case 'deletePreset':
+            if (!payload) return;
+            mp.events.callRemote('drift.preset.delete', payload.name);
+            return;
+        case 'preview':
+            if (payload) applyVehicleSetup(payload);
+            return;
+        default:
+            return;
+    }
+});
