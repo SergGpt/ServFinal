@@ -7,17 +7,18 @@ let workshops = [];
 const defaultSettings = {
     wheelOverpower: 0,
     rearGripLoss: 0,
+    steeringAngle: 0,
 };
 
 const builtinPresets = {
     'Street Drift': {
-        wheelOverpower: 20, rearGripLoss: 16,
+        wheelOverpower: 24, rearGripLoss: 18, steeringAngle: 20,
     },
     'Balance Drift': {
-        wheelOverpower: 38, rearGripLoss: 32,
+        wheelOverpower: 45, rearGripLoss: 36, steeringAngle: 42,
     },
     'Pro Drift': {
-        wheelOverpower: 60, rearGripLoss: 52,
+        wheelOverpower: 72, rearGripLoss: 60, steeringAngle: 75,
     },
 };
 
@@ -63,6 +64,7 @@ function sanitizeSettings(payload = {}) {
         const mapped = slip * 100;
         normalizedPayload.rearGripLoss = mapped;
         normalizedPayload.wheelOverpower = mapped;
+        normalizedPayload.steeringAngle = mapped;
     }
 
     // Compatibility with previous multi-parameter % model.
@@ -71,6 +73,9 @@ function sanitizeSettings(payload = {}) {
     }
     if (normalizedPayload.rearGripLoss == null && normalizedPayload.tractionCurveMin != null) {
         normalizedPayload.rearGripLoss = clamp(Number(normalizedPayload.tractionCurveMin), 0, 100);
+    }
+    if (normalizedPayload.steeringAngle == null && normalizedPayload.steeringLock != null) {
+        normalizedPayload.steeringAngle = clamp(Number(normalizedPayload.steeringLock), 0, 100);
     }
 
     Object.keys(defaultSettings).forEach((key) => {
@@ -177,11 +182,12 @@ function getStats(settings) {
     const s = sanitizeSettings(settings);
     const powerBias = clamp(s.wheelOverpower / 100, 0, 1);
     const gripDelta = clamp(s.rearGripLoss / 100, 0, 1);
+    const angleBias = clamp(s.steeringAngle / 100, 0, 1);
     const stats = {
         initiation: 20 + (powerBias * 50) + (gripDelta * 20),
         stability: 92 - (gripDelta * 45),
-        angle: 15 + (powerBias * 35) + (gripDelta * 30),
-        control: 86 - (powerBias * 20) - (gripDelta * 18),
+        angle: 15 + (powerBias * 20) + (gripDelta * 20) + (angleBias * 45),
+        control: 86 - (powerBias * 20) - (gripDelta * 18) + (angleBias * 10),
         aggressiveness: 20 + (powerBias * 35) + (gripDelta * 40),
     };
 

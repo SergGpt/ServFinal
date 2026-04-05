@@ -3249,6 +3249,7 @@
                     <div v-else>
                         <div v-if="tab === 'Basic'" v-html="slider('wheelOverpower','Избыточная мощность на колеса (0–100)','Повышает срыв в букс за счёт тяги, без чит-скольжения')"></div>
                         <div v-if="tab === 'Basic'" v-html="slider('rearGripLoss','Уменьшение зацепа задних колес (0–100)','Снижает держак задней оси, перед сохраняет контроль')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('steeringAngle','Выворот руля (0–100)','Увеличивает угол удержания машины в заносе')"></div>
 
                         <div class="drift-actions">
                             <button class="primary" @click="apply">Apply</button>

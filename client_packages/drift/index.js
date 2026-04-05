@@ -25,14 +25,17 @@ function resolveSetup(setup = {}) {
     const source = setup || {};
     const overpowerPct = clamp(safeNumber(source.wheelOverpower, 0), 0, 100) / 100;
     const gripLossPct = clamp(safeNumber(source.rearGripLoss, 0), 0, 100) / 100;
+    const anglePct = clamp(safeNumber(source.steeringAngle, 0), 0, 100) / 100;
     return {
-        initialDriveForce: clamp(0.22 + (overpowerPct * 0.45), 0.22, 0.67),
-        driveInertia: clamp(0.95 + (overpowerPct * 0.85), 0.95, 1.8),
+        initialDriveForce: clamp(0.22 + (overpowerPct * 0.55), 0.22, 0.77),
+        driveInertia: clamp(0.95 + (overpowerPct * 1.0), 0.95, 1.95),
         tractionCurveMin: clamp(2.0 - (gripLossPct * 1.2), 0.8, 2.0),
         tractionCurveMax: clamp(2.35 - (gripLossPct * 1.15), 1.2, 2.35),
         tractionBiasFront: clamp(0.50 + (gripLossPct * 0.12), 0.5, 0.62),
+        steeringLock: clamp(0.72 + (anglePct * 0.58), 0.72, 1.30),
         overpowerLevel: overpowerPct,
         gripLossLevel: gripLossPct,
+        angleLevel: anglePct,
     };
 }
 
@@ -83,6 +86,7 @@ function applyVehicleSetup(setup) {
     setHandlingSafe(vehicle, 'fTractionBiasFront', s.tractionBiasFront);
     setHandlingSafe(vehicle, 'fInitialDriveForce', s.initialDriveForce);
     setHandlingSafe(vehicle, 'fDriveInertia', s.driveInertia);
+    setHandlingSafe(vehicle, 'fSteeringLock', s.steeringLock);
     vehicle.setEnginePowerMultiplier(0);
     vehicle.setEngineTorqueMultiplier(1);
     vehicle.setReduceGrip(false);
@@ -120,8 +124,8 @@ function updateDriftPhysics() {
     // - при отпускании газа угол не "отрубается" мгновенно.
     const rearSlipBias = setup.gripLossLevel;
     const speedFactor = clamp((speed - 35) / 120, 0, 1);
-    const basePower = setup.overpowerLevel * (0.22 + speedFactor * 0.32);
-    const intentBonus = (driftIntent || holdDrift) ? (0.16 + setup.overpowerLevel * 0.38) : 0;
+    const basePower = setup.overpowerLevel * (0.26 + speedFactor * 0.5);
+    const intentBonus = (driftIntent || holdDrift) ? (0.2 + setup.overpowerLevel * 0.55) : 0;
     const slipDamp = slipRatio * (0.24 + (1 - rearSlipBias) * 0.18);
     let dynamicPower = basePower + intentBonus - slipDamp;
 
@@ -129,10 +133,10 @@ function updateDriftPhysics() {
     if (throttle) dynamicPower = Math.max(dynamicPower, 0.26);
     else if (holdDrift) dynamicPower = Math.max(dynamicPower, 0.2);
     else dynamicPower = Math.max(dynamicPower, 0.1);
-    dynamicPower = clamp(dynamicPower, 0.0, 1.45);
+    dynamicPower = clamp(dynamicPower, 0.0, 1.95);
 
     vehicle.setEnginePowerMultiplier(dynamicPower);
-    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 45, 1.0, 1.18));
+    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 35, 1.0, 1.28));
 
     // "Задняя ось больше, передняя немного":
     // в RAGE MP прямого раздельного API по осям нет, поэтому реализуем мягкую аппроксимацию:

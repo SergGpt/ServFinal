@@ -35,9 +35,11 @@ module.exports = {
     sliderLimits: {
         wheelOverpower: [0, 100],
         rearGripLoss: [0, 100],
+        steeringAngle: [0, 100],
     },
     sliderSteps: {
         wheelOverpower: 1,
         rearGripLoss: 1,
+        steeringAngle: 1,
     },
 };
