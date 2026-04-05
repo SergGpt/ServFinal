@@ -154,7 +154,7 @@ async function getOrCreateSetup(vehicle) {
         defaults: {
             vehicleId: vehicle.sqlId,
             installed: false,
-            activePreset: 'Street Drift',
+            activePreset: 'Stock',
             settings: JSON.stringify(defaultSettings),
             presets: JSON.stringify([]),
         },
@@ -175,7 +175,8 @@ function getClientPayload(setup) {
         defaultSettings,
         limits: config.sliderLimits,
         steps: config.sliderSteps,
-        activePreset: setup.activePreset || 'Street Drift',
+        activePreset: setup.activePreset || 'Stock',
+        driftEnabled: Boolean(setup.installed && setup.activePreset && setup.activePreset !== 'Stock'),
         settings,
         builtinPresets,
         customPresets,

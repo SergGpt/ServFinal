@@ -189,7 +189,7 @@ mp.events.add('drift.setup.purchase.ans', (success, payload) => {
     if (success && payload) {
         state.currentVehicleSetup = { ...state.currentVehicleSetup, ...payload };
         mp.callCEFV(`driftSetup.onConversionPurchased(${JSON.stringify(payload)})`);
-        applyVehicleSetup(payload.settings);
+        resetVehicleModifiers();
     }
 });
 
@@ -199,7 +199,8 @@ mp.events.add('drift.setup.sync', (payload) => {
         ...(state.currentVehicleSetup || {}),
         ...payload,
     };
-    if (payload.settings) applyVehicleSetup(payload.settings);
+    if (payload.driftEnabled && payload.settings) applyVehicleSetup(payload.settings);
+    if (payload.driftEnabled === false) resetVehicleModifiers();
     if (state.uiOpen) mp.callCEFV(`driftSetup.onServerSync(${JSON.stringify(payload)})`);
 });
 

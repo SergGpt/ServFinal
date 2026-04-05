@@ -172,15 +172,15 @@ module.exports = {
             if (!result) return drift.notifyError(player, 'Ошибка списания средств');
 
             setup.installed = true;
-            setup.activePreset = 'Street Drift';
-            setup.settings = JSON.stringify(drift.builtinPresets['Street Drift']);
+            setup.activePreset = 'Stock';
+            setup.settings = JSON.stringify(drift.defaultSettings);
             await setup.save();
 
             const payload = drift.getClientPayload(setup);
             payload.stats = drift.getStats(payload.settings);
 
             vehicle.setVariable('drift:installed', true);
-            vehicle.setVariable('drift:settings', payload.settings);
+            vehicle.setVariable('drift:settings', null);
 
             player.call('drift.setup.purchase.ans', [true, payload]);
             drift.notifyInfo(player, `Установлен Drift Conversion за $${price}`);
@@ -197,6 +197,7 @@ module.exports = {
 
         const sanitized = drift.sanitizeSettings(parseSettingsPayload(settingsRaw));
         setup.settings = JSON.stringify(sanitized);
+        if (!setup.activePreset || setup.activePreset === 'Stock') setup.activePreset = 'Custom';
         await setup.save();
 
         vehicle.setVariable('drift:installed', true);
@@ -205,6 +206,7 @@ module.exports = {
         player.call('drift.setup.sync', [{
             settings: sanitized,
             activePreset: setup.activePreset,
+            driftEnabled: true,
             customPresets: drift.getClientPayload(setup).customPresets,
             stats: drift.getStats(sanitized),
         }]);
@@ -218,16 +220,17 @@ module.exports = {
         const setup = await drift.getOrCreateSetup(vehicle);
         if (!setup.installed) return drift.notifyError(player, 'Сначала установите drift conversion');
 
-        const base = drift.builtinPresets['Street Drift'];
-        setup.activePreset = 'Street Drift';
+        const base = drift.defaultSettings;
+        setup.activePreset = 'Stock';
         setup.settings = JSON.stringify(base);
         await setup.save();
 
-        vehicle.setVariable('drift:settings', base);
+        vehicle.setVariable('drift:settings', null);
 
         player.call('drift.setup.sync', [{
             settings: base,
             activePreset: setup.activePreset,
+            driftEnabled: false,
             customPresets: drift.getClientPayload(setup).customPresets,
             stats: drift.getStats(base),
         }]);
@@ -284,6 +287,7 @@ module.exports = {
         player.call('drift.setup.sync', [{
             settings: sanitized,
             activePreset: key,
+            driftEnabled: true,
             customPresets: payload.customPresets,
             stats: drift.getStats(sanitized),
         }]);
@@ -331,6 +335,7 @@ module.exports = {
         player.call('drift.setup.sync', [{
             settings: drift.sanitizeSettings(JSON.parse(setup.settings)),
             activePreset: setup.activePreset,
+            driftEnabled: setup.activePreset !== 'Stock',
             customPresets: presets,
             stats: drift.getStats(JSON.parse(setup.settings)),
         }]);
@@ -341,7 +346,7 @@ module.exports = {
         if (!canApplyDriftStateForDriver(vehicle)) return player.call('drift.vehicle.state', [null]);
 
         const setup = await drift.getOrCreateSetup(vehicle);
-        if (!setup.installed) return player.call('drift.vehicle.state', [null]);
+        if (!setup.installed || setup.activePreset === 'Stock') return player.call('drift.vehicle.state', [null]);
 
         const payload = drift.getClientPayload(setup);
         player.call('drift.vehicle.state', [{
