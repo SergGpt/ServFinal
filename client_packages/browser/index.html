@@ -38,6 +38,7 @@
     <link rel="stylesheet" type="text/css" href="css/fishing.css"/>
     <link rel="stylesheet" type="text/css" href="css/materialsTimer.css"/>
     <link rel="stylesheet" type="text/css" href="css/gungame.css"/>
+    <link rel="stylesheet" type="text/css" href="css/driftSetup.css"/>
     <script src="js/main.js"></script>
 
     <!-- development version, includes helpful console warnings -->
@@ -3227,6 +3228,49 @@
         </div>
     </div>
 
+    <div id="driftSetup" v-if="show">
+        <div class="drift-wrap">
+            <div class="drift-header">
+                <div>
+                    <div class="text-h3">Drift Setup — {{ vehicleName }}</div>
+                    <div class="text-small">Активный билд: {{ activePreset }}</div>
+                </div>
+                <button class="ghost" @click="closeUi">Close</button>
+            </div>
+            <div class="drift-tabs">
+                <button v-for="item in tabs" :key="item" :class="{ active: tab === item }" @click="tab = item">{{ item }}</button>
+            </div>
+            <div class="drift-content">
+                <div class="drift-panel">
+                    <div v-if="!conversionInstalled">
+                        <p>На этот автомобиль еще не установлен drift conversion.</p>
+                        <button class="buy" @click="purchase">Купить conversion за ${{ conversionPrice }}</button>
+                    </div>
+                    <div v-else>
+                        <div v-if="tab === 'Basic'" v-html="slider('wheelOverpower','Избыточная мощность на колеса (0–100)','Повышает срыв в букс за счёт тяги, без чит-скольжения')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('rearGripLoss','Уменьшение зацепа задних колес (0–100)','Снижает держак задней оси, перед сохраняет контроль')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('steeringAngle','Выворот руля (0–100)','Увеличивает угол удержания машины в заносе')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('frontGripHighSpeed','Зацеп передних колес на скорости (0–100)','Добавляет держак передней оси после ~80 км/ч для контроля')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('powerCoeff','Коэффициент мощности (x1..x2)','100 = текущая мощность, 200 = усиление в 2 раза')"></div>
+
+                        <div class="drift-actions">
+                            <button class="primary" @click="apply">Apply</button>
+                            <button class="ghost" @click="preview">Preview</button>
+                            <button class="warn" @click="reset">Reset</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="drift-panel">
+                    <div class="drift-stat" v-for="(value, name) in stats" :key="name">
+                        <div>{{ name }} — {{ value }}%</div>
+                        <div class="bar"><div class="fill" :style="{ width: value + '%' }"></div></div>
+                    </div>
+                    <p class="text-small">Подсказка: поднимайте сцепление для стабильной езды, снижайте — для более легкого дрифт-входа.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.1.2/howler.core.min.js"
             integrity="sha256-q2vnVvwrx3RbYXPyAwx7c2npmULQg2VdCXBoJ5+iigs=" crossorigin="anonymous"></script>
 
@@ -3278,6 +3322,7 @@
     <script src="js/materialsTimer.js"></script>
     <script src="js/gungame.js"></script>
     <script src="js/factions.js"></script>
+    <script src="js/driftSetup.js"></script>
 </body>
 
 </html>
