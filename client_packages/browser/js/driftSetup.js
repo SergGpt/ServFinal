@@ -99,12 +99,20 @@ var driftSetup = new Vue({
             const lim = this.limits[key] || [0, 1];
             return Math.max(lim[0], Math.min(lim[1], Number(value)));
         },
+        getStepPrecision(key) {
+            const step = this.steps[key];
+            if (step == null) return 2;
+            const raw = String(step);
+            const dot = raw.indexOf('.');
+            return dot === -1 ? 0 : Math.min(raw.length - dot - 1, 6);
+        },
         slider(key, title, desc) {
             if (!this.conversionInstalled) return '';
             const lim = this.limits[key] || [0, 1];
             const value = this.settings[key] == null ? lim[0] : this.settings[key];
             const step = this.steps[key] || 0.01;
-            return `<label class="drift-row"><div><strong>${title}</strong><small>${desc}</small></div><div class="drift-value">${Number(value).toFixed(3)}</div><input type="range" min="${lim[0]}" max="${lim[1]}" step="${step}" value="${value}" oninput="driftSetup.changeValue('${key}', event)"></label>`;
+            const precision = this.getStepPrecision(key);
+            return `<label class="drift-row"><div><strong>${title}</strong><small>${desc}</small></div><div class="drift-value">${Number(value).toFixed(precision)}</div><input type="range" min="${lim[0]}" max="${lim[1]}" step="${step}" value="${value}" oninput="driftSetup.changeValue('${key}', event)"></label>`;
         },
         presetOptions() {
             const base = Object.keys(this.builtinPresets || {});

@@ -65,9 +65,24 @@ function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
+function getStepPrecision(step) {
+    const str = String(step || '');
+    const dot = str.indexOf('.');
+    return dot === -1 ? 0 : (str.length - dot - 1);
+}
+
+function roundToStep(value, step) {
+    const numericStep = Number(step);
+    if (!Number.isFinite(numericStep) || numericStep <= 0) return value;
+    const rounded = Math.round(value / numericStep) * numericStep;
+    const precision = getStepPrecision(numericStep);
+    return Number(rounded.toFixed(Math.min(precision, 6)));
+}
+
 function sanitizeSettings(payload = {}) {
     const sanitized = { ...defaultSettings };
     const limits = config.sliderLimits;
+    const steps = config.sliderSteps || {};
 
     Object.keys(defaultSettings).forEach((key) => {
         const value = Number(payload[key]);
@@ -76,7 +91,7 @@ function sanitizeSettings(payload = {}) {
             sanitized[key] = clamp(defaultSettings[key], min, max);
             return;
         }
-        sanitized[key] = clamp(value, min, max);
+        sanitized[key] = roundToStep(clamp(value, min, max), steps[key]);
     });
 
     return sanitized;

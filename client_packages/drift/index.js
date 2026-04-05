@@ -53,7 +53,8 @@ function applyVehicleSetup(setup) {
     const suspensionForce = safeNumber(s.suspensionForce, 2.1);
 
     // База под стиль "JDM/Mark II": минимум вмешательства в руль, только легче сорвать заднюю ось.
-    const powerBoost = ((1 - rearGrip) * 2.2) + ((entryAggression - 39) * 0.12) + ((handbrakePower - 1) * 2.2) + ((driveBias - 0.5) * 1.2);
+    const gripDelta = clamp(0.86 - rearGrip, -0.12, 0.14);
+    const powerBoost = (gripDelta * 6.8) + ((entryAggression - 39) * 0.07) + ((handbrakePower - 1) * 1.25) + ((driveBias - 0.5) * 0.75);
     vehicle.setEnginePowerMultiplier(clamp(powerBoost, -2, 15));
     vehicle.setEngineTorqueMultiplier(clamp(1 + (powerBoost / 35), 0.95, 1.25));
     vehicle.setReduceGrip(false);
@@ -92,8 +93,9 @@ function updateDriftPhysics() {
     if (driftIntent || slipDrift) state.driftHoldUntil = Date.now() + 1400;
     const holdDrift = Date.now() < state.driftHoldUntil;
 
-    const basePower = ((1 - rearGrip) * 2.2) + ((entryAggression - 39) * 0.12) + ((driveBias - 0.5) * 1.2);
-    const intentBonus = (driftIntent || holdDrift) ? (1.8 + (handbrakePower - 1) * 1.6) : 0;
+    const gripDelta = clamp(0.86 - rearGrip, -0.12, 0.14);
+    const basePower = (gripDelta * 6.8) + ((entryAggression - 39) * 0.07) + ((driveBias - 0.5) * 0.75);
+    const intentBonus = (driftIntent || holdDrift) ? (1.45 + (handbrakePower - 1) * 1.1) : 0;
     const suspensionAssist = (suspensionForce - 2.1) * 0.4;
     const slipDamp = slipRatio * (1.45 - suspensionAssist);
     let dynamicPower = basePower + intentBonus - slipDamp;
@@ -110,7 +112,7 @@ function updateDriftPhysics() {
     const reduceGrip = Boolean(
         (handbrake && speed > 8) ||
         (holdDrift && speed > 20) ||
-        (throttle && slipRatio > (0.2 + ((rearGrip - 0.72) * 0.08)) && speed > 30)
+        (throttle && slipRatio > (0.24 + ((rearGrip - 0.72) * 0.06)) && speed > 32)
     );
     vehicle.setReduceGrip(reduceGrip);
 }

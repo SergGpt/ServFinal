@@ -42,10 +42,10 @@ module.exports = {
     },
     sliderSteps: {
         steeringAngle: 0.1,
-        rearGrip: 0.001,
+        rearGrip: 0.0005,
         handbrakePower: 0.01,
         driveBias: 0.01,
-        suspensionRaise: 0.001,
+        suspensionRaise: 0.0005,
         suspensionForce: 0.01,
     },
 };
