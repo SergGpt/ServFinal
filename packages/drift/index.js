@@ -6,24 +6,24 @@ let workshops = [];
 
 const defaultSettings = {
     driveBiasFront: 0.0,
-    steeringLock: 0.9,
-    tractionCurveMax: 1.9,
-    tractionCurveMin: 1.4,
-    lowSpeedTractionLossMult: 1.2,
-    initialDriveForce: 0.3,
-    driveInertia: 1.1,
-    brakeBiasFront: 0.45,
-    suspensionCompDamp: 1.3,
-    suspensionReboundDamp: 1.7,
-    comShiftY: 0.2,
-    comShiftZ: -0.2,
+    steeringLock: 0.72,
+    tractionCurveMax: 2.35,
+    tractionCurveMin: 2.0,
+    lowSpeedTractionLossMult: 0.85,
+    initialDriveForce: 0.22,
+    driveInertia: 0.95,
+    brakeBiasFront: 0.58,
+    suspensionCompDamp: 1.0,
+    suspensionReboundDamp: 1.2,
+    comShiftY: 0.0,
+    comShiftZ: -0.08,
 };
 
 const builtinPresets = {
     'Street Drift': {
-        driveBiasFront: 0.0, steeringLock: 0.85, tractionCurveMax: 2.0, tractionCurveMin: 1.5,
-        lowSpeedTractionLossMult: 1.05, initialDriveForce: 0.27, driveInertia: 1.0,
-        brakeBiasFront: 0.48, suspensionCompDamp: 1.2, suspensionReboundDamp: 1.6, comShiftY: 0.15, comShiftZ: -0.18,
+        driveBiasFront: 0.0, steeringLock: 0.72, tractionCurveMax: 2.35, tractionCurveMin: 2.0,
+        lowSpeedTractionLossMult: 0.85, initialDriveForce: 0.22, driveInertia: 0.95,
+        brakeBiasFront: 0.58, suspensionCompDamp: 1.0, suspensionReboundDamp: 1.2, comShiftY: 0.0, comShiftZ: -0.08,
     },
     'Balance Drift': {
         driveBiasFront: 0.0, steeringLock: 0.92, tractionCurveMax: 1.9, tractionCurveMin: 1.35,

@@ -72,8 +72,8 @@ function applyVehicleSetup(setup) {
     if (!vehicle || !setup) return;
 
     const s = resolveSetup(setup);
-    // Drift-base preset using handling fields requested by player.
-    setHandlingSafe(vehicle, 'strHandlingFlags', 'FLAG_DRIFT_TYRES');
+    // Применяем только числовые handling-настройки, без FLAG_DRIFT_TYRES,
+    // чтобы после покупки авто не превращалось в "мыло" до ручной настройки.
     setHandlingSafe(vehicle, 'fDriveBiasFront', s.driveBiasFront);
     setHandlingSafe(vehicle, 'fSteeringLock', s.steeringLock);
     setHandlingSafe(vehicle, 'fTractionCurveMax', s.tractionCurveMax);
