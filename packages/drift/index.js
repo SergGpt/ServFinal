@@ -147,6 +147,7 @@ function getClientPayload(setup) {
         conversionPrice: config.conversionPrice,
         defaultSettings,
         limits: config.sliderLimits,
+        steps: config.sliderSteps,
         activePreset: setup.activePreset || 'Street Drift',
         settings,
         builtinPresets,

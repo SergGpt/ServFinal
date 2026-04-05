@@ -7,6 +7,7 @@ var driftSetup = new Vue({
         activePreset: 'Street Drift',
         vehicleName: '',
         limits: {},
+        steps: {},
         settings: {},
         defaultSettings: {},
         builtinPresets: {},
@@ -26,6 +27,7 @@ var driftSetup = new Vue({
             this.activePreset = payload.activePreset || 'Street Drift';
             this.vehicleName = payload.vehicleName || '';
             this.limits = payload.limits || {};
+            this.steps = payload.steps || {};
             this.settings = Object.assign({}, payload.settings || {});
             this.defaultSettings = Object.assign({}, payload.defaultSettings || {});
             this.builtinPresets = Object.assign({}, payload.builtinPresets || {});
@@ -101,7 +103,8 @@ var driftSetup = new Vue({
             if (!this.conversionInstalled) return '';
             const lim = this.limits[key] || [0, 1];
             const value = this.settings[key] == null ? lim[0] : this.settings[key];
-            return `<label class="drift-row"><div><strong>${title}</strong><small>${desc}</small></div><div class="drift-value">${Number(value).toFixed(2)}</div><input type="range" min="${lim[0]}" max="${lim[1]}" step="0.01" value="${value}" oninput="driftSetup.changeValue('${key}', event)"></label>`;
+            const step = this.steps[key] || 0.01;
+            return `<label class="drift-row"><div><strong>${title}</strong><small>${desc}</small></div><div class="drift-value">${Number(value).toFixed(3)}</div><input type="range" min="${lim[0]}" max="${lim[1]}" step="${step}" value="${value}" oninput="driftSetup.changeValue('${key}', event)"></label>`;
         },
         presetOptions() {
             const base = Object.keys(this.builtinPresets || {});

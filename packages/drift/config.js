@@ -37,4 +37,9 @@ module.exports = {
         rearGrip: [0.72, 1.0],
         handbrakePower: [0.8, 1.45],
     },
+    sliderSteps: {
+        steeringAngle: 0.1,
+        rearGrip: 0.001,
+        handbrakePower: 0.01,
+    },
 };

@@ -48,10 +48,10 @@ function applyVehicleSetup(setup) {
     const handbrakePower = safeNumber(s.handbrakePower, 1);
 
     // База под стиль "JDM/Mark II": минимум вмешательства в руль, только легче сорвать заднюю ось.
-    const powerBoost = ((1 - rearGrip) * 12) + ((entryAggression - 39) * 0.25) + ((handbrakePower - 1) * 4);
+    const powerBoost = ((1 - rearGrip) * 6.5) + ((entryAggression - 39) * 0.25) + ((handbrakePower - 1) * 4);
     vehicle.setEnginePowerMultiplier(clamp(powerBoost, -2, 15));
     vehicle.setEngineTorqueMultiplier(clamp(1 + (powerBoost / 25), 0.9, 1.45));
-    const shouldReduceGrip = Boolean(rearGrip < 0.9);
+    const shouldReduceGrip = Boolean(rearGrip < 0.86);
     vehicle.setReduceGrip(shouldReduceGrip);
 }
 
@@ -81,7 +81,7 @@ function updateDriftPhysics() {
     const handbrakeKick = handbrake && speed > 10;
     const driftIntent = Boolean(canInitiate || handbrakeKick);
 
-    const basePower = ((1 - rearGrip) * 12) + ((entryAggression - 39) * 0.25);
+    const basePower = ((1 - rearGrip) * 6.5) + ((entryAggression - 39) * 0.25);
     const intentBonus = driftIntent ? (2.2 + (handbrakePower - 1) * 2.0) : 0;
     const slipDamp = slipRatio * 1.5;
     let dynamicPower = basePower + intentBonus - slipDamp;
@@ -96,8 +96,8 @@ function updateDriftPhysics() {
 
     const reduceGrip = Boolean(
         (handbrake && speed > 8) ||
-        (driftIntent && speed > 20 && rearGrip < 0.9) ||
-        (throttle && slipRatio > 0.18 && speed > 30 && rearGrip < 0.88)
+        (driftIntent && speed > 20 && rearGrip < 0.86) ||
+        (throttle && slipRatio > 0.18 && speed > 30 && rearGrip < 0.84)
     );
     vehicle.setReduceGrip(reduceGrip);
 }
