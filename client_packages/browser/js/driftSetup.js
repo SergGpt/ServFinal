@@ -87,13 +87,14 @@ var driftSetup = new Vue({
         },
         calcStats(s) {
             const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
-            const dirtPower = Number(s.dirtPower == null ? 0.35 : s.dirtPower);
+            const slipStrength = Number(s.slipStrength == null ? 0 : s.slipStrength);
+            const slip = Math.max(0, Math.min(100, slipStrength)) / 100;
             return {
-                initiation: clamp(35 + (dirtPower * 65)),
-                stability: clamp(88 - (dirtPower * 42)),
-                angle: clamp(25 + (dirtPower * 70)),
-                control: clamp(82 - (dirtPower * 28)),
-                aggressiveness: clamp(20 + (dirtPower * 75)),
+                initiation: clamp(12 + (slip * 84)),
+                stability: clamp(95 - (slip * 58)),
+                angle: clamp(8 + (slip * 90)),
+                control: clamp(92 - (slip * 44)),
+                aggressiveness: clamp(6 + (slip * 94)),
             };
         },
         inRange(key, value) {

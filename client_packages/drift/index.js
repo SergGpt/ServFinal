@@ -21,14 +21,15 @@ function safeNumber(value, fallback = 0) {
     return Number.isFinite(numeric) ? numeric : fallback;
 }
 
-function resolveDirtPower(setup) {
-    if (!setup) return 0.35;
-    if (setup.dirtPower != null) return clamp(safeNumber(setup.dirtPower, 0.35), 0, 1);
+function resolveSlipStrength(setup) {
+    if (!setup) return 0;
+    if (setup.slipStrength != null) return clamp(safeNumber(setup.slipStrength, 0), 0, 100);
+    if (setup.dirtPower != null) return clamp(safeNumber(setup.dirtPower, 0) * 100, 0, 100);
     if (setup.rearGrip != null) {
         const rearGrip = safeNumber(setup.rearGrip, 0.86);
-        return clamp((1 - rearGrip) / 0.28, 0, 1);
+        return clamp(((1 - rearGrip) / 0.28) * 100, 0, 100);
     }
-    return 0.35;
+    return 0;
 }
 
 function getCurrentVehicle() {
@@ -54,11 +55,18 @@ function applyVehicleSetup(setup) {
     const vehicle = getCurrentVehicle();
     if (!vehicle || !setup) return;
 
-    const dirtPower = resolveDirtPower(setup);
-    // Базовый эффект "как по грунту", но мягкий: без резкого срыва на ровном газу.
-    const basePower = 0.12 + (dirtPower * 0.32);
-    vehicle.setEnginePowerMultiplier(clamp(basePower, 0.1, 1.25));
-    vehicle.setEngineTorqueMultiplier(clamp(1.0 + (dirtPower * 0.03), 1.0, 1.08));
+    const slipStrength = resolveSlipStrength(setup);
+    const slipFactor = slipStrength / 100;
+    if (slipStrength <= 0) {
+        vehicle.setEnginePowerMultiplier(0);
+        vehicle.setEngineTorqueMultiplier(1);
+        vehicle.setReduceGrip(false);
+        return;
+    }
+
+    const basePower = slipFactor * 0.28;
+    vehicle.setEnginePowerMultiplier(clamp(basePower, 0, 1.25));
+    vehicle.setEngineTorqueMultiplier(clamp(1.0 + (slipFactor * 0.03), 1.0, 1.08));
     vehicle.setReduceGrip(false);
 }
 
@@ -79,7 +87,9 @@ function updateDriftPhysics() {
     const throttle = mp.game.controls.isControlPressed(0, 71);
     const handbrake = mp.game.controls.isControlPressed(0, 76);
 
-    const dirtPower = resolveDirtPower(s);
+    const slipStrength = resolveSlipStrength(s);
+    if (slipStrength <= 0) return resetVehicleModifiers();
+    const slipFactor = slipStrength / 100;
     const steerIntent = Math.abs(steer) > 0;
     const canInitiate = speed > 18 && steerIntent && throttle;
     const handbrakeKick = handbrake && speed > 10;
@@ -92,16 +102,16 @@ function updateDriftPhysics() {
     // - основа мягкая,
     // - срыв приходит от входа (руль+газ/ручник),
     // - при отпускании газа угол не "отрубается" мгновенно.
-    const basePower = 0.1 + (dirtPower * 0.3);
-    const intentBonus = (driftIntent || holdDrift) ? (0.22 + dirtPower * 0.42) : 0;
-    const slipDamp = slipRatio * (0.34 + dirtPower * 0.22);
+    const basePower = 0.02 + (slipFactor * 0.34);
+    const intentBonus = (driftIntent || holdDrift) ? (0.1 + slipFactor * 0.45) : 0;
+    const slipDamp = slipRatio * (0.2 + slipFactor * 0.38);
     let dynamicPower = basePower + intentBonus - slipDamp;
 
     // Не даем машине резко "тормозить двигателем" в заносе — сохраняем инерцию.
     if (throttle) dynamicPower = Math.max(dynamicPower, 0.26);
     else if (holdDrift) dynamicPower = Math.max(dynamicPower, 0.2);
     else dynamicPower = Math.max(dynamicPower, 0.1);
-    dynamicPower = clamp(dynamicPower, 0.1, 1.65);
+    dynamicPower = clamp(dynamicPower, 0, 1.65);
 
     vehicle.setEnginePowerMultiplier(dynamicPower);
     vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 90, 1.0, 1.07));
@@ -112,8 +122,8 @@ function updateDriftPhysics() {
     // За счёт этого перед остаётся относительно стабильным, а срыв ощущается в основном по корме.
     const reduceGrip = Boolean(
         (handbrake && speed > 8) ||
-        ((driftIntent || holdDrift) && speed > 20 && slipRatio > (0.27 - dirtPower * 0.08)) ||
-        (throttle && speed > 34 && slipRatio > (0.48 - dirtPower * 0.1))
+        ((driftIntent || holdDrift) && speed > 20 && slipRatio > (0.3 - slipFactor * 0.11)) ||
+        (throttle && speed > 34 && slipRatio > (0.5 - slipFactor * 0.15))
     );
     vehicle.setReduceGrip(reduceGrip);
 }

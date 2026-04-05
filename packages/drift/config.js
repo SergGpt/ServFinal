@@ -33,9 +33,9 @@ module.exports = {
         },
     ],
     sliderLimits: {
-        dirtPower: [0.0, 1.0],
+        slipStrength: [0, 100],
     },
     sliderSteps: {
-        dirtPower: 0.01,
+        slipStrength: 1,
     },
 };

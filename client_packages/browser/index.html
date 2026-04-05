@@ -3247,7 +3247,7 @@
                         <button class="buy" @click="purchase">Купить conversion за ${{ conversionPrice }}</button>
                     </div>
                     <div v-else>
-                        <div v-if="tab === 'Basic'" v-html="slider('dirtPower','Сила грунтового эффекта','Имитирует езду по грунту: выше — легче и мягче уводит в занос')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('slipStrength','Сила скольжения поверхности','0 = стандартное поведение, 100 = максимальное скольжение')"></div>
 
                         <div class="drift-actions">
                             <button class="primary" @click="apply">Apply</button>

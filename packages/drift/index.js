@@ -5,13 +5,13 @@ const notifications = call('notifications');
 let workshops = [];
 
 const defaultSettings = {
-    dirtPower: 0.35,
+    slipStrength: 0,
 };
 
 const builtinPresets = {
-    'Street Drift': { dirtPower: 0.28 },
-    'Balance Drift': { dirtPower: 0.35 },
-    'Pro Drift': { dirtPower: 0.48 },
+    'Street Drift': { slipStrength: 35 },
+    'Balance Drift': { slipStrength: 50 },
+    'Pro Drift': { slipStrength: 70 },
 };
 
 function clamp(value, min, max) {
@@ -38,12 +38,17 @@ function sanitizeSettings(payload = {}) {
     const steps = config.sliderSteps || {};
     const normalizedPayload = { ...(payload || {}) };
 
-    // Backward compatibility for old DB/UI payloads where only rearGrip existed.
-    if (normalizedPayload.dirtPower == null && normalizedPayload.rearGrip != null) {
+    // Backward compatibility for old DB/UI payloads.
+    if (normalizedPayload.slipStrength == null && normalizedPayload.dirtPower != null) {
+        const dirtPower = Number(normalizedPayload.dirtPower);
+        if (Number.isFinite(dirtPower)) normalizedPayload.slipStrength = clamp(dirtPower * 100, 0, 100);
+    }
+
+    if (normalizedPayload.slipStrength == null && normalizedPayload.rearGrip != null) {
         const rearGrip = Number(normalizedPayload.rearGrip);
         if (Number.isFinite(rearGrip)) {
-            const mapped = clamp((1 - rearGrip) / 0.28, 0, 1);
-            normalizedPayload.dirtPower = mapped;
+            const mapped = clamp(((1 - rearGrip) / 0.28) * 100, 0, 100);
+            normalizedPayload.slipStrength = mapped;
         }
     }
 
@@ -148,12 +153,13 @@ function getClientPayload(setup) {
 
 function getStats(settings) {
     const s = sanitizeSettings(settings);
+    const slip = s.slipStrength / 100;
     const stats = {
-        initiation: 35 + (s.dirtPower * 65),
-        stability: 88 - (s.dirtPower * 42),
-        angle: 25 + (s.dirtPower * 70),
-        control: 82 - (s.dirtPower * 28),
-        aggressiveness: 20 + (s.dirtPower * 75),
+        initiation: 12 + (slip * 84),
+        stability: 95 - (slip * 58),
+        angle: 8 + (slip * 90),
+        control: 92 - (slip * 44),
+        aggressiveness: 6 + (slip * 94),
     };
 
     Object.keys(stats).forEach((key) => {
