@@ -8,6 +8,7 @@ const state = {
     uiOpen: false,
     currentVehicleSetup: null,
     appliedVehicleId: null,
+    activeSetup: null,
 };
 
 function clamp(value, min, max) {
@@ -29,26 +30,66 @@ function getCurrentVehicle() {
 
 function resetVehicleModifiers() {
     const vehicle = getCurrentVehicle();
+    state.activeSetup = null;
     if (!vehicle) return;
     vehicle.setEnginePowerMultiplier(0);
+    vehicle.setEngineTorqueMultiplier(1);
     vehicle.setReduceGrip(false);
 }
 
 function applyVehicleSetup(setup) {
     const vehicle = getCurrentVehicle();
     if (!vehicle || !setup) return;
+    state.activeSetup = setup;
 
     const s = setup;
     const rearGrip = safeNumber(s.rearGrip, 0.86);
     const steeringAngle = safeNumber(s.steeringAngle, 39);
     const handbrakePower = safeNumber(s.handbrakePower, 1);
 
-    // Безопасное применение: только нативно поддерживаемые RageMP методы.
-    const powerBoost = ((1 - rearGrip) * 16) + ((steeringAngle - 39) * 0.55) + ((handbrakePower - 1) * 5);
+    const powerBoost = ((1 - rearGrip) * 12) + ((steeringAngle - 39) * 0.45) + ((handbrakePower - 1) * 4);
     vehicle.setEnginePowerMultiplier(clamp(powerBoost, -2, 15));
-
-    const shouldReduceGrip = rearGrip < 0.94 || handbrakePower > 1.08;
+    vehicle.setEngineTorqueMultiplier(clamp(1 + (powerBoost / 25), 0.9, 1.45));
+    const shouldReduceGrip = rearGrip < 0.94;
     vehicle.setReduceGrip(shouldReduceGrip);
+}
+
+function updateDriftPhysics() {
+    if (!state.activeSetup) return;
+    const vehicle = getCurrentVehicle();
+    if (!vehicle) return resetVehicleModifiers();
+
+    const s = state.activeSetup;
+    const speed = vehicle.getSpeed() * 3.6;
+    const velocityLocal = vehicle.getSpeedVector(true);
+    const lateral = Math.abs(velocityLocal.x);
+    const slipRatio = clamp(lateral / Math.max(Math.abs(velocityLocal.y), 0.1), 0, 1.4);
+
+    const steerLeft = mp.game.controls.isControlPressed(0, 63) ? 1 : 0;
+    const steerRight = mp.game.controls.isControlPressed(0, 64) ? 1 : 0;
+    const steer = steerLeft - steerRight;
+    const throttle = mp.game.controls.isControlPressed(0, 71);
+    const handbrake = mp.game.controls.isControlPressed(0, 76);
+
+    const rearGrip = safeNumber(s.rearGrip, 0.86);
+    const steeringAngle = safeNumber(s.steeringAngle, 39);
+    const handbrakePower = safeNumber(s.handbrakePower, 1);
+
+    const steerIntent = Math.abs(steer) > 0;
+    const canInitiate = speed > 18 && steerIntent && throttle;
+    const handbrakeKick = handbrake && speed > 10 ? 1 : 0;
+    const driftIntent = canInitiate || handbrakeKick;
+
+    const basePower = ((1 - rearGrip) * 12) + ((steeringAngle - 39) * 0.45);
+    const intentBonus = driftIntent ? (3.5 + (handbrakePower - 1) * 2.5) : 0;
+    const slipDamp = slipRatio * 3.2;
+    const dynamicPower = clamp(basePower + intentBonus - slipDamp, -1, 12);
+
+    vehicle.setEnginePowerMultiplier(dynamicPower);
+    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 24, 0.9, 1.5));
+
+    const reduceGrip = driftIntent || (speed > 25 && slipRatio > 0.12 && rearGrip < 0.93);
+    vehicle.setReduceGrip(reduceGrip);
 }
 
 function setUiState(enabled) {
@@ -119,6 +160,12 @@ mp.events.add('playerExitVehicle', () => {
     resetVehicleModifiers();
     state.appliedVehicleId = null;
 });
+
+if (mp.timer && typeof mp.timer.addInterval === 'function') {
+    mp.timer.addInterval(updateDriftPhysics, 120);
+} else {
+    setInterval(updateDriftPhysics, 120);
+}
 
 mp.events.add('drift.setup.action', (action, payloadRaw) => {
     if (!action) return;
