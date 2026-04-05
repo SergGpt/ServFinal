@@ -51,7 +51,7 @@ function applyVehicleSetup(setup) {
     const powerBoost = ((1 - rearGrip) * 12) + ((entryAggression - 39) * 0.25) + ((handbrakePower - 1) * 4);
     vehicle.setEnginePowerMultiplier(clamp(powerBoost, -2, 15));
     vehicle.setEngineTorqueMultiplier(clamp(1 + (powerBoost / 25), 0.9, 1.45));
-    const shouldReduceGrip = rearGrip < 0.9;
+    const shouldReduceGrip = Boolean(rearGrip < 0.9);
     vehicle.setReduceGrip(shouldReduceGrip);
 }
 
@@ -78,18 +78,27 @@ function updateDriftPhysics() {
 
     const steerIntent = Math.abs(steer) > 0;
     const canInitiate = speed > 18 && steerIntent && throttle;
-    const handbrakeKick = handbrake && speed > 10 ? 1 : 0;
-    const driftIntent = canInitiate || handbrakeKick;
+    const handbrakeKick = handbrake && speed > 10;
+    const driftIntent = Boolean(canInitiate || handbrakeKick);
 
     const basePower = ((1 - rearGrip) * 12) + ((entryAggression - 39) * 0.25);
-    const intentBonus = driftIntent ? (3.5 + (handbrakePower - 1) * 2.5) : 0;
-    const slipDamp = slipRatio * 3.2;
-    const dynamicPower = clamp(basePower + intentBonus - slipDamp, -1, 12);
+    const intentBonus = driftIntent ? (2.2 + (handbrakePower - 1) * 2.0) : 0;
+    const slipDamp = slipRatio * 1.5;
+    let dynamicPower = basePower + intentBonus - slipDamp;
+
+    // Не даем машине резко "тормозить двигателем" в заносе — сохраняем инерцию.
+    if (throttle) dynamicPower = Math.max(dynamicPower, 0.25);
+    else dynamicPower = Math.max(dynamicPower, 0.1);
+    dynamicPower = clamp(dynamicPower, 0.1, 12);
 
     vehicle.setEnginePowerMultiplier(dynamicPower);
-    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 24, 0.9, 1.5));
+    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 26, 1.0, 1.45));
 
-    const reduceGrip = driftIntent || (speed > 35 && slipRatio > 0.16 && rearGrip < 0.9);
+    const reduceGrip = Boolean(
+        (handbrake && speed > 8) ||
+        (driftIntent && speed > 20 && rearGrip < 0.9) ||
+        (throttle && slipRatio > 0.18 && speed > 30 && rearGrip < 0.88)
+    );
     vehicle.setReduceGrip(reduceGrip);
 }
 
