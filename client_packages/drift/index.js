@@ -195,7 +195,7 @@ mp.events.add('drift.setup.action', (action, payloadRaw) => {
             mp.events.callRemote('drift.setup.purchase');
             return;
         case 'apply':
-            mp.events.callRemote('drift.setup.apply', payload || {});
+            mp.events.callRemote('drift.setup.apply', JSON.stringify(payload || {}));
             if (payload) applyVehicleSetup(payload);
             return;
         case 'reset':
@@ -203,7 +203,7 @@ mp.events.add('drift.setup.action', (action, payloadRaw) => {
             return;
         case 'savePreset':
             if (!payload) return;
-            mp.events.callRemote('drift.preset.save', payload.name, payload.settings || {});
+            mp.events.callRemote('drift.preset.save', payload.name, JSON.stringify(payload.settings || {}));
             return;
         case 'loadPreset':
             if (!payload) return;

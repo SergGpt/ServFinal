@@ -83,6 +83,20 @@ function getCurrentUiVehicle(player) {
     return mp.vehicles.toArray().find(v => v && mp.vehicles.exists(v) && v.sqlId === player.currentDriftVehicleId) || null;
 }
 
+function parseSettingsPayload(raw) {
+    if (!raw) return {};
+    if (typeof raw === 'string') {
+        try {
+            const parsed = JSON.parse(raw);
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (_) {
+            return {};
+        }
+    }
+    if (typeof raw === 'object') return raw;
+    return {};
+}
+
 module.exports = {
     init: async () => {
         const workshops = await drift.loadWorkshops();
@@ -160,7 +174,7 @@ module.exports = {
         }, `Drift conversion vehicle #${vehicle.sqlId}`);
     },
 
-    'drift.setup.apply': async (player, settings) => {
+    'drift.setup.apply': async (player, settingsRaw) => {
         if (!player.character) return;
         const vehicle = getCurrentUiVehicle(player) || await resolvePlayerVehicle(player);
         if (!vehicle) return;
@@ -168,7 +182,7 @@ module.exports = {
         const setup = await drift.getOrCreateSetup(vehicle);
         if (!setup.installed) return drift.notifyError(player, 'Сначала установите drift conversion');
 
-        const sanitized = drift.sanitizeSettings(settings || {});
+        const sanitized = drift.sanitizeSettings(parseSettingsPayload(settingsRaw));
         setup.settings = JSON.stringify(sanitized);
         await setup.save();
 
@@ -206,7 +220,7 @@ module.exports = {
         }]);
     },
 
-    'drift.preset.save': async (player, presetName, settings) => {
+    'drift.preset.save': async (player, presetName, settingsRaw) => {
         if (!player.character) return;
         const vehicle = getCurrentUiVehicle(player) || await resolvePlayerVehicle(player);
         if (!vehicle) return;
@@ -217,7 +231,7 @@ module.exports = {
         const normalizedName = drift.normalizePresetName(presetName);
         if (!normalizedName) return drift.notifyError(player, 'Некорректное название пресета');
 
-        const sanitized = drift.sanitizeSettings(settings || {});
+        const sanitized = drift.sanitizeSettings(parseSettingsPayload(settingsRaw));
         const presets = drift.getClientPayload(setup).customPresets;
         const existing = presets.find(x => x.name.toLowerCase() === normalizedName.toLowerCase());
 
