@@ -4,10 +4,45 @@ const drift = require('./index');
 const money = call('money');
 
 const workshopShapes = new Map();
+const workshopRuntime = new Map();
 
 function getWorkshopByShape(shape) {
     if (!shape || !shape.isDriftWorkshop) return null;
-    return drift.config.workshops.find(x => x.id === shape.driftWorkshopId) || null;
+    return drift.getWorkshops().find(x => x.id === shape.driftWorkshopId) || null;
+}
+
+function createWorkshopRuntime(point) {
+    const shape = mp.colshapes.newSphere(point.x, point.y, point.z, point.radius || 2.5);
+    shape.isDriftWorkshop = true;
+    shape.driftWorkshopId = point.id;
+    workshopShapes.set(point.id, shape);
+
+    let marker = null;
+    let blip = null;
+    if (drift.config.workshops[0] && drift.config.workshops[0].marker) {
+        const markerCfg = drift.config.workshops[0].marker;
+        marker = mp.markers.new(
+            markerCfg.type || 1,
+            new mp.Vector3(point.x, point.y, point.z - 1),
+            markerCfg.scale || 1,
+            {
+                color: markerCfg.color || [255, 255, 255, 120],
+                visible: true,
+                dimension: 0,
+            },
+        );
+    }
+
+    if (drift.config.workshops[0] && drift.config.workshops[0].blip) {
+        const blipCfg = drift.config.workshops[0].blip;
+        blip = mp.blips.new(blipCfg.sprite || 72, new mp.Vector3(point.x, point.y, point.z), {
+            name: point.name || blipCfg.name || 'Drift Workshop',
+            color: blipCfg.color || 0,
+            shortRange: blipCfg.shortRange !== false,
+            scale: 0.8,
+        });
+    }
+    workshopRuntime.set(point.id, { marker, blip, shape });
 }
 
 async function openUi(player, vehicle) {
@@ -49,36 +84,9 @@ function getCurrentUiVehicle(player) {
 }
 
 module.exports = {
-    init: () => {
-        drift.config.workshops.forEach((point) => {
-            const shape = mp.colshapes.newSphere(point.position.x, point.position.y, point.position.z, point.radius || 2.5);
-            shape.isDriftWorkshop = true;
-            shape.driftWorkshopId = point.id;
-            workshopShapes.set(point.id, shape);
-
-            if (point.marker) {
-                mp.markers.new(
-                    point.marker.type || 1,
-                    new mp.Vector3(point.position.x, point.position.y, point.position.z - 1),
-                    point.marker.scale || 1,
-                    {
-                        color: point.marker.color || [255, 255, 255, 120],
-                        visible: true,
-                        dimension: 0,
-                    },
-                );
-            }
-
-            if (point.blip) {
-                mp.blips.new(point.blip.sprite || 72, new mp.Vector3(point.position.x, point.position.y, point.position.z), {
-                    name: point.blip.name || 'Drift Workshop',
-                    color: point.blip.color || 0,
-                    shortRange: point.blip.shortRange !== false,
-                    scale: 0.8,
-                });
-            }
-        });
-
+    init: async () => {
+        const workshops = await drift.loadWorkshops();
+        workshops.forEach((point) => createWorkshopRuntime(point));
         inited(__dirname);
     },
 
@@ -111,6 +119,12 @@ module.exports = {
 
     'drift.ui.close': (player) => {
         delete player.currentDriftVehicleId;
+    },
+    'drift.workshop.create': async (player, name, radius) => {
+        if (!player.character || player.character.admin < 6) return;
+        const created = await drift.createWorkshop(name, player.position, radius);
+        createWorkshopRuntime(created);
+        player.call('chat.message.push', [`!{#a5ff5f}Drift workshop #${created.id} создан на вашей позиции`]);
     },
 
     'drift.setup.purchase': async (player) => {

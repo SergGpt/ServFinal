@@ -2,6 +2,7 @@
 
 const config = require('./config');
 const notifications = call('notifications');
+let workshops = [];
 
 const defaultSettings = {
     suspensionFrontStiffness: 1.0,
@@ -223,4 +224,35 @@ module.exports = {
     getStats,
     notifyError,
     notifyInfo,
+    async loadWorkshops() {
+        workshops = await db.Models.DriftWorkshop.findAll();
+        if (workshops.length === 0) {
+            for (let i = 0; i < config.workshops.length; i++) {
+                const point = config.workshops[i];
+                const created = await db.Models.DriftWorkshop.create({
+                    name: point.name,
+                    x: point.position.x,
+                    y: point.position.y,
+                    z: point.position.z,
+                    radius: point.radius || 3.0,
+                });
+                workshops.push(created);
+            }
+        }
+        return workshops;
+    },
+    getWorkshops() {
+        return workshops;
+    },
+    async createWorkshop(name, position, radius = 3.0) {
+        const workshop = await db.Models.DriftWorkshop.create({
+            name: String(name || 'Drift Workshop').slice(0, 64),
+            x: position.x,
+            y: position.y,
+            z: position.z,
+            radius: clamp(Number(radius) || 3.0, 1.5, 8.0),
+        });
+        workshops.push(workshop);
+        return workshop;
+    },
 };
