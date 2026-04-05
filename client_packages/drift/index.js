@@ -44,22 +44,12 @@ function applyVehicleSetup(setup) {
     const vehicle = getCurrentVehicle();
     if (!vehicle || !setup) return;
 
-    const s = setup;
-    const rearGrip = safeNumber(s.rearGrip, 0.86);
-    const entryAggression = safeNumber(s.steeringAngle, 39);
-    const handbrakePower = safeNumber(s.handbrakePower, 1);
-    const driveBias = safeNumber(s.driveBias, 1.0);
-    const suspensionRaise = safeNumber(s.suspensionRaise, 0.0);
-    const suspensionForce = safeNumber(s.suspensionForce, 2.1);
-
-    // База под стиль "JDM/Mark II": минимум вмешательства в руль, только легче сорвать заднюю ось.
-    const gripDelta = clamp(0.86 - rearGrip, -0.12, 0.14);
-    const powerBoost = (gripDelta * 6.8) + ((entryAggression - 39) * 0.07) + ((handbrakePower - 1) * 1.25) + ((driveBias - 0.5) * 0.75);
-    vehicle.setEnginePowerMultiplier(clamp(powerBoost, -2, 15));
-    vehicle.setEngineTorqueMultiplier(clamp(1 + (powerBoost / 35), 0.95, 1.25));
+    const rearGrip = safeNumber(setup.rearGrip, 0.86);
+    const gripDelta = clamp(0.86 - rearGrip, -0.1, 0.12);
+    const powerBoost = gripDelta * 5.2;
+    vehicle.setEnginePowerMultiplier(clamp(powerBoost, -1.2, 4.8));
+    vehicle.setEngineTorqueMultiplier(clamp(1 + (powerBoost / 40), 0.98, 1.14));
     vehicle.setReduceGrip(false);
-    try { vehicle.setHandling('fSuspensionRaise', clamp(suspensionRaise, -0.03, 0.03)); } catch (_) {}
-    try { vehicle.setHandling('fSuspensionForce', clamp(suspensionForce, 1.6, 2.8)); } catch (_) {}
 }
 
 function updateDriftPhysics() {
@@ -80,11 +70,6 @@ function updateDriftPhysics() {
     const handbrake = mp.game.controls.isControlPressed(0, 76);
 
     const rearGrip = safeNumber(s.rearGrip, 0.86);
-    const entryAggression = safeNumber(s.steeringAngle, 39);
-    const handbrakePower = safeNumber(s.handbrakePower, 1);
-    const driveBias = safeNumber(s.driveBias, 1.0);
-    const suspensionForce = safeNumber(s.suspensionForce, 2.1);
-
     const steerIntent = Math.abs(steer) > 0;
     const canInitiate = speed > 18 && steerIntent && throttle;
     const handbrakeKick = handbrake && speed > 10;
@@ -93,26 +78,25 @@ function updateDriftPhysics() {
     if (driftIntent || slipDrift) state.driftHoldUntil = Date.now() + 1400;
     const holdDrift = Date.now() < state.driftHoldUntil;
 
-    const gripDelta = clamp(0.86 - rearGrip, -0.12, 0.14);
-    const basePower = (gripDelta * 6.8) + ((entryAggression - 39) * 0.07) + ((driveBias - 0.5) * 0.75);
-    const intentBonus = (driftIntent || holdDrift) ? (1.45 + (handbrakePower - 1) * 1.1) : 0;
-    const suspensionAssist = (suspensionForce - 2.1) * 0.4;
-    const slipDamp = slipRatio * (1.45 - suspensionAssist);
+    const gripDelta = clamp(0.86 - rearGrip, -0.1, 0.12);
+    const basePower = gripDelta * 5.2;
+    const intentBonus = (driftIntent || holdDrift) ? 0.85 : 0;
+    const slipDamp = slipRatio * 1.2;
     let dynamicPower = basePower + intentBonus - slipDamp;
 
     // Не даем машине резко "тормозить двигателем" в заносе — сохраняем инерцию.
     if (throttle) dynamicPower = Math.max(dynamicPower, 0.25);
     else if (holdDrift) dynamicPower = Math.max(dynamicPower, 0.18);
     else dynamicPower = Math.max(dynamicPower, 0.1);
-    dynamicPower = clamp(dynamicPower, 0.1, 12);
+    dynamicPower = clamp(dynamicPower, 0.1, 5.2);
 
     vehicle.setEnginePowerMultiplier(dynamicPower);
-    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 32, 1.0, 1.3));
+    vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 45, 1.0, 1.15));
 
     const reduceGrip = Boolean(
         (handbrake && speed > 8) ||
         (holdDrift && speed > 20) ||
-        (throttle && slipRatio > (0.24 + ((rearGrip - 0.72) * 0.06)) && speed > 32)
+        (throttle && slipRatio > (0.3 + ((rearGrip - 0.72) * 0.04)) && speed > 34)
     );
     vehicle.setReduceGrip(reduceGrip);
 }

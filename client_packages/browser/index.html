@@ -3247,35 +3247,7 @@
                         <button class="buy" @click="purchase">Купить conversion за ${{ conversionPrice }}</button>
                     </div>
                     <div v-else>
-                        <div v-if="tab === 'Presets'">
-                            <div class="drift-row">
-                                <div><strong>Load preset</strong><small>Загрузите встроенный или сохраненный билд</small></div>
-                                <select v-model="selectedPreset">
-                                    <option v-for="name in presetOptions()" :key="name" :value="name">{{ name }}</option>
-                                </select>
-                            </div>
-                            <div class="drift-actions">
-                                <button class="primary" @click="loadPreset">Load preset</button>
-                                <button class="primary" @click="apply">Apply</button>
-                            </div>
-                            <div style="margin-top: 12px;">
-                                <div class="drift-row">
-                                    <div><strong>Save preset</strong><small>Сохраните текущую конфигурацию для этой машины</small></div>
-                                    <input type="text" v-model="newPresetName" maxlength="32" placeholder="Название билда" />
-                                </div>
-                                <button class="primary" @click="savePreset">Save preset</button>
-                            </div>
-                            <div style="margin-top: 12px;">
-                                <div class="preset-item" v-for="preset in customPresets" :key="preset.name">
-                                    <div>{{ preset.name }}</div>
-                                    <div class="buttons">
-                                        <button class="ghost" @click="renamePreset(preset.name)">Rename</button>
-                                        <button class="warn" @click="deletePreset(preset.name)">Delete</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div v-else-if="tab === 'Basic'" v-html="slider('steeringAngle','Max steer angle','Максимальный угол управления (мягкая коррекция)') + slider('rearGrip','Traction curve lateral','Сцепление задней оси (ниже = легче в занос)') + slider('handbrakePower','Handbrake force','Сила ручника для инициации дрифта') + slider('driveBias','Drive bias RWD↔FWD','0.0=FWD, 0.5=AWD, 1.0=RWD') + slider('suspensionRaise','Suspension raise','Высота подвески для баланса переноса веса') + slider('suspensionForce','Suspension force','Жесткость подвески в дрифте')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('rearGrip','Сцепление с дорогой','Выше = стабильнее, ниже = легче сорвать в занос')"></div>
 
                         <div class="drift-actions">
                             <button class="primary" @click="apply">Apply</button>
@@ -3289,7 +3261,7 @@
                         <div>{{ name }} — {{ value }}%</div>
                         <div class="bar"><div class="fill" :style="{ width: value + '%' }"></div></div>
                     </div>
-                    <p class="text-small">Подсказка: для тандема повышайте stability и control, для больших углов — angle и aggressiveness.</p>
+                    <p class="text-small">Подсказка: поднимайте сцепление для стабильной езды, снижайте — для более легкого дрифт-входа.</p>
                 </div>
             </div>
         </div>

@@ -5,60 +5,13 @@ const notifications = call('notifications');
 let workshops = [];
 
 const defaultSettings = {
-    steeringAngle: 39,
     rearGrip: 0.86,
-    handbrakePower: 1.0,
-    driveBias: 1.0,
-    suspensionRaise: 0.0,
-    suspensionForce: 2.1,
 };
 
 const builtinPresets = {
-    'Street Drift': {
-        ...defaultSettings,
-        steeringAngle: 38,
-        rearGrip: 0.9,
-        handbrakePower: 1.0,
-        driveBias: 0.95,
-    },
-    'Pro Drift': {
-        ...defaultSettings,
-        steeringAngle: 44,
-        rearGrip: 0.8,
-        handbrakePower: 1.15,
-        driveBias: 1.0,
-        suspensionForce: 2.25,
-    },
-    'Big Angle': {
-        ...defaultSettings,
-        steeringAngle: 47,
-        rearGrip: 0.76,
-        handbrakePower: 1.25,
-        driveBias: 1.0,
-        suspensionForce: 2.35,
-    },
-    'Fast Entry': {
-        ...defaultSettings,
-        steeringAngle: 42,
-        rearGrip: 0.82,
-        handbrakePower: 1.1,
-        driveBias: 0.9,
-    },
-    'Wet Setup': {
-        ...defaultSettings,
-        steeringAngle: 40,
-        rearGrip: 0.74,
-        handbrakePower: 1.05,
-        suspensionRaise: 0.01,
-        suspensionForce: 2.3,
-    },
-    'Tandem Setup': {
-        ...defaultSettings,
-        steeringAngle: 41,
-        rearGrip: 0.88,
-        handbrakePower: 0.95,
-        driveBias: 0.85,
-    },
+    'Street Drift': { rearGrip: 0.90 },
+    'Balance Drift': { rearGrip: 0.86 },
+    'Pro Drift': { rearGrip: 0.82 },
 };
 
 function clamp(value, min, max) {
@@ -186,11 +139,11 @@ function getClientPayload(setup) {
 function getStats(settings) {
     const s = sanitizeSettings(settings);
     const stats = {
-        initiation: ((1 - s.rearGrip) * 160) + (s.handbrakePower * 28) + (s.driveBias * 8),
-        stability: (s.rearGrip * 100) + ((2.8 - s.suspensionForce) * 8),
-        angle: ((s.steeringAngle - 32) * 7.2),
-        control: (s.rearGrip * 55) + ((48 - s.steeringAngle) * 3.3) + ((s.suspensionForce - 1.6) * 7),
-        aggressiveness: ((1 - s.rearGrip) * 170) + ((s.handbrakePower - 0.8) * 45) + (s.driveBias * 10),
+        initiation: (1 - s.rearGrip) * 230,
+        stability: s.rearGrip * 100,
+        angle: ((1 - s.rearGrip) * 145) + 30,
+        control: (s.rearGrip * 75) + 10,
+        aggressiveness: (1 - s.rearGrip) * 260,
     };
 
     Object.keys(stats).forEach((key) => {
