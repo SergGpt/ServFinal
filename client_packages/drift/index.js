@@ -43,7 +43,12 @@ function applyVehicleSetup(setup) {
     const balance = getBalanceFactor(s);
 
     vehicle.setEnginePowerMultiplier((safeNumber(s.torqueResponse, 1) - 1) * 85);
-    vehicle.setBrakePower(clamp(safeNumber(s.handbrakePower, 1) * 1.1, 0.5, 2));
+    mp.game.vehicle.setVehicleHandlingFloat(
+        vehicle.handle,
+        'CHandlingData',
+        'fBrakeForce',
+        clamp(safeNumber(s.handbrakePower, 1) * 0.9, 0.25, 1.8),
+    );
 
     mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fSteeringLock', safeNumber(s.steeringAngle, 40));
     mp.game.vehicle.setVehicleHandlingFloat(vehicle.handle, 'CHandlingData', 'fSteeringCurve', clamp(safeNumber(s.steeringResponse, 1), 0.4, 2));
