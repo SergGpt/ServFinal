@@ -9,6 +9,7 @@ const state = {
     currentVehicleSetup: null,
     appliedVehicleId: null,
     activeSetup: null,
+    driftHoldUntil: 0,
 };
 
 function clamp(value, min, max) {
@@ -31,6 +32,7 @@ function getCurrentVehicle() {
 function resetVehicleModifiers() {
     const vehicle = getCurrentVehicle();
     state.activeSetup = null;
+    state.driftHoldUntil = 0;
     if (!vehicle) return;
     vehicle.setEnginePowerMultiplier(0);
     vehicle.setEngineTorqueMultiplier(1);
@@ -38,9 +40,9 @@ function resetVehicleModifiers() {
 }
 
 function applyVehicleSetup(setup) {
+    state.activeSetup = setup || null;
     const vehicle = getCurrentVehicle();
     if (!vehicle || !setup) return;
-    state.activeSetup = setup;
 
     const s = setup;
     const rearGrip = safeNumber(s.rearGrip, 0.86);
@@ -58,7 +60,7 @@ function applyVehicleSetup(setup) {
 function updateDriftPhysics() {
     if (!state.activeSetup) return;
     const vehicle = getCurrentVehicle();
-    if (!vehicle) return resetVehicleModifiers();
+    if (!vehicle) return;
 
     const s = state.activeSetup;
     const speed = vehicle.getSpeed() * 3.6;
@@ -80,14 +82,18 @@ function updateDriftPhysics() {
     const canInitiate = speed > 18 && steerIntent && throttle;
     const handbrakeKick = handbrake && speed > 10;
     const driftIntent = Boolean(canInitiate || handbrakeKick);
+    const slipDrift = speed > 28 && slipRatio > 0.2;
+    if (driftIntent || slipDrift) state.driftHoldUntil = Date.now() + 1400;
+    const holdDrift = Date.now() < state.driftHoldUntil;
 
     const basePower = ((1 - rearGrip) * 6.5) + ((entryAggression - 39) * 0.25);
-    const intentBonus = driftIntent ? (2.2 + (handbrakePower - 1) * 2.0) : 0;
+    const intentBonus = (driftIntent || holdDrift) ? (2.2 + (handbrakePower - 1) * 2.0) : 0;
     const slipDamp = slipRatio * 1.5;
     let dynamicPower = basePower + intentBonus - slipDamp;
 
     // Не даем машине резко "тормозить двигателем" в заносе — сохраняем инерцию.
     if (throttle) dynamicPower = Math.max(dynamicPower, 0.25);
+    else if (holdDrift) dynamicPower = Math.max(dynamicPower, 0.18);
     else dynamicPower = Math.max(dynamicPower, 0.1);
     dynamicPower = clamp(dynamicPower, 0.1, 12);
 
@@ -96,7 +102,7 @@ function updateDriftPhysics() {
 
     const reduceGrip = Boolean(
         (handbrake && speed > 8) ||
-        (driftIntent && speed > 20 && rearGrip < 0.86) ||
+        (holdDrift && speed > 20 && rearGrip < 0.9) ||
         (throttle && slipRatio > 0.18 && speed > 30 && rearGrip < 0.84)
     );
     vehicle.setReduceGrip(reduceGrip);
@@ -163,6 +169,7 @@ mp.events.add('drift.preset.list', (list) => {
 mp.events.add('drift.vehicle.state', (payload) => {
     if (!payload) return resetVehicleModifiers();
     state.appliedVehicleId = payload.vehicleId;
+    state.currentVehicleSetup = payload;
     applyVehicleSetup(payload.settings);
 });
 
