@@ -87,14 +87,21 @@ var driftSetup = new Vue({
         },
         calcStats(s) {
             const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
-            const slipStrength = Number(s.slipStrength == null ? 0 : s.slipStrength);
-            const slip = Math.max(0, Math.min(100, slipStrength)) / 100;
+            const tractionCurveMax = Number(s.tractionCurveMax == null ? 1.9 : s.tractionCurveMax);
+            const tractionCurveMin = Number(s.tractionCurveMin == null ? 1.4 : s.tractionCurveMin);
+            const steeringLock = Number(s.steeringLock == null ? 0.9 : s.steeringLock);
+            const initialDriveForce = Number(s.initialDriveForce == null ? 0.3 : s.initialDriveForce);
+            const lowSpeedLoss = Number(s.lowSpeedTractionLossMult == null ? 1.2 : s.lowSpeedTractionLossMult);
+            const gripDelta = Math.max(0, Math.min(1, (tractionCurveMax - tractionCurveMin) / 1.6));
+            const angleBias = Math.max(0, Math.min(1, (steeringLock - 0.55) / 0.7));
+            const powerBias = Math.max(0, Math.min(1, (initialDriveForce - 0.12) / 0.48));
+            const lowSpeedBias = Math.max(0, Math.min(1, (lowSpeedLoss - 0.7) / 1.5));
             return {
-                initiation: clamp(12 + (slip * 84)),
-                stability: clamp(95 - (slip * 58)),
-                angle: clamp(8 + (slip * 90)),
-                control: clamp(92 - (slip * 44)),
-                aggressiveness: clamp(6 + (slip * 94)),
+                initiation: clamp(25 + (lowSpeedBias * 45) + (powerBias * 20)),
+                stability: clamp(80 - (gripDelta * 26)),
+                angle: clamp(18 + (angleBias * 67)),
+                control: clamp(72 - (gripDelta * 18)),
+                aggressiveness: clamp(20 + (powerBias * 35) + (gripDelta * 40)),
             };
         },
         inRange(key, value) {

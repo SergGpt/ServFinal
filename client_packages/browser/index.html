@@ -3247,7 +3247,18 @@
                         <button class="buy" @click="purchase">Купить conversion за ${{ conversionPrice }}</button>
                     </div>
                     <div v-else>
-                        <div v-if="tab === 'Basic'" v-html="slider('slipStrength','Сила скольжения поверхности','0 = стандартное поведение, 100 = максимальное скольжение')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('driveBiasFront','Привод (Front Bias)','0.0 = чистый RWD, выше = больше тяги на перед')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('steeringLock','Угол руля','Больше значение = легче держать угол в дрифте')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('tractionCurveMax','Общее сцепление','Базовый держак покрышек')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('tractionCurveMin','Сцепление в заносе','Ниже = легче уходит в скольжение, сложнее контроль')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('lowSpeedTractionLossMult','Срыв на низкой скорости','Помогает инициировать дрифт на малой скорости')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('initialDriveForce','Сила разгона','Чем выше, тем легче срывать зад газом')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('driveInertia','Отклик двигателя','Скорость реакции машины на газ')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('brakeBiasFront','Баланс тормозов','Ниже = больше тормоза назад, проще закидывать')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('suspensionCompDamp','Подвеска: сжатие','Стабильность при перекладках')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('suspensionReboundDamp','Подвеска: отбой','Стабильность возврата кузова')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('comShiftY','Центр массы Y','Смещение назад/вперёд для баланса')"></div>
+                        <div v-if="tab === 'Basic'" v-html="slider('comShiftZ','Центр массы Z','Ниже = устойчивее, выше = резче реакции')"></div>
 
                         <div class="drift-actions">
                             <button class="primary" @click="apply">Apply</button>

@@ -21,15 +21,31 @@ function safeNumber(value, fallback = 0) {
     return Number.isFinite(numeric) ? numeric : fallback;
 }
 
-function resolveSlipStrength(setup) {
-    if (!setup) return 0;
-    if (setup.slipStrength != null) return clamp(safeNumber(setup.slipStrength, 0), 0, 100);
-    if (setup.dirtPower != null) return clamp(safeNumber(setup.dirtPower, 0) * 100, 0, 100);
-    if (setup.rearGrip != null) {
-        const rearGrip = safeNumber(setup.rearGrip, 0.86);
-        return clamp(((1 - rearGrip) / 0.28) * 100, 0, 100);
+function resolveSetup(setup = {}) {
+    const source = setup || {};
+    return {
+        driveBiasFront: clamp(safeNumber(source.driveBiasFront, 0.0), 0.0, 0.5),
+        steeringLock: clamp(safeNumber(source.steeringLock, 0.9), 0.55, 1.25),
+        tractionCurveMax: clamp(safeNumber(source.tractionCurveMax, 1.9), 1.4, 3.0),
+        tractionCurveMin: clamp(safeNumber(source.tractionCurveMin, 1.4), 0.9, 2.3),
+        lowSpeedTractionLossMult: clamp(safeNumber(source.lowSpeedTractionLossMult, 1.2), 0.7, 2.2),
+        initialDriveForce: clamp(safeNumber(source.initialDriveForce, 0.3), 0.12, 0.6),
+        driveInertia: clamp(safeNumber(source.driveInertia, 1.1), 0.7, 1.8),
+        brakeBiasFront: clamp(safeNumber(source.brakeBiasFront, 0.45), 0.35, 0.7),
+        suspensionCompDamp: clamp(safeNumber(source.suspensionCompDamp, 1.3), 0.7, 2.2),
+        suspensionReboundDamp: clamp(safeNumber(source.suspensionReboundDamp, 1.7), 0.8, 2.6),
+        comShiftY: clamp(safeNumber(source.comShiftY, 0.2), -0.1, 0.4),
+        comShiftZ: clamp(safeNumber(source.comShiftZ, -0.2), -0.35, 0.1),
+    };
+}
+
+function setHandlingSafe(vehicle, field, value) {
+    try {
+        vehicle.setHandling(field, value);
+        return true;
+    } catch (_) {
+        return false;
     }
-    return 0;
 }
 
 function getCurrentVehicle() {
@@ -55,18 +71,25 @@ function applyVehicleSetup(setup) {
     const vehicle = getCurrentVehicle();
     if (!vehicle || !setup) return;
 
-    const slipStrength = resolveSlipStrength(setup);
-    const slipFactor = slipStrength / 100;
-    if (slipStrength <= 0) {
-        vehicle.setEnginePowerMultiplier(0);
-        vehicle.setEngineTorqueMultiplier(1);
-        vehicle.setReduceGrip(false);
-        return;
-    }
+    const s = resolveSetup(setup);
+    // Drift-base preset using handling fields requested by player.
+    setHandlingSafe(vehicle, 'strHandlingFlags', 'FLAG_DRIFT_TYRES');
+    setHandlingSafe(vehicle, 'fDriveBiasFront', s.driveBiasFront);
+    setHandlingSafe(vehicle, 'fSteeringLock', s.steeringLock);
+    setHandlingSafe(vehicle, 'fTractionCurveMax', s.tractionCurveMax);
+    setHandlingSafe(vehicle, 'fTractionCurveMin', s.tractionCurveMin);
+    setHandlingSafe(vehicle, 'fLowSpeedTractionLossMult', s.lowSpeedTractionLossMult);
+    setHandlingSafe(vehicle, 'fInitialDriveForce', s.initialDriveForce);
+    setHandlingSafe(vehicle, 'fDriveInertia', s.driveInertia);
+    setHandlingSafe(vehicle, 'fBrakeBiasFront', s.brakeBiasFront);
+    setHandlingSafe(vehicle, 'fSuspensionCompDamp', s.suspensionCompDamp);
+    setHandlingSafe(vehicle, 'fSuspensionReboundDamp', s.suspensionReboundDamp);
+    setHandlingSafe(vehicle, 'vecCentreOfMassOffset', new mp.Vector3(0.0, s.comShiftY, s.comShiftZ));
 
-    const basePower = slipFactor * 0.28;
-    vehicle.setEnginePowerMultiplier(clamp(basePower, 0, 1.25));
-    vehicle.setEngineTorqueMultiplier(clamp(1.0 + (slipFactor * 0.03), 1.0, 1.08));
+    // Slight global helper so drift remains smooth even on desynced surfaces.
+    const gripAssist = clamp((s.tractionCurveMax - s.tractionCurveMin) / 1.6, 0, 1);
+    vehicle.setEnginePowerMultiplier(clamp(gripAssist * 0.25, 0, 0.5));
+    vehicle.setEngineTorqueMultiplier(clamp(1 + (s.driveInertia - 1.0) * 0.05, 0.95, 1.1));
     vehicle.setReduceGrip(false);
 }
 
@@ -87,9 +110,7 @@ function updateDriftPhysics() {
     const throttle = mp.game.controls.isControlPressed(0, 71);
     const handbrake = mp.game.controls.isControlPressed(0, 76);
 
-    const slipStrength = resolveSlipStrength(s);
-    if (slipStrength <= 0) return resetVehicleModifiers();
-    const slipFactor = slipStrength / 100;
+    const setup = resolveSetup(s);
     const steerIntent = Math.abs(steer) > 0;
     const canInitiate = speed > 18 && steerIntent && throttle;
     const handbrakeKick = handbrake && speed > 10;
@@ -102,16 +123,17 @@ function updateDriftPhysics() {
     // - основа мягкая,
     // - срыв приходит от входа (руль+газ/ручник),
     // - при отпускании газа угол не "отрубается" мгновенно.
-    const basePower = 0.02 + (slipFactor * 0.34);
-    const intentBonus = (driftIntent || holdDrift) ? (0.1 + slipFactor * 0.45) : 0;
-    const slipDamp = slipRatio * (0.2 + slipFactor * 0.38);
+    const rearSlipBias = clamp((setup.tractionCurveMax - setup.tractionCurveMin) / 1.6, 0, 1);
+    const basePower = rearSlipBias * 0.28;
+    const intentBonus = (driftIntent || holdDrift) ? (0.12 + rearSlipBias * 0.28) : 0;
+    const slipDamp = slipRatio * (0.25 + (1 - rearSlipBias) * 0.22);
     let dynamicPower = basePower + intentBonus - slipDamp;
 
     // Не даем машине резко "тормозить двигателем" в заносе — сохраняем инерцию.
     if (throttle) dynamicPower = Math.max(dynamicPower, 0.26);
     else if (holdDrift) dynamicPower = Math.max(dynamicPower, 0.2);
     else dynamicPower = Math.max(dynamicPower, 0.1);
-    dynamicPower = clamp(dynamicPower, 0, 1.65);
+    dynamicPower = clamp(dynamicPower, 0.06, 1.35);
 
     vehicle.setEnginePowerMultiplier(dynamicPower);
     vehicle.setEngineTorqueMultiplier(clamp(1 + dynamicPower / 90, 1.0, 1.07));
@@ -122,8 +144,8 @@ function updateDriftPhysics() {
     // За счёт этого перед остаётся относительно стабильным, а срыв ощущается в основном по корме.
     const reduceGrip = Boolean(
         (handbrake && speed > 8) ||
-        ((driftIntent || holdDrift) && speed > 20 && slipRatio > (0.3 - slipFactor * 0.11)) ||
-        (throttle && speed > 34 && slipRatio > (0.5 - slipFactor * 0.15))
+        ((driftIntent || holdDrift) && speed > 20 && slipRatio > (0.34 - rearSlipBias * 0.12)) ||
+        (throttle && speed > 34 && slipRatio > (0.52 - rearSlipBias * 0.14))
     );
     vehicle.setReduceGrip(reduceGrip);
 }

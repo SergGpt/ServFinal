@@ -5,13 +5,36 @@ const notifications = call('notifications');
 let workshops = [];
 
 const defaultSettings = {
-    slipStrength: 0,
+    driveBiasFront: 0.0,
+    steeringLock: 0.9,
+    tractionCurveMax: 1.9,
+    tractionCurveMin: 1.4,
+    lowSpeedTractionLossMult: 1.2,
+    initialDriveForce: 0.3,
+    driveInertia: 1.1,
+    brakeBiasFront: 0.45,
+    suspensionCompDamp: 1.3,
+    suspensionReboundDamp: 1.7,
+    comShiftY: 0.2,
+    comShiftZ: -0.2,
 };
 
 const builtinPresets = {
-    'Street Drift': { slipStrength: 35 },
-    'Balance Drift': { slipStrength: 50 },
-    'Pro Drift': { slipStrength: 70 },
+    'Street Drift': {
+        driveBiasFront: 0.0, steeringLock: 0.85, tractionCurveMax: 2.0, tractionCurveMin: 1.5,
+        lowSpeedTractionLossMult: 1.05, initialDriveForce: 0.27, driveInertia: 1.0,
+        brakeBiasFront: 0.48, suspensionCompDamp: 1.2, suspensionReboundDamp: 1.6, comShiftY: 0.15, comShiftZ: -0.18,
+    },
+    'Balance Drift': {
+        driveBiasFront: 0.0, steeringLock: 0.92, tractionCurveMax: 1.9, tractionCurveMin: 1.35,
+        lowSpeedTractionLossMult: 1.2, initialDriveForce: 0.3, driveInertia: 1.1,
+        brakeBiasFront: 0.45, suspensionCompDamp: 1.3, suspensionReboundDamp: 1.7, comShiftY: 0.2, comShiftZ: -0.2,
+    },
+    'Pro Drift': {
+        driveBiasFront: 0.0, steeringLock: 1.02, tractionCurveMax: 1.8, tractionCurveMin: 1.2,
+        lowSpeedTractionLossMult: 1.45, initialDriveForce: 0.35, driveInertia: 1.2,
+        brakeBiasFront: 0.42, suspensionCompDamp: 1.45, suspensionReboundDamp: 1.9, comShiftY: 0.24, comShiftZ: -0.24,
+    },
 };
 
 function clamp(value, min, max) {
@@ -39,17 +62,26 @@ function sanitizeSettings(payload = {}) {
     const normalizedPayload = { ...(payload || {}) };
 
     // Backward compatibility for old DB/UI payloads.
-    if (normalizedPayload.slipStrength == null && normalizedPayload.dirtPower != null) {
-        const dirtPower = Number(normalizedPayload.dirtPower);
-        if (Number.isFinite(dirtPower)) normalizedPayload.slipStrength = clamp(dirtPower * 100, 0, 100);
-    }
-
-    if (normalizedPayload.slipStrength == null && normalizedPayload.rearGrip != null) {
+    if (normalizedPayload.tractionCurveMin == null && normalizedPayload.rearGrip != null) {
         const rearGrip = Number(normalizedPayload.rearGrip);
         if (Number.isFinite(rearGrip)) {
-            const mapped = clamp(((1 - rearGrip) / 0.28) * 100, 0, 100);
-            normalizedPayload.slipStrength = mapped;
+            const mapped = clamp(rearGrip, 0.9, 2.3);
+            normalizedPayload.tractionCurveMin = mapped;
+            normalizedPayload.tractionCurveMax = clamp(mapped + 0.45, 1.4, 3.0);
         }
+    }
+    if (normalizedPayload.tractionCurveMin == null && normalizedPayload.dirtPower != null) {
+        const dirtPower = clamp(Number(normalizedPayload.dirtPower) || 0, 0, 1);
+        normalizedPayload.tractionCurveMin = clamp(1.75 - (dirtPower * 0.6), 0.9, 2.3);
+        normalizedPayload.tractionCurveMax = clamp(2.25 - (dirtPower * 0.5), 1.4, 3.0);
+        normalizedPayload.lowSpeedTractionLossMult = clamp(0.9 + dirtPower, 0.7, 2.2);
+    }
+    if (normalizedPayload.tractionCurveMin == null && normalizedPayload.slipStrength != null) {
+        const slip = clamp((Number(normalizedPayload.slipStrength) || 0) / 100, 0, 1);
+        normalizedPayload.tractionCurveMin = clamp(1.75 - (slip * 0.65), 0.9, 2.3);
+        normalizedPayload.tractionCurveMax = clamp(2.3 - (slip * 0.5), 1.4, 3.0);
+        normalizedPayload.lowSpeedTractionLossMult = clamp(0.9 + (slip * 0.9), 0.7, 2.2);
+        normalizedPayload.steeringLock = clamp(0.78 + (slip * 0.26), 0.55, 1.25);
     }
 
     Object.keys(defaultSettings).forEach((key) => {
@@ -153,13 +185,16 @@ function getClientPayload(setup) {
 
 function getStats(settings) {
     const s = sanitizeSettings(settings);
-    const slip = s.slipStrength / 100;
+    const gripDelta = clamp((s.tractionCurveMax - s.tractionCurveMin) / 1.6, 0, 1);
+    const angleBias = clamp((s.steeringLock - 0.55) / 0.7, 0, 1);
+    const powerBias = clamp((s.initialDriveForce - 0.12) / 0.48, 0, 1);
+    const lowSpeedBias = clamp((s.lowSpeedTractionLossMult - 0.7) / 1.5, 0, 1);
     const stats = {
-        initiation: 12 + (slip * 84),
-        stability: 95 - (slip * 58),
-        angle: 8 + (slip * 90),
-        control: 92 - (slip * 44),
-        aggressiveness: 6 + (slip * 94),
+        initiation: 25 + (lowSpeedBias * 45) + (powerBias * 20),
+        stability: 80 - (gripDelta * 26) + ((s.suspensionReboundDamp - 0.8) * 8),
+        angle: 18 + (angleBias * 67),
+        control: 72 - (gripDelta * 18) + ((s.brakeBiasFront - 0.35) * 35),
+        aggressiveness: 20 + (powerBias * 35) + (gripDelta * 40),
     };
 
     Object.keys(stats).forEach((key) => {
