@@ -77,6 +77,9 @@ var prompt = new Vue({
             "garage_control": {
                 text: "Нажмите <span>E</span> для того, чтобы выехать из гаража"
             },
+            "drift_workshop": {
+                text: "Нажмите <span>E</span> для открытия Drift Workshop"
+            },
             "biz_info_ask": {
                 text: "Нажмите <span>B</span> для просмотра информации о бизнесе"
             },
