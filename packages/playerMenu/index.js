@@ -124,6 +124,7 @@ module.exports = {
         player.call(`playerMenu.setHouse`, [data]);
     },
     setSkills(player) {
+        if (!player || !mp.players.exists(player) || !player.character || !Array.isArray(player.character.jobSkills)) return;
         var data = {
             skills: player.character.jobSkills.map(x => {
                 return {
@@ -133,7 +134,7 @@ module.exports = {
                 };
             }),
         };
-        player.call(`playerMenu.setSkills`, [data]);
+        if (mp.players.exists(player)) player.call(`playerMenu.setSkills`, [data]);
     },
     setSkill(player, skill) {
         var data = {

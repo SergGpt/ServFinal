@@ -52,7 +52,6 @@ module.exports = {
         "WEAPON_AIRSTRIKE_ROCKET",
         "weapon_dagger",
         "weapon_bottle",
-        "weapon_crowbar",
         "weapon_hammer",
         "weapon_knuckle",
         "weapon_knife",

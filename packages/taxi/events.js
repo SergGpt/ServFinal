@@ -287,8 +287,8 @@ module.exports = {
     },
     "vehicle.respawned": (veh) => {
         if (veh.isActiveTaxi) {
-            vehicle.isActiveTaxi = null;
-            vehicle.taxiDriverId = null;
+            veh.isActiveTaxi = null;
+            veh.taxiDriverId = null;
         }
     }
 }
