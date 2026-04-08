@@ -9,6 +9,8 @@ const JOB_ID = 5;
 const FIELD_CENTER = { x: 2050.4384765625, y: 4920.4482421875, z: 40.96115493774414 };
 const PLOT_GRID_SIZE = 10;
 const PLOT_SPACING = 1.5;
+const READY_STAGE_MS = 60 * 1000;
+const OVERRIPE_STAGE_MS = 45 * 1000;
 
 function generatePlots(center, size, spacing) {
     const offsetBase = (size - 1) / 2;
@@ -127,6 +129,8 @@ module.exports = {
         this.plots.forEach(plot => {
             if (plot.growthTimer) timer.remove(plot.growthTimer);
             if (plot.cooldownTimer) timer.remove(plot.cooldownTimer);
+            if (plot.ripeTimer) timer.remove(plot.ripeTimer);
+            if (plot.overripeTimer) timer.remove(plot.overripeTimer);
             this.destroyPlotObject(plot);
         });
     },
@@ -308,22 +312,49 @@ module.exports = {
 
     reconcilePlotState(index, notifyOwner = false) {
         const plot = this.plots[index];
-        if (!plot || plot.state !== "growing" || !plot.readyAt) return false;
-        if (plot.readyAt > Date.now()) return false;
-        if (plot.growthTimer) {
-            timer.remove(plot.growthTimer);
-            plot.growthTimer = null;
-        }
-        plot.state = "ready";
-        plot.readyAt = null;
-        if (notifyOwner) {
-            const owner = this.getPlotOwner(plot.ownerId);
-            if (owner) {
-                notifs.success(owner, `Грядка №${index + 1} готова к сбору`, "Ферма");
-                owner.call("farms.plot.ready", [index]);
+        if (!plot) return false;
+        const now = Date.now();
+        let changed = false;
+
+        if (plot.state === "growing" && plot.readyAt && plot.readyAt <= now) {
+            if (plot.growthTimer) {
+                timer.remove(plot.growthTimer);
+                plot.growthTimer = null;
+            }
+            plot.state = "ready";
+            plot.readyAt = null;
+            plot.ripeEndsAt = now + READY_STAGE_MS;
+            if (plot.ripeTimer) timer.remove(plot.ripeTimer);
+            plot.ripeTimer = timer.add(() => this.setPlotOverripe(index), READY_STAGE_MS);
+            changed = true;
+            if (notifyOwner) {
+                const owner = this.getPlotOwner(plot.ownerId);
+                if (owner) {
+                    notifs.success(owner, `Грядка №${index + 1} созрела (60 сек до перезревания)`, "Ферма");
+                    owner.call("farms.plot.ready", [index]);
+                }
             }
         }
-        return true;
+
+        if (plot.state === "ready" && plot.ripeEndsAt && plot.ripeEndsAt <= now) {
+            if (plot.ripeTimer) {
+                timer.remove(plot.ripeTimer);
+                plot.ripeTimer = null;
+            }
+            plot.state = "overripe";
+            plot.ripeEndsAt = null;
+            plot.overripeEndsAt = now + OVERRIPE_STAGE_MS;
+            if (plot.overripeTimer) timer.remove(plot.overripeTimer);
+            plot.overripeTimer = timer.add(() => this.expireOverripePlot(index), OVERRIPE_STAGE_MS);
+            changed = true;
+        }
+
+        if (plot.state === "overripe" && plot.overripeEndsAt && plot.overripeEndsAt <= now) {
+            this.expireOverripePlot(index);
+            changed = true;
+        }
+
+        return changed;
     },
 
     adjustBlipPos(pos) {
@@ -340,11 +371,15 @@ module.exports = {
                 ownerId: null,
                 ownerName: null,
                 readyAt: null,
+                ripeEndsAt: null,
+                overripeEndsAt: null,
                 cooldownAt: null,
                 seedType: null,
                 object: null,
                 growthTimer: null,
                 cooldownTimer: null,
+                ripeTimer: null,
+                overripeTimer: null,
             };
         });
     },
@@ -380,11 +415,15 @@ module.exports = {
             ownerId: null,
             ownerName: null,
             readyAt: null,
+            ripeEndsAt: null,
+            overripeEndsAt: null,
             cooldownAt: null,
             seedType: null,
             object: null,
             growthTimer: null,
             cooldownTimer: null,
+            ripeTimer: null,
+            overripeTimer: null,
         };
         this.plots.push(plot);
         this.plotsData.push({ x: plot.position.x, y: plot.position.y, z: plot.position.z });
@@ -403,6 +442,8 @@ module.exports = {
             if (!plot) return;
             if (plot.growthTimer) timer.remove(plot.growthTimer);
             if (plot.cooldownTimer) timer.remove(plot.cooldownTimer);
+            if (plot.ripeTimer) timer.remove(plot.ripeTimer);
+            if (plot.overripeTimer) timer.remove(plot.overripeTimer);
             this.destroyPlotObject(plot);
             this.broadcastPlotUpdate(index);
         });
@@ -462,9 +503,15 @@ module.exports = {
                 plot.growthTimer = null;
                 if (plot.cooldownTimer) timer.remove(plot.cooldownTimer);
                 plot.cooldownTimer = null;
+                if (plot.ripeTimer) timer.remove(plot.ripeTimer);
+                plot.ripeTimer = null;
+                if (plot.overripeTimer) timer.remove(plot.overripeTimer);
+                plot.overripeTimer = null;
                 plot.ownerId = null;
                 plot.ownerName = null;
                 plot.readyAt = null;
+                plot.ripeEndsAt = null;
+                plot.overripeEndsAt = null;
                 plot.cooldownAt = null;
                 plot.seedType = null;
                 plot.state = "empty";
@@ -555,6 +602,12 @@ module.exports = {
         plot.ownerName = player.name;
         plot.seedType = type.id;
         plot.readyAt = Date.now() + growthTime;
+        plot.ripeEndsAt = null;
+        plot.overripeEndsAt = null;
+        if (plot.ripeTimer) timer.remove(plot.ripeTimer);
+        if (plot.overripeTimer) timer.remove(plot.overripeTimer);
+        plot.ripeTimer = null;
+        plot.overripeTimer = null;
         plot.growthTimer = timer.add(() => this.setPlotReady(index), growthTime);
         this.createPlotObject(plot, type.objectModel);
 
@@ -573,11 +626,50 @@ module.exports = {
 
         plot.state = "ready";
         plot.readyAt = null;
+        plot.ripeEndsAt = Date.now() + READY_STAGE_MS;
+        if (plot.ripeTimer) timer.remove(plot.ripeTimer);
+        plot.ripeTimer = timer.add(() => this.setPlotOverripe(index), READY_STAGE_MS);
         const owner = this.getPlotOwner(plot.ownerId);
         if (owner) {
-            notifs.success(owner, `Грядка №${index + 1} готова к сбору`, "Ферма");
+            notifs.success(owner, `Грядка №${index + 1} созрела (60 сек до перезревания)`, "Ферма");
             owner.call("farms.plot.ready", [index]);
         }
+        this.broadcastPlotUpdate(index);
+    },
+
+    setPlotOverripe(index) {
+        const plot = this.plots[index];
+        if (!plot) return;
+        plot.ripeTimer = null;
+        if (plot.state !== "ready") return;
+        plot.state = "overripe";
+        plot.ripeEndsAt = null;
+        plot.overripeEndsAt = Date.now() + OVERRIPE_STAGE_MS;
+        if (plot.overripeTimer) timer.remove(plot.overripeTimer);
+        plot.overripeTimer = timer.add(() => this.expireOverripePlot(index), OVERRIPE_STAGE_MS);
+        this.broadcastPlotUpdate(index);
+    },
+
+    expireOverripePlot(index) {
+        const plot = this.plots[index];
+        if (!plot) return;
+        if (plot.overripeTimer) {
+            timer.remove(plot.overripeTimer);
+            plot.overripeTimer = null;
+        }
+        if (plot.ripeTimer) {
+            timer.remove(plot.ripeTimer);
+            plot.ripeTimer = null;
+        }
+        if (plot.state !== "overripe") return;
+        plot.state = "empty";
+        plot.ownerId = null;
+        plot.ownerName = null;
+        plot.seedType = null;
+        plot.readyAt = null;
+        plot.ripeEndsAt = null;
+        plot.overripeEndsAt = null;
+        this.destroyPlotObject(plot);
         this.broadcastPlotUpdate(index);
     },
 
@@ -587,7 +679,7 @@ module.exports = {
         if (!plot) return notifs.error(player, "Грядка не найдена", "Ферма");
         const matured = this.reconcilePlotState(index, true);
         if (matured) this.broadcastPlotUpdate(index);
-        if (plot.state !== "ready") {
+        if (plot.state !== "ready" && plot.state !== "overripe") {
             if (plot.state === "growing") return notifs.warning(player, "Урожай еще созревает", "Ферма");
             if (plot.state === "cooldown") return notifs.warning(player, "Грядка восстанавливается", "Ферма");
             return notifs.warning(player, "Эта грядка пока недоступна", "Ферма");
@@ -601,6 +693,13 @@ module.exports = {
         plot.ownerId = null;
         plot.ownerName = null;
         plot.seedType = null;
+        plot.readyAt = null;
+        plot.ripeEndsAt = null;
+        plot.overripeEndsAt = null;
+        if (plot.ripeTimer) timer.remove(plot.ripeTimer);
+        if (plot.overripeTimer) timer.remove(plot.overripeTimer);
+        plot.ripeTimer = null;
+        plot.overripeTimer = null;
         const level = this.getPlayerLevel(player);
         const cooldownTime = this.getProcessTime(type.cooldownRange, level);
         plot.cooldownAt = Date.now() + cooldownTime;
@@ -730,6 +829,8 @@ module.exports = {
             seedType: plot.seedType,
             seedName: null,
             readyAt: null,
+            ripeEndsAt: null,
+            overripeEndsAt: null,
             cooldownAt: null,
         };
         if (!plot) return result;
@@ -750,6 +851,12 @@ module.exports = {
             case "ready":
                 result.state = plot.ownerId === player.id ? "ready" : "ready_foreign";
                 result.action = "harvest";
+                result.ripeEndsAt = plot.ripeEndsAt;
+                break;
+            case "overripe":
+                result.state = plot.ownerId === player.id ? "overripe" : "overripe_foreign";
+                result.action = "harvest";
+                result.overripeEndsAt = plot.overripeEndsAt;
                 break;
             case "cooldown":
                 result.state = "cooldown";

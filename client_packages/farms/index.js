@@ -32,6 +32,8 @@ const markerColors = {
     growing_foreign: [255, 170, 64, 120],
     ready: [84, 255, 84, 160],
     ready_foreign: [84, 255, 150, 160],
+    overripe: [255, 115, 115, 180],
+    overripe_foreign: [255, 140, 140, 180],
     cooldown: [252, 144, 58, 120],
     busy: [180, 180, 180, 100],
 };
@@ -70,6 +72,8 @@ function getSecondsLeft(plotInfo) {
     if (!plotInfo) return 0;
     const now = Date.now();
     if (plotInfo.readyAt) return Math.max(0, Math.ceil((plotInfo.readyAt - now) / 1000));
+    if (plotInfo.ripeEndsAt) return Math.max(0, Math.ceil((plotInfo.ripeEndsAt - now) / 1000));
+    if (plotInfo.overripeEndsAt) return Math.max(0, Math.ceil((plotInfo.overripeEndsAt - now) / 1000));
     if (plotInfo.cooldownAt) return Math.max(0, Math.ceil((plotInfo.cooldownAt - now) / 1000));
     return 0;
 }
@@ -99,6 +103,10 @@ function updatePrompt() {
         const seconds = getSecondsLeft(currentPlot);
         const prefix = state === "growing_foreign" ? `Чужая грядка (${owner})` : "Ваша грядка";
         mp.prompt.show(`${prefix}: рост ~${seconds} сек.`);
+    } else if (state === "ready" || state === "ready_foreign") {
+        mp.prompt.show(`Созрело: ${getSecondsLeft(currentPlot)} сек. до перезревания`);
+    } else if (state === "overripe" || state === "overripe_foreign") {
+        mp.prompt.show(`Перезрело: ${getSecondsLeft(currentPlot)} сек. до исчезновения`);
     } else if (state === "cooldown") {
         mp.prompt.show(`Грядка восстанавливается (~${getSecondsLeft(currentPlot)} сек.)`);
     } else {
@@ -315,11 +323,20 @@ function renderPlantTimers() {
             state.readyAt = null;
             updateMarker(i);
         }
-        if (state.state !== "growing" && state.state !== "growing_foreign" && state.state !== "ready" && state.state !== "ready_foreign") continue;
+        if ((state.state === "ready" || state.state === "ready_foreign") && getSecondsLeft(state) <= 0) {
+            state.state = state.state === "ready_foreign" ? "overripe_foreign" : "overripe";
+            state.action = "harvest";
+            state.ripeEndsAt = null;
+            updateMarker(i);
+        }
+        if (state.state !== "growing" && state.state !== "growing_foreign" && state.state !== "ready" && state.state !== "ready_foreign" && state.state !== "overripe" && state.state !== "overripe_foreign") continue;
 
         let text = state.seedName || "Растение";
-        if (state.state === "ready" || state.state === "ready_foreign") text += " | Готово";
-        else text += ` | ${getSecondsLeft(state)} сек.`;
+        if (state.state === "ready" || state.state === "ready_foreign") text += ` | Созрело (${getSecondsLeft(state)} сек.)`;
+        else if (state.state === "overripe" || state.state === "overripe_foreign") text += ` | Перезрело (${getSecondsLeft(state)} сек.)`;
+        else text += ` | Рост: ${getSecondsLeft(state)} сек.`;
+
+        if (mp.players.local.position.distanceTo(pos) > 100) continue;
 
         const screen = mp.game.graphics.world3dToScreen2d(new mp.Vector3(pos.x, pos.y, pos.z + 0.6));
         if (!screen) continue;
@@ -341,7 +358,11 @@ function getNearestHarvestablePlotIndex(maxDistance = 2.2) {
         const state = plotStates[i];
         const pos = plotPositions[i];
         if (!state || !pos) continue;
-        const canHarvest = state.action === "harvest" || state.state === "ready" || state.state === "ready_foreign";
+        const canHarvest = state.action === "harvest"
+            || state.state === "ready"
+            || state.state === "ready_foreign"
+            || state.state === "overripe"
+            || state.state === "overripe_foreign";
         if (!canHarvest) continue;
         const dist = mp.players.local.position.distanceTo(pos);
         if (dist <= bestDistance) {
