@@ -286,6 +286,7 @@ module.exports = {
         if (!pos) return;
         this.farmMenuPos = new mp.Vector3(parseFloat(pos.x) || 0, parseFloat(pos.y) || 0, parseFloat(pos.z) || 0);
         this.createFarmMenuZone();
+        this.broadcastPlantZone();
     },
 
     broadcastPlantZone(target = null) {
@@ -296,12 +297,33 @@ module.exports = {
             points: Array.isArray(z.points) ? z.points : null,
             minZ: z.minZ,
             maxZ: z.maxZ,
+            npcPos: this.farmMenuPos ? { x: this.farmMenuPos.x, y: this.farmMenuPos.y, z: this.farmMenuPos.z } : null,
         };
         if (target) return target.call("farms.zone.sync", [payload]);
         mp.players.forEach(player => {
             if (!player) return;
             player.call("farms.zone.sync", [payload]);
         });
+    },
+
+    reconcilePlotState(index, notifyOwner = false) {
+        const plot = this.plots[index];
+        if (!plot || plot.state !== "growing" || !plot.readyAt) return false;
+        if (plot.readyAt > Date.now()) return false;
+        if (plot.growthTimer) {
+            timer.remove(plot.growthTimer);
+            plot.growthTimer = null;
+        }
+        plot.state = "ready";
+        plot.readyAt = null;
+        if (notifyOwner) {
+            const owner = this.getPlotOwner(plot.ownerId);
+            if (owner) {
+                notifs.success(owner, `Грядка №${index + 1} готова к сбору`, "Ферма");
+                owner.call("farms.plot.ready", [index]);
+            }
+        }
+        return true;
     },
 
     adjustBlipPos(pos) {
@@ -516,6 +538,8 @@ module.exports = {
         }
         const plot = this.plots[index];
         if (!plot) return notifs.error(player, "Не удалось создать грядку в текущей точке", "Ферма");
+        const matured = this.reconcilePlotState(index, true);
+        if (matured) this.broadcastPlotUpdate(index);
         if (plot.state !== "empty") {
             if (plot.state === "growing") return notifs.warning(player, "Эта грядка уже занята посевами", "Ферма");
             if (plot.state === "ready") return notifs.warning(player, "Сначала соберите урожай с этой грядки", "Ферма");
@@ -561,6 +585,8 @@ module.exports = {
         if (!this.isFarmer(player)) return;
         const plot = this.plots[index];
         if (!plot) return notifs.error(player, "Грядка не найдена", "Ферма");
+        const matured = this.reconcilePlotState(index, true);
+        if (matured) this.broadcastPlotUpdate(index);
         if (plot.state !== "ready") {
             if (plot.state === "growing") return notifs.warning(player, "Урожай еще созревает", "Ферма");
             if (plot.state === "cooldown") return notifs.warning(player, "Грядка восстанавливается", "Ферма");
@@ -695,6 +721,7 @@ module.exports = {
     },
 
     serializePlotForPlayer(plot, player) {
+        if (plot && plot.index != null) this.reconcilePlotState(plot.index, false);
         const result = {
             state: "busy",
             action: null,

@@ -12,6 +12,7 @@ let insideFarmMenuZone = false;
 let farmUiBusyActive = false;
 let knownSeedsAmount = 0;
 let wasInsidePlantZone = false;
+let farmNpc = null;
 
 const markerColors = {
     available: [124, 194, 91, 120],
@@ -141,21 +142,36 @@ function handleFarmUiClosed() {
 }
 
 function applyPlotUpdate(index, data) {
+    data = data || {};
+    const payload = Object.assign({}, data);
+    if (Object.prototype.hasOwnProperty.call(payload, "state") && !Object.prototype.hasOwnProperty.call(payload, "action")) {
+        payload.action = null;
+    }
     if (!plotStates[index]) plotStates[index] = {};
-    plotStates[index] = Object.assign({}, plotStates[index], data || {});
+    plotStates[index] = Object.assign({}, plotStates[index], payload);
     updateMarker(index);
     if (currentPlot && currentPlot.index === index) {
-        currentPlot = Object.assign({}, currentPlot, data || {});
+        currentPlot = Object.assign({}, currentPlot, payload);
         updatePrompt();
     }
 }
 
-function createPeds() {
-    mp.events.call("NPC.create", {
-        model: "a_m_m_farmer_01",
-        position: { x: 2023.0729980469, y: 4976.6215820312, z: 41.2263450623 },
-        heading: 40.0,
-    });
+function createFarmNpc(position) {
+    if (!position) return;
+    if (farmNpc) {
+        try {
+            if (mp.peds.exists(farmNpc)) farmNpc.destroy();
+        } catch (e) {}
+        farmNpc = null;
+    }
+    const pos = new mp.Vector3(Number(position.x), Number(position.y), Number(position.z));
+    farmNpc = mp.peds.new(mp.game.joaat("a_m_m_farmer_01"), pos, 40.0, 0);
+    if (farmNpc) {
+        farmNpc.defaultScenario = "WORLD_HUMAN_STAND_IMPATIENT";
+        try {
+            farmNpc.taskStartScenarioInPlace(farmNpc.defaultScenario, 0, false);
+        } catch (e) {}
+    }
 }
 
 function drawZoneBox(zone, color) {
@@ -300,7 +316,9 @@ function renderPlantTimers() {
 }
 
 mp.events.add({
-    "characterInit.done": () => createPeds(),
+    "characterInit.done": () => {
+        mp.events.callRemote("farms.menu.sync");
+    },
     "farms.plots.init": (positions) => {
         if (!Array.isArray(positions)) positions = [];
         createMarkers(positions);
@@ -366,6 +384,7 @@ mp.events.add({
     },
     "farms.zone.sync": (zone) => {
         plantZone = zone;
+        if (zone && zone.npcPos) createFarmNpc(zone.npcPos);
     },
     "farms.zone.preview": (zoneJson) => {
         try {
@@ -415,6 +434,12 @@ mp.events.add({
         clearMarkers();
         currentPlot = null;
         insideFarmMenuZone = false;
+        if (farmNpc) {
+            try {
+                if (mp.peds.exists(farmNpc)) farmNpc.destroy();
+            } catch (e) {}
+            farmNpc = null;
+        }
         closeFarmMenu();
         handleFarmUiClosed();
         mp.prompt.hide();
@@ -485,6 +510,12 @@ mp.keys.bind(0x0D, true, () => {
 mp.events.add("playerQuit", () => {
     currentPlot = null;
     insideFarmMenuZone = false;
+    if (farmNpc) {
+        try {
+            if (mp.peds.exists(farmNpc)) farmNpc.destroy();
+        } catch (e) {}
+        farmNpc = null;
+    }
     closeFarmMenu();
     handleFarmUiClosed();
     mp.prompt.hide();
