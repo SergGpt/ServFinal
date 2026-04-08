@@ -546,14 +546,14 @@ mp.keys.bind(0x45, true, () => {
     const handHasFarmSeed = handItemId === 400 || handItemId === 402 || handItemId === 404;
 
     if (!mp.busy.includes() && isLocalInsidePlantZone()) {
-        if (!handHasFarmSeed) {
-            const harvestIndex = getNearestHarvestablePlotIndex();
-            if (harvestIndex !== -1) {
-                mp.events.callRemote("farms.plot.harvest", harvestIndex);
-                mp.prompt.hide();
-                return;
-            }
-            mp.notify.warning("Возьмите семена в руки для посадки", "Ферма");
+        const harvestIndex = getNearestHarvestablePlotIndex();
+        if (harvestIndex !== -1) {
+            mp.events.callRemote("farms.plot.harvest", harvestIndex);
+            mp.prompt.hide();
+            return;
+        }
+        if (!handHasFarmSeed && knownSeedsAmount <= 0) {
+            mp.notify.warning("У вас нет семян для посадки", "Ферма");
             return;
         }
     }

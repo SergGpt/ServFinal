@@ -12,6 +12,7 @@ const PLOT_GRID_SIZE = 10;
 const PLOT_SPACING = 1.5;
 const READY_STAGE_MS = 60 * 1000;
 const OVERRIPE_STAGE_MS = 45 * 1000;
+const HARVEST_INTERACT_RADIUS = 4.0;
 
 function generatePlots(center, size, spacing) {
     const offsetBase = (size - 1) / 2;
@@ -400,6 +401,9 @@ module.exports = {
                 overripeEndsAt: null,
                 cooldownAt: null,
                 seedType: null,
+                seedItemId: null,
+                plantedPos: null,
+                plantRadius: null,
                 object: null,
                 growthTimer: null,
                 cooldownTimer: null,
@@ -416,6 +420,9 @@ module.exports = {
             ownerId: plot.ownerId,
             ownerName: plot.ownerName,
             seedType: plot.seedType,
+            seedItemId: plot.seedItemId,
+            plantedPos: plot.plantedPos,
+            plantRadius: plot.plantRadius,
             readyAt: plot.readyAt,
             ripeEndsAt: plot.ripeEndsAt,
             overripeEndsAt: plot.overripeEndsAt,
@@ -445,6 +452,9 @@ module.exports = {
             plot.ownerId = saved.ownerId != null ? Number(saved.ownerId) : null;
             plot.ownerName = saved.ownerName || null;
             plot.seedType = saved.seedType || null;
+            plot.seedItemId = saved.seedItemId != null ? Number(saved.seedItemId) : null;
+            plot.plantedPos = saved.plantedPos || null;
+            plot.plantRadius = saved.plantRadius != null ? Number(saved.plantRadius) : null;
             plot.readyAt = saved.readyAt ? Number(saved.readyAt) : null;
             plot.ripeEndsAt = saved.ripeEndsAt ? Number(saved.ripeEndsAt) : null;
             plot.overripeEndsAt = saved.overripeEndsAt ? Number(saved.overripeEndsAt) : null;
@@ -527,6 +537,9 @@ module.exports = {
             overripeEndsAt: null,
             cooldownAt: null,
             seedType: null,
+            seedItemId: null,
+            plantedPos: null,
+            plantRadius: null,
             object: null,
             growthTimer: null,
             cooldownTimer: null,
@@ -622,6 +635,9 @@ module.exports = {
                 plot.overripeEndsAt = null;
                 plot.cooldownAt = null;
                 plot.seedType = null;
+                plot.seedItemId = null;
+                plot.plantedPos = null;
+                plot.plantRadius = null;
                 plot.state = "empty";
                 this.destroyPlotObject(plot);
                 this.broadcastPlotUpdate(index);
@@ -725,6 +741,13 @@ module.exports = {
         plot.ownerId = player.id;
         plot.ownerName = player.name;
         plot.seedType = type.id;
+        plot.seedItemId = type.seedItemId;
+        plot.plantedPos = {
+            x: Number(player.position.x.toFixed(3)),
+            y: Number(player.position.y.toFixed(3)),
+            z: Number(player.position.z.toFixed(3)),
+        };
+        plot.plantRadius = HARVEST_INTERACT_RADIUS;
         plot.readyAt = Date.now() + growthTime;
         plot.ripeEndsAt = null;
         plot.overripeEndsAt = null;
@@ -798,6 +821,9 @@ module.exports = {
         plot.ownerId = null;
         plot.ownerName = null;
         plot.seedType = null;
+        plot.seedItemId = null;
+        plot.plantedPos = null;
+        plot.plantRadius = null;
         plot.readyAt = null;
         plot.ripeEndsAt = null;
         plot.overripeEndsAt = null;
@@ -828,12 +854,24 @@ module.exports = {
 
         const ownerId = plot.ownerId;
         const ownerName = plot.ownerName;
+        const plantRadius = Number(plot.plantRadius) > 0 ? Number(plot.plantRadius) : HARVEST_INTERACT_RADIUS;
+        const sourcePos = plot.plantedPos || plot.position;
+        if (sourcePos) {
+            const dx = player.position.x - sourcePos.x;
+            const dy = player.position.y - sourcePos.y;
+            const dz = player.position.z - sourcePos.z;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist > plantRadius) return notifs.warning(player, `Подойдите ближе к грядке (радиус ${plantRadius.toFixed(1)}м)`, "Ферма");
+        }
         const type = this.getSeedType(plot.seedType) || this.seedTypes[0];
 
         plot.state = "cooldown";
         plot.ownerId = null;
         plot.ownerName = null;
         plot.seedType = null;
+        plot.seedItemId = null;
+        plot.plantedPos = null;
+        plot.plantRadius = null;
         plot.readyAt = null;
         plot.ripeEndsAt = null;
         plot.overripeEndsAt = null;
