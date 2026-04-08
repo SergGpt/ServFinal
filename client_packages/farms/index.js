@@ -354,7 +354,7 @@ function renderPlantTimers() {
     }
 }
 
-function getNearestHarvestablePlotIndex(maxDistance = 4.0) {
+function getNearestHarvestablePlotIndex(maxDistance = 2.2) {
     if (!plotPositions.length || !plotStates.length || !mp.players.local) return -1;
     let nearest = -1;
     let bestDistance = maxDistance;
@@ -535,25 +535,11 @@ mp.keys.bind(0x45, true, () => {
         return;
     }
 
-    const localHands = mp.players.local && mp.players.local.hands ? mp.players.local.hands : null;
-    const syncedHandsRaw = mp.players.local ? mp.players.local.getVariable("hands") : null;
-    const syncedHandsKnown = syncedHandsRaw !== null && syncedHandsRaw !== undefined;
-    const syncedHandsItemId = Number(syncedHandsRaw);
-    const localHandsItemId = localHands ? Number(localHands.itemId) : NaN;
-    const handItemId = syncedHandsKnown
-        ? (isNaN(syncedHandsItemId) ? null : syncedHandsItemId)
-        : (isNaN(localHandsItemId) ? null : localHandsItemId);
-    const handHasFarmSeed = handItemId === 400 || handItemId === 402 || handItemId === 404;
-
     if (!mp.busy.includes() && isLocalInsidePlantZone()) {
         const harvestIndex = getNearestHarvestablePlotIndex();
         if (harvestIndex !== -1) {
             mp.events.callRemote("farms.plot.harvest", harvestIndex);
             mp.prompt.hide();
-            return;
-        }
-        if (!handHasFarmSeed && knownSeedsAmount <= 0) {
-            mp.notify.warning("У вас нет семян для посадки", "Ферма");
             return;
         }
     }

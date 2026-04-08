@@ -12,7 +12,6 @@ const PLOT_GRID_SIZE = 10;
 const PLOT_SPACING = 1.5;
 const READY_STAGE_MS = 60 * 1000;
 const OVERRIPE_STAGE_MS = 45 * 1000;
-const HARVEST_INTERACT_RADIUS = 4.0;
 
 function generatePlots(center, size, spacing) {
     const offsetBase = (size - 1) / 2;
@@ -576,36 +575,7 @@ module.exports = {
     addPlotAtPosition(position) {
         if (!position) return -1;
         const nearest = this.findNearestPlotIndexByPos(position, 1.2);
-        if (nearest !== -1) return nearest;
-        const index = this.plots.length;
-        const plot = {
-            index,
-            position: new mp.Vector3(position.x, position.y, position.z),
-            state: "empty",
-            ownerId: null,
-            ownerName: null,
-            readyAt: null,
-            ripeEndsAt: null,
-            overripeEndsAt: null,
-            cooldownAt: null,
-            seedType: null,
-            seedItemId: null,
-            plantedPos: null,
-            plantRadius: null,
-            object: null,
-            growthTimer: null,
-            cooldownTimer: null,
-            ripeTimer: null,
-            overripeTimer: null,
-        };
-        this.plots.push(plot);
-        this.plotsData.push({ x: plot.position.x, y: plot.position.y, z: plot.position.z });
-        mp.players.forEach((player) => {
-            if (!this.isFarmer(player)) return;
-            player.call("farms.plot.add", [index, { x: plot.position.x, y: plot.position.y, z: plot.position.z }]);
-            player.call("farms.plot.update", [index, this.serializePlotForPlayer(plot, player)]);
-        });
-        return index;
+        return nearest;
     },
 
     resetPlotsData(positions) {
@@ -763,17 +733,20 @@ module.exports = {
     plantSeed(player, index, seedId) {
         if (!this.isFarmer(player)) return;
         const data = this.ensureJobData(player);
-        const handsItem = inventory.getHandsItem(player);
-        const handSeedType = handsItem ? this.seedTypes.find(seed => Number(seed.seedItemId) === Number(handsItem.itemId)) : null;
-        const type = handSeedType || this.getSeedType(seedId) || this.seedTypes[0];
+        const type = this.getSeedType(seedId) || this.seedTypes[0];
         const hasInvSeed = type.seedItemId && this.hasItem(player, type.seedItemId, 1);
         const hasLegacySeed = (data.seeds[type.id] || 0) > 0;
         if (!hasInvSeed && !hasLegacySeed) return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
 
         index = parseInt(index);
-        if (isNaN(index) || index < 0 || !this.plots[index]) index = this.findNearestPlotIndexByPos(player.position, HARVEST_INTERACT_RADIUS);
+        if (isNaN(index) || index < 0 || !this.plots[index]) {
+            index = this.addPlotAtPosition(player.position);
+            if (index === -1) {
+                return notifs.warning(player, "Рядом нет грядки для посадки", "Ферма");
+            }
+        }
         const plot = this.plots[index];
-        if (!plot) return notifs.warning(player, "Здесь нет грядки для посадки", "Ферма");
+        if (!plot) return notifs.error(player, "Не удалось создать грядку в текущей точке", "Ферма");
         const matured = this.reconcilePlotState(index, true);
         if (matured) this.broadcastPlotUpdate(index);
         if (plot.state !== "empty") {
@@ -881,6 +854,42 @@ module.exports = {
         this.schedulePlotStateSave();
     },
 
+    setPlotOverripe(index) {
+        const plot = this.plots[index];
+        if (!plot) return;
+        plot.ripeTimer = null;
+        if (plot.state !== "ready") return;
+        plot.state = "overripe";
+        plot.ripeEndsAt = null;
+        plot.overripeEndsAt = Date.now() + OVERRIPE_STAGE_MS;
+        if (plot.overripeTimer) timer.remove(plot.overripeTimer);
+        plot.overripeTimer = timer.add(() => this.expireOverripePlot(index), OVERRIPE_STAGE_MS);
+        this.broadcastPlotUpdate(index);
+    },
+
+    expireOverripePlot(index) {
+        const plot = this.plots[index];
+        if (!plot) return;
+        if (plot.overripeTimer) {
+            timer.remove(plot.overripeTimer);
+            plot.overripeTimer = null;
+        }
+        if (plot.ripeTimer) {
+            timer.remove(plot.ripeTimer);
+            plot.ripeTimer = null;
+        }
+        if (plot.state !== "overripe") return;
+        plot.state = "empty";
+        plot.ownerId = null;
+        plot.ownerName = null;
+        plot.seedType = null;
+        plot.readyAt = null;
+        plot.ripeEndsAt = null;
+        plot.overripeEndsAt = null;
+        this.destroyPlotObject(plot);
+        this.broadcastPlotUpdate(index);
+    },
+
     harvestPlot(player, index) {
         if (!this.isFarmer(player)) return;
         index = parseInt(index);
@@ -918,9 +927,6 @@ module.exports = {
         plot.ownerId = null;
         plot.ownerName = null;
         plot.seedType = null;
-        plot.seedItemId = null;
-        plot.plantedPos = null;
-        plot.plantRadius = null;
         plot.readyAt = null;
         plot.ripeEndsAt = null;
         plot.overripeEndsAt = null;
