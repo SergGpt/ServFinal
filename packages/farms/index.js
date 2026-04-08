@@ -4,11 +4,14 @@ let notifs = call("notifications");
 let money = call("money");
 let jobs = call("jobs");
 let timer = call("timer");
+let inventory = call("inventory");
 
 const JOB_ID = 5;
 const FIELD_CENTER = { x: 2050.4384765625, y: 4920.4482421875, z: 40.96115493774414 };
 const PLOT_GRID_SIZE = 10;
 const PLOT_SPACING = 1.5;
+const READY_STAGE_MS = 60 * 1000;
+const OVERRIPE_STAGE_MS = 45 * 1000;
 
 function generatePlots(center, size, spacing) {
     const offsetBase = (size - 1) / 2;
@@ -44,6 +47,8 @@ module.exports = {
             name: "Картофель",
             buyPrice: 20,
             harvestYield: 1,
+            seedItemId: 400,
+            harvestItemId: 401,
             growthRange: [45 * 1000, 75 * 1000],
             cooldownRange: [30 * 1000, 60 * 1000],
             objectModel: "prop_veg_crop_03_pump",
@@ -53,6 +58,8 @@ module.exports = {
             name: "Капуста",
             buyPrice: 45,
             harvestYield: 3,
+            seedItemId: 402,
+            harvestItemId: 403,
             growthRange: [120 * 1000, 180 * 1000],
             cooldownRange: [60 * 1000, 120 * 1000],
             objectModel: "prop_veg_crop_04_leaf",
@@ -62,6 +69,8 @@ module.exports = {
             name: "Кукуруза",
             buyPrice: 70,
             harvestYield: 5,
+            seedItemId: 404,
+            harvestItemId: 405,
             growthRange: [210 * 1000, 300 * 1000],
             cooldownRange: [90 * 1000, 150 * 1000],
             objectModel: "prop_veg_crop_02",
@@ -127,6 +136,8 @@ module.exports = {
         this.plots.forEach(plot => {
             if (plot.growthTimer) timer.remove(plot.growthTimer);
             if (plot.cooldownTimer) timer.remove(plot.cooldownTimer);
+            if (plot.ripeTimer) timer.remove(plot.ripeTimer);
+            if (plot.overripeTimer) timer.remove(plot.overripeTimer);
             this.destroyPlotObject(plot);
         });
     },
@@ -286,6 +297,7 @@ module.exports = {
         if (!pos) return;
         this.farmMenuPos = new mp.Vector3(parseFloat(pos.x) || 0, parseFloat(pos.y) || 0, parseFloat(pos.z) || 0);
         this.createFarmMenuZone();
+        this.broadcastPlantZone();
     },
 
     broadcastPlantZone(target = null) {
@@ -296,12 +308,60 @@ module.exports = {
             points: Array.isArray(z.points) ? z.points : null,
             minZ: z.minZ,
             maxZ: z.maxZ,
+            npcPos: this.farmMenuPos ? { x: this.farmMenuPos.x, y: this.farmMenuPos.y, z: this.farmMenuPos.z } : null,
         };
         if (target) return target.call("farms.zone.sync", [payload]);
         mp.players.forEach(player => {
             if (!player) return;
             player.call("farms.zone.sync", [payload]);
         });
+    },
+
+    reconcilePlotState(index, notifyOwner = false) {
+        const plot = this.plots[index];
+        if (!plot) return false;
+        const now = Date.now();
+        let changed = false;
+
+        if (plot.state === "growing" && plot.readyAt && plot.readyAt <= now) {
+            if (plot.growthTimer) {
+                timer.remove(plot.growthTimer);
+                plot.growthTimer = null;
+            }
+            plot.state = "ready";
+            plot.readyAt = null;
+            plot.ripeEndsAt = now + READY_STAGE_MS;
+            if (plot.ripeTimer) timer.remove(plot.ripeTimer);
+            plot.ripeTimer = timer.add(() => this.setPlotOverripe(index), READY_STAGE_MS);
+            changed = true;
+            if (notifyOwner) {
+                const owner = this.getPlotOwner(plot.ownerId);
+                if (owner) {
+                    notifs.success(owner, `Грядка №${index + 1} созрела (60 сек до перезревания)`, "Ферма");
+                    owner.call("farms.plot.ready", [index]);
+                }
+            }
+        }
+
+        if (plot.state === "ready" && plot.ripeEndsAt && plot.ripeEndsAt <= now) {
+            if (plot.ripeTimer) {
+                timer.remove(plot.ripeTimer);
+                plot.ripeTimer = null;
+            }
+            plot.state = "overripe";
+            plot.ripeEndsAt = null;
+            plot.overripeEndsAt = now + OVERRIPE_STAGE_MS;
+            if (plot.overripeTimer) timer.remove(plot.overripeTimer);
+            plot.overripeTimer = timer.add(() => this.expireOverripePlot(index), OVERRIPE_STAGE_MS);
+            changed = true;
+        }
+
+        if (plot.state === "overripe" && plot.overripeEndsAt && plot.overripeEndsAt <= now) {
+            this.expireOverripePlot(index);
+            changed = true;
+        }
+
+        return changed;
     },
 
     adjustBlipPos(pos) {
@@ -318,11 +378,15 @@ module.exports = {
                 ownerId: null,
                 ownerName: null,
                 readyAt: null,
+                ripeEndsAt: null,
+                overripeEndsAt: null,
                 cooldownAt: null,
                 seedType: null,
                 object: null,
                 growthTimer: null,
                 cooldownTimer: null,
+                ripeTimer: null,
+                overripeTimer: null,
             };
         });
     },
@@ -349,29 +413,7 @@ module.exports = {
     addPlotAtPosition(position) {
         if (!position) return -1;
         const nearest = this.findNearestPlotIndexByPos(position, 1.2);
-        if (nearest !== -1) return nearest;
-        const index = this.plots.length;
-        const plot = {
-            index,
-            position: new mp.Vector3(position.x, position.y, position.z),
-            state: "empty",
-            ownerId: null,
-            ownerName: null,
-            readyAt: null,
-            cooldownAt: null,
-            seedType: null,
-            object: null,
-            growthTimer: null,
-            cooldownTimer: null,
-        };
-        this.plots.push(plot);
-        this.plotsData.push({ x: plot.position.x, y: plot.position.y, z: plot.position.z });
-        mp.players.forEach((player) => {
-            if (!this.isFarmer(player)) return;
-            player.call("farms.plot.add", [index, { x: plot.position.x, y: plot.position.y, z: plot.position.z }]);
-            player.call("farms.plot.update", [index, this.serializePlotForPlayer(plot, player)]);
-        });
-        return index;
+        return nearest;
     },
 
     resetPlotsData(positions) {
@@ -381,6 +423,8 @@ module.exports = {
             if (!plot) return;
             if (plot.growthTimer) timer.remove(plot.growthTimer);
             if (plot.cooldownTimer) timer.remove(plot.cooldownTimer);
+            if (plot.ripeTimer) timer.remove(plot.ripeTimer);
+            if (plot.overripeTimer) timer.remove(plot.overripeTimer);
             this.destroyPlotObject(plot);
             this.broadcastPlotUpdate(index);
         });
@@ -440,9 +484,15 @@ module.exports = {
                 plot.growthTimer = null;
                 if (plot.cooldownTimer) timer.remove(plot.cooldownTimer);
                 plot.cooldownTimer = null;
+                if (plot.ripeTimer) timer.remove(plot.ripeTimer);
+                plot.ripeTimer = null;
+                if (plot.overripeTimer) timer.remove(plot.overripeTimer);
+                plot.overripeTimer = null;
                 plot.ownerId = null;
                 plot.ownerName = null;
                 plot.readyAt = null;
+                plot.ripeEndsAt = null;
+                plot.overripeEndsAt = null;
                 plot.cooldownAt = null;
                 plot.seedType = null;
                 plot.state = "empty";
@@ -468,7 +518,18 @@ module.exports = {
     },
 
     getSeedType(seedId) {
-        return this.seedTypes.find(seed => seed.id === seedId) || null;
+        if (seedId == null) return null;
+        const raw = String(seedId);
+        let type = this.seedTypes.find(seed => seed.id === raw);
+        if (type) return type;
+
+        const numeric = parseInt(seedId);
+        if (!isNaN(numeric)) {
+            type = this.seedTypes.find(seed => Number(seed.seedItemId) === numeric);
+            if (type) return type;
+            if (numeric >= 0 && numeric < this.seedTypes.length) return this.seedTypes[numeric];
+        }
+        return null;
     },
 
     getTotalSeeds(data) {
@@ -477,7 +538,8 @@ module.exports = {
     },
 
     playerHasAnySeeds(player) {
-        return this.getTotalSeeds(this.ensureJobData(player)) > 0;
+        return this.seedTypes.some((seed) => this.getInventoryCount(player, seed.seedItemId) > 0)
+            || this.getTotalSeeds(this.ensureJobData(player)) > 0;
     },
 
     isPlayerInsidePlantZone(player) {
@@ -508,14 +570,21 @@ module.exports = {
         if (!this.isPlayerInsidePlantZone(player)) return notifs.warning(player, "Сажать можно только внутри зоны посадки", "Ферма");
         const data = this.ensureJobData(player);
         const type = this.getSeedType(seedId) || this.seedTypes[0];
-        if (!data.seeds[type.id] || data.seeds[type.id] <= 0) return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
+        const hasInvSeed = type.seedItemId && this.hasItem(player, type.seedItemId, 1);
+        const hasLegacySeed = (data.seeds[type.id] || 0) > 0;
+        if (!hasInvSeed && !hasLegacySeed) return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
 
         index = parseInt(index);
         if (isNaN(index) || index < 0 || !this.plots[index]) {
             index = this.addPlotAtPosition(player.position);
+            if (index === -1) {
+                return notifs.warning(player, "Рядом нет грядки для посадки", "Ферма");
+            }
         }
         const plot = this.plots[index];
         if (!plot) return notifs.error(player, "Не удалось создать грядку в текущей точке", "Ферма");
+        const matured = this.reconcilePlotState(index, true);
+        if (matured) this.broadcastPlotUpdate(index);
         if (plot.state !== "empty") {
             if (plot.state === "growing") return notifs.warning(player, "Эта грядка уже занята посевами", "Ферма");
             if (plot.state === "ready") return notifs.warning(player, "Сначала соберите урожай с этой грядки", "Ферма");
@@ -531,10 +600,21 @@ module.exports = {
         plot.ownerName = player.name;
         plot.seedType = type.id;
         plot.readyAt = Date.now() + growthTime;
+        plot.ripeEndsAt = null;
+        plot.overripeEndsAt = null;
+        if (plot.ripeTimer) timer.remove(plot.ripeTimer);
+        if (plot.overripeTimer) timer.remove(plot.overripeTimer);
+        plot.ripeTimer = null;
+        plot.overripeTimer = null;
         plot.growthTimer = timer.add(() => this.setPlotReady(index), growthTime);
         this.createPlotObject(plot, type.objectModel);
 
-        data.seeds[type.id]--;
+        if (hasInvSeed) {
+            const removed = this.consumeItems(player, type.seedItemId, 1);
+            if (!removed) return notifs.error(player, "Не удалось списать семена из инвентаря", "Ферма");
+        } else {
+            data.seeds[type.id]--;
+        }
         this.broadcastPlotUpdate(index);
         this.sendMenuUpdate(player);
         this.refreshPlayerPlots(player);
@@ -549,11 +629,50 @@ module.exports = {
 
         plot.state = "ready";
         plot.readyAt = null;
+        plot.ripeEndsAt = Date.now() + READY_STAGE_MS;
+        if (plot.ripeTimer) timer.remove(plot.ripeTimer);
+        plot.ripeTimer = timer.add(() => this.setPlotOverripe(index), READY_STAGE_MS);
         const owner = this.getPlotOwner(plot.ownerId);
         if (owner) {
-            notifs.success(owner, `Грядка №${index + 1} готова к сбору`, "Ферма");
+            notifs.success(owner, `Грядка №${index + 1} созрела (60 сек до перезревания)`, "Ферма");
             owner.call("farms.plot.ready", [index]);
         }
+        this.broadcastPlotUpdate(index);
+    },
+
+    setPlotOverripe(index) {
+        const plot = this.plots[index];
+        if (!plot) return;
+        plot.ripeTimer = null;
+        if (plot.state !== "ready") return;
+        plot.state = "overripe";
+        plot.ripeEndsAt = null;
+        plot.overripeEndsAt = Date.now() + OVERRIPE_STAGE_MS;
+        if (plot.overripeTimer) timer.remove(plot.overripeTimer);
+        plot.overripeTimer = timer.add(() => this.expireOverripePlot(index), OVERRIPE_STAGE_MS);
+        this.broadcastPlotUpdate(index);
+    },
+
+    expireOverripePlot(index) {
+        const plot = this.plots[index];
+        if (!plot) return;
+        if (plot.overripeTimer) {
+            timer.remove(plot.overripeTimer);
+            plot.overripeTimer = null;
+        }
+        if (plot.ripeTimer) {
+            timer.remove(plot.ripeTimer);
+            plot.ripeTimer = null;
+        }
+        if (plot.state !== "overripe") return;
+        plot.state = "empty";
+        plot.ownerId = null;
+        plot.ownerName = null;
+        plot.seedType = null;
+        plot.readyAt = null;
+        plot.ripeEndsAt = null;
+        plot.overripeEndsAt = null;
+        this.destroyPlotObject(plot);
         this.broadcastPlotUpdate(index);
     },
 
@@ -561,7 +680,9 @@ module.exports = {
         if (!this.isFarmer(player)) return;
         const plot = this.plots[index];
         if (!plot) return notifs.error(player, "Грядка не найдена", "Ферма");
-        if (plot.state !== "ready") {
+        const matured = this.reconcilePlotState(index, true);
+        if (matured) this.broadcastPlotUpdate(index);
+        if (plot.state !== "ready" && plot.state !== "overripe") {
             if (plot.state === "growing") return notifs.warning(player, "Урожай еще созревает", "Ферма");
             if (plot.state === "cooldown") return notifs.warning(player, "Грядка восстанавливается", "Ферма");
             return notifs.warning(player, "Эта грядка пока недоступна", "Ферма");
@@ -575,6 +696,13 @@ module.exports = {
         plot.ownerId = null;
         plot.ownerName = null;
         plot.seedType = null;
+        plot.readyAt = null;
+        plot.ripeEndsAt = null;
+        plot.overripeEndsAt = null;
+        if (plot.ripeTimer) timer.remove(plot.ripeTimer);
+        if (plot.overripeTimer) timer.remove(plot.overripeTimer);
+        plot.ripeTimer = null;
+        plot.overripeTimer = null;
         const level = this.getPlayerLevel(player);
         const cooldownTime = this.getProcessTime(type.cooldownRange, level);
         plot.cooldownAt = Date.now() + cooldownTime;
@@ -583,7 +711,12 @@ module.exports = {
         this.destroyPlotObject(plot);
 
         this.registerHarvest(player, type.harvestYield);
-        notifs.success(player, `Вы собрали ${type.name}: +${type.harvestYield} к сбыту`, "Ферма");
+        const added = this.addStackableItem(player, type.harvestItemId, type.harvestYield);
+        if (!added.success) {
+            notifs.warning(player, `Урожай собран, но предмет не добавлен: ${added.error || 'ошибка инвентаря'}`, "Ферма");
+        } else {
+            notifs.success(player, `Вы собрали ${type.name}: +${type.harvestYield} шт. в инвентарь`, "Ферма");
+        }
 
         if (ownerId != null && ownerId !== player.id) {
             const owner = this.getPlotOwner(ownerId);
@@ -636,8 +769,8 @@ module.exports = {
 
         money.removeCash(player, price, (res) => {
             if (!res) return notifs.error(player, "Недостаточно наличных", "Ферма");
-            const data = this.ensureJobData(player);
-            data.seeds[type.id] = (data.seeds[type.id] || 0) + amount;
+            const added = this.addStackableItem(player, type.seedItemId, amount);
+            if (!added.success) return notifs.error(player, added.error || "Не удалось добавить семена в инвентарь", "Ферма");
             this.sendMenuUpdate(player);
             this.refreshPlayerPlots(player);
             notifs.success(player, `Куплено ${amount} семян (${type.name})`, "Ферма");
@@ -646,13 +779,13 @@ module.exports = {
 
     sellHarvest(player) {
         if (!this.isFarmer(player)) return;
-        const data = this.ensureJobData(player);
-        if (!data.harvest || data.harvest <= 0) return notifs.warning(player, "У вас нет урожая для продажи", "Ферма");
-        const amount = data.harvest;
+        const harvestItemIds = this.seedTypes.map(seed => seed.harvestItemId).filter(Boolean);
+        const amount = harvestItemIds.reduce((sum, itemId) => sum + this.getInventoryCount(player, itemId), 0);
+        if (!amount || amount <= 0) return notifs.warning(player, "У вас нет урожая для продажи", "Ферма");
         const payout = amount * this.exchangeRate;
         money.addCash(player, payout, (res) => {
             if (!res) return notifs.error(player, "Не удалось выдать деньги", "Ферма");
-            data.harvest = 0;
+            harvestItemIds.forEach(itemId => this.consumeItems(player, itemId, this.getInventoryCount(player, itemId)));
             this.marketSoldInCycle += amount;
             this.sendMenuUpdate(player);
             notifs.success(player, `Вы продали ${amount} ед. урожая за $${payout}`, "Ферма");
@@ -695,6 +828,7 @@ module.exports = {
     },
 
     serializePlotForPlayer(plot, player) {
+        if (plot && plot.index != null) this.reconcilePlotState(plot.index, false);
         const result = {
             state: "busy",
             action: null,
@@ -703,6 +837,8 @@ module.exports = {
             seedType: plot.seedType,
             seedName: null,
             readyAt: null,
+            ripeEndsAt: null,
+            overripeEndsAt: null,
             cooldownAt: null,
         };
         if (!plot) return result;
@@ -723,6 +859,12 @@ module.exports = {
             case "ready":
                 result.state = plot.ownerId === player.id ? "ready" : "ready_foreign";
                 result.action = "harvest";
+                result.ripeEndsAt = plot.ripeEndsAt;
+                break;
+            case "overripe":
+                result.state = plot.ownerId === player.id ? "overripe" : "overripe_foreign";
+                result.action = "harvest";
+                result.overripeEndsAt = plot.overripeEndsAt;
                 break;
             case "cooldown":
                 result.state = "cooldown";
@@ -760,6 +902,66 @@ module.exports = {
         return 100 / this.maxLevel;
     },
 
+    getInventoryCount(player, itemId) {
+        if (!player || !itemId) return 0;
+        const items = inventory.getArrayByItemId(player, itemId);
+        if (!items || !items.length) return 0;
+        return items.reduce((sum, item) => {
+            const param = inventory.getParam(item, 'count');
+            if (param) return sum + (parseInt(param.value) || 0);
+            return sum + 1;
+        }, 0);
+    },
+
+    hasItem(player, itemId, amount = 1) {
+        return this.getInventoryCount(player, itemId) >= amount;
+    },
+
+    addStackableItem(player, itemId, amount) {
+        if (!itemId || amount <= 0) return { success: false, error: "Некорректный предмет" };
+        const info = inventory.getInventoryItem(itemId);
+        if (!info) return { success: false, error: `Предмет #${itemId} не найден в inventoryitems` };
+        const nextWeight = inventory.getCommonWeight(player) + info.weight * amount;
+        if (nextWeight > inventory.maxPlayerWeight) return { success: false, error: "Недостаточно места/веса в инвентаре" };
+        const existing = inventory.getItemByItemId(player, itemId);
+        if (existing) {
+            const param = inventory.getParam(existing, 'count');
+            if (param) {
+                const current = parseInt(param.value) || 0;
+                inventory.updateParam(player, existing, 'count', current + amount);
+                return { success: true };
+            }
+        }
+        let error = null;
+        inventory.addItem(player, itemId, { count: amount }, (e) => { error = e; });
+        if (error) return { success: false, error };
+        return { success: true };
+    },
+
+    consumeItems(player, itemId, amount) {
+        if (!this.hasItem(player, itemId, amount)) return false;
+        let remaining = amount;
+        const items = inventory.getArrayByItemId(player, itemId) || [];
+        for (let i = 0; i < items.length && remaining > 0; i++) {
+            const item = items[i];
+            const param = inventory.getParam(item, 'count');
+            if (param) {
+                const current = parseInt(param.value) || 0;
+                if (current > remaining) {
+                    inventory.updateParam(player, item, 'count', current - remaining);
+                    remaining = 0;
+                } else {
+                    inventory.deleteItem(player, item);
+                    remaining -= current;
+                }
+            } else {
+                inventory.deleteItem(player, item);
+                remaining -= 1;
+            }
+        }
+        return remaining <= 0;
+    },
+
     collectMenuData(player) {
         const data = this.ensureJobData(player);
         const skill = jobs.getJobSkill(player, this.jobId);
@@ -770,23 +972,29 @@ module.exports = {
         const totalHarvest = Math.floor(exp / this.getHarvestExp(1));
         const toNext = level >= this.maxLevel ? 0 : Math.max(0, (level + 1) * this.harvestsPerLevel - totalHarvest);
         const seedsByType = {};
+        const harvestItemIds = [];
         this.seedTypes.forEach(seed => {
-            seedsByType[seed.id] = data.seeds[seed.id] || 0;
+            const invSeedCount = this.getInventoryCount(player, seed.seedItemId);
+            const legacyCount = data.seeds[seed.id] || 0;
+            seedsByType[seed.id] = invSeedCount + legacyCount;
+            if (seed.harvestItemId) harvestItemIds.push(seed.harvestItemId);
         });
+        const totalSeeds = Object.values(seedsByType).reduce((sum, value) => sum + (parseInt(value) || 0), 0);
+        const harvestCount = harvestItemIds.reduce((sum, itemId) => sum + this.getInventoryCount(player, itemId), 0);
 
         return {
             employed: this.isFarmer(player),
             level,
             maxLevel: this.maxLevel,
             progress: Math.round(progress * 100),
-            seeds: this.getTotalSeeds(data),
+            seeds: totalSeeds,
             seedsByType,
             seedTypes: this.seedTypes.map(seed => ({ id: seed.id, name: seed.name, buyPrice: seed.buyPrice, harvestYield: seed.harvestYield })),
-            harvest: data.harvest || 0,
+            harvest: harvestCount,
             totalHarvest,
             toNext,
             exchangeRate: this.exchangeRate,
-            estimatedReward: (data.harvest || 0) * this.exchangeRate,
+            estimatedReward: harvestCount * this.exchangeRate,
             marketHistory: this.marketHistory,
             marketSoldInCycle: this.marketSoldInCycle,
         };

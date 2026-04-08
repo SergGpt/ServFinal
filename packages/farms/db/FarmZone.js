@@ -40,6 +40,30 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false,
             defaultValue: 0,
         },
+        points: {
+            type: DataTypes.TEXT('long'),
+            allowNull: true,
+        },
+        minZ: {
+            type: DataTypes.FLOAT,
+            allowNull: true,
+        },
+        maxZ: {
+            type: DataTypes.FLOAT,
+            allowNull: true,
+        },
+        npcX: {
+            type: DataTypes.FLOAT,
+            allowNull: true,
+        },
+        npcY: {
+            type: DataTypes.FLOAT,
+            allowNull: true,
+        },
+        npcZ: {
+            type: DataTypes.FLOAT,
+            allowNull: true,
+        },
     }, {
         timestamps: false,
         tableName: 'farm_zones',
