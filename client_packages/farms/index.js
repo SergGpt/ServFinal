@@ -8,6 +8,8 @@ let selectedSeedType = "potato";
 let plantingInProgress = false;
 let plantZone = null;
 let editorState = { active: false, p1: null, p2: null };
+let insideFarmMenuZone = false;
+let farmUiBusyActive = false;
 
 const markerColors = {
     available: [124, 194, 91, 120],
@@ -59,6 +61,10 @@ function getSecondsLeft(plotInfo) {
 
 function updatePrompt() {
     if (!currentPlot) {
+        if (insideFarmMenuZone) {
+            mp.prompt.show("Нажмите <span>E</span>, чтобы поговорить с фермером");
+            return;
+        }
         mp.prompt.hide();
         return;
     }
@@ -78,6 +84,25 @@ function updatePrompt() {
     } else {
         mp.prompt.hide();
     }
+}
+
+function openFarmMenu(data) {
+    if (!farmUiBusyActive) {
+        const added = mp.busy.add("farms.ui");
+        farmUiBusyActive = added !== false ? true : mp.busy.includes("farms.ui");
+    }
+    mp.callCEFV(`farmUi.open(${JSON.stringify(data || {})})`);
+}
+
+function closeFarmMenu() {
+    mp.callCEFV("if (farmUi && farmUi.visible) farmUi.close()");
+}
+
+function handleFarmUiClosed() {
+    if (!farmUiBusyActive) return;
+    mp.busy.remove("farms.ui");
+    farmUiBusyActive = false;
+    updatePrompt();
 }
 
 function applyPlotUpdate(index, data) {
@@ -162,7 +187,7 @@ mp.events.add({
     },
     "farms.plot.exit": () => {
         currentPlot = null;
-        mp.prompt.hide();
+        updatePrompt();
     },
     "farms.plot.ready": (index) => {
         index = parseInt(index);
@@ -170,20 +195,30 @@ mp.events.add({
         plotStates[index].state = "ready";
         updateMarker(index);
     },
+    "farms.menu.enter": () => {
+        insideFarmMenuZone = true;
+        mp.events.callRemote("farms.menu.sync");
+        updatePrompt();
+    },
+    "farms.menu.exit": () => {
+        insideFarmMenuZone = false;
+        closeFarmMenu();
+        updatePrompt();
+    },
     "farms.menu.show": (data) => {
-        mp.callCEFV(`farmUi.open(${JSON.stringify(data)})`);
+        openFarmMenu(data);
     },
     "farms.menu.update": (data) => {
         mp.callCEFV(`farmUi.update(${JSON.stringify(data)})`);
     },
     "farms.menu.hide": () => {
-        mp.callCEFV('farmUi.close()');
+        closeFarmMenu();
     },
     "farms.employment.show": () => {
-        mp.callCEFV(`farmUi.open(${JSON.stringify({ employed: false })})`);
+        openFarmMenu({ employed: false });
     },
     "farms.employment.hide": () => {
-        mp.callCEFV('farmUi.close()');
+        closeFarmMenu();
     },
     "farms.seed.select": (seedId) => {
         selectedSeedType = seedId || "potato";
@@ -221,13 +256,19 @@ mp.events.add({
             const z = Math.min(editorState.p1.z, editorState.p2.z);
             drawZoneBox({ x, y, z, dx: Math.abs(editorState.p1.x - editorState.p2.x), dy: Math.abs(editorState.p1.y - editorState.p2.y), dz: Math.abs(editorState.p1.z - editorState.p2.z) }, [255, 140, 20, 170]);
         }
-        if (currentPlot) updatePrompt();
+        if (currentPlot || insideFarmMenuZone) updatePrompt();
     },
     "farms.reset": () => {
         clearMarkers();
         currentPlot = null;
+        insideFarmMenuZone = false;
+        closeFarmMenu();
+        handleFarmUiClosed();
         mp.prompt.hide();
-    }
+    },
+    "farms.ui.closed": () => {
+        handleFarmUiClosed();
+    },
 });
 
 mp.keys.bind(0x45, true, () => {
@@ -247,19 +288,27 @@ mp.keys.bind(0x45, true, () => {
         return;
     }
 
-    if (!currentPlot || mp.busy.includes() || plantingInProgress) return;
-    if (currentPlot.action === "plant") {
-        plantingInProgress = true;
-        mp.players.local.taskPlayAnim("amb@world_human_gardener_plant@male@idle_a", "idle_a", 4.0, 0.0, 1300, 49, 0, false, false, false);
-        setTimeout(() => {
-            mp.events.callRemote("farms.plot.plant", currentPlot.index, selectedSeedType);
-            mp.players.local.clearTasks();
-            plantingInProgress = false;
-        }, 1300);
-        mp.prompt.hide();
-    } else if (currentPlot.action === "harvest") {
-        mp.events.callRemote("farms.plot.harvest", currentPlot.index);
-        mp.prompt.hide();
+    if (currentPlot) {
+        if (mp.busy.includes() || plantingInProgress) return;
+        if (currentPlot.action === "plant") {
+            plantingInProgress = true;
+            mp.players.local.taskPlayAnim("amb@world_human_gardener_plant@male@idle_a", "idle_a", 4.0, 0.0, 1300, 49, 0, false, false, false);
+            setTimeout(() => {
+                mp.events.callRemote("farms.plot.plant", currentPlot.index, selectedSeedType);
+                mp.players.local.clearTasks();
+                plantingInProgress = false;
+            }, 1300);
+            mp.prompt.hide();
+        } else if (currentPlot.action === "harvest") {
+            mp.events.callRemote("farms.plot.harvest", currentPlot.index);
+            mp.prompt.hide();
+        }
+        return;
+    }
+
+    if (insideFarmMenuZone && !mp.busy.includes()) {
+        mp.events.callRemote("farms.menu.open");
+        return;
     }
 });
 
@@ -280,5 +329,8 @@ mp.keys.bind(0x0D, true, () => {
 
 mp.events.add("playerQuit", () => {
     currentPlot = null;
+    insideFarmMenuZone = false;
+    closeFarmMenu();
+    handleFarmUiClosed();
     mp.prompt.hide();
 });

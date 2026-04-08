@@ -65,7 +65,10 @@ var farmUi = new Vue({
         },
         buySeeds() {
             if (!this.selectedSeed) return;
-            mp.trigger('callRemote', 'farms.seed.buy', this.selectedSeed, this.buyAmount);
+            mp.trigger('callRemote', 'farms.seed.buy', JSON.stringify({
+                seedId: this.selectedSeed,
+                amount: Number(this.buyAmount) || 1,
+            }));
         },
         sellHarvest() {
             mp.trigger('callRemote', 'farms.sell');

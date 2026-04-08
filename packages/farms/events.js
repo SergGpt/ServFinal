@@ -30,8 +30,23 @@ module.exports = {
             mp.events.call('jobs.set', player, farms.jobId);
         }
     },
-    'farms.seed.buy': (player, seedId, amount) => {
-        farms.buySeeds(player, seedId, amount);
+    'farms.seed.buy': (player, seedPayload, amount) => {
+        if (typeof seedPayload === "string" && amount === undefined) {
+            try {
+                const parsed = JSON.parse(seedPayload);
+                if (parsed && typeof parsed === "object") {
+                    return farms.buySeeds(player, parsed.seedId, parsed.amount);
+                }
+            } catch (e) {}
+        }
+        if (seedPayload && typeof seedPayload === "object" && amount === undefined) {
+            return farms.buySeeds(player, seedPayload.seedId, seedPayload.amount);
+        }
+        farms.buySeeds(player, seedPayload, amount);
+    },
+    'farms.menu.open': (player) => {
+        if (!player || !player.character || !player.farmAtMenuZone) return;
+        farms.showMainMenu(player);
     },
     'farms.plot.plant': (player, index, seedId) => {
         farms.plantSeed(player, parseInt(index), seedId);

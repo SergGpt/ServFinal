@@ -122,12 +122,12 @@ module.exports = {
         this.farmColshape.onEnter = (player) => {
             if (!player || !player.character) return;
             player.farmAtMenuZone = true;
-            this.showMainMenu(player);
+            player.call("farms.menu.enter");
         };
         this.farmColshape.onExit = (player) => {
             if (!player || !player.character) return;
             player.farmAtMenuZone = false;
-            player.call("farms.menu.hide");
+            player.call("farms.menu.exit");
         };
         this.farmBlip = mp.blips.new(501, this.adjustBlipPos(pos), {
             name: "Фермер",
