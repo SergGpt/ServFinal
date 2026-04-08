@@ -60,6 +60,15 @@ module.exports = {
     'farms.menu.sync': (player) => {
         farms.sendMenuUpdate(player);
     },
+    'farms.plots.set': (player, pointsJson) => {
+        if (!player || !player.character || player.character.admin < 6) return;
+        let points = null;
+        try { points = typeof pointsJson === "string" ? JSON.parse(pointsJson) : pointsJson; } catch (e) {}
+        if (!Array.isArray(points) || points.length < 1) return;
+        const ok = farms.resetPlotsData(points);
+        if (!ok) return player.utils.error("Не удалось обновить позиции грядок");
+        player.utils.success(`Позиции грядок обновлены: ${points.length} шт.`);
+    },
     'farms.zone.set': (player, zoneJson) => {
         if (!player || !player.character || player.character.admin < 6) return;
         let zoneData = null;

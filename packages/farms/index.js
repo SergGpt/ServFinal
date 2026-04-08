@@ -242,11 +242,6 @@ module.exports = {
     createPlots() {
         this.plots = this.plotsData.map((plotData, index) => {
             const position = new mp.Vector3(plotData.x, plotData.y, plotData.z);
-            const colshape = mp.colshapes.newSphere(position.x, position.y, position.z, 1.2);
-            colshape.farmPlotId = index;
-            colshape.onEnter = (player) => this.onPlotEnter(player, index);
-            colshape.onExit = (player) => this.onPlotExit(player, index);
-
             return {
                 index,
                 position,
@@ -256,12 +251,35 @@ module.exports = {
                 readyAt: null,
                 cooldownAt: null,
                 seedType: null,
-                colshape,
                 object: null,
                 growthTimer: null,
                 cooldownTimer: null,
             };
         });
+    },
+
+    resetPlotsData(positions) {
+        if (!Array.isArray(positions) || !positions.length) return false;
+
+        this.plots.forEach((plot, index) => {
+            if (!plot) return;
+            if (plot.growthTimer) timer.remove(plot.growthTimer);
+            if (plot.cooldownTimer) timer.remove(plot.cooldownTimer);
+            this.destroyPlotObject(plot);
+            this.broadcastPlotUpdate(index);
+        });
+
+        this.plotsData = positions.map((pos) => ({
+            x: parseFloat(pos.x) || 0,
+            y: parseFloat(pos.y) || 0,
+            z: parseFloat(pos.z) || 0,
+        }));
+        this.createPlots();
+        mp.players.forEach((player) => {
+            if (!this.isFarmer(player)) return;
+            this.syncPlotsForPlayer(player);
+        });
+        return true;
     },
 
     startJob(player) {
@@ -353,19 +371,6 @@ module.exports = {
         return pos.x >= z.x && pos.x <= z.x + z.dx &&
             pos.y >= z.y && pos.y <= z.y + z.dy &&
             pos.z >= z.z && pos.z <= z.z + z.dz;
-    },
-
-    onPlotEnter(player, index) {
-        if (!this.isFarmer(player)) return;
-        const plot = this.plots[index];
-        if (!plot) return;
-        const info = this.serializePlotForPlayer(plot, player);
-        player.call("farms.plot.enter", [index, info]);
-    },
-
-    onPlotExit(player, index) {
-        if (!player || !player.character) return;
-        player.call("farms.plot.exit", [index]);
     },
 
     plantSeed(player, index, seedId) {

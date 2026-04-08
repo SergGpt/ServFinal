@@ -7,7 +7,7 @@ let currentPlot = null;
 let selectedSeedType = "potato";
 let plantingInProgress = false;
 let plantZone = null;
-let editorState = { active: false, p1: null, p2: null };
+let editorState = { active: false, points: [] };
 let insideFarmMenuZone = false;
 let farmUiBusyActive = false;
 
@@ -145,6 +145,66 @@ function drawZoneBox(zone, color) {
     });
 }
 
+function drawEditorPoints(points) {
+    if (!Array.isArray(points) || !points.length) return;
+    for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        mp.game.graphics.drawMarker(
+            1,
+            p.x, p.y, p.z - 1.0,
+            0, 0, 0,
+            0, 0, 0,
+            0.42, 0.42, 0.42,
+            255, 140, 20, 220,
+            false, true, 2, false, null, null, false
+        );
+        const next = points[(i + 1) % points.length];
+        if (!next) continue;
+        const shouldClose = points.length >= 3 || i < points.length - 1;
+        if (!shouldClose) continue;
+        mp.game.graphics.drawLine(
+            p.x, p.y, p.z + 0.08,
+            next.x, next.y, next.z + 0.08,
+            255, 180, 40, 255
+        );
+    }
+}
+
+function getNearestPlotIndex(maxDistance = 1.55) {
+    if (!plotPositions.length || !plotStates.length) return -1;
+    const me = mp.players.local;
+    if (!me) return -1;
+    let nearest = -1;
+    let best = maxDistance;
+    for (let i = 0; i < plotPositions.length; i++) {
+        const pos = plotPositions[i];
+        if (!pos || !plotStates[i]) continue;
+        const dist = me.position.distanceTo(pos);
+        if (dist <= best) {
+            best = dist;
+            nearest = i;
+        }
+    }
+    return nearest;
+}
+
+function updateCurrentPlotByDistance() {
+    const index = getNearestPlotIndex();
+    if (index === -1) {
+        if (currentPlot) {
+            currentPlot = null;
+            updatePrompt();
+        }
+        return;
+    }
+    const nextState = plotStates[index] || {};
+    if (currentPlot && currentPlot.index === index) {
+        currentPlot = Object.assign({}, currentPlot, nextState);
+    } else {
+        currentPlot = Object.assign({ index }, nextState);
+    }
+}
+
 function renderPlantTimers() {
     for (let i = 0; i < plotStates.length; i++) {
         const state = plotStates[i];
@@ -235,9 +295,8 @@ mp.events.add({
     },
     "farms.zone.editor.toggle": () => {
         editorState.active = !editorState.active;
-        editorState.p1 = null;
-        editorState.p2 = null;
-        mp.notify.info(editorState.active ? "Редактор зоны: E - точка, ENTER - сохранить" : "Редактор зоны выключен", "Ферма");
+        editorState.points = [];
+        mp.notify.info(editorState.active ? "Редактор грядок: E - добавить точку, ENTER - сохранить" : "Редактор грядок выключен", "Ферма");
     },
 
     "farms.zone.menu.show.request": () => {
@@ -250,12 +309,8 @@ mp.events.add({
     "render": () => {
         renderPlantTimers();
         if (plantZone) drawZoneBox(plantZone, [0, 190, 80, 140]);
-        if (editorState.active && editorState.p1 && editorState.p2) {
-            const x = Math.min(editorState.p1.x, editorState.p2.x);
-            const y = Math.min(editorState.p1.y, editorState.p2.y);
-            const z = Math.min(editorState.p1.z, editorState.p2.z);
-            drawZoneBox({ x, y, z, dx: Math.abs(editorState.p1.x - editorState.p2.x), dy: Math.abs(editorState.p1.y - editorState.p2.y), dz: Math.abs(editorState.p1.z - editorState.p2.z) }, [255, 140, 20, 170]);
-        }
+        if (editorState.active) drawEditorPoints(editorState.points);
+        updateCurrentPlotByDistance();
         if (currentPlot || insideFarmMenuZone) updatePrompt();
     },
     "farms.reset": () => {
@@ -274,17 +329,12 @@ mp.events.add({
 mp.keys.bind(0x45, true, () => {
     if (editorState.active) {
         const p = mp.players.local.position;
-        if (!editorState.p1) {
-            editorState.p1 = { x: p.x, y: p.y, z: p.z };
-            mp.notify.info("Точка #1 установлена", "Ферма");
-        } else if (!editorState.p2) {
-            editorState.p2 = { x: p.x, y: p.y, z: p.z };
-            mp.notify.info("Точка #2 установлена, нажмите ENTER для сохранения", "Ферма");
-        } else {
-            editorState.p1 = editorState.p2;
-            editorState.p2 = { x: p.x, y: p.y, z: p.z };
-            mp.notify.info("Точка #2 обновлена", "Ферма");
-        }
+        editorState.points.push({
+            x: Number(p.x.toFixed(3)),
+            y: Number(p.y.toFixed(3)),
+            z: Number(p.z.toFixed(3)),
+        });
+        mp.notify.info(`Точка грядки добавлена (#${editorState.points.length})`, "Ферма");
         return;
     }
 
@@ -313,18 +363,10 @@ mp.keys.bind(0x45, true, () => {
 });
 
 mp.keys.bind(0x0D, true, () => {
-    if (!editorState.active || !editorState.p1 || !editorState.p2) return;
-    const payload = {
-        x: Math.min(editorState.p1.x, editorState.p2.x),
-        y: Math.min(editorState.p1.y, editorState.p2.y),
-        z: Math.min(editorState.p1.z, editorState.p2.z),
-        dx: Math.max(1, Math.abs(editorState.p1.x - editorState.p2.x)),
-        dy: Math.max(1, Math.abs(editorState.p1.y - editorState.p2.y)),
-        dz: Math.max(1, Math.abs(editorState.p1.z - editorState.p2.z)),
-    };
-    mp.events.callRemote("farms.zone.set", JSON.stringify(payload));
+    if (!editorState.active || !editorState.points.length) return;
+    mp.events.callRemote("farms.plots.set", JSON.stringify(editorState.points));
     editorState.active = false;
-    mp.notify.success("Зона посадки сохранена", "Ферма");
+    mp.notify.success("Позиции грядок сохранены", "Ферма");
 });
 
 mp.events.add("playerQuit", () => {
