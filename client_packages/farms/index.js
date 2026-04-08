@@ -231,13 +231,29 @@ function getNearestPlotIndex(maxDistance = 1.55) {
     if (!me) return -1;
     let nearest = -1;
     let best = maxDistance;
+    let bestPriority = -1;
+
+    const getPriority = (state) => {
+        if (!state) return 0;
+        if (state.action === "harvest") return 4;
+        if (state.state === "ready" || state.state === "ready_foreign") return 3;
+        if (state.state === "growing" || state.state === "growing_foreign") return 2;
+        if (state.action === "plant") return 1;
+        return 0;
+    };
+
     for (let i = 0; i < plotPositions.length; i++) {
         const pos = plotPositions[i];
-        if (!pos || !plotStates[i]) continue;
+        const state = plotStates[i];
+        if (!pos || !state) continue;
         const dist = me.position.distanceTo(pos);
         if (dist <= best) {
-            best = dist;
-            nearest = i;
+            const priority = getPriority(state);
+            if (priority > bestPriority || (priority === bestPriority && dist < best)) {
+                best = dist;
+                nearest = i;
+                bestPriority = priority;
+            }
         }
     }
     return nearest;
