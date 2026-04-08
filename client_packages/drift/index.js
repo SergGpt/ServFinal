@@ -163,37 +163,44 @@ function updateDriftPhysics() {
         } catch (_) {}
     }
 
-    if (setup.limiterSmoke && throttle && speed > 20) {
+    const smokeIntent = throttle || handbrake || holdDrift || slipRatio > 0.22;
+    if (setup.limiterSmoke && speed > 15 && smokeIntent) {
         try {
             mp.game.vehicle.setVehicleTyreSmokeColor(vehicle.handle, 210, 210, 210);
             mp.game.vehicle.setVehicleBurnout(vehicle.handle, true);
+            mp.game.streaming.requestNamedPtfxAsset('core');
 
             const now = Date.now();
-            if (now - state.lastSmokeTick > 180) {
+            const smokeInterval = clamp(140 - Math.floor(slipRatio * 55), 70, 140);
+            if (now - state.lastSmokeTick > smokeInterval) {
                 state.lastSmokeTick = now;
                 const leftBone = mp.game.entity.getEntityBoneIndexByName(vehicle.handle, 'wheel_lr');
                 const rightBone = mp.game.entity.getEntityBoneIndexByName(vehicle.handle, 'wheel_rr');
-                mp.game.streaming.requestNamedPtfxAsset('core');
-                mp.game.graphics.setPtfxAssetNextCall('core');
-                mp.game.graphics.startNetworkedParticleFxNonLoopedOnEntityBone(
-                    'veh_respray_smoke',
-                    vehicle.handle,
-                    0, 0, 0,
-                    0, 0, 0,
-                    leftBone,
-                    0.9,
-                    false, false, false
-                );
-                mp.game.graphics.setPtfxAssetNextCall('core');
-                mp.game.graphics.startNetworkedParticleFxNonLoopedOnEntityBone(
-                    'veh_respray_smoke',
-                    vehicle.handle,
-                    0, 0, 0,
-                    0, 0, 0,
-                    rightBone,
-                    0.9,
-                    false, false, false
-                );
+                const smokeScale = clamp(1.15 + (slipRatio * 0.65), 1.15, 1.9);
+                const burstCount = slipRatio > 0.75 ? 2 : 1;
+
+                for (let i = 0; i < burstCount; i++) {
+                    mp.game.graphics.setPtfxAssetNextCall('core');
+                    mp.game.graphics.startNetworkedParticleFxNonLoopedOnEntityBone(
+                        'veh_respray_smoke',
+                        vehicle.handle,
+                        0, 0, 0,
+                        0, 0, 0,
+                        leftBone,
+                        smokeScale,
+                        false, false, false
+                    );
+                    mp.game.graphics.setPtfxAssetNextCall('core');
+                    mp.game.graphics.startNetworkedParticleFxNonLoopedOnEntityBone(
+                        'veh_respray_smoke',
+                        vehicle.handle,
+                        0, 0, 0,
+                        0, 0, 0,
+                        rightBone,
+                        smokeScale,
+                        false, false, false
+                    );
+                }
             }
         } catch (_) {}
     } else {
