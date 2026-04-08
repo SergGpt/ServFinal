@@ -108,7 +108,7 @@ module.exports = {
     'farms.zone.menu.open': (player) => {
         if (!player || !player.character || player.character.admin < 6) return;
         const zoneData = farms.getPlantZoneData();
-        zoneData.npcPos = { x: farms.farmMenuPos.x, y: farms.farmMenuPos.y, z: farms.farmMenuPos.z };
+        zoneData.npcPos = farms.farmMenuPos ? { x: farms.farmMenuPos.x, y: farms.farmMenuPos.y, z: farms.farmMenuPos.z } : null;
         player.call('farms.zone.menu.show', [zoneData]);
     },
     'farms.zone.menu.save': async (player, zoneJson) => {
@@ -145,7 +145,7 @@ module.exports = {
         if (saved) notifs.success(player, 'Зона фермы сохранена в БД', "Ферма");
         else notifs.error(player, 'Не удалось сохранить зону фермы в БД', "Ферма");
         const payload = farms.getPlantZoneData();
-        payload.npcPos = { x: farms.farmMenuPos.x, y: farms.farmMenuPos.y, z: farms.farmMenuPos.z };
+        payload.npcPos = farms.farmMenuPos ? { x: farms.farmMenuPos.x, y: farms.farmMenuPos.y, z: farms.farmMenuPos.z } : null;
         player.call('farms.zone.menu.show', [payload]);
     },
 };

@@ -35,9 +35,9 @@ module.exports = {
     minProcessTime: 10 * 1000,
     harvestsPerLevel: 100,
     maxLevel: 20,
-    farmMenuPos: new mp.Vector3(2023.072998046875, 4976.62158203125, 41.22634506225586 - 1),
+    farmMenuPos: null,
     fieldCenter: new mp.Vector3(FIELD_CENTER.x, FIELD_CENTER.y, FIELD_CENTER.z),
-    plotsData: generatePlots(FIELD_CENTER, PLOT_GRID_SIZE, PLOT_SPACING),
+    plotsData: [],
     seedTypes: [
         {
             id: "potato",
@@ -67,17 +67,7 @@ module.exports = {
             objectModel: "prop_veg_crop_02",
         }
     ],
-    plantZone: {
-        x: 2043.5,
-        y: 4913.5,
-        z: 39.5,
-        dx: 14.0,
-        dy: 14.0,
-        dz: 5.0,
-        points: null,
-        minZ: null,
-        maxZ: null,
-    },
+    plantZone: null,
 
     plots: [],
     exchangeRate: 60,
@@ -92,9 +82,9 @@ module.exports = {
 
     async init() {
         await this.ensureFarmZoneColumns();
+        await this.loadPlantZoneFromDb();
         this.createFarmMenuZone();
         this.createPlots();
-        await this.loadPlantZoneFromDb();
         this.createPlantZone();
         this.updateExchangeRate(true);
         this.exchangeTimer = timer.addInterval(() => this.updateExchangeRate(), this.exchangeChangeInterval);
@@ -143,6 +133,7 @@ module.exports = {
 
     createFarmMenuZone() {
         this.destroyFarmZone();
+        if (!this.farmMenuPos) return;
         const pos = this.farmMenuPos;
         this.farmMarker = mp.markers.new(1, pos, 0.75, { color: [120, 200, 80, 120] });
         this.farmColshape = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 1.5);
@@ -184,7 +175,10 @@ module.exports = {
         try {
             const model = await db.Models.FarmZone.findOne({ where: { id: 1 } });
             if (!model) {
-                await db.Models.FarmZone.create({ id: 1, x: this.plantZone.x, y: this.plantZone.y, z: this.plantZone.z, dx: this.plantZone.dx, dy: this.plantZone.dy, dz: this.plantZone.dz, dimension: 0 });
+                this.plantZone = null;
+                this.farmMenuPos = null;
+                this.plotsData = [];
+                this.plots = [];
                 return;
             }
             this.plantZone = {
@@ -208,6 +202,8 @@ module.exports = {
             if (this.farmZoneColumns && this.farmZoneColumns.has("maxZ")) this.plantZone.maxZ = model.maxZ;
             if (this.farmZoneColumns && this.farmZoneColumns.has("npcX") && model.npcX != null) {
                 this.farmMenuPos = new mp.Vector3(model.npcX, model.npcY, model.npcZ);
+            } else {
+                this.farmMenuPos = null;
             }
         } catch (e) {
             console.log('[farms] failed load farm zone from DB', e.message);
@@ -217,21 +213,21 @@ module.exports = {
     async savePlantZoneToDb() {
         try {
             const payload = {
-                x: this.plantZone.x,
-                y: this.plantZone.y,
-                z: this.plantZone.z,
-                dx: this.plantZone.dx,
-                dy: this.plantZone.dy,
-                dz: this.plantZone.dz,
+                x: this.plantZone ? this.plantZone.x : 0,
+                y: this.plantZone ? this.plantZone.y : 0,
+                z: this.plantZone ? this.plantZone.z : 0,
+                dx: this.plantZone ? this.plantZone.dx : 1,
+                dy: this.plantZone ? this.plantZone.dy : 1,
+                dz: this.plantZone ? this.plantZone.dz : 1,
                 dimension: 0,
             };
-            if (this.farmZoneColumns && this.farmZoneColumns.has("points")) payload.points = this.plantZone.points ? JSON.stringify(this.plantZone.points) : null;
-            if (this.farmZoneColumns && this.farmZoneColumns.has("minZ")) payload.minZ = this.plantZone.minZ;
-            if (this.farmZoneColumns && this.farmZoneColumns.has("maxZ")) payload.maxZ = this.plantZone.maxZ;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("points")) payload.points = (this.plantZone && this.plantZone.points) ? JSON.stringify(this.plantZone.points) : null;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("minZ")) payload.minZ = this.plantZone ? this.plantZone.minZ : null;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("maxZ")) payload.maxZ = this.plantZone ? this.plantZone.maxZ : null;
             if (this.farmZoneColumns && this.farmZoneColumns.has("npcX")) {
-                payload.npcX = this.farmMenuPos.x;
-                payload.npcY = this.farmMenuPos.y;
-                payload.npcZ = this.farmMenuPos.z;
+                payload.npcX = this.farmMenuPos ? this.farmMenuPos.x : null;
+                payload.npcY = this.farmMenuPos ? this.farmMenuPos.y : null;
+                payload.npcZ = this.farmMenuPos ? this.farmMenuPos.z : null;
             }
             const model = await db.Models.FarmZone.findOne({ where: { id: 1 } });
             if (model) await model.update(payload);
@@ -245,6 +241,7 @@ module.exports = {
 
     getPlantZoneData() {
         const z = this.plantZone;
+        if (!z) return { x: 0, y: 0, z: 0, dx: 1, dy: 1, dz: 1, points: null, minZ: null, maxZ: null };
         return {
             x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz,
             points: Array.isArray(z.points) ? z.points : null,
@@ -255,6 +252,7 @@ module.exports = {
     createPlantZone() {
         this.destroyPlantZone();
         const z = this.plantZone;
+        if (!z) return;
         if (Array.isArray(z.points) && z.points.length >= 3) {
             this.broadcastPlantZone();
             return;
@@ -279,7 +277,8 @@ module.exports = {
     },
 
     setPlantZone(zoneData) {
-        this.plantZone = Object.assign({}, this.plantZone, zoneData || {});
+        const baseZone = this.plantZone || { x: 0, y: 0, z: 0, dx: 1, dy: 1, dz: 1, points: null, minZ: null, maxZ: null };
+        this.plantZone = Object.assign({}, baseZone, zoneData || {});
         this.createPlantZone();
     },
 
@@ -290,6 +289,7 @@ module.exports = {
     },
 
     broadcastPlantZone(target = null) {
+        if (!this.plantZone) return;
         const z = this.plantZone;
         const payload = {
             x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz,
@@ -481,7 +481,7 @@ module.exports = {
     },
 
     isPlayerInsidePlantZone(player) {
-        if (!player) return false;
+        if (!player || !this.plantZone) return false;
         const pos = player.position;
         const z = this.plantZone;
         if (Array.isArray(z.points) && z.points.length >= 3) {
