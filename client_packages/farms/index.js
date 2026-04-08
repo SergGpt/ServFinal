@@ -171,20 +171,19 @@ mp.events.add({
         updateMarker(index);
     },
     "farms.menu.show": (data) => {
-        mp.callCEFV(`selectMenu.menus['farmsMain'].init(${JSON.stringify(data)})`);
-        mp.callCEFV("selectMenu.showByName('farmsMain')");
+        mp.callCEFV(`farmUi.open(${JSON.stringify(data)})`);
     },
     "farms.menu.update": (data) => {
-        mp.callCEFV(`(function(){var info=${JSON.stringify(data)};if(selectMenu.menus['farmsMain'])selectMenu.menus['farmsMain'].update(info);if(selectMenu.menus['farmsEmployment'])selectMenu.menus['farmsEmployment'].update && selectMenu.menus['farmsEmployment'].update(info);})()`);
+        mp.callCEFV(`farmUi.update(${JSON.stringify(data)})`);
     },
     "farms.menu.hide": () => {
-        mp.callCEFV("if (selectMenu.current && selectMenu.current.name === 'farmsMain') selectMenu.show = false;");
+        mp.callCEFV('farmUi.close()');
     },
     "farms.employment.show": () => {
-        mp.callCEFV("selectMenu.showByName('farmsEmployment')");
+        mp.callCEFV(`farmUi.open(${JSON.stringify({ employed: false })})`);
     },
     "farms.employment.hide": () => {
-        mp.callCEFV("if (selectMenu.current && selectMenu.current.name === 'farmsEmployment') selectMenu.show = false;");
+        mp.callCEFV('farmUi.close()');
     },
     "farms.seed.select": (seedId) => {
         selectedSeedType = seedId || "potato";
