@@ -4,6 +4,7 @@ let notifs = call("notifications");
 let money = call("money");
 let jobs = call("jobs");
 let timer = call("timer");
+let inventory = call("inventory");
 
 const JOB_ID = 5;
 const FIELD_CENTER = { x: 2050.4384765625, y: 4920.4482421875, z: 40.96115493774414 };
@@ -46,6 +47,8 @@ module.exports = {
             name: "Картофель",
             buyPrice: 20,
             harvestYield: 1,
+            seedItemId: 300,
+            harvestItemId: 301,
             growthRange: [45 * 1000, 75 * 1000],
             cooldownRange: [30 * 1000, 60 * 1000],
             objectModel: "prop_veg_crop_03_pump",
@@ -55,6 +58,8 @@ module.exports = {
             name: "Капуста",
             buyPrice: 45,
             harvestYield: 3,
+            seedItemId: 300,
+            harvestItemId: 301,
             growthRange: [120 * 1000, 180 * 1000],
             cooldownRange: [60 * 1000, 120 * 1000],
             objectModel: "prop_veg_crop_04_leaf",
@@ -64,6 +69,8 @@ module.exports = {
             name: "Кукуруза",
             buyPrice: 70,
             harvestYield: 5,
+            seedItemId: 300,
+            harvestItemId: 301,
             growthRange: [210 * 1000, 300 * 1000],
             cooldownRange: [90 * 1000, 150 * 1000],
             objectModel: "prop_veg_crop_02",
@@ -546,7 +553,8 @@ module.exports = {
     },
 
     playerHasAnySeeds(player) {
-        return this.getTotalSeeds(this.ensureJobData(player)) > 0;
+        return this.seedTypes.some((seed) => this.getInventoryCount(player, seed.seedItemId) > 0)
+            || this.getTotalSeeds(this.ensureJobData(player)) > 0;
     },
 
     isPlayerInsidePlantZone(player) {
@@ -577,7 +585,9 @@ module.exports = {
         if (!this.isPlayerInsidePlantZone(player)) return notifs.warning(player, "Сажать можно только внутри зоны посадки", "Ферма");
         const data = this.ensureJobData(player);
         const type = this.getSeedType(seedId) || this.seedTypes[0];
-        if (!data.seeds[type.id] || data.seeds[type.id] <= 0) return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
+        const hasInvSeed = type.seedItemId && this.hasItem(player, type.seedItemId, 1);
+        const hasLegacySeed = (data.seeds[type.id] || 0) > 0;
+        if (!hasInvSeed && !hasLegacySeed) return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
 
         index = parseInt(index);
         if (isNaN(index) || index < 0 || !this.plots[index]) {
@@ -611,7 +621,12 @@ module.exports = {
         plot.growthTimer = timer.add(() => this.setPlotReady(index), growthTime);
         this.createPlotObject(plot, type.objectModel);
 
-        data.seeds[type.id]--;
+        if (hasInvSeed) {
+            const removed = this.consumeItems(player, type.seedItemId, 1);
+            if (!removed) return notifs.error(player, "Не удалось списать семена из инвентаря", "Ферма");
+        } else {
+            data.seeds[type.id]--;
+        }
         this.broadcastPlotUpdate(index);
         this.sendMenuUpdate(player);
         this.refreshPlayerPlots(player);
@@ -708,7 +723,12 @@ module.exports = {
         this.destroyPlotObject(plot);
 
         this.registerHarvest(player, type.harvestYield);
-        notifs.success(player, `Вы собрали ${type.name}: +${type.harvestYield} к сбыту`, "Ферма");
+        const added = this.addStackableItem(player, type.harvestItemId, type.harvestYield);
+        if (!added.success) {
+            notifs.warning(player, `Урожай собран, но предмет не добавлен: ${added.error || 'ошибка инвентаря'}`, "Ферма");
+        } else {
+            notifs.success(player, `Вы собрали ${type.name}: +${type.harvestYield} шт. в инвентарь`, "Ферма");
+        }
 
         if (ownerId != null && ownerId !== player.id) {
             const owner = this.getPlotOwner(ownerId);
@@ -761,8 +781,8 @@ module.exports = {
 
         money.removeCash(player, price, (res) => {
             if (!res) return notifs.error(player, "Недостаточно наличных", "Ферма");
-            const data = this.ensureJobData(player);
-            data.seeds[type.id] = (data.seeds[type.id] || 0) + amount;
+            const added = this.addStackableItem(player, type.seedItemId, amount);
+            if (!added.success) return notifs.error(player, added.error || "Не удалось добавить семена в инвентарь", "Ферма");
             this.sendMenuUpdate(player);
             this.refreshPlayerPlots(player);
             notifs.success(player, `Куплено ${amount} семян (${type.name})`, "Ферма");
@@ -771,13 +791,13 @@ module.exports = {
 
     sellHarvest(player) {
         if (!this.isFarmer(player)) return;
-        const data = this.ensureJobData(player);
-        if (!data.harvest || data.harvest <= 0) return notifs.warning(player, "У вас нет урожая для продажи", "Ферма");
-        const amount = data.harvest;
+        const harvestItemIds = this.seedTypes.map(seed => seed.harvestItemId).filter(Boolean);
+        const amount = harvestItemIds.reduce((sum, itemId) => sum + this.getInventoryCount(player, itemId), 0);
+        if (!amount || amount <= 0) return notifs.warning(player, "У вас нет урожая для продажи", "Ферма");
         const payout = amount * this.exchangeRate;
         money.addCash(player, payout, (res) => {
             if (!res) return notifs.error(player, "Не удалось выдать деньги", "Ферма");
-            data.harvest = 0;
+            harvestItemIds.forEach(itemId => this.consumeItems(player, itemId, this.getInventoryCount(player, itemId)));
             this.marketSoldInCycle += amount;
             this.sendMenuUpdate(player);
             notifs.success(player, `Вы продали ${amount} ед. урожая за $${payout}`, "Ферма");
@@ -894,6 +914,66 @@ module.exports = {
         return 100 / this.maxLevel;
     },
 
+    getInventoryCount(player, itemId) {
+        if (!player || !itemId) return 0;
+        const items = inventory.getArrayByItemId(player, itemId);
+        if (!items || !items.length) return 0;
+        return items.reduce((sum, item) => {
+            const param = inventory.getParam(item, 'count');
+            if (param) return sum + (parseInt(param.value) || 0);
+            return sum + 1;
+        }, 0);
+    },
+
+    hasItem(player, itemId, amount = 1) {
+        return this.getInventoryCount(player, itemId) >= amount;
+    },
+
+    addStackableItem(player, itemId, amount) {
+        if (!itemId || amount <= 0) return { success: false, error: "Некорректный предмет" };
+        const info = inventory.getInventoryItem(itemId);
+        if (!info) return { success: false, error: `Предмет #${itemId} не найден в inventoryitems` };
+        const nextWeight = inventory.getCommonWeight(player) + info.weight * amount;
+        if (nextWeight > inventory.maxPlayerWeight) return { success: false, error: "Недостаточно места/веса в инвентаре" };
+        const existing = inventory.getItemByItemId(player, itemId);
+        if (existing) {
+            const param = inventory.getParam(existing, 'count');
+            if (param) {
+                const current = parseInt(param.value) || 0;
+                inventory.updateParam(player, existing, 'count', current + amount);
+                return { success: true };
+            }
+        }
+        let error = null;
+        inventory.addItem(player, itemId, { count: amount }, (e) => { error = e; });
+        if (error) return { success: false, error };
+        return { success: true };
+    },
+
+    consumeItems(player, itemId, amount) {
+        if (!this.hasItem(player, itemId, amount)) return false;
+        let remaining = amount;
+        const items = inventory.getArrayByItemId(player, itemId) || [];
+        for (let i = 0; i < items.length && remaining > 0; i++) {
+            const item = items[i];
+            const param = inventory.getParam(item, 'count');
+            if (param) {
+                const current = parseInt(param.value) || 0;
+                if (current > remaining) {
+                    inventory.updateParam(player, item, 'count', current - remaining);
+                    remaining = 0;
+                } else {
+                    inventory.deleteItem(player, item);
+                    remaining -= current;
+                }
+            } else {
+                inventory.deleteItem(player, item);
+                remaining -= 1;
+            }
+        }
+        return remaining <= 0;
+    },
+
     collectMenuData(player) {
         const data = this.ensureJobData(player);
         const skill = jobs.getJobSkill(player, this.jobId);
@@ -904,23 +984,29 @@ module.exports = {
         const totalHarvest = Math.floor(exp / this.getHarvestExp(1));
         const toNext = level >= this.maxLevel ? 0 : Math.max(0, (level + 1) * this.harvestsPerLevel - totalHarvest);
         const seedsByType = {};
+        const harvestItemIds = [];
         this.seedTypes.forEach(seed => {
-            seedsByType[seed.id] = data.seeds[seed.id] || 0;
+            const invSeedCount = this.getInventoryCount(player, seed.seedItemId);
+            const legacyCount = data.seeds[seed.id] || 0;
+            seedsByType[seed.id] = invSeedCount + legacyCount;
+            if (seed.harvestItemId) harvestItemIds.push(seed.harvestItemId);
         });
+        const totalSeeds = Object.values(seedsByType).reduce((sum, value) => sum + (parseInt(value) || 0), 0);
+        const harvestCount = harvestItemIds.reduce((sum, itemId) => sum + this.getInventoryCount(player, itemId), 0);
 
         return {
             employed: this.isFarmer(player),
             level,
             maxLevel: this.maxLevel,
             progress: Math.round(progress * 100),
-            seeds: this.getTotalSeeds(data),
+            seeds: totalSeeds,
             seedsByType,
             seedTypes: this.seedTypes.map(seed => ({ id: seed.id, name: seed.name, buyPrice: seed.buyPrice, harvestYield: seed.harvestYield })),
-            harvest: data.harvest || 0,
+            harvest: harvestCount,
             totalHarvest,
             toNext,
             exchangeRate: this.exchangeRate,
-            estimatedReward: (data.harvest || 0) * this.exchangeRate,
+            estimatedReward: harvestCount * this.exchangeRate,
             marketHistory: this.marketHistory,
             marketSoldInCycle: this.marketSoldInCycle,
         };
