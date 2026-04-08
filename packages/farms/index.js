@@ -410,6 +410,26 @@ module.exports = {
         return nearest;
     },
 
+    findNearestHarvestablePlotIndex(position, radius = 2.2) {
+        if (!position) return -1;
+        let nearest = -1;
+        let best = radius;
+        for (let i = 0; i < this.plots.length; i++) {
+            const plot = this.plots[i];
+            if (!plot || !plot.position) continue;
+            if (plot.state !== "ready" && plot.state !== "overripe") continue;
+            const dx = plot.position.x - position.x;
+            const dy = plot.position.y - position.y;
+            const dz = plot.position.z - position.z;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist <= best) {
+                best = dist;
+                nearest = i;
+            }
+        }
+        return nearest;
+    },
+
     addPlotAtPosition(position) {
         if (!position) return -1;
         const nearest = this.findNearestPlotIndexByPos(position, 1.2);
@@ -595,7 +615,9 @@ module.exports = {
         if (!this.isFarmer(player)) return;
         if (!this.isPlayerInsidePlantZone(player)) return notifs.warning(player, "Сажать можно только внутри зоны посадки", "Ферма");
         const data = this.ensureJobData(player);
-        const type = this.getSeedType(seedId) || this.seedTypes[0];
+        const handsItem = inventory.getHandsItem(player);
+        const handSeedType = handsItem ? this.seedTypes.find(seed => Number(seed.seedItemId) === Number(handsItem.itemId)) : null;
+        const type = handSeedType || this.getSeedType(seedId) || this.seedTypes[0];
         const hasInvSeed = type.seedItemId && this.hasItem(player, type.seedItemId, 1);
         const hasLegacySeed = (data.seeds[type.id] || 0) > 0;
         if (!hasInvSeed && !hasLegacySeed) return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
@@ -701,6 +723,10 @@ module.exports = {
 
     harvestPlot(player, index) {
         if (!this.isFarmer(player)) return;
+        index = parseInt(index);
+        if (isNaN(index) || !this.plots[index]) {
+            index = this.findNearestHarvestablePlotIndex(player.position, 2.2);
+        }
         const plot = this.plots[index];
         if (!plot) return notifs.error(player, "Грядка не найдена", "Ферма");
         const matured = this.reconcilePlotState(index, true);
