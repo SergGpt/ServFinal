@@ -1,4 +1,5 @@
 let farms = require('./index');
+const notifs = call("notifications");
 
 module.exports = {
     'init': async () => {
@@ -66,8 +67,8 @@ module.exports = {
         try { points = typeof pointsJson === "string" ? JSON.parse(pointsJson) : pointsJson; } catch (e) {}
         if (!Array.isArray(points) || points.length < 1) return;
         const ok = farms.resetPlotsData(points);
-        if (!ok) return player.utils.error("Не удалось обновить позиции грядок");
-        player.utils.success(`Позиции грядок обновлены: ${points.length} шт.`);
+        if (!ok) return notifs.error(player, "Не удалось обновить позиции грядок", "Ферма");
+        notifs.success(player, `Позиции грядок обновлены: ${points.length} шт.`, "Ферма");
     },
     'farms.zone.set': (player, zoneJson) => {
         if (!player || !player.character || player.character.admin < 6) return;
@@ -141,8 +142,8 @@ module.exports = {
             });
         }
         const saved = await farms.savePlantZoneToDb();
-        if (saved) player.utils.success('Зона фермы сохранена в БД');
-        else player.utils.error('Не удалось сохранить зону фермы в БД');
+        if (saved) notifs.success(player, 'Зона фермы сохранена в БД', "Ферма");
+        else notifs.error(player, 'Не удалось сохранить зону фермы в БД', "Ферма");
         const payload = farms.getPlantZoneData();
         payload.npcPos = { x: farms.farmMenuPos.x, y: farms.farmMenuPos.y, z: farms.farmMenuPos.z };
         player.call('farms.zone.menu.show', [payload]);
