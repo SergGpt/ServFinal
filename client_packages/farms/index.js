@@ -10,6 +10,8 @@ let plantZone = null;
 let editorState = { active: false, points: [] };
 let insideFarmMenuZone = false;
 let farmUiBusyActive = false;
+let knownSeedsAmount = 0;
+let wasInsidePlantZone = false;
 
 const markerColors = {
     available: [124, 194, 91, 120],
@@ -62,7 +64,8 @@ function getSecondsLeft(plotInfo) {
 function updatePrompt() {
     if (!currentPlot) {
         if (isLocalInsidePlantZone()) {
-            mp.prompt.show(`Нажмите <span>E</span>, чтобы посадить (${selectedSeedType})`);
+            if (knownSeedsAmount > 0) mp.prompt.show(`Нажмите <span>E</span>, чтобы посадить (${selectedSeedType})`);
+            else mp.prompt.show("У вас нет семян для посадки");
             return;
         }
         if (insideFarmMenuZone) {
@@ -88,6 +91,12 @@ function updatePrompt() {
     } else {
         mp.prompt.hide();
     }
+}
+
+function updateKnownSeeds(data) {
+    if (!data || typeof data !== "object") return;
+    const seeds = parseInt(data.seeds);
+    if (!isNaN(seeds)) knownSeedsAmount = Math.max(0, seeds);
 }
 
 function isLocalInsidePlantZone() {
@@ -319,9 +328,11 @@ mp.events.add({
         updatePrompt();
     },
     "farms.menu.show": (data) => {
+        updateKnownSeeds(data);
         openFarmMenu(data);
     },
     "farms.menu.update": (data) => {
+        updateKnownSeeds(data);
         mp.callCEFV(`farmUi.update(${JSON.stringify(data)})`);
     },
     "farms.menu.hide": () => {
@@ -377,6 +388,11 @@ mp.events.add({
         }
         if (editorState.active) drawEditorPoints(editorState.points);
         updateCurrentPlotByDistance();
+        const insideNow = isLocalInsidePlantZone();
+        if (insideNow !== wasInsidePlantZone) {
+            wasInsidePlantZone = insideNow;
+            if (insideNow) mp.notify.info("Вы вошли в зону посадки растений", "Ферма");
+        }
         if (currentPlot || insideFarmMenuZone) updatePrompt();
     },
     "farms.reset": () => {
@@ -428,6 +444,10 @@ mp.keys.bind(0x45, true, () => {
     }
 
     if (!mp.busy.includes() && isLocalInsidePlantZone()) {
+        if (knownSeedsAmount <= 0) {
+            mp.notify.warning("У вас нет семян для посадки", "Ферма");
+            return;
+        }
         mp.events.callRemote("farms.plot.plant", -1, selectedSeedType);
     }
 });

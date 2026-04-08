@@ -506,6 +506,10 @@ module.exports = {
     plantSeed(player, index, seedId) {
         if (!this.isFarmer(player)) return;
         if (!this.isPlayerInsidePlantZone(player)) return notifs.warning(player, "Сажать можно только внутри зоны посадки", "Ферма");
+        const data = this.ensureJobData(player);
+        const type = this.getSeedType(seedId) || this.seedTypes[0];
+        if (!data.seeds[type.id] || data.seeds[type.id] <= 0) return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
+
         index = parseInt(index);
         if (isNaN(index) || index < 0 || !this.plots[index]) {
             index = this.addPlotAtPosition(player.position);
@@ -518,10 +522,6 @@ module.exports = {
             if (plot.state === "cooldown") return notifs.warning(player, "Грядка восстанавливается", "Ферма");
             return notifs.warning(player, "Эта грядка недоступна", "Ферма");
         }
-
-        const data = this.ensureJobData(player);
-        const type = this.getSeedType(seedId) || this.seedTypes[0];
-        if (!data.seeds[type.id] || data.seeds[type.id] <= 0) return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
 
         const level = this.getPlayerLevel(player);
         const growthTime = this.getProcessTime(type.growthRange, level);
