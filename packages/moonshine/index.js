@@ -54,6 +54,7 @@ module.exports = {
 
     async init() {
         this.resetState();
+        await this.loadRuntimeSettings();
         this.createMenuZone();
         this.createCraftZone();
         await this.loadPlotsFromDatabase();
@@ -225,6 +226,7 @@ module.exports = {
                 this.config.menu.position = toPos();
                 this.config.vendor = this.config.vendor || {};
                 this.config.vendor.position = toPos();
+                await this.saveRuntimeSettings();
                 this.createMenuZone();
                 player.call('selectMenu.notification', ['Точка меню самогонщика обновлена']);
                 return;
@@ -234,6 +236,7 @@ module.exports = {
                 this.config.menu.position = toPos();
                 this.config.vendor = this.config.vendor || {};
                 this.config.vendor.position = toPos();
+                await this.saveRuntimeSettings();
                 this.createMenuZone();
                 player.call('selectMenu.notification', ['Единая точка меню/магазина обновлена']);
                 return;
@@ -241,6 +244,7 @@ module.exports = {
             if (action === 'craft') {
                 this.config.craft = this.config.craft || {};
                 this.config.craft.position = toPos();
+                await this.saveRuntimeSettings();
                 this.createCraftZone();
                 player.call('selectMenu.notification', ['Точка аппарата обновлена']);
                 return;
@@ -258,6 +262,45 @@ module.exports = {
             console.error('[MOONSHINE] applySetupAction error', err);
             player.call('selectMenu.notification', ['Ошибка сохранения точки']);
             return;
+        }
+    },
+
+    async loadRuntimeSettings() {
+        try {
+            const record = await db.Models.MoonshineSetting.findOne({ where: { id: 1 } });
+            if (!record || !record.data) return;
+            let settings = record.data;
+            if (typeof settings === 'string') {
+                try {
+                    settings = JSON.parse(settings);
+                } catch (e) {
+                    settings = null;
+                }
+            }
+            if (!settings || typeof settings !== 'object') return;
+
+            this.config.menu = Object.assign({}, this.config.menu || {}, settings.menu || {});
+            this.config.vendor = Object.assign({}, this.config.vendor || {}, settings.vendor || {});
+            this.config.craft = Object.assign({}, this.config.craft || {}, settings.craft || {});
+            console.log('[MOONSHINE] Настройки зон загружены из БД');
+        } catch (err) {
+            console.error('[MOONSHINE] Не удалось загрузить настройки зон', err);
+        }
+    },
+
+    async saveRuntimeSettings() {
+        try {
+            const payload = {
+                menu: this.config.menu || {},
+                vendor: this.config.vendor || {},
+                craft: this.config.craft || {},
+            };
+            await db.Models.MoonshineSetting.upsert({
+                id: 1,
+                data: JSON.stringify(payload),
+            });
+        } catch (err) {
+            console.error('[MOONSHINE] Не удалось сохранить настройки зон', err);
         }
     },
 

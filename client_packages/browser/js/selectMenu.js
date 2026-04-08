@@ -7364,6 +7364,12 @@ var selectMenu = new Vue({
                     this.data = {
                         npcPos: data.npcPos || { x: 2023.07, y: 4976.62, z: 41.22 },
                         points: Array.isArray(data.points) ? data.points : [],
+                        x: Number(data.x || 0),
+                        y: Number(data.y || 0),
+                        z: Number(data.z || 0),
+                        dx: Number(data.dx || 1),
+                        dy: Number(data.dy || 1),
+                        dz: Number(data.dz || 1),
                         minZ: data.minZ,
                         maxZ: data.maxZ,
                     };
@@ -7418,6 +7424,12 @@ var selectMenu = new Vue({
                     var maxZ = zs.length ? Math.max.apply(null, zs) + 2.5 : 0;
                     return {
                         npcPos: this.data && this.data.npcPos ? this.data.npcPos : { x: 0, y: 0, z: 0 },
+                        x: this.data ? Number(this.data.x || 0) : 0,
+                        y: this.data ? Number(this.data.y || 0) : 0,
+                        z: this.data ? Number(this.data.z || 0) : 0,
+                        dx: this.data ? Number(this.data.dx || 1) : 1,
+                        dy: this.data ? Number(this.data.dy || 1) : 1,
+                        dz: this.data ? Number(this.data.dz || 1) : 1,
                         points: points,
                         minZ: Number(minZ.toFixed(3)),
                         maxZ: Number(maxZ.toFixed(3)),

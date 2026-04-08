@@ -15,6 +15,7 @@ let vendorData = null;
 let moonshineBuffState = { active: false, remainingMs: 0 };
 let craftBusyActive = false;
 let moonshineUiBusyActive = false;
+let nextPromptRefresh = 0;
 
 const markerColors = {
     empty: [140, 140, 140, 70],
@@ -277,7 +278,10 @@ function startPlotAction(type) {
 
 function updatePrompt() {
     if (currentPlot) {
-        const { state, action, timeLeft, graceEndsIn } = currentPlot;
+        const { state, action } = currentPlot;
+        const now = Date.now();
+        const timeLeft = currentPlot.timeLeftEndsAt ? Math.max(0, currentPlot.timeLeftEndsAt - now) : currentPlot.timeLeft;
+        const graceEndsIn = currentPlot.graceEndsEndsAt ? Math.max(0, currentPlot.graceEndsEndsAt - now) : currentPlot.graceEndsIn;
         if (action === 'plant') {
             mp.prompt.show('[E] Посадить семя (id 300)');
             return;
@@ -324,12 +328,25 @@ function updatePrompt() {
 }
 
 function applyPlotUpdate(index, data) {
+    data = data || {};
+    const payload = Object.assign({}, data);
+    if (Object.prototype.hasOwnProperty.call(payload, 'timeLeft')) {
+        const value = Number(payload.timeLeft) || 0;
+        payload.timeLeftEndsAt = value > 0 ? (Date.now() + value) : null;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'graceEndsIn')) {
+        const value = Number(payload.graceEndsIn) || 0;
+        payload.graceEndsEndsAt = value > 0 ? (Date.now() + value) : null;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'state') && !Object.prototype.hasOwnProperty.call(payload, 'action')) {
+        payload.action = null;
+    }
     if (!plotStates[index]) plotStates[index] = { state: 'empty' };
-    plotStates[index] = Object.assign({ state: 'empty' }, plotStates[index], data || {});
+    plotStates[index] = Object.assign({ state: 'empty' }, plotStates[index], payload);
     updateMarker(index);
     updatePlotObject(index, true);
     if (currentPlot && currentPlot.index === index) {
-        currentPlot = Object.assign({}, currentPlot, data || {});
+        currentPlot = Object.assign({}, currentPlot, payload);
         updatePrompt();
     }
 }
@@ -576,6 +593,10 @@ mp.events.add('render', () => {
     const now = Date.now();
     if (now < nextStreamUpdate) return;
     nextStreamUpdate = now + 750;
+    if (currentPlot && now >= nextPromptRefresh) {
+        nextPromptRefresh = now + 1000;
+        updatePrompt();
+    }
     for (let i = 0; i < plotPositions.length; i++) {
         updatePlotObject(i);
     }
