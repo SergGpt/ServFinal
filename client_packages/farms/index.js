@@ -309,6 +309,12 @@ function renderPlantTimers() {
         const state = plotStates[i];
         const pos = plotPositions[i];
         if (!state || !pos) continue;
+        if ((state.state === "growing" || state.state === "growing_foreign") && getSecondsLeft(state) <= 0) {
+            state.state = state.state === "growing_foreign" ? "ready_foreign" : "ready";
+            state.action = "harvest";
+            state.readyAt = null;
+            updateMarker(i);
+        }
         if (state.state !== "growing" && state.state !== "growing_foreign" && state.state !== "ready" && state.state !== "ready_foreign") continue;
 
         let text = state.seedName || "Растение";
@@ -325,6 +331,25 @@ function renderPlantTimers() {
             centre: true,
         });
     }
+}
+
+function getNearestHarvestablePlotIndex(maxDistance = 2.2) {
+    if (!plotPositions.length || !plotStates.length || !mp.players.local) return -1;
+    let nearest = -1;
+    let bestDistance = maxDistance;
+    for (let i = 0; i < plotPositions.length; i++) {
+        const state = plotStates[i];
+        const pos = plotPositions[i];
+        if (!state || !pos) continue;
+        const canHarvest = state.action === "harvest" || state.state === "ready" || state.state === "ready_foreign";
+        if (!canHarvest) continue;
+        const dist = mp.players.local.position.distanceTo(pos);
+        if (dist <= bestDistance) {
+            bestDistance = dist;
+            nearest = i;
+        }
+    }
+    return nearest;
 }
 
 mp.events.add({
@@ -505,6 +530,12 @@ mp.keys.bind(0x45, true, () => {
     }
 
     if (!mp.busy.includes() && isLocalInsidePlantZone()) {
+        const harvestIndex = getNearestHarvestablePlotIndex();
+        if (harvestIndex !== -1) {
+            mp.events.callRemote("farms.plot.harvest", harvestIndex);
+            mp.prompt.hide();
+            return;
+        }
         if (knownSeedsAmount <= 0) {
             mp.notify.warning("У вас нет семян для посадки", "Ферма");
             return;
