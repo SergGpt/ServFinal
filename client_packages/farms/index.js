@@ -262,7 +262,7 @@ function drawEditorPoints(points) {
     }
 }
 
-function getNearestPlotIndex(maxDistance = 1.55) {
+function getNearestPlotIndex(maxDistance = 4.0) {
     if (!plotPositions.length || !plotStates.length) return -1;
     const me = mp.players.local;
     if (!me) return -1;
