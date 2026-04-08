@@ -535,6 +535,15 @@ mp.keys.bind(0x45, true, () => {
         return;
     }
 
+    if (!mp.busy.includes() && isLocalInsidePlantZone()) {
+        const harvestIndex = getNearestHarvestablePlotIndex();
+        if (harvestIndex !== -1) {
+            mp.events.callRemote("farms.plot.harvest", harvestIndex);
+            mp.prompt.hide();
+            return;
+        }
+    }
+
     if (currentPlot) {
         if (mp.busy.includes() || plantingInProgress) return;
         if (currentPlot.action === "plant") {
@@ -559,12 +568,6 @@ mp.keys.bind(0x45, true, () => {
     }
 
     if (!mp.busy.includes() && isLocalInsidePlantZone()) {
-        const harvestIndex = getNearestHarvestablePlotIndex();
-        if (harvestIndex !== -1) {
-            mp.events.callRemote("farms.plot.harvest", harvestIndex);
-            mp.prompt.hide();
-            return;
-        }
         if (knownSeedsAmount <= 0) {
             mp.notify.warning("У вас нет семян для посадки", "Ферма");
             return;
