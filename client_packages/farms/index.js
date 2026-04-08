@@ -145,6 +145,26 @@ function drawZoneBox(zone, color) {
     });
 }
 
+function drawZonePolygon(zone, color) {
+    if (!zone || !Array.isArray(zone.points) || zone.points.length < 2) return;
+    const c = color || [0, 190, 80, 160];
+    const points = zone.points;
+    const minZ = Number(zone.minZ);
+    const maxZ = Number(zone.maxZ);
+    const hasHeight = Number.isFinite(minZ) && Number.isFinite(maxZ);
+    for (let i = 0; i < points.length; i++) {
+        const a = points[i];
+        const b = points[(i + 1) % points.length];
+        if (!a || !b) continue;
+        mp.game.graphics.drawLine(a.x, a.y, a.z + 0.05, b.x, b.y, b.z + 0.05, c[0], c[1], c[2], c[3]);
+        if (hasHeight) {
+            mp.game.graphics.drawLine(a.x, a.y, minZ, a.x, a.y, maxZ, c[0], c[1], c[2], c[3]);
+            mp.game.graphics.drawLine(a.x, a.y, minZ, b.x, b.y, minZ, c[0], c[1], c[2], c[3]);
+            mp.game.graphics.drawLine(a.x, a.y, maxZ, b.x, b.y, maxZ, c[0], c[1], c[2], c[3]);
+        }
+    }
+}
+
 function drawEditorPoints(points) {
     if (!Array.isArray(points) || !points.length) return;
     for (let i = 0; i < points.length; i++) {
@@ -296,7 +316,7 @@ mp.events.add({
     "farms.zone.editor.toggle": () => {
         editorState.active = !editorState.active;
         editorState.points = [];
-        mp.notify.info(editorState.active ? "Редактор грядок: E - добавить точку, ENTER - сохранить" : "Редактор грядок выключен", "Ферма");
+        mp.notify.info(editorState.active ? "Редактор зоны посадки: E - добавить точку, ENTER - сохранить" : "Редактор зоны посадки выключен", "Ферма");
     },
 
     "farms.zone.menu.show.request": () => {
@@ -308,7 +328,10 @@ mp.events.add({
     },
     "render": () => {
         renderPlantTimers();
-        if (plantZone) drawZoneBox(plantZone, [0, 190, 80, 140]);
+        if (plantZone) {
+            if (Array.isArray(plantZone.points) && plantZone.points.length >= 2) drawZonePolygon(plantZone, [0, 190, 80, 140]);
+            else drawZoneBox(plantZone, [0, 190, 80, 140]);
+        }
         if (editorState.active) drawEditorPoints(editorState.points);
         updateCurrentPlotByDistance();
         if (currentPlot || insideFarmMenuZone) updatePrompt();
@@ -334,7 +357,7 @@ mp.keys.bind(0x45, true, () => {
             y: Number(p.y.toFixed(3)),
             z: Number(p.z.toFixed(3)),
         });
-        mp.notify.info(`Точка грядки добавлена (#${editorState.points.length})`, "Ферма");
+        mp.notify.info(`Точка зоны добавлена (#${editorState.points.length})`, "Ферма");
         return;
     }
 
@@ -364,9 +387,16 @@ mp.keys.bind(0x45, true, () => {
 
 mp.keys.bind(0x0D, true, () => {
     if (!editorState.active || !editorState.points.length) return;
-    mp.events.callRemote("farms.plots.set", JSON.stringify(editorState.points));
+    const zs = editorState.points.map((point) => point.z);
+    const minZ = Math.min.apply(null, zs) - 1.0;
+    const maxZ = Math.max.apply(null, zs) + 2.5;
+    mp.events.callRemote("farms.zone.set", JSON.stringify({
+        points: editorState.points,
+        minZ: Number(minZ.toFixed(3)),
+        maxZ: Number(maxZ.toFixed(3)),
+    }));
     editorState.active = false;
-    mp.notify.success("Позиции грядок сохранены", "Ферма");
+    mp.notify.success("Зона посадки сохранена", "Ферма");
 });
 
 mp.events.add("playerQuit", () => {

@@ -74,6 +74,24 @@ module.exports = {
         let zoneData = null;
         try { zoneData = JSON.parse(zoneJson); } catch (e) {}
         if (!zoneData) return;
+        if (Array.isArray(zoneData.points) && zoneData.points.length >= 3) {
+            const points = zoneData.points
+                .map((point) => ({
+                    x: parseFloat(point.x) || 0,
+                    y: parseFloat(point.y) || 0,
+                    z: parseFloat(point.z) || 0,
+                }))
+                .filter((point, index, arr) => index === arr.findIndex((p) => p.x === point.x && p.y === point.y && p.z === point.z));
+            if (points.length < 3) return;
+            const minZ = parseFloat(zoneData.minZ);
+            const maxZ = parseFloat(zoneData.maxZ);
+            farms.setPlantZone({
+                points,
+                minZ: Number.isFinite(minZ) ? minZ : Math.min(...points.map((p) => p.z)) - 1,
+                maxZ: Number.isFinite(maxZ) ? maxZ : Math.max(...points.map((p) => p.z)) + 2,
+            });
+            return;
+        }
         farms.setPlantZone({
             x: parseFloat(zoneData.x) || 0,
             y: parseFloat(zoneData.y) || 0,
@@ -81,6 +99,9 @@ module.exports = {
             dx: Math.max(1, parseFloat(zoneData.dx) || 1),
             dy: Math.max(1, parseFloat(zoneData.dy) || 1),
             dz: Math.max(1, parseFloat(zoneData.dz) || 1),
+            points: null,
+            minZ: null,
+            maxZ: null,
         });
     },
     'farms.zone.menu.open': (player) => {

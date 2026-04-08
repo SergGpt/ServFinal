@@ -74,6 +74,9 @@ module.exports = {
         dx: 14.0,
         dy: 14.0,
         dz: 5.0,
+        points: null,
+        minZ: null,
+        maxZ: null,
     },
 
     plots: [],
@@ -196,11 +199,20 @@ module.exports = {
 
     getPlantZoneData() {
         const z = this.plantZone;
-        return { x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz };
+        return {
+            x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz,
+            points: Array.isArray(z.points) ? z.points : null,
+            minZ: z.minZ,
+            maxZ: z.maxZ,
+        };
     },
     createPlantZone() {
         this.destroyPlantZone();
         const z = this.plantZone;
+        if (Array.isArray(z.points) && z.points.length >= 3) {
+            this.broadcastPlantZone();
+            return;
+        }
         this.plantZoneColshape = mp.colshapes.newCuboid(z.x, z.y, z.z, z.dx, z.dy, z.dz, 0);
         this.plantZoneColshape.onEnter = (player) => {
             if (!player) return;
@@ -227,7 +239,12 @@ module.exports = {
 
     broadcastPlantZone(target = null) {
         const z = this.plantZone;
-        const payload = { x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz };
+        const payload = {
+            x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz,
+            points: Array.isArray(z.points) ? z.points : null,
+            minZ: z.minZ,
+            maxZ: z.maxZ,
+        };
         if (target) return target.call("farms.zone.sync", [payload]);
         mp.players.forEach(player => {
             if (!player) return;
@@ -368,6 +385,20 @@ module.exports = {
         if (!player) return false;
         const pos = player.position;
         const z = this.plantZone;
+        if (Array.isArray(z.points) && z.points.length >= 3) {
+            const minZ = Number.isFinite(parseFloat(z.minZ)) ? parseFloat(z.minZ) : -1000;
+            const maxZ = Number.isFinite(parseFloat(z.maxZ)) ? parseFloat(z.maxZ) : 10000;
+            if (pos.z < minZ || pos.z > maxZ) return false;
+            let inside = false;
+            for (let i = 0, j = z.points.length - 1; i < z.points.length; j = i++) {
+                const xi = z.points[i].x, yi = z.points[i].y;
+                const xj = z.points[j].x, yj = z.points[j].y;
+                const intersect = ((yi > pos.y) !== (yj > pos.y))
+                    && (pos.x < ((xj - xi) * (pos.y - yi)) / ((yj - yi) || 0.000001) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
         return pos.x >= z.x && pos.x <= z.x + z.dx &&
             pos.y >= z.y && pos.y <= z.y + z.dy &&
             pos.z >= z.z && pos.z <= z.z + z.dz;
