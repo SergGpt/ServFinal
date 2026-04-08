@@ -541,8 +541,13 @@ mp.keys.bind(0x45, true, () => {
 
     if (!mp.busy.includes() && isLocalInsidePlantZone()) {
         if (!handHasFarmSeed) {
-            mp.events.callRemote("farms.plot.harvest", -1);
-            mp.prompt.hide();
+            const harvestIndex = getNearestHarvestablePlotIndex();
+            if (harvestIndex !== -1) {
+                mp.events.callRemote("farms.plot.harvest", harvestIndex);
+                mp.prompt.hide();
+                return;
+            }
+            mp.notify.warning("Возьмите семена в руки для посадки", "Ферма");
             return;
         }
         const harvestIndex = getNearestHarvestablePlotIndex();
