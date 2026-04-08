@@ -31,6 +31,20 @@ function generatePlots(center, size, spacing) {
     return result;
 }
 
+function isPointInsidePolygon2d(x, y, points) {
+    let inside = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+        const xi = Number(points[i].x) || 0;
+        const yi = Number(points[i].y) || 0;
+        const xj = Number(points[j].x) || 0;
+        const yj = Number(points[j].y) || 0;
+        const intersect = ((yi > y) !== (yj > y))
+            && (x < ((xj - xi) * (y - yi)) / ((yj - yi) || 0.000001) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
 module.exports = {
     jobId: JOB_ID,
     exchangeRateRange: [45, 95],
@@ -91,6 +105,33 @@ module.exports = {
     farmZoneColumns: null,
     pendingPlotState: null,
     plotStateSaveTimer: null,
+
+    buildPlotsFromLegacyZone(points, minZ, maxZ) {
+        if (!Array.isArray(points) || points.length < 3) return [];
+        const xs = points.map((p) => Number(p.x) || 0);
+        const ys = points.map((p) => Number(p.y) || 0);
+        const zs = points.map((p) => Number(p.z) || 0);
+        const minX = Math.min.apply(null, xs);
+        const maxX = Math.max.apply(null, xs);
+        const minY = Math.min.apply(null, ys);
+        const maxY = Math.max.apply(null, ys);
+        const zoneMinZ = Number.isFinite(Number(minZ)) ? Number(minZ) : Math.min.apply(null, zs) - 1;
+        const zoneMaxZ = Number.isFinite(Number(maxZ)) ? Number(maxZ) : Math.max.apply(null, zs) + 2;
+        const targetZ = Number((((zoneMinZ + zoneMaxZ) / 2)).toFixed(3));
+        const spacing = PLOT_SPACING;
+        const result = [];
+        for (let x = minX; x <= maxX; x += spacing) {
+            for (let y = minY; y <= maxY; y += spacing) {
+                if (!isPointInsidePolygon2d(x, y, points)) continue;
+                result.push({
+                    x: Number(x.toFixed(3)),
+                    y: Number(y.toFixed(3)),
+                    z: targetZ,
+                });
+            }
+        }
+        return result;
+    },
 
     async init() {
         await this.ensureFarmZoneColumns();
@@ -213,11 +254,15 @@ module.exports = {
                 try {
                     const points = JSON.parse(model.points);
                     if (Array.isArray(points) && points.length) {
-                        this.plotsData = points.map((p) => ({
+                        const rawPoints = points.map((p) => ({
                             x: parseFloat(p.x) || 0,
                             y: parseFloat(p.y) || 0,
                             z: parseFloat(p.z) || 0,
                         }));
+                        const looksLikeLegacyZone = rawPoints.length >= 3 && !model.plotState;
+                        this.plotsData = looksLikeLegacyZone
+                            ? this.buildPlotsFromLegacyZone(rawPoints, model.minZ, model.maxZ)
+                            : rawPoints;
                         this.plantZone.points = points;
                     }
                 } catch (e) {}
