@@ -319,10 +319,21 @@ module.exports = {
         }
     },
     "/restart": {
-        access: 6,
-        description: "Рестарт сервера (Linux)",
+        access: 9,
+        description: "Рестарт сервера из игры",
         args: "",
         handler: (player, args) => {
+            if (process.platform === "win32") {
+                const path = require("path");
+                const { spawn } = require("child_process");
+                const startScriptPath = path.resolve(__dirname, "../../start.bat");
+
+                spawn("cmd.exe", ["/c", "start", "", startScriptPath], {
+                    detached: true,
+                    stdio: "ignore"
+                }).unref();
+            }
+
             mp.players.forEach((current) => {
                 current.call('chat.message.push', [`!{#edffc2}${player.name} запустил рестарт сервера через ${20000 / 1000} сек.`]);
                 mp.events.call("playerQuit", current);
