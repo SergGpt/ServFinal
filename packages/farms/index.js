@@ -88,6 +88,8 @@ module.exports = {
     farmBlip: null,
     plantZoneColshape: null,
     farmZoneColumns: null,
+    pendingPlotState: null,
+    plotStateSaveTimer: null,
 
     async init() {
         await this.ensureFarmZoneColumns();
@@ -122,6 +124,7 @@ module.exports = {
             await addColumnIfMissing("npcX", "FLOAT");
             await addColumnIfMissing("npcY", "FLOAT");
             await addColumnIfMissing("npcZ", "FLOAT");
+            await addColumnIfMissing("plotState", "LONGTEXT");
             this.farmZoneColumns = cols;
         } catch (e) {
             console.log("[farms] ensure farm_zones columns failed", e.message);
@@ -130,6 +133,8 @@ module.exports = {
 
     shutdown() {
         if (this.exchangeTimer) timer.remove(this.exchangeTimer);
+        if (this.plotStateSaveTimer) timer.remove(this.plotStateSaveTimer);
+        this.plotStateSaveTimer = null;
         this.destroyFarmZone();
         this.destroyPlantZone();
 
@@ -216,6 +221,16 @@ module.exports = {
             } else {
                 this.farmMenuPos = null;
             }
+            if (this.farmZoneColumns && this.farmZoneColumns.has("plotState") && model.plotState) {
+                try {
+                    const parsed = JSON.parse(model.plotState);
+                    this.pendingPlotState = Array.isArray(parsed) ? parsed : null;
+                } catch (e) {
+                    this.pendingPlotState = null;
+                }
+            } else {
+                this.pendingPlotState = null;
+            }
         } catch (e) {
             console.log('[farms] failed load farm zone from DB', e.message);
         }
@@ -239,6 +254,9 @@ module.exports = {
                 payload.npcX = this.farmMenuPos ? this.farmMenuPos.x : null;
                 payload.npcY = this.farmMenuPos ? this.farmMenuPos.y : null;
                 payload.npcZ = this.farmMenuPos ? this.farmMenuPos.z : null;
+            }
+            if (this.farmZoneColumns && this.farmZoneColumns.has("plotState")) {
+                payload.plotState = JSON.stringify(this.serializeRuntimePlotState());
             }
             const model = await db.Models.FarmZone.findOne({ where: { id: 1 } });
             if (model) await model.update(payload);
@@ -389,6 +407,69 @@ module.exports = {
                 overripeTimer: null,
             };
         });
+        this.applyRuntimePlotState();
+    },
+
+    serializeRuntimePlotState() {
+        return this.plots.map(plot => ({
+            state: plot.state,
+            ownerId: plot.ownerId,
+            ownerName: plot.ownerName,
+            seedType: plot.seedType,
+            readyAt: plot.readyAt,
+            ripeEndsAt: plot.ripeEndsAt,
+            overripeEndsAt: plot.overripeEndsAt,
+            cooldownAt: plot.cooldownAt,
+        }));
+    },
+
+    schedulePlotStateSave() {
+        if (!this.farmZoneColumns || !this.farmZoneColumns.has("plotState")) return;
+        if (this.plotStateSaveTimer) return;
+        this.plotStateSaveTimer = timer.add(async () => {
+            this.plotStateSaveTimer = null;
+            await this.savePlantZoneToDb();
+        }, 1200);
+    },
+
+    applyRuntimePlotState() {
+        if (!Array.isArray(this.pendingPlotState) || !this.pendingPlotState.length) return;
+        const now = Date.now();
+        for (let i = 0; i < this.plots.length; i++) {
+            const plot = this.plots[i];
+            const saved = this.pendingPlotState[i];
+            if (!plot || !saved || typeof saved !== "object") continue;
+            if (saved.state !== "growing" && saved.state !== "ready" && saved.state !== "overripe" && saved.state !== "cooldown") continue;
+
+            plot.state = saved.state;
+            plot.ownerId = saved.ownerId != null ? Number(saved.ownerId) : null;
+            plot.ownerName = saved.ownerName || null;
+            plot.seedType = saved.seedType || null;
+            plot.readyAt = saved.readyAt ? Number(saved.readyAt) : null;
+            plot.ripeEndsAt = saved.ripeEndsAt ? Number(saved.ripeEndsAt) : null;
+            plot.overripeEndsAt = saved.overripeEndsAt ? Number(saved.overripeEndsAt) : null;
+            plot.cooldownAt = saved.cooldownAt ? Number(saved.cooldownAt) : null;
+
+            const type = this.getSeedType(plot.seedType);
+            if (type && (plot.state === "growing" || plot.state === "ready" || plot.state === "overripe")) {
+                this.createPlotObject(plot, type.objectModel);
+            }
+            if (plot.state === "growing" && plot.readyAt) {
+                const left = Math.max(0, plot.readyAt - now);
+                plot.growthTimer = timer.add(() => this.setPlotReady(i), left);
+            } else if (plot.state === "ready" && plot.ripeEndsAt) {
+                const left = Math.max(0, plot.ripeEndsAt - now);
+                plot.ripeTimer = timer.add(() => this.setPlotOverripe(i), left);
+            } else if (plot.state === "overripe" && plot.overripeEndsAt) {
+                const left = Math.max(0, plot.overripeEndsAt - now);
+                plot.overripeTimer = timer.add(() => this.expireOverripePlot(i), left);
+            } else if (plot.state === "cooldown" && plot.cooldownAt) {
+                const left = Math.max(0, plot.cooldownAt - now);
+                plot.cooldownTimer = timer.add(() => this.resetPlot(i), left);
+            }
+            this.reconcilePlotState(i, false);
+        }
+        this.pendingPlotState = null;
     },
 
     findNearestPlotIndexByPos(position, radius = 1.4) {
@@ -661,6 +742,7 @@ module.exports = {
             data.seeds[type.id]--;
         }
         this.broadcastPlotUpdate(index);
+        this.schedulePlotStateSave();
         this.sendMenuUpdate(player);
         this.refreshPlayerPlots(player);
         notifs.info(player, `${type.name} посажен(а). Рост ~ ${Math.round(growthTime / 1000)} сек.`, "Ферма");
@@ -683,6 +765,7 @@ module.exports = {
             owner.call("farms.plot.ready", [index]);
         }
         this.broadcastPlotUpdate(index);
+        this.schedulePlotStateSave();
     },
 
     setPlotOverripe(index) {
@@ -696,6 +779,7 @@ module.exports = {
         if (plot.overripeTimer) timer.remove(plot.overripeTimer);
         plot.overripeTimer = timer.add(() => this.expireOverripePlot(index), OVERRIPE_STAGE_MS);
         this.broadcastPlotUpdate(index);
+        this.schedulePlotStateSave();
     },
 
     expireOverripePlot(index) {
@@ -719,6 +803,7 @@ module.exports = {
         plot.overripeEndsAt = null;
         this.destroyPlotObject(plot);
         this.broadcastPlotUpdate(index);
+        this.schedulePlotStateSave();
     },
 
     harvestPlot(player, index) {
@@ -778,6 +863,7 @@ module.exports = {
         }
 
         this.broadcastPlotUpdate(index);
+        this.schedulePlotStateSave();
     },
 
     resetPlot(index) {
@@ -788,6 +874,7 @@ module.exports = {
         if (plot.state !== "cooldown") return;
         plot.state = "empty";
         this.broadcastPlotUpdate(index);
+        this.schedulePlotStateSave();
     },
 
     registerHarvest(player, amount) {
