@@ -14,6 +14,18 @@ let knownSeedsAmount = 0;
 let wasInsidePlantZone = false;
 let farmNpc = null;
 
+function parsePayload(value, fallback) {
+    if (typeof value === "string") {
+        try {
+            return JSON.parse(value);
+        } catch (e) {
+            return fallback;
+        }
+    }
+    if (value == null) return fallback;
+    return value;
+}
+
 const markerColors = {
     available: [124, 194, 91, 120],
     growing: [255, 210, 64, 120],
@@ -320,12 +332,14 @@ mp.events.add({
         mp.events.callRemote("farms.menu.sync");
     },
     "farms.plots.init": (positions) => {
+        positions = parsePayload(positions, []);
         if (!Array.isArray(positions)) positions = [];
         createMarkers(positions);
     },
     "farms.plot.update": (index, info) => {
         index = parseInt(index);
         if (isNaN(index)) return;
+        info = parsePayload(info, {});
         applyPlotUpdate(index, info);
     },
     "farms.plot.add": (index, pos) => {
@@ -338,6 +352,7 @@ mp.events.add({
     "farms.plot.enter": (index, info) => {
         index = parseInt(index);
         if (isNaN(index)) return;
+        info = parsePayload(info, {});
         currentPlot = Object.assign({ index }, info || {});
         updatePrompt();
     },
@@ -349,6 +364,8 @@ mp.events.add({
         index = parseInt(index);
         if (isNaN(index) || !plotStates[index]) return;
         plotStates[index].state = "ready";
+        plotStates[index].action = "harvest";
+        plotStates[index].readyAt = null;
         updateMarker(index);
     },
     "farms.menu.enter": () => {
@@ -362,10 +379,12 @@ mp.events.add({
         updatePrompt();
     },
     "farms.menu.show": (data) => {
+        data = parsePayload(data, {});
         updateKnownSeeds(data);
         openFarmMenu(data);
     },
     "farms.menu.update": (data) => {
+        data = parsePayload(data, {});
         updateKnownSeeds(data);
         mp.callCEFV(`farmUi.update(${JSON.stringify(data)})`);
     },
@@ -383,6 +402,7 @@ mp.events.add({
         updatePrompt();
     },
     "farms.zone.sync": (zone) => {
+        zone = parsePayload(zone, null);
         plantZone = zone;
         if (zone && zone.npcPos) createFarmNpc(zone.npcPos);
     },
