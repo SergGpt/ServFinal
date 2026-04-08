@@ -12,6 +12,20 @@ let insideFarmMenuZone = false;
 let farmUiBusyActive = false;
 let knownSeedsAmount = 0;
 let wasInsidePlantZone = false;
+let farmNpc = null;
+let zonePreviewUntil = 0;
+
+function parsePayload(value, fallback) {
+    if (typeof value === "string") {
+        try {
+            return JSON.parse(value);
+        } catch (e) {
+            return fallback;
+        }
+    }
+    if (value == null) return fallback;
+    return value;
+}
 
 const markerColors = {
     available: [124, 194, 91, 120],
@@ -19,6 +33,8 @@ const markerColors = {
     growing_foreign: [255, 170, 64, 120],
     ready: [84, 255, 84, 160],
     ready_foreign: [84, 255, 150, 160],
+    overripe: [255, 115, 115, 180],
+    overripe_foreign: [255, 140, 140, 180],
     cooldown: [252, 144, 58, 120],
     busy: [180, 180, 180, 100],
 };
@@ -57,6 +73,8 @@ function getSecondsLeft(plotInfo) {
     if (!plotInfo) return 0;
     const now = Date.now();
     if (plotInfo.readyAt) return Math.max(0, Math.ceil((plotInfo.readyAt - now) / 1000));
+    if (plotInfo.ripeEndsAt) return Math.max(0, Math.ceil((plotInfo.ripeEndsAt - now) / 1000));
+    if (plotInfo.overripeEndsAt) return Math.max(0, Math.ceil((plotInfo.overripeEndsAt - now) / 1000));
     if (plotInfo.cooldownAt) return Math.max(0, Math.ceil((plotInfo.cooldownAt - now) / 1000));
     return 0;
 }
@@ -86,6 +104,10 @@ function updatePrompt() {
         const seconds = getSecondsLeft(currentPlot);
         const prefix = state === "growing_foreign" ? `Чужая грядка (${owner})` : "Ваша грядка";
         mp.prompt.show(`${prefix}: рост ~${seconds} сек.`);
+    } else if (state === "ready" || state === "ready_foreign") {
+        mp.prompt.show(`Созрело: ${getSecondsLeft(currentPlot)} сек. до перезревания`);
+    } else if (state === "overripe" || state === "overripe_foreign") {
+        mp.prompt.show(`Перезрело: ${getSecondsLeft(currentPlot)} сек. до исчезновения`);
     } else if (state === "cooldown") {
         mp.prompt.show(`Грядка восстанавливается (~${getSecondsLeft(currentPlot)} сек.)`);
     } else {
@@ -141,21 +163,36 @@ function handleFarmUiClosed() {
 }
 
 function applyPlotUpdate(index, data) {
+    data = data || {};
+    const payload = Object.assign({}, data);
+    if (Object.prototype.hasOwnProperty.call(payload, "state") && !Object.prototype.hasOwnProperty.call(payload, "action")) {
+        payload.action = null;
+    }
     if (!plotStates[index]) plotStates[index] = {};
-    plotStates[index] = Object.assign({}, plotStates[index], data || {});
+    plotStates[index] = Object.assign({}, plotStates[index], payload);
     updateMarker(index);
     if (currentPlot && currentPlot.index === index) {
-        currentPlot = Object.assign({}, currentPlot, data || {});
+        currentPlot = Object.assign({}, currentPlot, payload);
         updatePrompt();
     }
 }
 
-function createPeds() {
-    mp.events.call("NPC.create", {
-        model: "a_m_m_farmer_01",
-        position: { x: 2023.0729980469, y: 4976.6215820312, z: 41.2263450623 },
-        heading: 40.0,
-    });
+function createFarmNpc(position) {
+    if (!position) return;
+    if (farmNpc) {
+        try {
+            if (mp.peds.exists(farmNpc)) farmNpc.destroy();
+        } catch (e) {}
+        farmNpc = null;
+    }
+    const pos = new mp.Vector3(Number(position.x), Number(position.y), Number(position.z));
+    farmNpc = mp.peds.new(mp.game.joaat("a_m_m_farmer_01"), pos, 40.0, 0);
+    if (farmNpc) {
+        farmNpc.defaultScenario = "WORLD_HUMAN_STAND_IMPATIENT";
+        try {
+            farmNpc.taskStartScenarioInPlace(farmNpc.defaultScenario, 0, false);
+        } catch (e) {}
+    }
 }
 
 function drawZoneBox(zone, color) {
@@ -281,11 +318,29 @@ function renderPlantTimers() {
         const state = plotStates[i];
         const pos = plotPositions[i];
         if (!state || !pos) continue;
-        if (state.state !== "growing" && state.state !== "growing_foreign" && state.state !== "ready" && state.state !== "ready_foreign") continue;
+        if ((state.state === "growing" || state.state === "growing_foreign") && getSecondsLeft(state) <= 0) {
+            state.state = state.state === "growing_foreign" ? "ready_foreign" : "ready";
+            state.action = "harvest";
+            state.readyAt = null;
+            updateMarker(i);
+        }
+        if ((state.state === "ready" || state.state === "ready_foreign") && getSecondsLeft(state) <= 0) {
+            state.state = state.state === "ready_foreign" ? "overripe_foreign" : "overripe";
+            state.action = "harvest";
+            state.ripeEndsAt = null;
+            updateMarker(i);
+        }
+        if (state.state !== "growing" && state.state !== "growing_foreign" && state.state !== "ready" && state.state !== "ready_foreign" && state.state !== "overripe" && state.state !== "overripe_foreign") continue;
 
-        let text = state.seedName || "Растение";
-        if (state.state === "ready" || state.state === "ready_foreign") text += " | Готово";
-        else text += ` | ${getSecondsLeft(state)} сек.`;
+        let phase = "Рост";
+        if (state.state === "ready" || state.state === "ready_foreign") phase = "Созрело";
+        if (state.state === "overripe" || state.state === "overripe_foreign") phase = "Перезрело";
+        let text = `${state.seedName || "Растение"} | ${phase}`;
+        if (phase === "Рост") text += `: ${getSecondsLeft(state)} сек.`;
+        if (phase === "Созрело") text += `: ${getSecondsLeft(state)} сек.`;
+        if (phase === "Перезрело") text += `: ${getSecondsLeft(state)} сек.`;
+
+        if (mp.players.local.position.distanceTo(pos) > 100) continue;
 
         const screen = mp.game.graphics.world3dToScreen2d(new mp.Vector3(pos.x, pos.y, pos.z + 0.6));
         if (!screen) continue;
@@ -299,15 +354,42 @@ function renderPlantTimers() {
     }
 }
 
+function getNearestHarvestablePlotIndex(maxDistance = 2.2) {
+    if (!plotPositions.length || !plotStates.length || !mp.players.local) return -1;
+    let nearest = -1;
+    let bestDistance = maxDistance;
+    for (let i = 0; i < plotPositions.length; i++) {
+        const state = plotStates[i];
+        const pos = plotPositions[i];
+        if (!state || !pos) continue;
+        const canHarvest = state.action === "harvest"
+            || state.state === "ready"
+            || state.state === "ready_foreign"
+            || state.state === "overripe"
+            || state.state === "overripe_foreign";
+        if (!canHarvest) continue;
+        const dist = mp.players.local.position.distanceTo(pos);
+        if (dist <= bestDistance) {
+            bestDistance = dist;
+            nearest = i;
+        }
+    }
+    return nearest;
+}
+
 mp.events.add({
-    "characterInit.done": () => createPeds(),
+    "characterInit.done": () => {
+        mp.events.callRemote("farms.menu.sync");
+    },
     "farms.plots.init": (positions) => {
+        positions = parsePayload(positions, []);
         if (!Array.isArray(positions)) positions = [];
         createMarkers(positions);
     },
     "farms.plot.update": (index, info) => {
         index = parseInt(index);
         if (isNaN(index)) return;
+        info = parsePayload(info, {});
         applyPlotUpdate(index, info);
     },
     "farms.plot.add": (index, pos) => {
@@ -320,6 +402,7 @@ mp.events.add({
     "farms.plot.enter": (index, info) => {
         index = parseInt(index);
         if (isNaN(index)) return;
+        info = parsePayload(info, {});
         currentPlot = Object.assign({ index }, info || {});
         updatePrompt();
     },
@@ -331,6 +414,8 @@ mp.events.add({
         index = parseInt(index);
         if (isNaN(index) || !plotStates[index]) return;
         plotStates[index].state = "ready";
+        plotStates[index].action = "harvest";
+        plotStates[index].readyAt = null;
         updateMarker(index);
     },
     "farms.menu.enter": () => {
@@ -344,10 +429,12 @@ mp.events.add({
         updatePrompt();
     },
     "farms.menu.show": (data) => {
+        data = parsePayload(data, {});
         updateKnownSeeds(data);
         openFarmMenu(data);
     },
     "farms.menu.update": (data) => {
+        data = parsePayload(data, {});
         updateKnownSeeds(data);
         mp.callCEFV(`farmUi.update(${JSON.stringify(data)})`);
     },
@@ -365,12 +452,17 @@ mp.events.add({
         updatePrompt();
     },
     "farms.zone.sync": (zone) => {
+        zone = parsePayload(zone, null);
         plantZone = zone;
+        if (zone && zone.npcPos) createFarmNpc(zone.npcPos);
     },
     "farms.zone.preview": (zoneJson) => {
         try {
             var zone = typeof zoneJson === "string" ? JSON.parse(zoneJson) : zoneJson;
-            if (zone) plantZone = zone;
+            if (zone) {
+                plantZone = zone;
+                zonePreviewUntil = Date.now() + 15000;
+            }
         } catch (e) {}
     },
     "farms.zone.editor.toggle": () => {
@@ -398,7 +490,8 @@ mp.events.add({
     },
     "render": () => {
         renderPlantTimers();
-        if (plantZone) {
+        const showZone = editorState.active || Date.now() < zonePreviewUntil;
+        if (plantZone && showZone) {
             if (Array.isArray(plantZone.points) && plantZone.points.length >= 2) drawZonePolygon(plantZone, [0, 190, 80, 140]);
             else drawZoneBox(plantZone, [0, 190, 80, 140]);
         }
@@ -415,6 +508,12 @@ mp.events.add({
         clearMarkers();
         currentPlot = null;
         insideFarmMenuZone = false;
+        if (farmNpc) {
+            try {
+                if (mp.peds.exists(farmNpc)) farmNpc.destroy();
+            } catch (e) {}
+            farmNpc = null;
+        }
         closeFarmMenu();
         handleFarmUiClosed();
         mp.prompt.hide();
@@ -434,6 +533,15 @@ mp.keys.bind(0x45, true, () => {
         });
         mp.notify.info(`Точка зоны добавлена (#${editorState.points.length})`, "Ферма");
         return;
+    }
+
+    if (!mp.busy.includes() && isLocalInsidePlantZone()) {
+        const harvestIndex = getNearestHarvestablePlotIndex();
+        if (harvestIndex !== -1) {
+            mp.events.callRemote("farms.plot.harvest", harvestIndex);
+            mp.prompt.hide();
+            return;
+        }
     }
 
     if (currentPlot) {
@@ -485,6 +593,12 @@ mp.keys.bind(0x0D, true, () => {
 mp.events.add("playerQuit", () => {
     currentPlot = null;
     insideFarmMenuZone = false;
+    if (farmNpc) {
+        try {
+            if (mp.peds.exists(farmNpc)) farmNpc.destroy();
+        } catch (e) {}
+        farmNpc = null;
+    }
     closeFarmMenu();
     handleFarmUiClosed();
     mp.prompt.hide();
