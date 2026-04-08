@@ -88,8 +88,10 @@ module.exports = {
     farmMarker: null,
     farmBlip: null,
     plantZoneColshape: null,
+    farmZoneColumns: null,
 
     async init() {
+        await this.ensureFarmZoneColumns();
         this.createFarmMenuZone();
         this.createPlots();
         await this.loadPlantZoneFromDb();
@@ -103,6 +105,28 @@ module.exports = {
                 this.startJob(player);
             }
         });
+    },
+
+    async ensureFarmZoneColumns() {
+        try {
+            const [rows] = await db.sequelize.query("SHOW COLUMNS FROM farm_zones");
+            const cols = new Set((rows || []).map((row) => String(row.Field || "")));
+            this.farmZoneColumns = cols;
+            const addColumnIfMissing = async (name, sqlType) => {
+                if (cols.has(name)) return;
+                await db.sequelize.query(`ALTER TABLE farm_zones ADD COLUMN ${name} ${sqlType} NULL`);
+                cols.add(name);
+            };
+            await addColumnIfMissing("points", "LONGTEXT");
+            await addColumnIfMissing("minZ", "FLOAT");
+            await addColumnIfMissing("maxZ", "FLOAT");
+            await addColumnIfMissing("npcX", "FLOAT");
+            await addColumnIfMissing("npcY", "FLOAT");
+            await addColumnIfMissing("npcZ", "FLOAT");
+            this.farmZoneColumns = cols;
+        } catch (e) {
+            console.log("[farms] ensure farm_zones columns failed", e.message);
+        }
     },
 
     shutdown() {
@@ -170,7 +194,21 @@ module.exports = {
                 dx: model.dx,
                 dy: model.dy,
                 dz: model.dz,
+                points: null,
+                minZ: null,
+                maxZ: null,
             };
+            if (this.farmZoneColumns && this.farmZoneColumns.has("points") && model.points) {
+                try {
+                    const points = JSON.parse(model.points);
+                    if (Array.isArray(points) && points.length >= 3) this.plantZone.points = points;
+                } catch (e) {}
+            }
+            if (this.farmZoneColumns && this.farmZoneColumns.has("minZ")) this.plantZone.minZ = model.minZ;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("maxZ")) this.plantZone.maxZ = model.maxZ;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("npcX") && model.npcX != null) {
+                this.farmMenuPos = new mp.Vector3(model.npcX, model.npcY, model.npcZ);
+            }
         } catch (e) {
             console.log('[farms] failed load farm zone from DB', e.message);
         }
@@ -187,6 +225,14 @@ module.exports = {
                 dz: this.plantZone.dz,
                 dimension: 0,
             };
+            if (this.farmZoneColumns && this.farmZoneColumns.has("points")) payload.points = this.plantZone.points ? JSON.stringify(this.plantZone.points) : null;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("minZ")) payload.minZ = this.plantZone.minZ;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("maxZ")) payload.maxZ = this.plantZone.maxZ;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("npcX")) {
+                payload.npcX = this.farmMenuPos.x;
+                payload.npcY = this.farmMenuPos.y;
+                payload.npcZ = this.farmMenuPos.z;
+            }
             const model = await db.Models.FarmZone.findOne({ where: { id: 1 } });
             if (model) await model.update(payload);
             else await db.Models.FarmZone.create(Object.assign({ id: 1 }, payload));
@@ -235,6 +281,12 @@ module.exports = {
     setPlantZone(zoneData) {
         this.plantZone = Object.assign({}, this.plantZone, zoneData || {});
         this.createPlantZone();
+    },
+
+    setFarmMenuPosition(pos) {
+        if (!pos) return;
+        this.farmMenuPos = new mp.Vector3(parseFloat(pos.x) || 0, parseFloat(pos.y) || 0, parseFloat(pos.z) || 0);
+        this.createFarmMenuZone();
     },
 
     broadcastPlantZone(target = null) {

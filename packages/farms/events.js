@@ -106,24 +106,45 @@ module.exports = {
     },
     'farms.zone.menu.open': (player) => {
         if (!player || !player.character || player.character.admin < 6) return;
-        player.call('farms.zone.menu.show', [farms.getPlantZoneData()]);
+        const zoneData = farms.getPlantZoneData();
+        zoneData.npcPos = { x: farms.farmMenuPos.x, y: farms.farmMenuPos.y, z: farms.farmMenuPos.z };
+        player.call('farms.zone.menu.show', [zoneData]);
     },
     'farms.zone.menu.save': async (player, zoneJson) => {
         if (!player || !player.character || player.character.admin < 6) return;
         let zoneData = null;
         try { zoneData = JSON.parse(zoneJson); } catch (e) {}
         if (!zoneData) return;
-        farms.setPlantZone({
-            x: parseFloat(zoneData.x) || 0,
-            y: parseFloat(zoneData.y) || 0,
-            z: parseFloat(zoneData.z) || 0,
-            dx: Math.max(1, parseFloat(zoneData.dx) || 1),
-            dy: Math.max(1, parseFloat(zoneData.dy) || 1),
-            dz: Math.max(1, parseFloat(zoneData.dz) || 1),
-        });
+        if (zoneData.npcPos) farms.setFarmMenuPosition(zoneData.npcPos);
+
+        if (Array.isArray(zoneData.points) && zoneData.points.length >= 3) {
+            farms.setPlantZone({
+                points: zoneData.points.map((p) => ({
+                    x: parseFloat(p.x) || 0,
+                    y: parseFloat(p.y) || 0,
+                    z: parseFloat(p.z) || 0,
+                })),
+                minZ: parseFloat(zoneData.minZ) || null,
+                maxZ: parseFloat(zoneData.maxZ) || null,
+            });
+        } else {
+            farms.setPlantZone({
+                x: parseFloat(zoneData.x) || 0,
+                y: parseFloat(zoneData.y) || 0,
+                z: parseFloat(zoneData.z) || 0,
+                dx: Math.max(1, parseFloat(zoneData.dx) || 1),
+                dy: Math.max(1, parseFloat(zoneData.dy) || 1),
+                dz: Math.max(1, parseFloat(zoneData.dz) || 1),
+                points: null,
+                minZ: null,
+                maxZ: null,
+            });
+        }
         const saved = await farms.savePlantZoneToDb();
         if (saved) player.utils.success('Зона фермы сохранена в БД');
         else player.utils.error('Не удалось сохранить зону фермы в БД');
-        player.call('farms.zone.menu.show', [farms.getPlantZoneData()]);
+        const payload = farms.getPlantZoneData();
+        payload.npcPos = { x: farms.farmMenuPos.x, y: farms.farmMenuPos.y, z: farms.farmMenuPos.z };
+        player.call('farms.zone.menu.show', [payload]);
     },
 };

@@ -322,6 +322,16 @@ mp.events.add({
     "farms.zone.menu.show.request": () => {
         mp.events.callRemote('farms.zone.menu.open');
     },
+    "farms.zone.menu.npc.fromPlayer": () => {
+        const p = mp.players.local.position;
+        const payload = { x: Number(p.x.toFixed(3)), y: Number(p.y.toFixed(3)), z: Number(p.z.toFixed(3)) };
+        mp.callCEFV(`selectMenu.menus['farmsZoneEditor'].setNpcFromPlayer(${JSON.stringify(payload)})`);
+    },
+    "farms.zone.menu.point.fromPlayer": () => {
+        const p = mp.players.local.position;
+        const payload = { x: Number(p.x.toFixed(3)), y: Number(p.y.toFixed(3)), z: Number(p.z.toFixed(3)) };
+        mp.callCEFV(`selectMenu.menus['farmsZoneEditor'].addPointFromPlayer(${JSON.stringify(payload)})`);
+    },
     "farms.zone.menu.show": (data) => {
         mp.callCEFV(`selectMenu.menus['farmsZoneEditor'].init(${JSON.stringify(data)})`);
         mp.callCEFV("selectMenu.showByName('farmsZoneEditor')");
