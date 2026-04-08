@@ -114,7 +114,9 @@ module.exports = {
     'farms.zone.menu.save': async (player, zoneJson) => {
         if (!player || !player.character || player.character.admin < 6) return;
         let zoneData = null;
-        try { zoneData = JSON.parse(zoneJson); } catch (e) {}
+        try {
+            zoneData = typeof zoneJson === 'string' ? JSON.parse(zoneJson) : zoneJson;
+        } catch (e) {}
         if (!zoneData) return;
         if (zoneData.npcPos) farms.setFarmMenuPosition(zoneData.npcPos);
 
@@ -128,7 +130,7 @@ module.exports = {
                 minZ: parseFloat(zoneData.minZ) || null,
                 maxZ: parseFloat(zoneData.maxZ) || null,
             });
-        } else {
+        } else if (zoneData.x != null && zoneData.y != null && zoneData.z != null) {
             farms.setPlantZone({
                 x: parseFloat(zoneData.x) || 0,
                 y: parseFloat(zoneData.y) || 0,
@@ -136,6 +138,19 @@ module.exports = {
                 dx: Math.max(1, parseFloat(zoneData.dx) || 1),
                 dy: Math.max(1, parseFloat(zoneData.dy) || 1),
                 dz: Math.max(1, parseFloat(zoneData.dz) || 1),
+                points: null,
+                minZ: null,
+                maxZ: null,
+            });
+        } else if (!farms.plantZone) {
+            // защитный fallback: не затираем зону нулями, если payload неполный
+            farms.setPlantZone({
+                x: 0,
+                y: 0,
+                z: 0,
+                dx: 1,
+                dy: 1,
+                dz: 1,
                 points: null,
                 minZ: null,
                 maxZ: null,
