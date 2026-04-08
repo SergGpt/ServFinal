@@ -1,10 +1,10 @@
 module.exports = {
     '/farmzone': {
-        description: 'Редактор зоны посадки фермы',
+        description: 'Настройка зоны посадки фермы (select menu)',
         args: '',
         access: 6,
         handler: (player) => {
-            player.call('farms.zone.editor.toggle');
+            player.call('farms.zone.menu.show.request');
         },
     },
 };

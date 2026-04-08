@@ -7342,6 +7342,81 @@ var selectMenu = new Vue({
                     }
                 }
             },
+            "farmsZoneEditor": {
+                name: "farmsZoneEditor",
+                header: "Зона посадки фермы",
+                items: [
+                    { text: "X", values: ["0"], i: 0 },
+                    { text: "Y", values: ["0"], i: 0 },
+                    { text: "Z", values: ["0"], i: 0 },
+                    { text: "Ширина (dx)", values: ["10"], i: 0 },
+                    { text: "Длина (dy)", values: ["10"], i: 0 },
+                    { text: "Высота (dz)", values: ["5"], i: 0 },
+                    { text: "Сохранить в БД" },
+                    { text: "Закрыть" }
+                ],
+                i: 0,
+                j: 0,
+                zone: null,
+                buildValues(base, step, count) {
+                    base = Number(base) || 0;
+                    var out = [];
+                    var half = Math.floor(count / 2);
+                    for (var n = -half; n <= half; n++) out.push((base + n * step).toFixed(1));
+                    return out;
+                },
+                pickIndex(values, current) {
+                    var target = Number(current) || 0;
+                    var best = 0;
+                    var bestDiff = 999999;
+                    for (var i = 0; i < values.length; i++) {
+                        var diff = Math.abs(Number(values[i]) - target);
+                        if (diff < bestDiff) { bestDiff = diff; best = i; }
+                    }
+                    return best;
+                },
+                init(data) {
+                    if (typeof data == 'string') data = JSON.parse(data);
+                    data = data || {};
+                    this.zone = data;
+                    var xVals = this.buildValues(data.x || 0, 1, 21);
+                    var yVals = this.buildValues(data.y || 0, 1, 21);
+                    var zVals = this.buildValues(data.z || 0, 0.5, 21);
+                    var dxVals = ["4", "6", "8", "10", "12", "14", "16", "20", "25", "30"];
+                    var dyVals = ["4", "6", "8", "10", "12", "14", "16", "20", "25", "30"];
+                    var dzVals = ["2", "3", "4", "5", "6", "8", "10", "12"];
+                    this.items[0].values = xVals; this.items[0].i = this.pickIndex(xVals, data.x);
+                    this.items[1].values = yVals; this.items[1].i = this.pickIndex(yVals, data.y);
+                    this.items[2].values = zVals; this.items[2].i = this.pickIndex(zVals, data.z);
+                    this.items[3].values = dxVals; this.items[3].i = this.pickIndex(dxVals, data.dx);
+                    this.items[4].values = dyVals; this.items[4].i = this.pickIndex(dyVals, data.dy);
+                    this.items[5].values = dzVals; this.items[5].i = this.pickIndex(dzVals, data.dz);
+                },
+                getZonePayload() {
+                    return {
+                        x: Number(this.items[0].values[this.items[0].i]),
+                        y: Number(this.items[1].values[this.items[1].i]),
+                        z: Number(this.items[2].values[this.items[2].i]),
+                        dx: Number(this.items[3].values[this.items[3].i]),
+                        dy: Number(this.items[4].values[this.items[4].i]),
+                        dz: Number(this.items[5].values[this.items[5].i]),
+                    };
+                },
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    if (eventName == 'onItemSelected') {
+                        if (item.text == 'Сохранить в БД') {
+                            mp.trigger('callRemote', 'farms.zone.menu.save', JSON.stringify(this.getZonePayload()));
+                        } else if (item.text == 'Закрыть') {
+                            selectMenu.show = false;
+                        }
+                    } else if (eventName == 'onItemValueChanged') {
+                        mp.trigger('farms.zone.preview', JSON.stringify(this.getZonePayload()));
+                    } else if (eventName == 'onBackspacePressed') {
+                        selectMenu.show = false;
+                    }
+                }
+            },
             "moonshineFarm": {
                 name: "moonshineFarm",
                 header: "Самогоноварение",

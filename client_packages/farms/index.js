@@ -192,11 +192,25 @@ mp.events.add({
     "farms.zone.sync": (zone) => {
         plantZone = zone;
     },
+    "farms.zone.preview": (zoneJson) => {
+        try {
+            var zone = typeof zoneJson === "string" ? JSON.parse(zoneJson) : zoneJson;
+            if (zone) plantZone = zone;
+        } catch (e) {}
+    },
     "farms.zone.editor.toggle": () => {
         editorState.active = !editorState.active;
         editorState.p1 = null;
         editorState.p2 = null;
         mp.notify.info(editorState.active ? "Редактор зоны: E - точка, ENTER - сохранить" : "Редактор зоны выключен", "Ферма");
+    },
+
+    "farms.zone.menu.show.request": () => {
+        mp.events.callRemote('farms.zone.menu.open');
+    },
+    "farms.zone.menu.show": (data) => {
+        mp.callCEFV(`selectMenu.menus['farmsZoneEditor'].init(${JSON.stringify(data)})`);
+        mp.callCEFV("selectMenu.showByName('farmsZoneEditor')");
     },
     "render": () => {
         renderPlantTimers();

@@ -86,9 +86,10 @@ module.exports = {
     farmBlip: null,
     plantZoneColshape: null,
 
-    init() {
+    async init() {
         this.createFarmMenuZone();
         this.createPlots();
+        await this.loadPlantZoneFromDb();
         this.createPlantZone();
         this.updateExchangeRate(true);
         this.exchangeTimer = timer.addInterval(() => this.updateExchangeRate(), this.exchangeChangeInterval);
@@ -151,6 +152,52 @@ module.exports = {
         }
     },
 
+
+    async loadPlantZoneFromDb() {
+        try {
+            const model = await db.Models.FarmZone.findOne({ where: { id: 1 } });
+            if (!model) {
+                await db.Models.FarmZone.create({ id: 1, x: this.plantZone.x, y: this.plantZone.y, z: this.plantZone.z, dx: this.plantZone.dx, dy: this.plantZone.dy, dz: this.plantZone.dz, dimension: 0 });
+                return;
+            }
+            this.plantZone = {
+                x: model.x,
+                y: model.y,
+                z: model.z,
+                dx: model.dx,
+                dy: model.dy,
+                dz: model.dz,
+            };
+        } catch (e) {
+            console.log('[farms] failed load farm zone from DB', e.message);
+        }
+    },
+
+    async savePlantZoneToDb() {
+        try {
+            const payload = {
+                x: this.plantZone.x,
+                y: this.plantZone.y,
+                z: this.plantZone.z,
+                dx: this.plantZone.dx,
+                dy: this.plantZone.dy,
+                dz: this.plantZone.dz,
+                dimension: 0,
+            };
+            const model = await db.Models.FarmZone.findOne({ where: { id: 1 } });
+            if (model) await model.update(payload);
+            else await db.Models.FarmZone.create(Object.assign({ id: 1 }, payload));
+            return true;
+        } catch (e) {
+            console.log('[farms] failed save farm zone to DB', e.message);
+            return false;
+        }
+    },
+
+    getPlantZoneData() {
+        const z = this.plantZone;
+        return { x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz };
+    },
     createPlantZone() {
         this.destroyPlantZone();
         const z = this.plantZone;
