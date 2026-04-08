@@ -535,7 +535,16 @@ mp.keys.bind(0x45, true, () => {
         return;
     }
 
+    const localHands = mp.players.local && mp.players.local.hands ? mp.players.local.hands : null;
+    const handItemId = localHands ? Number(localHands.itemId) : null;
+    const handHasFarmSeed = handItemId === 400 || handItemId === 402 || handItemId === 404;
+
     if (!mp.busy.includes() && isLocalInsidePlantZone()) {
+        if (!handHasFarmSeed) {
+            mp.events.callRemote("farms.plot.harvest", -1);
+            mp.prompt.hide();
+            return;
+        }
         const harvestIndex = getNearestHarvestablePlotIndex();
         if (harvestIndex !== -1) {
             mp.events.callRemote("farms.plot.harvest", harvestIndex);
@@ -550,7 +559,8 @@ mp.keys.bind(0x45, true, () => {
             plantingInProgress = true;
             mp.players.local.taskPlayAnim("amb@world_human_gardener_plant@male@idle_a", "idle_a", 4.0, 0.0, 1300, 49, 0, false, false, false);
             setTimeout(() => {
-                mp.events.callRemote("farms.plot.plant", currentPlot.index, selectedSeedType);
+                const seedArg = handHasFarmSeed ? handItemId : selectedSeedType;
+                mp.events.callRemote("farms.plot.plant", currentPlot.index, seedArg);
                 mp.players.local.clearTasks();
                 plantingInProgress = false;
             }, 1300);
@@ -572,7 +582,8 @@ mp.keys.bind(0x45, true, () => {
             mp.notify.warning("У вас нет семян для посадки", "Ферма");
             return;
         }
-        mp.events.callRemote("farms.plot.plant", -1, selectedSeedType);
+        const seedArg = handHasFarmSeed ? handItemId : selectedSeedType;
+        mp.events.callRemote("farms.plot.plant", -1, seedArg);
     }
 });
 
