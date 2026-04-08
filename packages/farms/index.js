@@ -413,33 +413,7 @@ module.exports = {
     addPlotAtPosition(position) {
         if (!position) return -1;
         const nearest = this.findNearestPlotIndexByPos(position, 1.2);
-        if (nearest !== -1) return nearest;
-        const index = this.plots.length;
-        const plot = {
-            index,
-            position: new mp.Vector3(position.x, position.y, position.z),
-            state: "empty",
-            ownerId: null,
-            ownerName: null,
-            readyAt: null,
-            ripeEndsAt: null,
-            overripeEndsAt: null,
-            cooldownAt: null,
-            seedType: null,
-            object: null,
-            growthTimer: null,
-            cooldownTimer: null,
-            ripeTimer: null,
-            overripeTimer: null,
-        };
-        this.plots.push(plot);
-        this.plotsData.push({ x: plot.position.x, y: plot.position.y, z: plot.position.z });
-        mp.players.forEach((player) => {
-            if (!this.isFarmer(player)) return;
-            player.call("farms.plot.add", [index, { x: plot.position.x, y: plot.position.y, z: plot.position.z }]);
-            player.call("farms.plot.update", [index, this.serializePlotForPlayer(plot, player)]);
-        });
-        return index;
+        return nearest;
     },
 
     resetPlotsData(positions) {
@@ -592,6 +566,9 @@ module.exports = {
         index = parseInt(index);
         if (isNaN(index) || index < 0 || !this.plots[index]) {
             index = this.addPlotAtPosition(player.position);
+            if (index === -1) {
+                return notifs.warning(player, "Рядом нет грядки для посадки", "Ферма");
+            }
         }
         const plot = this.plots[index];
         if (!plot) return notifs.error(player, "Не удалось создать грядку в текущей точке", "Ферма");

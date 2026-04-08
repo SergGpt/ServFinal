@@ -13,6 +13,7 @@ let farmUiBusyActive = false;
 let knownSeedsAmount = 0;
 let wasInsidePlantZone = false;
 let farmNpc = null;
+let zonePreviewUntil = 0;
 
 function parsePayload(value, fallback) {
     if (typeof value === "string") {
@@ -331,10 +332,13 @@ function renderPlantTimers() {
         }
         if (state.state !== "growing" && state.state !== "growing_foreign" && state.state !== "ready" && state.state !== "ready_foreign" && state.state !== "overripe" && state.state !== "overripe_foreign") continue;
 
-        let text = state.seedName || "Растение";
-        if (state.state === "ready" || state.state === "ready_foreign") text += ` | Созрело (${getSecondsLeft(state)} сек.)`;
-        else if (state.state === "overripe" || state.state === "overripe_foreign") text += ` | Перезрело (${getSecondsLeft(state)} сек.)`;
-        else text += ` | Рост: ${getSecondsLeft(state)} сек.`;
+        let phase = "Рост";
+        if (state.state === "ready" || state.state === "ready_foreign") phase = "Созрело";
+        if (state.state === "overripe" || state.state === "overripe_foreign") phase = "Перезрело";
+        let text = `${state.seedName || "Растение"} | ${phase}`;
+        if (phase === "Рост") text += `: ${getSecondsLeft(state)} сек.`;
+        if (phase === "Созрело") text += `: ${getSecondsLeft(state)} сек.`;
+        if (phase === "Перезрело") text += `: ${getSecondsLeft(state)} сек.`;
 
         if (mp.players.local.position.distanceTo(pos) > 100) continue;
 
@@ -455,7 +459,10 @@ mp.events.add({
     "farms.zone.preview": (zoneJson) => {
         try {
             var zone = typeof zoneJson === "string" ? JSON.parse(zoneJson) : zoneJson;
-            if (zone) plantZone = zone;
+            if (zone) {
+                plantZone = zone;
+                zonePreviewUntil = Date.now() + 15000;
+            }
         } catch (e) {}
     },
     "farms.zone.editor.toggle": () => {
@@ -483,7 +490,8 @@ mp.events.add({
     },
     "render": () => {
         renderPlantTimers();
-        if (plantZone) {
+        const showZone = editorState.active || Date.now() < zonePreviewUntil;
+        if (plantZone && showZone) {
             if (Array.isArray(plantZone.points) && plantZone.points.length >= 2) drawZonePolygon(plantZone, [0, 190, 80, 140]);
             else drawZoneBox(plantZone, [0, 190, 80, 140]);
         }
