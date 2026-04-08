@@ -35,9 +35,9 @@ module.exports = {
     minProcessTime: 10 * 1000,
     harvestsPerLevel: 100,
     maxLevel: 20,
-    farmMenuPos: new mp.Vector3(2023.072998046875, 4976.62158203125, 41.22634506225586 - 1),
+    farmMenuPos: null,
     fieldCenter: new mp.Vector3(FIELD_CENTER.x, FIELD_CENTER.y, FIELD_CENTER.z),
-    plotsData: generatePlots(FIELD_CENTER, PLOT_GRID_SIZE, PLOT_SPACING),
+    plotsData: [],
     seedTypes: [
         {
             id: "potato",
@@ -67,14 +67,7 @@ module.exports = {
             objectModel: "prop_veg_crop_02",
         }
     ],
-    plantZone: {
-        x: 2043.5,
-        y: 4913.5,
-        z: 39.5,
-        dx: 14.0,
-        dy: 14.0,
-        dz: 5.0,
-    },
+    plantZone: null,
 
     plots: [],
     exchangeRate: 60,
@@ -85,11 +78,13 @@ module.exports = {
     farmMarker: null,
     farmBlip: null,
     plantZoneColshape: null,
+    farmZoneColumns: null,
 
     async init() {
+        await this.ensureFarmZoneColumns();
+        await this.loadPlantZoneFromDb();
         this.createFarmMenuZone();
         this.createPlots();
-        await this.loadPlantZoneFromDb();
         this.createPlantZone();
         this.updateExchangeRate(true);
         this.exchangeTimer = timer.addInterval(() => this.updateExchangeRate(), this.exchangeChangeInterval);
@@ -100,6 +95,28 @@ module.exports = {
                 this.startJob(player);
             }
         });
+    },
+
+    async ensureFarmZoneColumns() {
+        try {
+            const [rows] = await db.sequelize.query("SHOW COLUMNS FROM farm_zones");
+            const cols = new Set((rows || []).map((row) => String(row.Field || "")));
+            this.farmZoneColumns = cols;
+            const addColumnIfMissing = async (name, sqlType) => {
+                if (cols.has(name)) return;
+                await db.sequelize.query(`ALTER TABLE farm_zones ADD COLUMN ${name} ${sqlType} NULL`);
+                cols.add(name);
+            };
+            await addColumnIfMissing("points", "LONGTEXT");
+            await addColumnIfMissing("minZ", "FLOAT");
+            await addColumnIfMissing("maxZ", "FLOAT");
+            await addColumnIfMissing("npcX", "FLOAT");
+            await addColumnIfMissing("npcY", "FLOAT");
+            await addColumnIfMissing("npcZ", "FLOAT");
+            this.farmZoneColumns = cols;
+        } catch (e) {
+            console.log("[farms] ensure farm_zones columns failed", e.message);
+        }
     },
 
     shutdown() {
@@ -116,18 +133,19 @@ module.exports = {
 
     createFarmMenuZone() {
         this.destroyFarmZone();
+        if (!this.farmMenuPos) return;
         const pos = this.farmMenuPos;
         this.farmMarker = mp.markers.new(1, pos, 0.75, { color: [120, 200, 80, 120] });
         this.farmColshape = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 1.5);
         this.farmColshape.onEnter = (player) => {
             if (!player || !player.character) return;
             player.farmAtMenuZone = true;
-            this.showMainMenu(player);
+            player.call("farms.menu.enter");
         };
         this.farmColshape.onExit = (player) => {
             if (!player || !player.character) return;
             player.farmAtMenuZone = false;
-            player.call("farms.menu.hide");
+            player.call("farms.menu.exit");
         };
         this.farmBlip = mp.blips.new(501, this.adjustBlipPos(pos), {
             name: "Фермер",
@@ -157,7 +175,10 @@ module.exports = {
         try {
             const model = await db.Models.FarmZone.findOne({ where: { id: 1 } });
             if (!model) {
-                await db.Models.FarmZone.create({ id: 1, x: this.plantZone.x, y: this.plantZone.y, z: this.plantZone.z, dx: this.plantZone.dx, dy: this.plantZone.dy, dz: this.plantZone.dz, dimension: 0 });
+                this.plantZone = null;
+                this.farmMenuPos = null;
+                this.plotsData = [];
+                this.plots = [];
                 return;
             }
             this.plantZone = {
@@ -167,7 +188,23 @@ module.exports = {
                 dx: model.dx,
                 dy: model.dy,
                 dz: model.dz,
+                points: null,
+                minZ: null,
+                maxZ: null,
             };
+            if (this.farmZoneColumns && this.farmZoneColumns.has("points") && model.points) {
+                try {
+                    const points = JSON.parse(model.points);
+                    if (Array.isArray(points) && points.length >= 3) this.plantZone.points = points;
+                } catch (e) {}
+            }
+            if (this.farmZoneColumns && this.farmZoneColumns.has("minZ")) this.plantZone.minZ = model.minZ;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("maxZ")) this.plantZone.maxZ = model.maxZ;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("npcX") && model.npcX != null) {
+                this.farmMenuPos = new mp.Vector3(model.npcX, model.npcY, model.npcZ);
+            } else {
+                this.farmMenuPos = null;
+            }
         } catch (e) {
             console.log('[farms] failed load farm zone from DB', e.message);
         }
@@ -176,14 +213,22 @@ module.exports = {
     async savePlantZoneToDb() {
         try {
             const payload = {
-                x: this.plantZone.x,
-                y: this.plantZone.y,
-                z: this.plantZone.z,
-                dx: this.plantZone.dx,
-                dy: this.plantZone.dy,
-                dz: this.plantZone.dz,
+                x: this.plantZone ? this.plantZone.x : 0,
+                y: this.plantZone ? this.plantZone.y : 0,
+                z: this.plantZone ? this.plantZone.z : 0,
+                dx: this.plantZone ? this.plantZone.dx : 1,
+                dy: this.plantZone ? this.plantZone.dy : 1,
+                dz: this.plantZone ? this.plantZone.dz : 1,
                 dimension: 0,
             };
+            if (this.farmZoneColumns && this.farmZoneColumns.has("points")) payload.points = (this.plantZone && this.plantZone.points) ? JSON.stringify(this.plantZone.points) : null;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("minZ")) payload.minZ = this.plantZone ? this.plantZone.minZ : null;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("maxZ")) payload.maxZ = this.plantZone ? this.plantZone.maxZ : null;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("npcX")) {
+                payload.npcX = this.farmMenuPos ? this.farmMenuPos.x : null;
+                payload.npcY = this.farmMenuPos ? this.farmMenuPos.y : null;
+                payload.npcZ = this.farmMenuPos ? this.farmMenuPos.z : null;
+            }
             const model = await db.Models.FarmZone.findOne({ where: { id: 1 } });
             if (model) await model.update(payload);
             else await db.Models.FarmZone.create(Object.assign({ id: 1 }, payload));
@@ -196,11 +241,22 @@ module.exports = {
 
     getPlantZoneData() {
         const z = this.plantZone;
-        return { x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz };
+        if (!z) return { x: 0, y: 0, z: 0, dx: 1, dy: 1, dz: 1, points: null, minZ: null, maxZ: null };
+        return {
+            x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz,
+            points: Array.isArray(z.points) ? z.points : null,
+            minZ: z.minZ,
+            maxZ: z.maxZ,
+        };
     },
     createPlantZone() {
         this.destroyPlantZone();
         const z = this.plantZone;
+        if (!z) return;
+        if (Array.isArray(z.points) && z.points.length >= 3) {
+            this.broadcastPlantZone();
+            return;
+        }
         this.plantZoneColshape = mp.colshapes.newCuboid(z.x, z.y, z.z, z.dx, z.dy, z.dz, 0);
         this.plantZoneColshape.onEnter = (player) => {
             if (!player) return;
@@ -221,13 +277,26 @@ module.exports = {
     },
 
     setPlantZone(zoneData) {
-        this.plantZone = Object.assign({}, this.plantZone, zoneData || {});
+        const baseZone = this.plantZone || { x: 0, y: 0, z: 0, dx: 1, dy: 1, dz: 1, points: null, minZ: null, maxZ: null };
+        this.plantZone = Object.assign({}, baseZone, zoneData || {});
         this.createPlantZone();
     },
 
+    setFarmMenuPosition(pos) {
+        if (!pos) return;
+        this.farmMenuPos = new mp.Vector3(parseFloat(pos.x) || 0, parseFloat(pos.y) || 0, parseFloat(pos.z) || 0);
+        this.createFarmMenuZone();
+    },
+
     broadcastPlantZone(target = null) {
+        if (!this.plantZone) return;
         const z = this.plantZone;
-        const payload = { x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz };
+        const payload = {
+            x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz,
+            points: Array.isArray(z.points) ? z.points : null,
+            minZ: z.minZ,
+            maxZ: z.maxZ,
+        };
         if (target) return target.call("farms.zone.sync", [payload]);
         mp.players.forEach(player => {
             if (!player) return;
@@ -242,11 +311,6 @@ module.exports = {
     createPlots() {
         this.plots = this.plotsData.map((plotData, index) => {
             const position = new mp.Vector3(plotData.x, plotData.y, plotData.z);
-            const colshape = mp.colshapes.newSphere(position.x, position.y, position.z, 1.2);
-            colshape.farmPlotId = index;
-            colshape.onEnter = (player) => this.onPlotEnter(player, index);
-            colshape.onExit = (player) => this.onPlotExit(player, index);
-
             return {
                 index,
                 position,
@@ -256,12 +320,82 @@ module.exports = {
                 readyAt: null,
                 cooldownAt: null,
                 seedType: null,
-                colshape,
                 object: null,
                 growthTimer: null,
                 cooldownTimer: null,
             };
         });
+    },
+
+    findNearestPlotIndexByPos(position, radius = 1.4) {
+        if (!position) return -1;
+        let nearest = -1;
+        let best = radius;
+        for (let i = 0; i < this.plots.length; i++) {
+            const plot = this.plots[i];
+            if (!plot || !plot.position) continue;
+            const dx = plot.position.x - position.x;
+            const dy = plot.position.y - position.y;
+            const dz = plot.position.z - position.z;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist <= best) {
+                best = dist;
+                nearest = i;
+            }
+        }
+        return nearest;
+    },
+
+    addPlotAtPosition(position) {
+        if (!position) return -1;
+        const nearest = this.findNearestPlotIndexByPos(position, 1.2);
+        if (nearest !== -1) return nearest;
+        const index = this.plots.length;
+        const plot = {
+            index,
+            position: new mp.Vector3(position.x, position.y, position.z),
+            state: "empty",
+            ownerId: null,
+            ownerName: null,
+            readyAt: null,
+            cooldownAt: null,
+            seedType: null,
+            object: null,
+            growthTimer: null,
+            cooldownTimer: null,
+        };
+        this.plots.push(plot);
+        this.plotsData.push({ x: plot.position.x, y: plot.position.y, z: plot.position.z });
+        mp.players.forEach((player) => {
+            if (!this.isFarmer(player)) return;
+            player.call("farms.plot.add", [index, { x: plot.position.x, y: plot.position.y, z: plot.position.z }]);
+            player.call("farms.plot.update", [index, this.serializePlotForPlayer(plot, player)]);
+        });
+        return index;
+    },
+
+    resetPlotsData(positions) {
+        if (!Array.isArray(positions) || !positions.length) return false;
+
+        this.plots.forEach((plot, index) => {
+            if (!plot) return;
+            if (plot.growthTimer) timer.remove(plot.growthTimer);
+            if (plot.cooldownTimer) timer.remove(plot.cooldownTimer);
+            this.destroyPlotObject(plot);
+            this.broadcastPlotUpdate(index);
+        });
+
+        this.plotsData = positions.map((pos) => ({
+            x: parseFloat(pos.x) || 0,
+            y: parseFloat(pos.y) || 0,
+            z: parseFloat(pos.z) || 0,
+        }));
+        this.createPlots();
+        mp.players.forEach((player) => {
+            if (!this.isFarmer(player)) return;
+            this.syncPlotsForPlayer(player);
+        });
+        return true;
     },
 
     startJob(player) {
@@ -347,42 +481,47 @@ module.exports = {
     },
 
     isPlayerInsidePlantZone(player) {
-        if (!player) return false;
+        if (!player || !this.plantZone) return false;
         const pos = player.position;
         const z = this.plantZone;
+        if (Array.isArray(z.points) && z.points.length >= 3) {
+            const minZ = Number.isFinite(parseFloat(z.minZ)) ? parseFloat(z.minZ) : -1000;
+            const maxZ = Number.isFinite(parseFloat(z.maxZ)) ? parseFloat(z.maxZ) : 10000;
+            if (pos.z < minZ || pos.z > maxZ) return false;
+            let inside = false;
+            for (let i = 0, j = z.points.length - 1; i < z.points.length; j = i++) {
+                const xi = z.points[i].x, yi = z.points[i].y;
+                const xj = z.points[j].x, yj = z.points[j].y;
+                const intersect = ((yi > pos.y) !== (yj > pos.y))
+                    && (pos.x < ((xj - xi) * (pos.y - yi)) / ((yj - yi) || 0.000001) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
         return pos.x >= z.x && pos.x <= z.x + z.dx &&
             pos.y >= z.y && pos.y <= z.y + z.dy &&
             pos.z >= z.z && pos.z <= z.z + z.dz;
     },
 
-    onPlotEnter(player, index) {
-        if (!this.isFarmer(player)) return;
-        const plot = this.plots[index];
-        if (!plot) return;
-        const info = this.serializePlotForPlayer(plot, player);
-        player.call("farms.plot.enter", [index, info]);
-    },
-
-    onPlotExit(player, index) {
-        if (!player || !player.character) return;
-        player.call("farms.plot.exit", [index]);
-    },
-
     plantSeed(player, index, seedId) {
         if (!this.isFarmer(player)) return;
-        const plot = this.plots[index];
-        if (!plot) return notifs.error(player, "Грядка не найдена", "Ферма");
         if (!this.isPlayerInsidePlantZone(player)) return notifs.warning(player, "Сажать можно только внутри зоны посадки", "Ферма");
+        const data = this.ensureJobData(player);
+        const type = this.getSeedType(seedId) || this.seedTypes[0];
+        if (!data.seeds[type.id] || data.seeds[type.id] <= 0) return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
+
+        index = parseInt(index);
+        if (isNaN(index) || index < 0 || !this.plots[index]) {
+            index = this.addPlotAtPosition(player.position);
+        }
+        const plot = this.plots[index];
+        if (!plot) return notifs.error(player, "Не удалось создать грядку в текущей точке", "Ферма");
         if (plot.state !== "empty") {
             if (plot.state === "growing") return notifs.warning(player, "Эта грядка уже занята посевами", "Ферма");
             if (plot.state === "ready") return notifs.warning(player, "Сначала соберите урожай с этой грядки", "Ферма");
             if (plot.state === "cooldown") return notifs.warning(player, "Грядка восстанавливается", "Ферма");
             return notifs.warning(player, "Эта грядка недоступна", "Ферма");
         }
-
-        const data = this.ensureJobData(player);
-        const type = this.getSeedType(seedId) || this.seedTypes[0];
-        if (!data.seeds[type.id] || data.seeds[type.id] <= 0) return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
 
         const level = this.getPlayerLevel(player);
         const growthTime = this.getProcessTime(type.growthRange, level);

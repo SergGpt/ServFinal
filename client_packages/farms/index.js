@@ -7,7 +7,11 @@ let currentPlot = null;
 let selectedSeedType = "potato";
 let plantingInProgress = false;
 let plantZone = null;
-let editorState = { active: false, p1: null, p2: null };
+let editorState = { active: false, points: [] };
+let insideFarmMenuZone = false;
+let farmUiBusyActive = false;
+let knownSeedsAmount = 0;
+let wasInsidePlantZone = false;
 
 const markerColors = {
     available: [124, 194, 91, 120],
@@ -59,6 +63,15 @@ function getSecondsLeft(plotInfo) {
 
 function updatePrompt() {
     if (!currentPlot) {
+        if (isLocalInsidePlantZone()) {
+            if (knownSeedsAmount > 0) mp.prompt.show(`Нажмите <span>E</span>, чтобы посадить (${selectedSeedType})`);
+            else mp.prompt.show("У вас нет семян для посадки");
+            return;
+        }
+        if (insideFarmMenuZone) {
+            mp.prompt.show("Нажмите <span>E</span>, чтобы поговорить с фермером");
+            return;
+        }
         mp.prompt.hide();
         return;
     }
@@ -78,6 +91,53 @@ function updatePrompt() {
     } else {
         mp.prompt.hide();
     }
+}
+
+function updateKnownSeeds(data) {
+    if (!data || typeof data !== "object") return;
+    const seeds = parseInt(data.seeds);
+    if (!isNaN(seeds)) knownSeedsAmount = Math.max(0, seeds);
+}
+
+function isLocalInsidePlantZone() {
+    if (!plantZone || !mp.players.local) return false;
+    const pos = mp.players.local.position;
+    if (Array.isArray(plantZone.points) && plantZone.points.length >= 3) {
+        const minZ = Number.isFinite(Number(plantZone.minZ)) ? Number(plantZone.minZ) : -1000;
+        const maxZ = Number.isFinite(Number(plantZone.maxZ)) ? Number(plantZone.maxZ) : 10000;
+        if (pos.z < minZ || pos.z > maxZ) return false;
+        let inside = false;
+        for (let i = 0, j = plantZone.points.length - 1; i < plantZone.points.length; j = i++) {
+            const xi = plantZone.points[i].x, yi = plantZone.points[i].y;
+            const xj = plantZone.points[j].x, yj = plantZone.points[j].y;
+            const intersect = ((yi > pos.y) !== (yj > pos.y))
+                && (pos.x < ((xj - xi) * (pos.y - yi)) / ((yj - yi) || 0.000001) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+    return pos.x >= plantZone.x && pos.x <= plantZone.x + plantZone.dx &&
+        pos.y >= plantZone.y && pos.y <= plantZone.y + plantZone.dy &&
+        pos.z >= plantZone.z && pos.z <= plantZone.z + plantZone.dz;
+}
+
+function openFarmMenu(data) {
+    if (!farmUiBusyActive) {
+        const added = mp.busy.add("farms.ui");
+        farmUiBusyActive = added !== false ? true : mp.busy.includes("farms.ui");
+    }
+    mp.callCEFV(`farmUi.open(${JSON.stringify(data || {})})`);
+}
+
+function closeFarmMenu() {
+    mp.callCEFV("if (farmUi && farmUi.visible) farmUi.close()");
+}
+
+function handleFarmUiClosed() {
+    if (!farmUiBusyActive) return;
+    mp.busy.remove("farms.ui");
+    farmUiBusyActive = false;
+    updatePrompt();
 }
 
 function applyPlotUpdate(index, data) {
@@ -120,6 +180,102 @@ function drawZoneBox(zone, color) {
     });
 }
 
+function drawZonePolygon(zone, color) {
+    if (!zone || !Array.isArray(zone.points) || zone.points.length < 2) return;
+    const c = color || [0, 190, 80, 160];
+    const points = zone.points;
+    const minZ = Number(zone.minZ);
+    const maxZ = Number(zone.maxZ);
+    const hasHeight = Number.isFinite(minZ) && Number.isFinite(maxZ);
+    for (let i = 0; i < points.length; i++) {
+        const a = points[i];
+        const b = points[(i + 1) % points.length];
+        if (!a || !b) continue;
+        mp.game.graphics.drawLine(a.x, a.y, a.z + 0.05, b.x, b.y, b.z + 0.05, c[0], c[1], c[2], c[3]);
+        if (hasHeight) {
+            mp.game.graphics.drawLine(a.x, a.y, minZ, a.x, a.y, maxZ, c[0], c[1], c[2], c[3]);
+            mp.game.graphics.drawLine(a.x, a.y, minZ, b.x, b.y, minZ, c[0], c[1], c[2], c[3]);
+            mp.game.graphics.drawLine(a.x, a.y, maxZ, b.x, b.y, maxZ, c[0], c[1], c[2], c[3]);
+        }
+    }
+}
+
+function drawEditorPoints(points) {
+    if (!Array.isArray(points) || !points.length) return;
+    for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        mp.game.graphics.drawMarker(
+            1,
+            p.x, p.y, p.z - 1.0,
+            0, 0, 0,
+            0, 0, 0,
+            0.42, 0.42, 0.42,
+            255, 140, 20, 220,
+            false, true, 2, false, null, null, false
+        );
+        const next = points[(i + 1) % points.length];
+        if (!next) continue;
+        const shouldClose = points.length >= 3 || i < points.length - 1;
+        if (!shouldClose) continue;
+        mp.game.graphics.drawLine(
+            p.x, p.y, p.z + 0.08,
+            next.x, next.y, next.z + 0.08,
+            255, 180, 40, 255
+        );
+    }
+}
+
+function getNearestPlotIndex(maxDistance = 1.55) {
+    if (!plotPositions.length || !plotStates.length) return -1;
+    const me = mp.players.local;
+    if (!me) return -1;
+    let nearest = -1;
+    let best = maxDistance;
+    let bestPriority = -1;
+
+    const getPriority = (state) => {
+        if (!state) return 0;
+        if (state.action === "harvest") return 4;
+        if (state.state === "ready" || state.state === "ready_foreign") return 3;
+        if (state.state === "growing" || state.state === "growing_foreign") return 2;
+        if (state.action === "plant") return 1;
+        return 0;
+    };
+
+    for (let i = 0; i < plotPositions.length; i++) {
+        const pos = plotPositions[i];
+        const state = plotStates[i];
+        if (!pos || !state) continue;
+        const dist = me.position.distanceTo(pos);
+        if (dist <= best) {
+            const priority = getPriority(state);
+            if (priority > bestPriority || (priority === bestPriority && dist < best)) {
+                best = dist;
+                nearest = i;
+                bestPriority = priority;
+            }
+        }
+    }
+    return nearest;
+}
+
+function updateCurrentPlotByDistance() {
+    const index = getNearestPlotIndex();
+    if (index === -1) {
+        if (currentPlot) {
+            currentPlot = null;
+            updatePrompt();
+        }
+        return;
+    }
+    const nextState = plotStates[index] || {};
+    if (currentPlot && currentPlot.index === index) {
+        currentPlot = Object.assign({}, currentPlot, nextState);
+    } else {
+        currentPlot = Object.assign({ index }, nextState);
+    }
+}
+
 function renderPlantTimers() {
     for (let i = 0; i < plotStates.length; i++) {
         const state = plotStates[i];
@@ -154,6 +310,13 @@ mp.events.add({
         if (isNaN(index)) return;
         applyPlotUpdate(index, info);
     },
+    "farms.plot.add": (index, pos) => {
+        index = parseInt(index);
+        if (isNaN(index) || !pos) return;
+        plotPositions[index] = new mp.Vector3(pos.x, pos.y, pos.z);
+        if (!plotStates[index]) plotStates[index] = { state: "available" };
+        updateMarker(index);
+    },
     "farms.plot.enter": (index, info) => {
         index = parseInt(index);
         if (isNaN(index)) return;
@@ -162,7 +325,7 @@ mp.events.add({
     },
     "farms.plot.exit": () => {
         currentPlot = null;
-        mp.prompt.hide();
+        updatePrompt();
     },
     "farms.plot.ready": (index) => {
         index = parseInt(index);
@@ -170,20 +333,32 @@ mp.events.add({
         plotStates[index].state = "ready";
         updateMarker(index);
     },
+    "farms.menu.enter": () => {
+        insideFarmMenuZone = true;
+        mp.events.callRemote("farms.menu.sync");
+        updatePrompt();
+    },
+    "farms.menu.exit": () => {
+        insideFarmMenuZone = false;
+        closeFarmMenu();
+        updatePrompt();
+    },
     "farms.menu.show": (data) => {
-        mp.callCEFV(`farmUi.open(${JSON.stringify(data)})`);
+        updateKnownSeeds(data);
+        openFarmMenu(data);
     },
     "farms.menu.update": (data) => {
+        updateKnownSeeds(data);
         mp.callCEFV(`farmUi.update(${JSON.stringify(data)})`);
     },
     "farms.menu.hide": () => {
-        mp.callCEFV('farmUi.close()');
+        closeFarmMenu();
     },
     "farms.employment.show": () => {
-        mp.callCEFV(`farmUi.open(${JSON.stringify({ employed: false })})`);
+        openFarmMenu({ employed: false });
     },
     "farms.employment.hide": () => {
-        mp.callCEFV('farmUi.close()');
+        closeFarmMenu();
     },
     "farms.seed.select": (seedId) => {
         selectedSeedType = seedId || "potato";
@@ -200,13 +375,22 @@ mp.events.add({
     },
     "farms.zone.editor.toggle": () => {
         editorState.active = !editorState.active;
-        editorState.p1 = null;
-        editorState.p2 = null;
-        mp.notify.info(editorState.active ? "Редактор зоны: E - точка, ENTER - сохранить" : "Редактор зоны выключен", "Ферма");
+        editorState.points = [];
+        mp.notify.info(editorState.active ? "Редактор зоны посадки: E - добавить точку, ENTER - сохранить" : "Редактор зоны посадки выключен", "Ферма");
     },
 
     "farms.zone.menu.show.request": () => {
         mp.events.callRemote('farms.zone.menu.open');
+    },
+    "farms.zone.menu.npc.fromPlayer": () => {
+        const p = mp.players.local.position;
+        const payload = { x: Number(p.x.toFixed(3)), y: Number(p.y.toFixed(3)), z: Number(p.z.toFixed(3)) };
+        mp.callCEFV(`selectMenu.menus['farmsZoneEditor'].setNpcFromPlayer(${JSON.stringify(payload)})`);
+    },
+    "farms.zone.menu.point.fromPlayer": () => {
+        const p = mp.players.local.position;
+        const payload = { x: Number(p.x.toFixed(3)), y: Number(p.y.toFixed(3)), z: Number(p.z.toFixed(3)) };
+        mp.callCEFV(`selectMenu.menus['farmsZoneEditor'].addPointFromPlayer(${JSON.stringify(payload)})`);
     },
     "farms.zone.menu.show": (data) => {
         mp.callCEFV(`selectMenu.menus['farmsZoneEditor'].init(${JSON.stringify(data)})`);
@@ -214,71 +398,94 @@ mp.events.add({
     },
     "render": () => {
         renderPlantTimers();
-        if (plantZone) drawZoneBox(plantZone, [0, 190, 80, 140]);
-        if (editorState.active && editorState.p1 && editorState.p2) {
-            const x = Math.min(editorState.p1.x, editorState.p2.x);
-            const y = Math.min(editorState.p1.y, editorState.p2.y);
-            const z = Math.min(editorState.p1.z, editorState.p2.z);
-            drawZoneBox({ x, y, z, dx: Math.abs(editorState.p1.x - editorState.p2.x), dy: Math.abs(editorState.p1.y - editorState.p2.y), dz: Math.abs(editorState.p1.z - editorState.p2.z) }, [255, 140, 20, 170]);
+        if (plantZone) {
+            if (Array.isArray(plantZone.points) && plantZone.points.length >= 2) drawZonePolygon(plantZone, [0, 190, 80, 140]);
+            else drawZoneBox(plantZone, [0, 190, 80, 140]);
         }
-        if (currentPlot) updatePrompt();
+        if (editorState.active) drawEditorPoints(editorState.points);
+        updateCurrentPlotByDistance();
+        const insideNow = isLocalInsidePlantZone();
+        if (insideNow !== wasInsidePlantZone) {
+            wasInsidePlantZone = insideNow;
+            if (insideNow) mp.notify.info("Вы вошли в зону посадки растений", "Ферма");
+        }
+        if (currentPlot || insideFarmMenuZone) updatePrompt();
     },
     "farms.reset": () => {
         clearMarkers();
         currentPlot = null;
+        insideFarmMenuZone = false;
+        closeFarmMenu();
+        handleFarmUiClosed();
         mp.prompt.hide();
-    }
+    },
+    "farms.ui.closed": () => {
+        handleFarmUiClosed();
+    },
 });
 
 mp.keys.bind(0x45, true, () => {
     if (editorState.active) {
         const p = mp.players.local.position;
-        if (!editorState.p1) {
-            editorState.p1 = { x: p.x, y: p.y, z: p.z };
-            mp.notify.info("Точка #1 установлена", "Ферма");
-        } else if (!editorState.p2) {
-            editorState.p2 = { x: p.x, y: p.y, z: p.z };
-            mp.notify.info("Точка #2 установлена, нажмите ENTER для сохранения", "Ферма");
-        } else {
-            editorState.p1 = editorState.p2;
-            editorState.p2 = { x: p.x, y: p.y, z: p.z };
-            mp.notify.info("Точка #2 обновлена", "Ферма");
+        editorState.points.push({
+            x: Number(p.x.toFixed(3)),
+            y: Number(p.y.toFixed(3)),
+            z: Number(p.z.toFixed(3)),
+        });
+        mp.notify.info(`Точка зоны добавлена (#${editorState.points.length})`, "Ферма");
+        return;
+    }
+
+    if (currentPlot) {
+        if (mp.busy.includes() || plantingInProgress) return;
+        if (currentPlot.action === "plant") {
+            plantingInProgress = true;
+            mp.players.local.taskPlayAnim("amb@world_human_gardener_plant@male@idle_a", "idle_a", 4.0, 0.0, 1300, 49, 0, false, false, false);
+            setTimeout(() => {
+                mp.events.callRemote("farms.plot.plant", currentPlot.index, selectedSeedType);
+                mp.players.local.clearTasks();
+                plantingInProgress = false;
+            }, 1300);
+            mp.prompt.hide();
+        } else if (currentPlot.action === "harvest") {
+            mp.events.callRemote("farms.plot.harvest", currentPlot.index);
+            mp.prompt.hide();
         }
         return;
     }
 
-    if (!currentPlot || mp.busy.includes() || plantingInProgress) return;
-    if (currentPlot.action === "plant") {
-        plantingInProgress = true;
-        mp.players.local.taskPlayAnim("amb@world_human_gardener_plant@male@idle_a", "idle_a", 4.0, 0.0, 1300, 49, 0, false, false, false);
-        setTimeout(() => {
-            mp.events.callRemote("farms.plot.plant", currentPlot.index, selectedSeedType);
-            mp.players.local.clearTasks();
-            plantingInProgress = false;
-        }, 1300);
-        mp.prompt.hide();
-    } else if (currentPlot.action === "harvest") {
-        mp.events.callRemote("farms.plot.harvest", currentPlot.index);
-        mp.prompt.hide();
+    if (insideFarmMenuZone && !mp.busy.includes()) {
+        mp.events.callRemote("farms.menu.open");
+        return;
+    }
+
+    if (!mp.busy.includes() && isLocalInsidePlantZone()) {
+        if (knownSeedsAmount <= 0) {
+            mp.notify.warning("У вас нет семян для посадки", "Ферма");
+            return;
+        }
+        mp.events.callRemote("farms.plot.plant", -1, selectedSeedType);
     }
 });
 
 mp.keys.bind(0x0D, true, () => {
-    if (!editorState.active || !editorState.p1 || !editorState.p2) return;
-    const payload = {
-        x: Math.min(editorState.p1.x, editorState.p2.x),
-        y: Math.min(editorState.p1.y, editorState.p2.y),
-        z: Math.min(editorState.p1.z, editorState.p2.z),
-        dx: Math.max(1, Math.abs(editorState.p1.x - editorState.p2.x)),
-        dy: Math.max(1, Math.abs(editorState.p1.y - editorState.p2.y)),
-        dz: Math.max(1, Math.abs(editorState.p1.z - editorState.p2.z)),
-    };
-    mp.events.callRemote("farms.zone.set", JSON.stringify(payload));
+    if (!editorState.active || !editorState.points.length) return;
+    const zs = editorState.points.map((point) => point.z);
+    const minZ = Math.min.apply(null, zs) - 1.0;
+    const maxZ = Math.max.apply(null, zs) + 2.5;
+    mp.events.callRemote("farms.zone.set", JSON.stringify({
+        points: editorState.points,
+        minZ: Number(minZ.toFixed(3)),
+        maxZ: Number(maxZ.toFixed(3)),
+    }));
     editorState.active = false;
     mp.notify.success("Зона посадки сохранена", "Ферма");
 });
 
 mp.events.add("playerQuit", () => {
     currentPlot = null;
+    insideFarmMenuZone = false;
+    closeFarmMenu();
+    handleFarmUiClosed();
     mp.prompt.hide();
 });

@@ -1,6 +1,7 @@
 var farmUi = new Vue({
     el: '#farmUi',
     data: {
+        show: false,
         visible: false,
         tab: 'job',
         buyAmount: 1,
@@ -29,6 +30,7 @@ var farmUi = new Vue({
     methods: {
         open(payload) {
             this.update(payload);
+            this.show = true;
             this.visible = true;
             if (!this.info.employed) this.tab = 'job';
         },
@@ -48,6 +50,7 @@ var farmUi = new Vue({
         },
         close() {
             this.visible = false;
+            this.show = false;
             mp.trigger('farms.ui.closed');
         },
         toggleJob() {
@@ -62,7 +65,10 @@ var farmUi = new Vue({
         },
         buySeeds() {
             if (!this.selectedSeed) return;
-            mp.trigger('callRemote', 'farms.seed.buy', this.selectedSeed, this.buyAmount);
+            mp.trigger('callRemote', 'farms.seed.buy', JSON.stringify({
+                seedId: this.selectedSeed,
+                amount: Number(this.buyAmount) || 1,
+            }));
         },
         sellHarvest() {
             mp.trigger('callRemote', 'farms.sell');
