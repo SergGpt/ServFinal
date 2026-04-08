@@ -212,7 +212,14 @@ module.exports = {
             if (this.farmZoneColumns && this.farmZoneColumns.has("points") && model.points) {
                 try {
                     const points = JSON.parse(model.points);
-                    if (Array.isArray(points) && points.length >= 3) this.plantZone.points = points;
+                    if (Array.isArray(points) && points.length) {
+                        this.plotsData = points.map((p) => ({
+                            x: parseFloat(p.x) || 0,
+                            y: parseFloat(p.y) || 0,
+                            z: parseFloat(p.z) || 0,
+                        }));
+                        this.plantZone.points = points;
+                    }
                 } catch (e) {}
             }
             if (this.farmZoneColumns && this.farmZoneColumns.has("minZ")) this.plantZone.minZ = model.minZ;
@@ -248,7 +255,7 @@ module.exports = {
                 dz: this.plantZone ? this.plantZone.dz : 1,
                 dimension: 0,
             };
-            if (this.farmZoneColumns && this.farmZoneColumns.has("points")) payload.points = (this.plantZone && this.plantZone.points) ? JSON.stringify(this.plantZone.points) : null;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("points")) payload.points = this.plotsData && this.plotsData.length ? JSON.stringify(this.plotsData) : null;
             if (this.farmZoneColumns && this.farmZoneColumns.has("minZ")) payload.minZ = this.plantZone ? this.plantZone.minZ : null;
             if (this.farmZoneColumns && this.farmZoneColumns.has("maxZ")) payload.maxZ = this.plantZone ? this.plantZone.maxZ : null;
             if (this.farmZoneColumns && this.farmZoneColumns.has("npcX")) {
@@ -274,7 +281,7 @@ module.exports = {
         if (!z) return { x: 0, y: 0, z: 0, dx: 1, dy: 1, dz: 1, points: null, minZ: null, maxZ: null };
         return {
             x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz,
-            points: Array.isArray(z.points) ? z.points : null,
+            points: this.plotsData.map((p) => ({ x: p.x, y: p.y, z: p.z })),
             minZ: z.minZ,
             maxZ: z.maxZ,
         };
@@ -710,7 +717,6 @@ module.exports = {
 
     plantSeed(player, index, seedId) {
         if (!this.isFarmer(player)) return;
-        if (!this.isPlayerInsidePlantZone(player)) return notifs.warning(player, "Сажать можно только внутри зоны посадки", "Ферма");
         const data = this.ensureJobData(player);
         const handsItem = inventory.getHandsItem(player);
         const handSeedType = handsItem ? this.seedTypes.find(seed => Number(seed.seedItemId) === Number(handsItem.itemId)) : null;
@@ -720,11 +726,9 @@ module.exports = {
         if (!hasInvSeed && !hasLegacySeed) return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
 
         index = parseInt(index);
-        if (isNaN(index) || index < 0 || !this.plots[index]) {
-            index = this.addPlotAtPosition(player.position);
-        }
+        if (isNaN(index) || index < 0 || !this.plots[index]) index = this.findNearestPlotIndexByPos(player.position, HARVEST_INTERACT_RADIUS);
         const plot = this.plots[index];
-        if (!plot) return notifs.error(player, "Не удалось создать грядку в текущей точке", "Ферма");
+        if (!plot) return notifs.warning(player, "Здесь нет грядки для посадки", "Ферма");
         const matured = this.reconcilePlotState(index, true);
         if (matured) this.broadcastPlotUpdate(index);
         if (plot.state !== "empty") {

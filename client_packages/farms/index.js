@@ -468,7 +468,7 @@ mp.events.add({
     "farms.zone.editor.toggle": () => {
         editorState.active = !editorState.active;
         editorState.points = [];
-        mp.notify.info(editorState.active ? "Редактор зоны посадки: E - добавить точку, ENTER - сохранить" : "Редактор зоны посадки выключен", "Ферма");
+        mp.notify.info(editorState.active ? "Редактор грядок: E - добавить грядку, ENTER - сохранить" : "Редактор грядок выключен", "Ферма");
     },
 
     "farms.zone.menu.show.request": () => {
@@ -531,7 +531,7 @@ mp.keys.bind(0x45, true, () => {
             y: Number(p.y.toFixed(3)),
             z: Number(p.z.toFixed(3)),
         });
-        mp.notify.info(`Точка зоны добавлена (#${editorState.points.length})`, "Ферма");
+        mp.notify.info(`Грядка добавлена (#${editorState.points.length})`, "Ферма");
         return;
     }
 
