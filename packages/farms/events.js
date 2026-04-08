@@ -120,15 +120,32 @@ module.exports = {
         if (!zoneData) return;
         if (zoneData.npcPos) farms.setFarmMenuPosition(zoneData.npcPos);
 
-        if (Array.isArray(zoneData.points) && zoneData.points.length >= 3) {
+        if (Array.isArray(zoneData.points) && zoneData.points.length) {
+            const points = zoneData.points.map((p) => ({
+                x: parseFloat(p.x) || 0,
+                y: parseFloat(p.y) || 0,
+                z: parseFloat(p.z) || 0,
+            }));
+            farms.resetPlotsData(points);
+            const xs = points.map((p) => p.x);
+            const ys = points.map((p) => p.y);
+            const zs = points.map((p) => p.z);
+            const minX = Math.min.apply(null, xs) - 2.0;
+            const minY = Math.min.apply(null, ys) - 2.0;
+            const minZ = Math.min.apply(null, zs) - 2.0;
+            const maxX = Math.max.apply(null, xs) + 2.0;
+            const maxY = Math.max.apply(null, ys) + 2.0;
+            const maxZ = Math.max.apply(null, zs) + 2.5;
             farms.setPlantZone({
-                points: zoneData.points.map((p) => ({
-                    x: parseFloat(p.x) || 0,
-                    y: parseFloat(p.y) || 0,
-                    z: parseFloat(p.z) || 0,
-                })),
-                minZ: parseFloat(zoneData.minZ) || null,
-                maxZ: parseFloat(zoneData.maxZ) || null,
+                x: minX,
+                y: minY,
+                z: minZ,
+                dx: Math.max(1.0, maxX - minX),
+                dy: Math.max(1.0, maxY - minY),
+                dz: Math.max(1.0, maxZ - minZ),
+                points: points,
+                minZ,
+                maxZ,
             });
         } else if (zoneData.x != null && zoneData.y != null && zoneData.z != null) {
             farms.setPlantZone({

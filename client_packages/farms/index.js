@@ -262,7 +262,7 @@ function drawEditorPoints(points) {
     }
 }
 
-function getNearestPlotIndex(maxDistance = 1.55) {
+function getNearestPlotIndex(maxDistance = 4.0) {
     if (!plotPositions.length || !plotStates.length) return -1;
     const me = mp.players.local;
     if (!me) return -1;
@@ -468,7 +468,7 @@ mp.events.add({
     "farms.zone.editor.toggle": () => {
         editorState.active = !editorState.active;
         editorState.points = [];
-        mp.notify.info(editorState.active ? "Редактор зоны посадки: E - добавить точку, ENTER - сохранить" : "Редактор зоны посадки выключен", "Ферма");
+        mp.notify.info(editorState.active ? "Редактор грядок: E - добавить грядку, ENTER - сохранить" : "Редактор грядок выключен", "Ферма");
     },
 
     "farms.zone.menu.show.request": () => {
@@ -531,7 +531,7 @@ mp.keys.bind(0x45, true, () => {
             y: Number(p.y.toFixed(3)),
             z: Number(p.z.toFixed(3)),
         });
-        mp.notify.info(`Точка зоны добавлена (#${editorState.points.length})`, "Ферма");
+        mp.notify.info(`Грядка добавлена (#${editorState.points.length})`, "Ферма");
         return;
     }
 
@@ -550,7 +550,8 @@ mp.keys.bind(0x45, true, () => {
             plantingInProgress = true;
             mp.players.local.taskPlayAnim("amb@world_human_gardener_plant@male@idle_a", "idle_a", 4.0, 0.0, 1300, 49, 0, false, false, false);
             setTimeout(() => {
-                mp.events.callRemote("farms.plot.plant", currentPlot.index, selectedSeedType);
+                const seedArg = handHasFarmSeed ? handItemId : selectedSeedType;
+                mp.events.callRemote("farms.plot.plant", currentPlot.index, seedArg);
                 mp.players.local.clearTasks();
                 plantingInProgress = false;
             }, 1300);
@@ -568,11 +569,12 @@ mp.keys.bind(0x45, true, () => {
     }
 
     if (!mp.busy.includes() && isLocalInsidePlantZone()) {
-        if (knownSeedsAmount <= 0) {
+        if (!handHasFarmSeed && knownSeedsAmount <= 0) {
             mp.notify.warning("У вас нет семян для посадки", "Ферма");
             return;
         }
-        mp.events.callRemote("farms.plot.plant", -1, selectedSeedType);
+        const seedArg = handHasFarmSeed ? handItemId : selectedSeedType;
+        mp.events.callRemote("farms.plot.plant", -1, seedArg);
     }
 });
 

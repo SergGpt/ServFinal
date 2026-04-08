@@ -30,6 +30,20 @@ function generatePlots(center, size, spacing) {
     return result;
 }
 
+function isPointInsidePolygon2d(x, y, points) {
+    let inside = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+        const xi = Number(points[i].x) || 0;
+        const yi = Number(points[i].y) || 0;
+        const xj = Number(points[j].x) || 0;
+        const yj = Number(points[j].y) || 0;
+        const intersect = ((yi > y) !== (yj > y))
+            && (x < ((xj - xi) * (y - yi)) / ((yj - yi) || 0.000001) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
 module.exports = {
     jobId: JOB_ID,
     exchangeRateRange: [45, 95],
@@ -88,6 +102,35 @@ module.exports = {
     farmBlip: null,
     plantZoneColshape: null,
     farmZoneColumns: null,
+    pendingPlotState: null,
+    plotStateSaveTimer: null,
+
+    buildPlotsFromLegacyZone(points, minZ, maxZ) {
+        if (!Array.isArray(points) || points.length < 3) return [];
+        const xs = points.map((p) => Number(p.x) || 0);
+        const ys = points.map((p) => Number(p.y) || 0);
+        const zs = points.map((p) => Number(p.z) || 0);
+        const minX = Math.min.apply(null, xs);
+        const maxX = Math.max.apply(null, xs);
+        const minY = Math.min.apply(null, ys);
+        const maxY = Math.max.apply(null, ys);
+        const zoneMinZ = Number.isFinite(Number(minZ)) ? Number(minZ) : Math.min.apply(null, zs) - 1;
+        const zoneMaxZ = Number.isFinite(Number(maxZ)) ? Number(maxZ) : Math.max.apply(null, zs) + 2;
+        const targetZ = Number((((zoneMinZ + zoneMaxZ) / 2)).toFixed(3));
+        const spacing = PLOT_SPACING;
+        const result = [];
+        for (let x = minX; x <= maxX; x += spacing) {
+            for (let y = minY; y <= maxY; y += spacing) {
+                if (!isPointInsidePolygon2d(x, y, points)) continue;
+                result.push({
+                    x: Number(x.toFixed(3)),
+                    y: Number(y.toFixed(3)),
+                    z: targetZ,
+                });
+            }
+        }
+        return result;
+    },
 
     async init() {
         await this.ensureFarmZoneColumns();
@@ -122,6 +165,7 @@ module.exports = {
             await addColumnIfMissing("npcX", "FLOAT");
             await addColumnIfMissing("npcY", "FLOAT");
             await addColumnIfMissing("npcZ", "FLOAT");
+            await addColumnIfMissing("plotState", "LONGTEXT");
             this.farmZoneColumns = cols;
         } catch (e) {
             console.log("[farms] ensure farm_zones columns failed", e.message);
@@ -130,6 +174,8 @@ module.exports = {
 
     shutdown() {
         if (this.exchangeTimer) timer.remove(this.exchangeTimer);
+        if (this.plotStateSaveTimer) timer.remove(this.plotStateSaveTimer);
+        this.plotStateSaveTimer = null;
         this.destroyFarmZone();
         this.destroyPlantZone();
 
@@ -206,7 +252,18 @@ module.exports = {
             if (this.farmZoneColumns && this.farmZoneColumns.has("points") && model.points) {
                 try {
                     const points = JSON.parse(model.points);
-                    if (Array.isArray(points) && points.length >= 3) this.plantZone.points = points;
+                    if (Array.isArray(points) && points.length) {
+                        const rawPoints = points.map((p) => ({
+                            x: parseFloat(p.x) || 0,
+                            y: parseFloat(p.y) || 0,
+                            z: parseFloat(p.z) || 0,
+                        }));
+                        const looksLikeLegacyZone = rawPoints.length >= 3 && !model.plotState;
+                        this.plotsData = looksLikeLegacyZone
+                            ? this.buildPlotsFromLegacyZone(rawPoints, model.minZ, model.maxZ)
+                            : rawPoints;
+                        this.plantZone.points = points;
+                    }
                 } catch (e) {}
             }
             if (this.farmZoneColumns && this.farmZoneColumns.has("minZ")) this.plantZone.minZ = model.minZ;
@@ -215,6 +272,16 @@ module.exports = {
                 this.farmMenuPos = new mp.Vector3(model.npcX, model.npcY, model.npcZ);
             } else {
                 this.farmMenuPos = null;
+            }
+            if (this.farmZoneColumns && this.farmZoneColumns.has("plotState") && model.plotState) {
+                try {
+                    const parsed = JSON.parse(model.plotState);
+                    this.pendingPlotState = Array.isArray(parsed) ? parsed : null;
+                } catch (e) {
+                    this.pendingPlotState = null;
+                }
+            } else {
+                this.pendingPlotState = null;
             }
         } catch (e) {
             console.log('[farms] failed load farm zone from DB', e.message);
@@ -232,13 +299,16 @@ module.exports = {
                 dz: this.plantZone ? this.plantZone.dz : 1,
                 dimension: 0,
             };
-            if (this.farmZoneColumns && this.farmZoneColumns.has("points")) payload.points = (this.plantZone && this.plantZone.points) ? JSON.stringify(this.plantZone.points) : null;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("points")) payload.points = this.plotsData && this.plotsData.length ? JSON.stringify(this.plotsData) : null;
             if (this.farmZoneColumns && this.farmZoneColumns.has("minZ")) payload.minZ = this.plantZone ? this.plantZone.minZ : null;
             if (this.farmZoneColumns && this.farmZoneColumns.has("maxZ")) payload.maxZ = this.plantZone ? this.plantZone.maxZ : null;
             if (this.farmZoneColumns && this.farmZoneColumns.has("npcX")) {
                 payload.npcX = this.farmMenuPos ? this.farmMenuPos.x : null;
                 payload.npcY = this.farmMenuPos ? this.farmMenuPos.y : null;
                 payload.npcZ = this.farmMenuPos ? this.farmMenuPos.z : null;
+            }
+            if (this.farmZoneColumns && this.farmZoneColumns.has("plotState")) {
+                payload.plotState = JSON.stringify(this.serializeRuntimePlotState());
             }
             const model = await db.Models.FarmZone.findOne({ where: { id: 1 } });
             if (model) await model.update(payload);
@@ -255,7 +325,7 @@ module.exports = {
         if (!z) return { x: 0, y: 0, z: 0, dx: 1, dy: 1, dz: 1, points: null, minZ: null, maxZ: null };
         return {
             x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz,
-            points: Array.isArray(z.points) ? z.points : null,
+            points: this.plotsData.map((p) => ({ x: p.x, y: p.y, z: p.z })),
             minZ: z.minZ,
             maxZ: z.maxZ,
         };
@@ -382,6 +452,9 @@ module.exports = {
                 overripeEndsAt: null,
                 cooldownAt: null,
                 seedType: null,
+                seedItemId: null,
+                plantedPos: null,
+                plantRadius: null,
                 object: null,
                 growthTimer: null,
                 cooldownTimer: null,
@@ -389,6 +462,75 @@ module.exports = {
                 overripeTimer: null,
             };
         });
+        this.applyRuntimePlotState();
+    },
+
+    serializeRuntimePlotState() {
+        return this.plots.map(plot => ({
+            state: plot.state,
+            ownerId: plot.ownerId,
+            ownerName: plot.ownerName,
+            seedType: plot.seedType,
+            seedItemId: plot.seedItemId,
+            plantedPos: plot.plantedPos,
+            plantRadius: plot.plantRadius,
+            readyAt: plot.readyAt,
+            ripeEndsAt: plot.ripeEndsAt,
+            overripeEndsAt: plot.overripeEndsAt,
+            cooldownAt: plot.cooldownAt,
+        }));
+    },
+
+    schedulePlotStateSave() {
+        if (!this.farmZoneColumns || !this.farmZoneColumns.has("plotState")) return;
+        if (this.plotStateSaveTimer) return;
+        this.plotStateSaveTimer = timer.add(async () => {
+            this.plotStateSaveTimer = null;
+            await this.savePlantZoneToDb();
+        }, 1200);
+    },
+
+    applyRuntimePlotState() {
+        if (!Array.isArray(this.pendingPlotState) || !this.pendingPlotState.length) return;
+        const now = Date.now();
+        for (let i = 0; i < this.plots.length; i++) {
+            const plot = this.plots[i];
+            const saved = this.pendingPlotState[i];
+            if (!plot || !saved || typeof saved !== "object") continue;
+            if (saved.state !== "growing" && saved.state !== "ready" && saved.state !== "overripe" && saved.state !== "cooldown") continue;
+
+            plot.state = saved.state;
+            plot.ownerId = saved.ownerId != null ? Number(saved.ownerId) : null;
+            plot.ownerName = saved.ownerName || null;
+            plot.seedType = saved.seedType || null;
+            plot.seedItemId = saved.seedItemId != null ? Number(saved.seedItemId) : null;
+            plot.plantedPos = saved.plantedPos || null;
+            plot.plantRadius = saved.plantRadius != null ? Number(saved.plantRadius) : null;
+            plot.readyAt = saved.readyAt ? Number(saved.readyAt) : null;
+            plot.ripeEndsAt = saved.ripeEndsAt ? Number(saved.ripeEndsAt) : null;
+            plot.overripeEndsAt = saved.overripeEndsAt ? Number(saved.overripeEndsAt) : null;
+            plot.cooldownAt = saved.cooldownAt ? Number(saved.cooldownAt) : null;
+
+            const type = this.getSeedType(plot.seedType);
+            if (type && (plot.state === "growing" || plot.state === "ready" || plot.state === "overripe")) {
+                this.createPlotObject(plot, type.objectModel);
+            }
+            if (plot.state === "growing" && plot.readyAt) {
+                const left = Math.max(0, plot.readyAt - now);
+                plot.growthTimer = timer.add(() => this.setPlotReady(i), left);
+            } else if (plot.state === "ready" && plot.ripeEndsAt) {
+                const left = Math.max(0, plot.ripeEndsAt - now);
+                plot.ripeTimer = timer.add(() => this.setPlotOverripe(i), left);
+            } else if (plot.state === "overripe" && plot.overripeEndsAt) {
+                const left = Math.max(0, plot.overripeEndsAt - now);
+                plot.overripeTimer = timer.add(() => this.expireOverripePlot(i), left);
+            } else if (plot.state === "cooldown" && plot.cooldownAt) {
+                const left = Math.max(0, plot.cooldownAt - now);
+                plot.cooldownTimer = timer.add(() => this.resetPlot(i), left);
+            }
+            this.reconcilePlotState(i, false);
+        }
+        this.pendingPlotState = null;
     },
 
     findNearestPlotIndexByPos(position, radius = 1.4) {
@@ -398,6 +540,26 @@ module.exports = {
         for (let i = 0; i < this.plots.length; i++) {
             const plot = this.plots[i];
             if (!plot || !plot.position) continue;
+            const dx = plot.position.x - position.x;
+            const dy = plot.position.y - position.y;
+            const dz = plot.position.z - position.z;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist <= best) {
+                best = dist;
+                nearest = i;
+            }
+        }
+        return nearest;
+    },
+
+    findNearestHarvestablePlotIndex(position, radius = 4.0) {
+        if (!position) return -1;
+        let nearest = -1;
+        let best = radius;
+        for (let i = 0; i < this.plots.length; i++) {
+            const plot = this.plots[i];
+            if (!plot || !plot.position) continue;
+            if (plot.state !== "ready" && plot.state !== "overripe") continue;
             const dx = plot.position.x - position.x;
             const dy = plot.position.y - position.y;
             const dz = plot.position.z - position.z;
@@ -495,6 +657,9 @@ module.exports = {
                 plot.overripeEndsAt = null;
                 plot.cooldownAt = null;
                 plot.seedType = null;
+                plot.seedItemId = null;
+                plot.plantedPos = null;
+                plot.plantRadius = null;
                 plot.state = "empty";
                 this.destroyPlotObject(plot);
                 this.broadcastPlotUpdate(index);
@@ -518,7 +683,18 @@ module.exports = {
     },
 
     getSeedType(seedId) {
-        return this.seedTypes.find(seed => seed.id === seedId) || null;
+        if (seedId == null) return null;
+        const raw = String(seedId);
+        let type = this.seedTypes.find(seed => seed.id === raw);
+        if (type) return type;
+
+        const numeric = parseInt(seedId);
+        if (!isNaN(numeric)) {
+            type = this.seedTypes.find(seed => Number(seed.seedItemId) === numeric);
+            if (type) return type;
+            if (numeric >= 0 && numeric < this.seedTypes.length) return this.seedTypes[numeric];
+        }
+        return null;
     },
 
     getTotalSeeds(data) {
@@ -556,7 +732,6 @@ module.exports = {
 
     plantSeed(player, index, seedId) {
         if (!this.isFarmer(player)) return;
-        if (!this.isPlayerInsidePlantZone(player)) return notifs.warning(player, "Сажать можно только внутри зоны посадки", "Ферма");
         const data = this.ensureJobData(player);
         const type = this.getSeedType(seedId) || this.seedTypes[0];
         const hasInvSeed = type.seedItemId && this.hasItem(player, type.seedItemId, 1);
@@ -588,6 +763,13 @@ module.exports = {
         plot.ownerId = player.id;
         plot.ownerName = player.name;
         plot.seedType = type.id;
+        plot.seedItemId = type.seedItemId;
+        plot.plantedPos = {
+            x: Number(player.position.x.toFixed(3)),
+            y: Number(player.position.y.toFixed(3)),
+            z: Number(player.position.z.toFixed(3)),
+        };
+        plot.plantRadius = HARVEST_INTERACT_RADIUS;
         plot.readyAt = Date.now() + growthTime;
         plot.ripeEndsAt = null;
         plot.overripeEndsAt = null;
@@ -605,6 +787,7 @@ module.exports = {
             data.seeds[type.id]--;
         }
         this.broadcastPlotUpdate(index);
+        this.schedulePlotStateSave();
         this.sendMenuUpdate(player);
         this.refreshPlayerPlots(player);
         notifs.info(player, `${type.name} посажен(а). Рост ~ ${Math.round(growthTime / 1000)} сек.`, "Ферма");
@@ -627,6 +810,48 @@ module.exports = {
             owner.call("farms.plot.ready", [index]);
         }
         this.broadcastPlotUpdate(index);
+        this.schedulePlotStateSave();
+    },
+
+    setPlotOverripe(index) {
+        const plot = this.plots[index];
+        if (!plot) return;
+        plot.ripeTimer = null;
+        if (plot.state !== "ready") return;
+        plot.state = "overripe";
+        plot.ripeEndsAt = null;
+        plot.overripeEndsAt = Date.now() + OVERRIPE_STAGE_MS;
+        if (plot.overripeTimer) timer.remove(plot.overripeTimer);
+        plot.overripeTimer = timer.add(() => this.expireOverripePlot(index), OVERRIPE_STAGE_MS);
+        this.broadcastPlotUpdate(index);
+        this.schedulePlotStateSave();
+    },
+
+    expireOverripePlot(index) {
+        const plot = this.plots[index];
+        if (!plot) return;
+        if (plot.overripeTimer) {
+            timer.remove(plot.overripeTimer);
+            plot.overripeTimer = null;
+        }
+        if (plot.ripeTimer) {
+            timer.remove(plot.ripeTimer);
+            plot.ripeTimer = null;
+        }
+        if (plot.state !== "overripe") return;
+        plot.state = "empty";
+        plot.ownerId = null;
+        plot.ownerName = null;
+        plot.seedType = null;
+        plot.seedItemId = null;
+        plot.plantedPos = null;
+        plot.plantRadius = null;
+        plot.readyAt = null;
+        plot.ripeEndsAt = null;
+        plot.overripeEndsAt = null;
+        this.destroyPlotObject(plot);
+        this.broadcastPlotUpdate(index);
+        this.schedulePlotStateSave();
     },
 
     setPlotOverripe(index) {
@@ -667,7 +892,15 @@ module.exports = {
 
     harvestPlot(player, index) {
         if (!this.isFarmer(player)) return;
-        const plot = this.plots[index];
+        index = parseInt(index);
+        let plot = isNaN(index) ? null : this.plots[index];
+        if (!plot || (plot.state !== "ready" && plot.state !== "overripe")) {
+            const nearestReady = this.findNearestHarvestablePlotIndex(player.position, 4.0);
+            if (nearestReady !== -1) {
+                index = nearestReady;
+                plot = this.plots[index];
+            }
+        }
         if (!plot) return notifs.error(player, "Грядка не найдена", "Ферма");
         const matured = this.reconcilePlotState(index, true);
         if (matured) this.broadcastPlotUpdate(index);
@@ -679,6 +912,15 @@ module.exports = {
 
         const ownerId = plot.ownerId;
         const ownerName = plot.ownerName;
+        const plantRadius = Number(plot.plantRadius) > 0 ? Number(plot.plantRadius) : HARVEST_INTERACT_RADIUS;
+        const sourcePos = plot.plantedPos || plot.position;
+        if (sourcePos) {
+            const dx = player.position.x - sourcePos.x;
+            const dy = player.position.y - sourcePos.y;
+            const dz = player.position.z - sourcePos.z;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist > plantRadius) return notifs.warning(player, `Подойдите ближе к грядке (радиус ${plantRadius.toFixed(1)}м)`, "Ферма");
+        }
         const type = this.getSeedType(plot.seedType) || this.seedTypes[0];
 
         plot.state = "cooldown";
@@ -714,6 +956,7 @@ module.exports = {
         }
 
         this.broadcastPlotUpdate(index);
+        this.schedulePlotStateSave();
     },
 
     resetPlot(index) {
@@ -724,6 +967,7 @@ module.exports = {
         if (plot.state !== "cooldown") return;
         plot.state = "empty";
         this.broadcastPlotUpdate(index);
+        this.schedulePlotStateSave();
     },
 
     registerHarvest(player, amount) {
