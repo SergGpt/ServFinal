@@ -410,7 +410,7 @@ module.exports = {
         return nearest;
     },
 
-    findNearestHarvestablePlotIndex(position, radius = 2.2) {
+    findNearestHarvestablePlotIndex(position, radius = 4.0) {
         if (!position) return -1;
         let nearest = -1;
         let best = radius;
@@ -724,10 +724,14 @@ module.exports = {
     harvestPlot(player, index) {
         if (!this.isFarmer(player)) return;
         index = parseInt(index);
-        if (isNaN(index) || !this.plots[index]) {
-            index = this.findNearestHarvestablePlotIndex(player.position, 2.2);
+        let plot = isNaN(index) ? null : this.plots[index];
+        if (!plot || (plot.state !== "ready" && plot.state !== "overripe")) {
+            const nearestReady = this.findNearestHarvestablePlotIndex(player.position, 4.0);
+            if (nearestReady !== -1) {
+                index = nearestReady;
+                plot = this.plots[index];
+            }
         }
-        const plot = this.plots[index];
         if (!plot) return notifs.error(player, "Грядка не найдена", "Ферма");
         const matured = this.reconcilePlotState(index, true);
         if (matured) this.broadcastPlotUpdate(index);
