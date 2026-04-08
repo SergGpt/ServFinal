@@ -354,7 +354,7 @@ function renderPlantTimers() {
     }
 }
 
-function getNearestHarvestablePlotIndex(maxDistance = 2.2) {
+function getNearestHarvestablePlotIndex(maxDistance = 4.0) {
     if (!plotPositions.length || !plotStates.length || !mp.players.local) return -1;
     let nearest = -1;
     let bestDistance = maxDistance;
