@@ -6,6 +6,7 @@ module.exports = {
         playerMenu.init(player);
     },
     "jobSkillsInit.done": (player) => {
+        if (!player || !mp.players.exists(player) || !player.character) return;
         playerMenu.setSkills(player);
     },
     "phoneInit.done": (player) => {

@@ -1,65 +1,105 @@
 "use strict";
 
-const notifs = require('../notifications');
-const jobs = require('../jobs');
-const money = require('../money');
+const utils = call('utils');
 
-const AUTO_ROOBER_JOB_ID = 11; // наша новая работа из БД
+const PRICE_PER_KILOMETER = 100;
+const RENT_PRICE = 500;
+const RESPAWN_TIMEOUT = 60 * 1000;
+const TAXI_STATIONS = [
+    { x: 895.05, y: -179.25, z: 74.7 },
+];
 
-// Точка, где берём задание
-const START_POS = new mp.Vector3(158.976, -3082.372, 6.014);
+const orders = [];
+let nextOrderId = 1;
 
-let startColshape = null;
+function getDistanceInMeters(a, b) {
+    if (!a || !b) return 0;
+    return Math.sqrt(utils.vdistSqr(a, b));
+}
 
 module.exports = {
-    init: async () => {
-        // блип
-        mp.blips.new(669, START_POS, {
-            name: 'Автоугон',
-            color: 1,
-            shortRange: true
+    init() {
+        TAXI_STATIONS.forEach(pos => {
+            const shape = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 2);
+            shape.isTaxiStation = true;
         });
-
-        // колшейп
-        startColshape = mp.colshapes.newSphere(START_POS.x, START_POS.y, START_POS.z, 1.5);
-
-        console.log('[Autoroober] init done');
-        inited(__dirname);
     },
-
-    // игрок вошёл в колшейп
-    "playerEnterColshape": (player, shape) => {
-        if (shape !== startColshape) return;
-        if (player.vehicle) return;
-
-        // проверяем, что он УЖЕ устроен на работу 11
-        if (!player.character || player.character.job !== AUTO_ROOBER_JOB_ID) {
-            return notifs.error(player, 'Сначала устройся на работу "Автоугонщик" (id 11)', 'Автоугон');
+    getPricePerKilometer() {
+        return PRICE_PER_KILOMETER;
+    },
+    getRentPrice() {
+        return RENT_PRICE;
+    },
+    getRespawnTimeout() {
+        return RESPAWN_TIMEOUT;
+    },
+    addOrder(clientId, position) {
+        const order = {
+            orderId: nextOrderId++,
+            clientId,
+            position: {
+                x: position.x,
+                y: position.y,
+                z: position.z,
+            },
+        };
+        orders.push(order);
+        mp.players.forEach(player => {
+            if (!player.character || player.character.job !== 2) return;
+            player.call('taxi.driver.orders.add', [order]);
+        });
+        return order;
+    },
+    getOrders() {
+        return orders.slice();
+    },
+    getOrderById(orderId) {
+        return orders.find(x => x.orderId == orderId);
+    },
+    deleteOrder(orderId) {
+        const index = orders.findIndex(x => x.orderId == orderId);
+        if (index === -1) return false;
+        orders.splice(index, 1);
+        mp.players.forEach(player => {
+            if (!player.character || player.character.job !== 2) return;
+            player.call('taxi.driver.orders.delete', [orderId]);
+        });
+        return true;
+    },
+    deletePlayerOrders(player) {
+        if (!player) return;
+        const deletedIds = [];
+        for (let i = orders.length - 1; i >= 0; i--) {
+            if (orders[i].clientId == player.id) {
+                deletedIds.push(orders[i].orderId);
+                orders.splice(i, 1);
+            }
         }
-
-        // показать меню на клиенте
-        player.call('roober.showMenu');
+        if (!deletedIds.length) return;
+        mp.players.forEach(current => {
+            if (!current.character || current.character.job !== 2) return;
+            deletedIds.forEach(id => current.call('taxi.driver.orders.delete', [id]));
+        });
     },
-
-    // ушёл — спрятали
-    "playerExitColshape": (player, shape) => {
-        if (shape !== startColshape) return;
-        player.call('roober.hideMenu');
+    doesClientHaveOrders(clientId) {
+        return orders.some(x => x.clientId == clientId);
     },
-
-    // клиент нажал "Взять заказ"
-    "roober.order.start": (player) => {
-        if (!player.character || player.character.job !== AUTO_ROOBER_JOB_ID) {
-            return notifs.error(player, 'Ты не автоугонщик', 'Автоугон');
+    calculatePrice(player, destination) {
+        const distance = getDistanceInMeters(player.position, destination);
+        let price = Math.round((distance / 1000) * PRICE_PER_KILOMETER);
+        if (price < PRICE_PER_KILOMETER) price = PRICE_PER_KILOMETER;
+        return price;
+    },
+    calculateComission(player) {
+        const jobs = call('jobs');
+        let exp = 0;
+        if (jobs && typeof jobs.getJobSkill === 'function') {
+            const skill = jobs.getJobSkill(player, 2);
+            if (skill) exp = skill.exp || 0;
         }
-
-        // пока просто проверка — потом сюда добавим спавн
-        notifs.success(player, 'Заказ принят (тест)', 'Автоугон');
-    },
-
-    // клиент нажал "Отмена"
-    "roober.order.cancel": (player) => {
-        player.call('roober.hideMenu');
-        notifs.info(player, 'Заказ отменён', 'Автоугон');
+        if (exp >= 100) return 0.1;
+        if (exp >= 50) return 0.15;
+        if (exp >= 25) return 0.2;
+        return 0.25;
     },
 };
