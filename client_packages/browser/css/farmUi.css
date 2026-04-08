@@ -1,0 +1,35 @@
+#farmUi .farm-ui-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(12, 24, 14, 0.55);
+}
+#farmUi .farm-ui {
+    position: fixed;
+    right: 3vh;
+    top: 8vh;
+    width: 52vh;
+    color: #e8f5df;
+    border: 0.2vh solid #5d8c45;
+    border-radius: 1.2vh;
+    background: linear-gradient(180deg, #1f3a24 0%, #162919 100%);
+    box-shadow: 0 1.2vh 3vh rgba(0,0,0,.45);
+    padding: 1.2vh;
+    font-family: Montserrat;
+}
+#farmUi .farm-ui-head { display:flex; justify-content:space-between; align-items:center; font-size:2vh; font-weight:700; margin-bottom:1vh; }
+#farmUi .farm-ui-head button { background:transparent; border:none; color:#fff; cursor:pointer; font-size:2vh; }
+#farmUi .farm-ui-tabs { display:flex; gap:.6vh; margin-bottom:1vh; }
+#farmUi .farm-ui-tabs button { flex:1; border:.1vh solid #5d8c45; border-radius:.6vh; padding:.7vh; background:#29462e; color:#d9efca; cursor:pointer; }
+#farmUi .farm-ui-tabs button.active { background:#76b85d; color:#10200f; font-weight:700; }
+#farmUi .farm-ui-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:.6vh; margin-bottom:1vh; }
+#farmUi .card { background:#203726; border:.1vh solid #456b3e; border-radius:.6vh; padding:.7vh; display:flex; flex-direction:column; }
+#farmUi .card span { font-size:1.2vh; opacity:.8; }
+#farmUi .card b { font-size:1.5vh; }
+#farmUi .card.wide { margin-bottom:.6vh; }
+#farmUi .farm-ui-body { background:#1a2f1f; border-radius:.8vh; padding:1vh; border:.1vh solid #3d5d38; }
+#farmUi .action { width:100%; border:none; border-radius:.7vh; padding:.9vh; background:#80ca61; color:#10200f; font-weight:700; cursor:pointer; margin-top:.6vh; }
+#farmUi .seed-list { display:flex; flex-direction:column; gap:.6vh; }
+#farmUi .seed-list button { border:.1vh solid #5b804f; border-radius:.6vh; background:#27412b; color:#d7e9ca; padding:.8vh; text-align:left; cursor:pointer; }
+#farmUi .seed-list button.active { background:#6db35a; color:#11240f; font-weight:700; }
+#farmUi .buy-row { margin-top:.8vh; display:flex; align-items:center; gap:.8vh; }
+#farmUi .buy-row button { border:.1vh solid #51764a; background:#2c4a31; color:#fff; border-radius:.5vh; padding:.5vh 1vh; cursor:pointer; }

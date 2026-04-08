@@ -7195,96 +7195,80 @@ var selectMenu = new Vue({
             },
             "farmsMain": {
                 name: "farmsMain",
-                header: "Фермерское хозяйство",
+                header: "Фермер",
                 items: [
+                    { text: "Статус", values: ["Без работы"] },
                     { text: "Уровень", values: ["0 / 20"] },
                     { text: "Прогресс", values: ["0%"] },
-                    { text: "Семена", values: ["0"] },
+                    { text: "Семена всего", values: ["0"] },
                     { text: "Урожай", values: ["0"] },
-                    { text: "Всего собрано", values: ["0"] },
-                    { text: "До следующего уровня", values: ["100"] },
-                    { text: "Курс скупщика", values: ["$0"] },
+                    { text: "Курс скупки", values: ["$0"] },
+                    { text: "Раздел", values: ["Работа", "Покупка семян", "Продажа урожая"], i: 0 },
+                    { text: "Действие #1", values: ["-"] },
+                    { text: "Действие #2", values: ["-"] },
+                    { text: "График цен", values: ["нет данных"] },
                     { text: "Помощь" },
                     { text: "Закрыть" },
                 ],
                 i: 0,
                 j: 0,
                 data: null,
+                selectedSeed: "potato",
+                selectedBuyAmount: 1,
                 applyData(data) {
                     data = data || {};
                     var items = this.items;
-                    items[0].values[0] = `${data.level || 0} / ${data.maxLevel || 0}`;
-                    items[1].values[0] = `${data.progress || 0}%`;
-                    items[2].values[0] = `${data.seeds || 0}`;
-                    items[3].values[0] = `${data.harvest || 0}`;
-                    items[4].values[0] = `${data.totalHarvest || 0}`;
-                    if (data.maxLevel != null && data.level >= data.maxLevel) items[5].values[0] = 'Максимум';
-                    else items[5].values[0] = `${data.toNext != null ? data.toNext : 0}`;
-                    items[6].values[0] = `$${data.exchangeRate || 0}`;
+                    items[0].values[0] = data.employed ? "Работаете" : "Не работаете";
+                    items[1].values[0] = `${data.level || 0} / ${data.maxLevel || 0}`;
+                    items[2].values[0] = `${data.progress || 0}%`;
+                    items[3].values[0] = `${data.seeds || 0}`;
+                    items[4].values[0] = `${data.harvest || 0}`;
+                    items[5].values[0] = `$${data.exchangeRate || 0}`;
+
+                    var chart = (data.marketHistory || []).slice(-6).map(p => `$${p.rate}`).join(' > ');
+                    items[9].values[0] = chart || "нет данных";
+
+                    this.syncTabActions();
                 },
-                init(data) {
-                    if (typeof data == 'string') data = JSON.parse(data);
-                    this.update(data);
-                },
-                update(data) {
-                    if (typeof data == 'string') data = JSON.parse(data);
-                    this.data = data;
-                    this.applyData(data);
-                },
-                handler(eventName) {
-                    var item = this.items[this.i];
-                    var e = {
-                        menuName: this.name,
-                        itemName: item.text,
-                        itemIndex: this.i,
-                        itemValue: (item.i != null && item.values) ? item.values[item.i] : null,
-                        valueIndex: item.i,
-                    };
-                    if (eventName == 'onItemSelected') {
-                        if (e.itemName == 'Помощь') {
-                            modal.showByName('farms_help');
-                        } else if (e.itemName == 'Закрыть') {
-                            selectMenu.show = false;
+                syncTabActions() {
+                    var data = this.data || {};
+                    var tab = this.items[6].i || 0;
+                    var action1 = this.items[7];
+                    var action2 = this.items[8];
+                    if (tab === 0) {
+                        action1.text = data.employed ? "Уволиться" : "Устроиться";
+                        action1.values = [data.employed ? "Остановить работу" : "Начать работу"];
+                        action2.text = "Навык";
+                        action2.values = [`До след. уровня: ${data.toNext || 0}`];
+                    } else if (tab === 1) {
+                        var seedTypes = data.seedTypes || [];
+                        if (!seedTypes.length) {
+                            action1.text = "Семена";
+                            action1.values = ["Нет данных"];
+                            action1.i = 0;
+                            action2.text = "Купить";
+                            action2.values = ["Недоступно"];
+                        } else {
+                            var seedVals = seedTypes.map(s => `${s.name} ($${s.buyPrice}, +${s.harvestYield})`);
+                            action1.text = "Тип семян";
+                            action1.values = seedVals;
+                            if (action1.i == null) action1.i = 0;
+                            action1.i = Math.clamp(action1.i, 0, seedTypes.length - 1);
+                            this.selectedSeed = seedTypes[action1.i].id;
+
+                            action2.text = "Купить семена";
+                            action2.values = ["1 шт", "5 шт", "10 шт"];
+                            if (action2.i == null) action2.i = 0;
+                            action2.i = Math.clamp(action2.i, 0, 2);
+                            var options = [1, 5, 10];
+                            this.selectedBuyAmount = options[action2.i];
                         }
-                    } else if (eventName == 'onBackspacePressed') {
-                        selectMenu.show = false;
+                    } else {
+                        action1.text = "Продать урожай";
+                        action1.values = [`$${data.estimatedReward || 0}`];
+                        action2.text = "Объем продаж (цикл)";
+                        action2.values = [`${data.marketSoldInCycle || 0}`];
                     }
-                }
-            },
-            "farmsVendor": {
-                name: "farmsVendor",
-                header: "Скупщик урожая",
-                items: [
-                    { text: "Уровень", values: ["0 / 20"] },
-                    { text: "Прогресс", values: ["0%"] },
-                    { text: "Семена", values: ["0"] },
-                    { text: "Урожай", values: ["0"] },
-                    { text: "Всего собрано", values: ["0"] },
-                    { text: "До следующего уровня", values: ["100"] },
-                    { text: "Курс скупщика", values: ["$0"] },
-                    { text: "Цена семян", values: ["$0"] },
-                    { text: "Купить семена", values: ["1 шт", "5 шт", "10 шт"], i: 0 },
-                    { text: "Продать урожай", values: ["$0"] },
-                    { text: "Закончить работу" },
-                    { text: "Помощь" },
-                    { text: "Закрыть" },
-                ],
-                i: 0,
-                j: 0,
-                data: null,
-                applyData(data) {
-                    data = data || {};
-                    var items = this.items;
-                    items[0].values[0] = `${data.level || 0} / ${data.maxLevel || 0}`;
-                    items[1].values[0] = `${data.progress || 0}%`;
-                    items[2].values[0] = `${data.seeds || 0}`;
-                    items[3].values[0] = `${data.harvest || 0}`;
-                    items[4].values[0] = `${data.totalHarvest || 0}`;
-                    if (data.maxLevel != null && data.level >= data.maxLevel) items[5].values[0] = 'Максимум';
-                    else items[5].values[0] = `${data.toNext != null ? data.toNext : 0}`;
-                    items[6].values[0] = `$${data.exchangeRate || 0}`;
-                    items[7].values[0] = `$${data.seedPrice || 0}`;
-                    items[9].values[0] = `$${data.estimatedReward || 0}`;
                 },
                 init(data) {
                     if (typeof data == 'string') data = JSON.parse(data);
@@ -7292,39 +7276,41 @@ var selectMenu = new Vue({
                 },
                 update(data) {
                     if (typeof data == 'string') data = JSON.parse(data);
-                    if (this.items[8].i == null) this.items[8].i = 0;
                     this.data = data;
                     this.applyData(data);
                 },
-                getSelectedAmount() {
-                    var item = this.items[8];
-                    var index = item.i || 0;
-                    var options = [1, 5, 10];
-                    index = Math.clamp(index, 0, options.length - 1);
-                    return options[index];
-                },
                 handler(eventName) {
                     var item = this.items[this.i];
-                    var e = {
-                        menuName: this.name,
-                        itemName: item.text,
-                        itemIndex: this.i,
-                        itemValue: (item.i != null && item.values) ? item.values[item.i] : null,
-                        valueIndex: item.i,
-                    };
                     if (eventName == 'onItemSelected') {
-                        if (e.itemName == 'Купить семена') {
-                            var amount = this.getSelectedAmount();
-                            mp.trigger('callRemote', 'farms.seed.buy', amount);
-                        } else if (e.itemName == 'Продать урожай') {
-                            mp.trigger('callRemote', 'farms.sell');
-                        } else if (e.itemName == 'Закончить работу') {
-                            selectMenu.show = false;
-                            mp.trigger('callRemote', 'jobs.leave');
-                        } else if (e.itemName == 'Помощь') {
+                        if (item.text == 'Помощь') {
                             modal.showByName('farms_help');
-                        } else if (e.itemName == 'Закрыть') {
+                        } else if (item.text == 'Закрыть') {
                             selectMenu.show = false;
+                        } else if (item.text == 'Устроиться' || item.text == 'Уволиться') {
+                            mp.trigger('callRemote', 'farms.employment');
+                        } else if (item.text == 'Купить семена') {
+                            if (!this.selectedSeed) return;
+                            mp.events.call('farms.seed.select', this.selectedSeed);
+                            mp.trigger('callRemote', 'farms.seed.buy', this.selectedSeed, this.selectedBuyAmount || 1);
+                        } else if (item.text == 'Продать урожай') {
+                            mp.trigger('callRemote', 'farms.sell');
+                        } else if (item.text == 'Тип семян') {
+                            var types = (this.data && this.data.seedTypes) || [];
+                            if (types[item.i || 0]) {
+                                this.selectedSeed = types[item.i || 0].id;
+                                mp.events.call('farms.seed.select', this.selectedSeed);
+                            }
+                        }
+                    } else if (eventName == 'onLeftPressed' || eventName == 'onRightPressed') {
+                        if (this.i === 6 || this.i === 7 || this.i === 8) {
+                            this.syncTabActions();
+                            if (this.items[6].i == 1 && this.items[7].text == 'Тип семян') {
+                                var t = (this.data && this.data.seedTypes) || [];
+                                if (t[this.items[7].i || 0]) {
+                                    this.selectedSeed = t[this.items[7].i || 0].id;
+                                    mp.events.call('farms.seed.select', this.selectedSeed);
+                                }
+                            }
                         }
                     } else if (eventName == 'onBackspacePressed') {
                         selectMenu.show = false;
@@ -7333,7 +7319,7 @@ var selectMenu = new Vue({
             },
             "farmsEmployment": {
                 name: "farmsEmployment",
-                header: "Фермерское хозяйство",
+                header: "Фермер",
                 items: [
                     { text: "Устроиться на работу" },
                     { text: "Помощь" },
@@ -7351,6 +7337,81 @@ var selectMenu = new Vue({
                         } else if (item.text == 'Закрыть') {
                             selectMenu.show = false;
                         }
+                    } else if (eventName == 'onBackspacePressed') {
+                        selectMenu.show = false;
+                    }
+                }
+            },
+            "farmsZoneEditor": {
+                name: "farmsZoneEditor",
+                header: "Зона посадки фермы",
+                items: [
+                    { text: "X", values: ["0"], i: 0 },
+                    { text: "Y", values: ["0"], i: 0 },
+                    { text: "Z", values: ["0"], i: 0 },
+                    { text: "Ширина (dx)", values: ["10"], i: 0 },
+                    { text: "Длина (dy)", values: ["10"], i: 0 },
+                    { text: "Высота (dz)", values: ["5"], i: 0 },
+                    { text: "Сохранить в БД" },
+                    { text: "Закрыть" }
+                ],
+                i: 0,
+                j: 0,
+                zone: null,
+                buildValues(base, step, count) {
+                    base = Number(base) || 0;
+                    var out = [];
+                    var half = Math.floor(count / 2);
+                    for (var n = -half; n <= half; n++) out.push((base + n * step).toFixed(1));
+                    return out;
+                },
+                pickIndex(values, current) {
+                    var target = Number(current) || 0;
+                    var best = 0;
+                    var bestDiff = 999999;
+                    for (var i = 0; i < values.length; i++) {
+                        var diff = Math.abs(Number(values[i]) - target);
+                        if (diff < bestDiff) { bestDiff = diff; best = i; }
+                    }
+                    return best;
+                },
+                init(data) {
+                    if (typeof data == 'string') data = JSON.parse(data);
+                    data = data || {};
+                    this.zone = data;
+                    var xVals = this.buildValues(data.x || 0, 1, 21);
+                    var yVals = this.buildValues(data.y || 0, 1, 21);
+                    var zVals = this.buildValues(data.z || 0, 0.5, 21);
+                    var dxVals = ["4", "6", "8", "10", "12", "14", "16", "20", "25", "30"];
+                    var dyVals = ["4", "6", "8", "10", "12", "14", "16", "20", "25", "30"];
+                    var dzVals = ["2", "3", "4", "5", "6", "8", "10", "12"];
+                    this.items[0].values = xVals; this.items[0].i = this.pickIndex(xVals, data.x);
+                    this.items[1].values = yVals; this.items[1].i = this.pickIndex(yVals, data.y);
+                    this.items[2].values = zVals; this.items[2].i = this.pickIndex(zVals, data.z);
+                    this.items[3].values = dxVals; this.items[3].i = this.pickIndex(dxVals, data.dx);
+                    this.items[4].values = dyVals; this.items[4].i = this.pickIndex(dyVals, data.dy);
+                    this.items[5].values = dzVals; this.items[5].i = this.pickIndex(dzVals, data.dz);
+                },
+                getZonePayload() {
+                    return {
+                        x: Number(this.items[0].values[this.items[0].i]),
+                        y: Number(this.items[1].values[this.items[1].i]),
+                        z: Number(this.items[2].values[this.items[2].i]),
+                        dx: Number(this.items[3].values[this.items[3].i]),
+                        dy: Number(this.items[4].values[this.items[4].i]),
+                        dz: Number(this.items[5].values[this.items[5].i]),
+                    };
+                },
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    if (eventName == 'onItemSelected') {
+                        if (item.text == 'Сохранить в БД') {
+                            mp.trigger('callRemote', 'farms.zone.menu.save', JSON.stringify(this.getZonePayload()));
+                        } else if (item.text == 'Закрыть') {
+                            selectMenu.show = false;
+                        }
+                    } else if (eventName == 'onItemValueChanged') {
+                        mp.trigger('farms.zone.preview', JSON.stringify(this.getZonePayload()));
                     } else if (eventName == 'onBackspacePressed') {
                         selectMenu.show = false;
                     }
