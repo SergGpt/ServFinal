@@ -327,6 +327,53 @@ module.exports = {
         });
     },
 
+    findNearestPlotIndexByPos(position, radius = 1.4) {
+        if (!position) return -1;
+        let nearest = -1;
+        let best = radius;
+        for (let i = 0; i < this.plots.length; i++) {
+            const plot = this.plots[i];
+            if (!plot || !plot.position) continue;
+            const dx = plot.position.x - position.x;
+            const dy = plot.position.y - position.y;
+            const dz = plot.position.z - position.z;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist <= best) {
+                best = dist;
+                nearest = i;
+            }
+        }
+        return nearest;
+    },
+
+    addPlotAtPosition(position) {
+        if (!position) return -1;
+        const nearest = this.findNearestPlotIndexByPos(position, 1.2);
+        if (nearest !== -1) return nearest;
+        const index = this.plots.length;
+        const plot = {
+            index,
+            position: new mp.Vector3(position.x, position.y, position.z),
+            state: "empty",
+            ownerId: null,
+            ownerName: null,
+            readyAt: null,
+            cooldownAt: null,
+            seedType: null,
+            object: null,
+            growthTimer: null,
+            cooldownTimer: null,
+        };
+        this.plots.push(plot);
+        this.plotsData.push({ x: plot.position.x, y: plot.position.y, z: plot.position.z });
+        mp.players.forEach((player) => {
+            if (!this.isFarmer(player)) return;
+            player.call("farms.plot.add", [index, { x: plot.position.x, y: plot.position.y, z: plot.position.z }]);
+            player.call("farms.plot.update", [index, this.serializePlotForPlayer(plot, player)]);
+        });
+        return index;
+    },
+
     resetPlotsData(positions) {
         if (!Array.isArray(positions) || !positions.length) return false;
 
@@ -458,9 +505,13 @@ module.exports = {
 
     plantSeed(player, index, seedId) {
         if (!this.isFarmer(player)) return;
-        const plot = this.plots[index];
-        if (!plot) return notifs.error(player, "Грядка не найдена", "Ферма");
         if (!this.isPlayerInsidePlantZone(player)) return notifs.warning(player, "Сажать можно только внутри зоны посадки", "Ферма");
+        index = parseInt(index);
+        if (isNaN(index) || index < 0 || !this.plots[index]) {
+            index = this.addPlotAtPosition(player.position);
+        }
+        const plot = this.plots[index];
+        if (!plot) return notifs.error(player, "Не удалось создать грядку в текущей точке", "Ферма");
         if (plot.state !== "empty") {
             if (plot.state === "growing") return notifs.warning(player, "Эта грядка уже занята посевами", "Ферма");
             if (plot.state === "ready") return notifs.warning(player, "Сначала соберите урожай с этой грядки", "Ферма");

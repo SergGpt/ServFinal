@@ -61,6 +61,10 @@ function getSecondsLeft(plotInfo) {
 
 function updatePrompt() {
     if (!currentPlot) {
+        if (isLocalInsidePlantZone()) {
+            mp.prompt.show(`Нажмите <span>E</span>, чтобы посадить (${selectedSeedType})`);
+            return;
+        }
         if (insideFarmMenuZone) {
             mp.prompt.show("Нажмите <span>E</span>, чтобы поговорить с фермером");
             return;
@@ -84,6 +88,28 @@ function updatePrompt() {
     } else {
         mp.prompt.hide();
     }
+}
+
+function isLocalInsidePlantZone() {
+    if (!plantZone || !mp.players.local) return false;
+    const pos = mp.players.local.position;
+    if (Array.isArray(plantZone.points) && plantZone.points.length >= 3) {
+        const minZ = Number.isFinite(Number(plantZone.minZ)) ? Number(plantZone.minZ) : -1000;
+        const maxZ = Number.isFinite(Number(plantZone.maxZ)) ? Number(plantZone.maxZ) : 10000;
+        if (pos.z < minZ || pos.z > maxZ) return false;
+        let inside = false;
+        for (let i = 0, j = plantZone.points.length - 1; i < plantZone.points.length; j = i++) {
+            const xi = plantZone.points[i].x, yi = plantZone.points[i].y;
+            const xj = plantZone.points[j].x, yj = plantZone.points[j].y;
+            const intersect = ((yi > pos.y) !== (yj > pos.y))
+                && (pos.x < ((xj - xi) * (pos.y - yi)) / ((yj - yi) || 0.000001) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+    return pos.x >= plantZone.x && pos.x <= plantZone.x + plantZone.dx &&
+        pos.y >= plantZone.y && pos.y <= plantZone.y + plantZone.dy &&
+        pos.z >= plantZone.z && pos.z <= plantZone.z + plantZone.dz;
 }
 
 function openFarmMenu(data) {
@@ -259,6 +285,13 @@ mp.events.add({
         if (isNaN(index)) return;
         applyPlotUpdate(index, info);
     },
+    "farms.plot.add": (index, pos) => {
+        index = parseInt(index);
+        if (isNaN(index) || !pos) return;
+        plotPositions[index] = new mp.Vector3(pos.x, pos.y, pos.z);
+        if (!plotStates[index]) plotStates[index] = { state: "available" };
+        updateMarker(index);
+    },
     "farms.plot.enter": (index, info) => {
         index = parseInt(index);
         if (isNaN(index)) return;
@@ -392,6 +425,10 @@ mp.keys.bind(0x45, true, () => {
     if (insideFarmMenuZone && !mp.busy.includes()) {
         mp.events.callRemote("farms.menu.open");
         return;
+    }
+
+    if (!mp.busy.includes() && isLocalInsidePlantZone()) {
+        mp.events.callRemote("farms.plot.plant", -1, selectedSeedType);
     }
 });
 
