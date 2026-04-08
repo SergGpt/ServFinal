@@ -536,7 +536,8 @@ mp.keys.bind(0x45, true, () => {
     }
 
     const localHands = mp.players.local && mp.players.local.hands ? mp.players.local.hands : null;
-    const handItemId = localHands ? Number(localHands.itemId) : null;
+    const handVarItemId = mp.players.local ? Number(mp.players.local.getVariable("hands")) : NaN;
+    const handItemId = localHands ? Number(localHands.itemId) : (isNaN(handVarItemId) ? null : handVarItemId);
     const handHasFarmSeed = handItemId === 400 || handItemId === 402 || handItemId === 404;
 
     if (!mp.busy.includes() && isLocalInsidePlantZone()) {
