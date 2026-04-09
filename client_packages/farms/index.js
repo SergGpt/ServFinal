@@ -550,8 +550,7 @@ mp.keys.bind(0x45, true, () => {
             plantingInProgress = true;
             mp.players.local.taskPlayAnim("amb@world_human_gardener_plant@male@idle_a", "idle_a", 4.0, 0.0, 1300, 49, 0, false, false, false);
             setTimeout(() => {
-                const seedArg = handHasFarmSeed ? handItemId : selectedSeedType;
-                mp.events.callRemote("farms.plot.plant", currentPlot.index, seedArg);
+                mp.events.callRemote("farms.plot.plant", currentPlot.index, selectedSeedType);
                 mp.players.local.clearTasks();
                 plantingInProgress = false;
             }, 1300);
@@ -569,12 +568,11 @@ mp.keys.bind(0x45, true, () => {
     }
 
     if (!mp.busy.includes() && isLocalInsidePlantZone()) {
-        if (!handHasFarmSeed && knownSeedsAmount <= 0) {
+        if (knownSeedsAmount <= 0) {
             mp.notify.warning("У вас нет семян для посадки", "Ферма");
             return;
         }
-        const seedArg = handHasFarmSeed ? handItemId : selectedSeedType;
-        mp.events.callRemote("farms.plot.plant", -1, seedArg);
+        mp.events.callRemote("farms.plot.plant", -1, selectedSeedType);
     }
 });
 
