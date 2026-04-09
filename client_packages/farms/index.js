@@ -17,11 +17,12 @@ let lastPromptText = null;
 let lastPromptAt = 0;
 const MARKER_DRAW_DISTANCE = 90;
 const PROMPT_REFRESH_MS = 450;
+const ENABLE_TOP_PROMPT = false;
 const FARM_SEED_ITEM_IDS = new Set([400, 402, 404]);
 const FARM_INTERACT_RADIUS = 6.0;
 const FARM_HARVEST_RADIUS = 1.0;
-const FARM_PLANT_ANIM_MS = 1300;
-const FARM_HARVEST_ANIM_MS = 1100;
+const FARM_PLANT_ANIM = { dict: "amb@world_human_gardener_plant@male@idle_a", name: "idle_b", duration: 1800 };
+const FARM_HARVEST_ANIM = { dict: "amb@world_human_gardener_plant@male@idle_a", name: "idle_b", duration: 1400 };
 const READY_STAGE_FALLBACK_MS = 60 * 1000;
 const OVERRIPE_STAGE_FALLBACK_MS = 45 * 1000;
 const FARMS_CLIENT_DEBUG = true;
@@ -91,6 +92,12 @@ function getSecondsLeft(plotInfo) {
 }
 
 function setPromptText(text) {
+    if (!ENABLE_TOP_PROMPT) {
+        lastPromptText = null;
+        lastPromptAt = Date.now();
+        mp.prompt.hide();
+        return;
+    }
     const nextText = text || null;
     const now = Date.now();
     if (nextText === lastPromptText && (!nextText || (now - lastPromptAt) < PROMPT_REFRESH_MS)) return;
@@ -373,7 +380,7 @@ function performHarvest(index) {
         return;
     }
     plantingInProgress = true;
-    playFarmAction("amb@world_human_gardener_plant@male@exit", "exit", FARM_HARVEST_ANIM_MS, () => {
+    playFarmAction(FARM_HARVEST_ANIM.dict, FARM_HARVEST_ANIM.name, FARM_HARVEST_ANIM.duration, () => {
         mp.events.callRemote("farms.plot.harvest", targetIndex);
         plantingInProgress = false;
         setPromptText(null);
@@ -382,7 +389,7 @@ function performHarvest(index) {
 
 function performPlant(index, seedArg) {
     plantingInProgress = true;
-    playFarmAction("amb@world_human_gardener_plant@male@enter", "enter", FARM_PLANT_ANIM_MS, () => {
+    playFarmAction(FARM_PLANT_ANIM.dict, FARM_PLANT_ANIM.name, FARM_PLANT_ANIM.duration, () => {
         mp.events.callRemote("farms.plot.plant", index, seedArg);
         plantingInProgress = false;
         setPromptText(null);
