@@ -466,7 +466,11 @@ function getNearestHarvestablePlotIndex(maxDistance = FARM_INTERACT_RADIUS) {
     let bestDistance = maxDistance;
     for (let i = 0; i < plotPositions.length; i++) {
         const state = plotStates[i];
-        const pos = plotPositions[i];
+        const fallbackPos = plotPositions[i];
+        const interactPos = state && state.interactPos
+            ? new mp.Vector3(Number(state.interactPos.x), Number(state.interactPos.y), Number(state.interactPos.z))
+            : null;
+        const pos = interactPos || fallbackPos;
         if (!state || !pos) continue;
         if (!isHarvestableState(state)) continue;
         const dist = mp.players.local.position.distanceTo(pos);
@@ -625,7 +629,7 @@ mp.events.add({
             wasInsidePlantZone = insideNow;
             if (insideNow) mp.notify.info("Вы вошли в зону посадки растений", "Ферма");
         }
-        if (currentPlot || insideFarmMenuZone) updatePrompt();
+        if (currentPlot || insideFarmMenuZone || insideNow) updatePrompt();
     },
     "farms.reset": () => {
         clearMarkers();
@@ -680,7 +684,8 @@ mp.keys.bind(0x45, true, () => {
 
     const seedArg = getPlantSeedArg();
     if (seedArg == null) {
-        mp.notify.warning("Семена не в руках", "Ферма");
+        const fallbackHarvestIndex = currentPlot ? currentPlot.index : -1;
+        performHarvest(fallbackHarvestIndex);
         return;
     }
 

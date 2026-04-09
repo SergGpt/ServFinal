@@ -1242,6 +1242,7 @@ module.exports = {
             ownerMine: plot.ownerId === player.id,
             seedType: plot.seedType,
             seedName: null,
+            interactPos: plot.plantedPos || (plot.position ? { x: plot.position.x, y: plot.position.y, z: plot.position.z } : null),
             readyAt: null,
             ripeEndsAt: null,
             overripeEndsAt: null,
