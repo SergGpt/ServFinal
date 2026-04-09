@@ -336,14 +336,11 @@ function renderPlantTimers() {
         }
         if (state.state !== "growing" && state.state !== "growing_foreign" && state.state !== "ready" && state.state !== "ready_foreign" && state.state !== "overripe" && state.state !== "overripe_foreign") continue;
 
-        let phase = "Рост";
-        if (state.state === "ready" || state.state === "ready_foreign") phase = "Созрело";
-        if (state.state === "overripe" || state.state === "overripe_foreign") phase = "Перезрело";
-        let text = `${state.seedName || "Растение"} | ${phase}`;
-        if (phase === "Рост") text += `: ${getSecondsLeft(state)} сек.`;
-        if (phase === "Созрело") text += `: ${getSecondsLeft(state)} сек.`;
-        if (phase === "Перезрело") text += `: ${getSecondsLeft(state)} сек.`;
-        if (phase === "Созрело" || phase === "Перезрело") text += " | Нажмите E для сбора";
+        const isReadyToHarvest = state.state === "ready" || state.state === "ready_foreign" || state.state === "overripe" || state.state === "overripe_foreign";
+        const statusText = isReadyToHarvest ? "Готово к сбору" : "Не готово к сбору";
+        let text = `${state.seedName || "Растение"} | ${statusText}`;
+        text += `: ${getSecondsLeft(state)} сек.`;
+        if (isReadyToHarvest) text += " | Нажмите E для сбора";
 
         if (mp.players.local.position.distanceTo(pos) > 100) continue;
 
@@ -357,7 +354,7 @@ function renderPlantTimers() {
             centre: true,
         });
 
-        if (phase === "Созрело" || phase === "Перезрело") {
+        if (isReadyToHarvest) {
             const harvestText = "ГОТОВО К СБОРУ [E]";
             mp.game.graphics.drawText(harvestText, [screen.x, screen.y + 0.018], {
                 font: 4,
