@@ -19,6 +19,7 @@ const MARKER_DRAW_DISTANCE = 90;
 const PROMPT_REFRESH_MS = 450;
 const FARM_SEED_ITEM_IDS = new Set([400, 402, 404]);
 const FARM_INTERACT_RADIUS = 6.0;
+const FARM_HARVEST_RADIUS = 1.0;
 const FARM_PLANT_ANIM_MS = 1300;
 const FARM_HARVEST_ANIM_MS = 1100;
 const READY_STAGE_FALLBACK_MS = 60 * 1000;
@@ -365,9 +366,15 @@ function playFarmAction(animDict, animName, animMs, done) {
 }
 
 function performHarvest(index) {
+    const nearestHarvestIndex = getNearestHarvestablePlotIndex(FARM_HARVEST_RADIUS);
+    const targetIndex = nearestHarvestIndex !== -1 ? nearestHarvestIndex : index;
+    if (targetIndex === -1) {
+        mp.notify.warning("Подойдите ближе к созревшей грядке (1м)", "Ферма");
+        return;
+    }
     plantingInProgress = true;
     playFarmAction("amb@world_human_gardener_plant@male@exit", "exit", FARM_HARVEST_ANIM_MS, () => {
-        mp.events.callRemote("farms.plot.harvest", index);
+        mp.events.callRemote("farms.plot.harvest", targetIndex);
         plantingInProgress = false;
         setPromptText(null);
     });
@@ -741,7 +748,7 @@ mp.keys.bind(0x45, true, () => {
 
     if (mp.busy.includes() || plantingInProgress) return;
 
-    const nearestHarvestIndex = getNearestHarvestablePlotIndex(FARM_INTERACT_RADIUS);
+    const nearestHarvestIndex = getNearestHarvestablePlotIndex(FARM_HARVEST_RADIUS);
     if (nearestHarvestIndex !== -1) {
         performHarvest(nearestHarvestIndex);
         return;
