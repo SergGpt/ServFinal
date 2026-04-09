@@ -7347,11 +7347,15 @@ var selectMenu = new Vue({
                 header: "Настройка фермы",
                 items: [
                     { text: "NPC", values: ["0, 0, 0"], i: 0 },
-                    { text: "Грядок", values: ["0"], i: 0 },
+                    { text: "Точек зоны (до 4)", values: ["0"], i: 0 },
+                    { text: "Грядки A/B", values: ["0"], i: 0 },
                     { text: "Установить NPC (моя позиция)" },
-                    { text: "Добавить грядку (моя позиция)" },
-                    { text: "Удалить последнюю грядку" },
-                    { text: "Очистить грядки" },
+                    { text: "Добавить точку зоны (моя позиция)" },
+                    { text: "Удалить последнюю точку зоны" },
+                    { text: "Очистить точки зоны" },
+                    { text: "Добавить точку A/B (моя позиция)" },
+                    { text: "Удалить последнюю точку" },
+                    { text: "Очистить точки" },
                     { text: "Сохранить в БД" },
                     { text: "Закрыть" }
                 ],
@@ -7363,7 +7367,8 @@ var selectMenu = new Vue({
                     data = data || {};
                     this.data = {
                         npcPos: data.npcPos || { x: 2023.07, y: 4976.62, z: 41.22 },
-                        points: Array.isArray(data.points) ? data.points : [],
+                        zonePoints: Array.isArray(data.points) ? data.points : [],
+                        plotPoints: Array.isArray(data.plotPoints) ? data.plotPoints : [],
                         x: Number(data.x || 0),
                         y: Number(data.y || 0),
                         z: Number(data.z || 0),
@@ -7378,13 +7383,15 @@ var selectMenu = new Vue({
                 refreshLabels() {
                     var npc = this.data && this.data.npcPos ? this.data.npcPos : { x: 0, y: 0, z: 0 };
                     this.items[0].values = [`${Number(npc.x).toFixed(2)}, ${Number(npc.y).toFixed(2)}, ${Number(npc.z).toFixed(2)}`];
-                    this.items[1].values = [String((this.data && this.data.points ? this.data.points.length : 0))];
+                    this.items[1].values = [String((this.data && this.data.zonePoints ? this.data.zonePoints.length : 0))];
+                    this.items[2].values = [String((this.data && this.data.plotPoints ? this.data.plotPoints.length : 0))];
                     this.items[0].i = 0;
                     this.items[1].i = 0;
+                    this.items[2].i = 0;
                 },
                 setNpcFromPlayer(pos) {
                     if (typeof pos == 'string') pos = JSON.parse(pos);
-                    if (!this.data) this.data = { npcPos: { x: 0, y: 0, z: 0 }, points: [] };
+                    if (!this.data) this.data = { npcPos: { x: 0, y: 0, z: 0 }, plotPoints: [] };
                     this.data.npcPos = {
                         x: Number(pos.x || 0),
                         y: Number(pos.y || 0),
@@ -7393,11 +7400,36 @@ var selectMenu = new Vue({
                     this.refreshLabels();
                     mp.trigger('farms.zone.preview', JSON.stringify(this.getZonePayload()));
                 },
+                addZonePointFromPlayer(pos) {
+                    if (typeof pos == 'string') pos = JSON.parse(pos);
+                    if (!this.data) this.data = { npcPos: { x: 0, y: 0, z: 0 }, zonePoints: [], plotPoints: [] };
+                    if (!Array.isArray(this.data.zonePoints)) this.data.zonePoints = [];
+                    if (this.data.zonePoints.length >= 4) this.data.zonePoints.shift();
+                    this.data.zonePoints.push({
+                        x: Number(pos.x || 0),
+                        y: Number(pos.y || 0),
+                        z: Number(pos.z || 0),
+                    });
+                    this.refreshLabels();
+                    mp.trigger('farms.zone.preview', JSON.stringify(this.getZonePayload()));
+                },
+                popZonePoint() {
+                    if (!this.data || !Array.isArray(this.data.zonePoints) || !this.data.zonePoints.length) return;
+                    this.data.zonePoints.pop();
+                    this.refreshLabels();
+                    mp.trigger('farms.zone.preview', JSON.stringify(this.getZonePayload()));
+                },
+                clearZonePoints() {
+                    if (!this.data) this.data = { npcPos: { x: 0, y: 0, z: 0 }, zonePoints: [], plotPoints: [] };
+                    this.data.zonePoints = [];
+                    this.refreshLabels();
+                    mp.trigger('farms.zone.preview', JSON.stringify(this.getZonePayload()));
+                },
                 addPointFromPlayer(pos) {
                     if (typeof pos == 'string') pos = JSON.parse(pos);
-                    if (!this.data) this.data = { npcPos: { x: 0, y: 0, z: 0 }, points: [] };
-                    if (!Array.isArray(this.data.points)) this.data.points = [];
-                    this.data.points.push({
+                    if (!this.data) this.data = { npcPos: { x: 0, y: 0, z: 0 }, plotPoints: [] };
+                    if (!Array.isArray(this.data.plotPoints)) this.data.plotPoints = [];
+                    this.data.plotPoints.push({
                         x: Number(pos.x || 0),
                         y: Number(pos.y || 0),
                         z: Number(pos.z || 0),
@@ -7406,31 +7438,41 @@ var selectMenu = new Vue({
                     mp.trigger('farms.zone.preview', JSON.stringify(this.getZonePayload()));
                 },
                 popPoint() {
-                    if (!this.data || !Array.isArray(this.data.points) || !this.data.points.length) return;
-                    this.data.points.pop();
+                    if (!this.data || !Array.isArray(this.data.plotPoints) || !this.data.plotPoints.length) return;
+                    this.data.plotPoints.pop();
                     this.refreshLabels();
                     mp.trigger('farms.zone.preview', JSON.stringify(this.getZonePayload()));
                 },
                 clearPoints() {
-                    if (!this.data) this.data = { npcPos: { x: 0, y: 0, z: 0 }, points: [] };
-                    this.data.points = [];
+                    if (!this.data) this.data = { npcPos: { x: 0, y: 0, z: 0 }, plotPoints: [] };
+                    this.data.plotPoints = [];
                     this.refreshLabels();
                     mp.trigger('farms.zone.preview', JSON.stringify(this.getZonePayload()));
                 },
                 getZonePayload() {
-                    var points = (this.data && Array.isArray(this.data.points)) ? this.data.points : [];
-                    var zs = points.map((p) => Number(p.z || 0));
+                    var plotPoints = (this.data && Array.isArray(this.data.plotPoints)) ? this.data.plotPoints : [];
+                    var zonePoints = (this.data && Array.isArray(this.data.zonePoints)) ? this.data.zonePoints : [];
+                    var zs = zonePoints.map((p) => Number(p.z || 0));
                     var minZ = zs.length ? Math.min.apply(null, zs) - 1.0 : 0;
                     var maxZ = zs.length ? Math.max.apply(null, zs) + 2.5 : 0;
+                    var xs = zonePoints.map((p) => Number(p.x || 0));
+                    var ys = zonePoints.map((p) => Number(p.y || 0));
+                    var x = xs.length ? Math.min.apply(null, xs) : 0;
+                    var y = ys.length ? Math.min.apply(null, ys) : 0;
+                    var z = zs.length ? Math.min.apply(null, zs) : 0;
+                    var dx = xs.length ? Math.max(1, Math.max.apply(null, xs) - x) : 1;
+                    var dy = ys.length ? Math.max(1, Math.max.apply(null, ys) - y) : 1;
+                    var dz = zs.length ? Math.max(1, Math.max.apply(null, zs) - z) : 1;
                     return {
                         npcPos: this.data && this.data.npcPos ? this.data.npcPos : { x: 0, y: 0, z: 0 },
-                        x: this.data ? Number(this.data.x || 0) : 0,
-                        y: this.data ? Number(this.data.y || 0) : 0,
-                        z: this.data ? Number(this.data.z || 0) : 0,
-                        dx: this.data ? Number(this.data.dx || 1) : 1,
-                        dy: this.data ? Number(this.data.dy || 1) : 1,
-                        dz: this.data ? Number(this.data.dz || 1) : 1,
-                        points: points,
+                        x: x,
+                        y: y,
+                        z: z,
+                        dx: dx,
+                        dy: dy,
+                        dz: dz,
+                        points: zonePoints,
+                        plotPoints: plotPoints,
                         minZ: Number(minZ.toFixed(3)),
                         maxZ: Number(maxZ.toFixed(3)),
                     };
@@ -7440,11 +7482,17 @@ var selectMenu = new Vue({
                     if (eventName == 'onItemSelected') {
                         if (item.text == 'Установить NPC (моя позиция)') {
                             mp.trigger('farms.zone.menu.npc.fromPlayer');
-                        } else if (item.text == 'Добавить грядку (моя позиция)') {
+                        } else if (item.text == 'Добавить точку зоны (моя позиция)') {
+                            mp.trigger('farms.zone.menu.zonepoint.fromPlayer');
+                        } else if (item.text == 'Удалить последнюю точку зоны') {
+                            this.popZonePoint();
+                        } else if (item.text == 'Очистить точки зоны') {
+                            this.clearZonePoints();
+                        } else if (item.text == 'Добавить точку A/B (моя позиция)') {
                             mp.trigger('farms.zone.menu.point.fromPlayer');
-                        } else if (item.text == 'Удалить последнюю грядку') {
+                        } else if (item.text == 'Удалить последнюю точку') {
                             this.popPoint();
-                        } else if (item.text == 'Очистить грядки') {
+                        } else if (item.text == 'Очистить точки') {
                             this.clearPoints();
                         } else
                         if (item.text == 'Сохранить в БД') {

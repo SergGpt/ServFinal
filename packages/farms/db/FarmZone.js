@@ -44,6 +44,10 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.TEXT('long'),
             allowNull: true,
         },
+        plotPoints: {
+            type: DataTypes.TEXT('long'),
+            allowNull: true,
+        },
         minZ: {
             type: DataTypes.FLOAT,
             allowNull: true,
@@ -62,6 +66,10 @@ module.exports = (sequelize, DataTypes) => {
         },
         npcZ: {
             type: DataTypes.FLOAT,
+            allowNull: true,
+        },
+        plotState: {
+            type: DataTypes.TEXT('long'),
             allowNull: true,
         },
     }, {

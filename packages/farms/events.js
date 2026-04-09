@@ -120,32 +120,37 @@ module.exports = {
         if (!zoneData) return;
         if (zoneData.npcPos) farms.setFarmMenuPosition(zoneData.npcPos);
 
-        if (Array.isArray(zoneData.points) && zoneData.points.length) {
-            const points = zoneData.points.map((p) => ({
+        const rawPlotPoints = Array.isArray(zoneData.plotPoints) ? zoneData.plotPoints : zoneData.points;
+        if (Array.isArray(rawPlotPoints) && rawPlotPoints.length) {
+            const editorPoints = rawPlotPoints.map((p) => ({
                 x: parseFloat(p.x) || 0,
                 y: parseFloat(p.y) || 0,
                 z: parseFloat(p.z) || 0,
             }));
+            if (editorPoints.length % 2 !== 0) {
+                notifs.warning(player, 'Нечетное число точек: последняя точка будет проигнорирована', "Ферма");
+            }
+            const points = farms.buildPlotsFromLinePairs(editorPoints, 2.0);
+            if (!points.length) {
+                notifs.error(player, 'Не удалось построить грядки: укажите минимум 2 точки (A и B)', "Ферма");
+                return;
+            }
             farms.resetPlotsData(points);
-            const xs = points.map((p) => p.x);
-            const ys = points.map((p) => p.y);
-            const zs = points.map((p) => p.z);
-            const minX = Math.min.apply(null, xs) - 2.0;
-            const minY = Math.min.apply(null, ys) - 2.0;
-            const minZ = Math.min.apply(null, zs) - 2.0;
-            const maxX = Math.max.apply(null, xs) + 2.0;
-            const maxY = Math.max.apply(null, ys) + 2.0;
-            const maxZ = Math.max.apply(null, zs) + 2.5;
+            notifs.success(player, `Сохранено грядок: ${points.length} (шаг 2м по линиям A→B)`, "Ферма");
+        }
+
+        if (Array.isArray(zoneData.points) && zoneData.points.length >= 3) {
+            const zonePoints = zoneData.points.map((p) => ({
+                x: parseFloat(p.x) || 0,
+                y: parseFloat(p.y) || 0,
+                z: parseFloat(p.z) || 0,
+            }));
+            const minZ = parseFloat(zoneData.minZ);
+            const maxZ = parseFloat(zoneData.maxZ);
             farms.setPlantZone({
-                x: minX,
-                y: minY,
-                z: minZ,
-                dx: Math.max(1.0, maxX - minX),
-                dy: Math.max(1.0, maxY - minY),
-                dz: Math.max(1.0, maxZ - minZ),
-                points: points,
-                minZ,
-                maxZ,
+                points: zonePoints,
+                minZ: Number.isFinite(minZ) ? minZ : Math.min(...zonePoints.map((p) => p.z)) - 1,
+                maxZ: Number.isFinite(maxZ) ? maxZ : Math.max(...zonePoints.map((p) => p.z)) + 2,
             });
         } else if (zoneData.x != null && zoneData.y != null && zoneData.z != null) {
             farms.setPlantZone({
