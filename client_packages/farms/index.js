@@ -332,25 +332,35 @@ function isHarvestableState(state) {
 function playFarmAction(animDict, animName, animMs, done) {
     const localPlayer = mp.players.local;
     if (!localPlayer) return done();
+    let finished = false;
+    const finish = () => {
+        if (finished) return;
+        finished = true;
+        try {
+            if (localPlayer && mp.players.local) {
+                localPlayer.stopAnimTask(animDict, animName, -4.0);
+                localPlayer.clearTasksImmediately();
+            }
+        } catch (e) {}
+        done();
+    };
     const startedAt = Date.now();
     const tryPlay = (attempt = 0) => {
-        if (!mp.players.local) return done();
+        if (!mp.players.local) return finish();
         mp.game.streaming.requestAnimDict(animDict);
         if (!mp.game.streaming.hasAnimDictLoaded(animDict)) {
             if (attempt >= 40) {
                 debugLog("anim dict load timeout", { animDict, animName, attempts: attempt });
-                return done();
+                return finish();
             }
             return setTimeout(() => tryPlay(attempt + 1), 25);
         }
         debugLog("anim dict loaded", { animDict, animName, waitMs: Date.now() - startedAt, attempts: attempt });
         localPlayer.taskPlayAnim(animDict, animName, 4.0, 0.0, animMs, 49, 0, false, false, false);
         debugLog("animation started", { animDict, animName, animMs });
-        setTimeout(() => {
-            try { localPlayer.clearTasks(); } catch (e) {}
-            done();
-        }, animMs);
+        setTimeout(finish, animMs + 120);
     };
+    setTimeout(finish, animMs + 1200);
     tryPlay(0);
 }
 
