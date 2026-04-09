@@ -568,10 +568,6 @@ mp.keys.bind(0x45, true, () => {
     }
 
     if (!mp.busy.includes() && isLocalInsidePlantZone()) {
-        if (knownSeedsAmount <= 0) {
-            mp.notify.warning("У вас нет семян для посадки", "Ферма");
-            return;
-        }
         mp.events.callRemote("farms.plot.plant", -1, selectedSeedType);
     }
 });

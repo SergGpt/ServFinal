@@ -767,7 +767,6 @@ module.exports = {
         const type = this.getSeedType(seedId) || this.seedTypes[0];
         const hasInvSeed = type.seedItemId && this.hasItem(player, type.seedItemId, 1);
         const hasLegacySeed = (data.seeds[type.id] || 0) > 0;
-        if (!hasInvSeed && !hasLegacySeed) return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
 
         this.debugLog("plantSeed: вход", {
             playerId: player.id,
@@ -787,6 +786,15 @@ module.exports = {
         if (isNaN(index) || index < 0 || !this.plots[index]) {
             index = this.addPlotAtPosition(player.position);
             if (index === -1) {
+                const nearestReady = this.findNearestHarvestablePlotIndex(player.position, HARVEST_INTERACT_RADIUS);
+                if (nearestReady !== -1) {
+                    this.debugLog("plantSeed: fallback -> harvest (рядом созревшая грядка)", { nearestReady });
+                    return this.harvestPlot(player, nearestReady);
+                }
+                if (!hasInvSeed && !hasLegacySeed) {
+                    this.debugLog("plantSeed: отказ, нет семян и нет доступной грядки", { seedType: type.id });
+                    return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
+                }
                 return notifs.warning(player, "Рядом нет грядки для посадки", "Ферма");
             }
         }
@@ -794,9 +802,19 @@ module.exports = {
         if (!plot) return notifs.error(player, "Не удалось создать грядку в текущей точке", "Ферма");
         const matured = this.reconcilePlotState(index, true);
         if (matured) this.broadcastPlotUpdate(index);
+
+        if (plot.state === "ready" || plot.state === "overripe") {
+            this.debugLog("plantSeed: fallback -> harvest (грядка созрела)", { index, state: plot.state });
+            return this.harvestPlot(player, index);
+        }
+
+        if (!hasInvSeed && !hasLegacySeed) {
+            this.debugLog("plantSeed: отказ, нет семян", { index, state: plot.state, seedType: type.id });
+            return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
+        }
+
         if (plot.state !== "empty") {
             if (plot.state === "growing") return notifs.warning(player, "Эта грядка уже занята посевами", "Ферма");
-            if (plot.state === "ready") return notifs.warning(player, "Сначала соберите урожай с этой грядки", "Ферма");
             if (plot.state === "cooldown") return notifs.warning(player, "Грядка восстанавливается", "Ферма");
             return notifs.warning(player, "Эта грядка недоступна", "Ферма");
         }
@@ -865,6 +883,12 @@ module.exports = {
             notifs.success(owner, `Грядка №${index + 1} созрела (60 сек до перезревания)`, "Ферма");
             owner.call("farms.plot.ready", [index]);
         }
+        this.debugLog("setPlotReady: грядка созрела", {
+            index,
+            ownerId: plot.ownerId,
+            ownerName: plot.ownerName,
+            ripeEndsAt: plot.ripeEndsAt,
+        });
         this.broadcastPlotUpdate(index);
         this.schedulePlotStateSave();
     },
