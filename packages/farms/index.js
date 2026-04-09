@@ -505,7 +505,9 @@ module.exports = {
                 const owner = this.getPlotOwner(plot.ownerId);
                 if (owner) {
                     notifs.success(owner, `Грядка №${index + 1} созрела (60 сек до перезревания)`, "Ферма");
-                    owner.call("farms.plot.ready", [index]);
+                    owner.call("farms.plot.ready", [index, {
+                        ripeEndsAt: plot.ripeEndsAt,
+                    }]);
                 }
             }
         }
@@ -734,7 +736,6 @@ module.exports = {
 
     cleanupPlayer(player) {
         if (!player) return;
-        this.releasePlayerPlots(player);
         if (player.farmAtMenuZone) player.farmAtMenuZone = false;
         if (player.farmInPlantZone) player.farmInPlantZone = false;
     },
@@ -962,7 +963,9 @@ module.exports = {
         const owner = this.getPlotOwner(plot.ownerId);
         if (owner) {
             notifs.success(owner, `Грядка №${index + 1} созрела (60 сек до перезревания)`, "Ферма");
-            owner.call("farms.plot.ready", [index]);
+            owner.call("farms.plot.ready", [index, {
+                ripeEndsAt: plot.ripeEndsAt,
+            }]);
         }
         this.debugLog("setPlotReady: грядка созрела", {
             index,
@@ -984,6 +987,12 @@ module.exports = {
         plot.overripeEndsAt = Date.now() + OVERRIPE_STAGE_MS;
         if (plot.overripeTimer) timer.remove(plot.overripeTimer);
         plot.overripeTimer = timer.add(() => this.expireOverripePlot(index), OVERRIPE_STAGE_MS);
+        const owner = this.getPlotOwner(plot.ownerId);
+        if (owner) {
+            owner.call("farms.plot.overripe", [index, {
+                overripeEndsAt: plot.overripeEndsAt,
+            }]);
+        }
         this.broadcastPlotUpdate(index);
         this.schedulePlotStateSave();
     },
@@ -1184,6 +1193,19 @@ module.exports = {
         }
         player.call("farms.employment.hide");
         player.call("farms.menu.show", [this.collectMenuData(player)]);
+    },
+
+    syncPlayerState(player) {
+        if (!player || !player.character) return;
+        this.broadcastPlantZone(player);
+        if (!this.isFarmer(player)) {
+            this.sendMenuUpdate(player);
+            player.call("farms.employment.show");
+            return;
+        }
+        this.syncPlotsForPlayer(player);
+        this.sendMenuUpdate(player);
+        player.call("farms.employment.hide");
     },
 
     syncPlotsForPlayer(player) {

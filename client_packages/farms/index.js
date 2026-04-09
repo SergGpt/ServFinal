@@ -18,6 +18,8 @@ const FARM_SEED_ITEM_IDS = new Set([400, 402, 404]);
 const FARM_INTERACT_RADIUS = 6.0;
 const FARM_PLANT_ANIM_MS = 1300;
 const FARM_HARVEST_ANIM_MS = 1100;
+const READY_STAGE_FALLBACK_MS = 60 * 1000;
+const OVERRIPE_STAGE_FALLBACK_MS = 45 * 1000;
 
 function parsePayload(value, fallback) {
     if (typeof value === "string") {
@@ -105,6 +107,10 @@ function updatePrompt() {
     } else {
         mp.prompt.hide();
     }
+}
+
+function requestFarmSync() {
+    mp.events.callRemote("farms.menu.sync");
 }
 
 function getHandSeedItemId() {
@@ -362,16 +368,18 @@ function renderPlantTimers() {
         const state = plotStates[i];
         const pos = plotPositions[i];
         if (!state || !pos) continue;
-        if ((state.state === "growing" || state.state === "growing_foreign") && getSecondsLeft(state) <= 0) {
+        if ((state.state === "growing" || state.state === "growing_foreign") && state.readyAt && getSecondsLeft(state) <= 0) {
             state.state = state.state === "growing_foreign" ? "ready_foreign" : "ready";
             state.action = "harvest";
             state.readyAt = null;
+            if (!state.ripeEndsAt) state.ripeEndsAt = Date.now() + READY_STAGE_FALLBACK_MS;
             updateMarker(i);
         }
-        if ((state.state === "ready" || state.state === "ready_foreign") && getSecondsLeft(state) <= 0) {
+        if ((state.state === "ready" || state.state === "ready_foreign") && state.ripeEndsAt && getSecondsLeft(state) <= 0) {
             state.state = state.state === "ready_foreign" ? "overripe_foreign" : "overripe";
             state.action = "harvest";
             state.ripeEndsAt = null;
+            if (!state.overripeEndsAt) state.overripeEndsAt = Date.now() + OVERRIPE_STAGE_FALLBACK_MS;
             updateMarker(i);
         }
         if (state.state !== "growing" && state.state !== "growing_foreign" && state.state !== "ready" && state.state !== "ready_foreign" && state.state !== "overripe" && state.state !== "overripe_foreign") continue;
@@ -472,7 +480,7 @@ function getNearestHarvestablePlotIndex(maxDistance = FARM_INTERACT_RADIUS) {
 
 mp.events.add({
     "characterInit.done": () => {
-        mp.events.callRemote("farms.menu.sync");
+        requestFarmSync();
     },
     "farms.plots.init": (positions) => {
         positions = parsePayload(positions, []);
@@ -503,17 +511,32 @@ mp.events.add({
         currentPlot = null;
         updatePrompt();
     },
-    "farms.plot.ready": (index) => {
+    "farms.plot.ready": (index, info) => {
         index = parseInt(index);
         if (isNaN(index) || !plotStates[index]) return;
         plotStates[index].state = "ready";
         plotStates[index].action = "harvest";
         plotStates[index].readyAt = null;
+        info = parsePayload(info, {});
+        plotStates[index].ripeEndsAt = Number(info.ripeEndsAt) || (Date.now() + READY_STAGE_FALLBACK_MS);
+        plotStates[index].overripeEndsAt = null;
+        updatePrompt();
+        updateMarker(index);
+    },
+    "farms.plot.overripe": (index, info) => {
+        index = parseInt(index);
+        if (isNaN(index) || !plotStates[index]) return;
+        plotStates[index].state = "overripe";
+        plotStates[index].action = "harvest";
+        plotStates[index].ripeEndsAt = null;
+        info = parsePayload(info, {});
+        plotStates[index].overripeEndsAt = Number(info.overripeEndsAt) || (Date.now() + OVERRIPE_STAGE_FALLBACK_MS);
+        updatePrompt();
         updateMarker(index);
     },
     "farms.menu.enter": () => {
         insideFarmMenuZone = true;
-        mp.events.callRemote("farms.menu.sync");
+        requestFarmSync();
         updatePrompt();
     },
     "farms.menu.exit": () => {
@@ -548,6 +571,7 @@ mp.events.add({
         zone = parsePayload(zone, null);
         plantZone = zone;
         if (zone && zone.npcPos) createFarmNpc(zone.npcPos);
+        updatePrompt();
     },
     "farms.zone.preview": (zoneJson) => {
         try {
