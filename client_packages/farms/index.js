@@ -14,13 +14,22 @@ let wasInsidePlantZone = false;
 let farmNpc = null;
 let zonePreviewUntil = 0;
 let lastPromptText = null;
+let lastPromptAt = 0;
 const MARKER_DRAW_DISTANCE = 90;
+const PROMPT_REFRESH_MS = 450;
 const FARM_SEED_ITEM_IDS = new Set([400, 402, 404]);
 const FARM_INTERACT_RADIUS = 6.0;
 const FARM_PLANT_ANIM_MS = 1300;
 const FARM_HARVEST_ANIM_MS = 1100;
 const READY_STAGE_FALLBACK_MS = 60 * 1000;
 const OVERRIPE_STAGE_FALLBACK_MS = 45 * 1000;
+const FARMS_CLIENT_DEBUG = true;
+
+function debugLog(message, data) {
+    if (!FARMS_CLIENT_DEBUG) return;
+    if (data === undefined) return console.log(`[farms][client] ${message}`);
+    console.log(`[farms][client] ${message}`, data);
+}
 
 function parsePayload(value, fallback) {
     if (typeof value === "string") {
@@ -47,9 +56,18 @@ const markerColors = {
 };
 
 function createMarkers(positions) {
-    clearMarkers();
+    const previousStates = plotStates.slice();
     plotPositions = positions.map(pos => new mp.Vector3(pos.x, pos.y, pos.z));
-    plotStates = positions.map(() => ({ state: "available" }));
+    plotStates = positions.map((_, index) => Object.assign({
+        state: "available",
+        action: null,
+        owner: null,
+        seedName: null,
+        readyAt: null,
+        ripeEndsAt: null,
+        overripeEndsAt: null,
+    }, previousStates[index] || {}));
+    debugLog("farms.plots.init applied", { plots: positions.length, restoredStates: previousStates.filter(Boolean).length });
 }
 
 function clearMarkers() {
@@ -73,10 +91,28 @@ function getSecondsLeft(plotInfo) {
 
 function setPromptText(text) {
     const nextText = text || null;
-    if (nextText === lastPromptText) return;
+    const now = Date.now();
+    if (nextText === lastPromptText && (!nextText || (now - lastPromptAt) < PROMPT_REFRESH_MS)) return;
     lastPromptText = nextText;
+    lastPromptAt = now;
     if (!nextText) return mp.prompt.hide();
     mp.prompt.show(nextText);
+}
+
+function ensurePlotState(index) {
+    if (!plotStates[index]) {
+        plotStates[index] = {
+            state: "available",
+            action: null,
+            owner: null,
+            seedName: null,
+            readyAt: null,
+            ripeEndsAt: null,
+            overripeEndsAt: null,
+        };
+        debugLog("plot state created", { index });
+    }
+    return plotStates[index];
 }
 
 function updatePrompt() {
@@ -190,8 +226,8 @@ function applyPlotUpdate(index, data) {
     if (Object.prototype.hasOwnProperty.call(payload, "state") && !Object.prototype.hasOwnProperty.call(payload, "action")) {
         payload.action = null;
     }
-    if (!plotStates[index]) plotStates[index] = {};
-    plotStates[index] = Object.assign({}, plotStates[index], payload);
+    const current = ensurePlotState(index);
+    plotStates[index] = Object.assign({}, current, payload);
     updateMarker(index);
     if (currentPlot && currentPlot.index === index) {
         currentPlot = Object.assign({}, currentPlot, payload);
@@ -296,11 +332,26 @@ function isHarvestableState(state) {
 function playFarmAction(animDict, animName, animMs, done) {
     const localPlayer = mp.players.local;
     if (!localPlayer) return done();
-    localPlayer.taskPlayAnim(animDict, animName, 4.0, 0.0, animMs, 49, 0, false, false, false);
-    setTimeout(() => {
-        try { localPlayer.clearTasks(); } catch (e) {}
-        done();
-    }, animMs);
+    const startedAt = Date.now();
+    const tryPlay = (attempt = 0) => {
+        if (!mp.players.local) return done();
+        mp.game.streaming.requestAnimDict(animDict);
+        if (!mp.game.streaming.hasAnimDictLoaded(animDict)) {
+            if (attempt >= 40) {
+                debugLog("anim dict load timeout", { animDict, animName, attempts: attempt });
+                return done();
+            }
+            return setTimeout(() => tryPlay(attempt + 1), 25);
+        }
+        debugLog("anim dict loaded", { animDict, animName, waitMs: Date.now() - startedAt, attempts: attempt });
+        localPlayer.taskPlayAnim(animDict, animName, 4.0, 0.0, animMs, 49, 0, false, false, false);
+        debugLog("animation started", { animDict, animName, animMs });
+        setTimeout(() => {
+            try { localPlayer.clearTasks(); } catch (e) {}
+            done();
+        }, animMs);
+    };
+    tryPlay(0);
 }
 
 function performHarvest(index) {
@@ -513,7 +564,7 @@ mp.events.add({
         index = parseInt(index);
         if (isNaN(index) || !pos) return;
         plotPositions[index] = new mp.Vector3(pos.x, pos.y, pos.z);
-        if (!plotStates[index]) plotStates[index] = { state: "available" };
+        ensurePlotState(index);
         updateMarker(index);
     },
     "farms.plot.enter": (index, info) => {
@@ -529,24 +580,28 @@ mp.events.add({
     },
     "farms.plot.ready": (index, info) => {
         index = parseInt(index);
-        if (isNaN(index) || !plotStates[index]) return;
-        plotStates[index].state = "ready";
-        plotStates[index].action = "harvest";
-        plotStates[index].readyAt = null;
+        if (isNaN(index)) return;
+        const state = ensurePlotState(index);
+        state.state = "ready";
+        state.action = "harvest";
+        state.readyAt = null;
         info = parsePayload(info, {});
-        plotStates[index].ripeEndsAt = Number(info.ripeEndsAt) || (Date.now() + READY_STAGE_FALLBACK_MS);
-        plotStates[index].overripeEndsAt = null;
+        state.ripeEndsAt = Number(info.ripeEndsAt) || (Date.now() + READY_STAGE_FALLBACK_MS);
+        state.overripeEndsAt = null;
+        debugLog("event ready", { index, ripeEndsAt: state.ripeEndsAt });
         updatePrompt();
         updateMarker(index);
     },
     "farms.plot.overripe": (index, info) => {
         index = parseInt(index);
-        if (isNaN(index) || !plotStates[index]) return;
-        plotStates[index].state = "overripe";
-        plotStates[index].action = "harvest";
-        plotStates[index].ripeEndsAt = null;
+        if (isNaN(index)) return;
+        const state = ensurePlotState(index);
+        state.state = "overripe";
+        state.action = "harvest";
+        state.ripeEndsAt = null;
         info = parsePayload(info, {});
-        plotStates[index].overripeEndsAt = Number(info.overripeEndsAt) || (Date.now() + OVERRIPE_STAGE_FALLBACK_MS);
+        state.overripeEndsAt = Number(info.overripeEndsAt) || (Date.now() + OVERRIPE_STAGE_FALLBACK_MS);
+        debugLog("event overripe", { index, overripeEndsAt: state.overripeEndsAt });
         updatePrompt();
         updateMarker(index);
     },
