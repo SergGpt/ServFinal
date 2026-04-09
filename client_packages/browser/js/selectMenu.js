@@ -7347,7 +7347,7 @@ var selectMenu = new Vue({
                 header: "Настройка фермы",
                 items: [
                     { text: "NPC", values: ["0, 0, 0"], i: 0 },
-                    { text: "Точек A/B", values: ["0"], i: 0 },
+                    { text: "Грядки A/B", values: ["0"], i: 0 },
                     { text: "Установить NPC (моя позиция)" },
                     { text: "Добавить точку A/B (моя позиция)" },
                     { text: "Удалить последнюю точку" },
@@ -7363,7 +7363,7 @@ var selectMenu = new Vue({
                     data = data || {};
                     this.data = {
                         npcPos: data.npcPos || { x: 2023.07, y: 4976.62, z: 41.22 },
-                        points: Array.isArray(data.points) ? data.points : [],
+                        plotPoints: Array.isArray(data.plotPoints) ? data.plotPoints : (Array.isArray(data.points) ? data.points : []),
                         x: Number(data.x || 0),
                         y: Number(data.y || 0),
                         z: Number(data.z || 0),
@@ -7378,13 +7378,13 @@ var selectMenu = new Vue({
                 refreshLabels() {
                     var npc = this.data && this.data.npcPos ? this.data.npcPos : { x: 0, y: 0, z: 0 };
                     this.items[0].values = [`${Number(npc.x).toFixed(2)}, ${Number(npc.y).toFixed(2)}, ${Number(npc.z).toFixed(2)}`];
-                    this.items[1].values = [String((this.data && this.data.points ? this.data.points.length : 0))];
+                    this.items[1].values = [String((this.data && this.data.plotPoints ? this.data.plotPoints.length : 0))];
                     this.items[0].i = 0;
                     this.items[1].i = 0;
                 },
                 setNpcFromPlayer(pos) {
                     if (typeof pos == 'string') pos = JSON.parse(pos);
-                    if (!this.data) this.data = { npcPos: { x: 0, y: 0, z: 0 }, points: [] };
+                    if (!this.data) this.data = { npcPos: { x: 0, y: 0, z: 0 }, plotPoints: [] };
                     this.data.npcPos = {
                         x: Number(pos.x || 0),
                         y: Number(pos.y || 0),
@@ -7395,9 +7395,9 @@ var selectMenu = new Vue({
                 },
                 addPointFromPlayer(pos) {
                     if (typeof pos == 'string') pos = JSON.parse(pos);
-                    if (!this.data) this.data = { npcPos: { x: 0, y: 0, z: 0 }, points: [] };
-                    if (!Array.isArray(this.data.points)) this.data.points = [];
-                    this.data.points.push({
+                    if (!this.data) this.data = { npcPos: { x: 0, y: 0, z: 0 }, plotPoints: [] };
+                    if (!Array.isArray(this.data.plotPoints)) this.data.plotPoints = [];
+                    this.data.plotPoints.push({
                         x: Number(pos.x || 0),
                         y: Number(pos.y || 0),
                         z: Number(pos.z || 0),
@@ -7406,20 +7406,20 @@ var selectMenu = new Vue({
                     mp.trigger('farms.zone.preview', JSON.stringify(this.getZonePayload()));
                 },
                 popPoint() {
-                    if (!this.data || !Array.isArray(this.data.points) || !this.data.points.length) return;
-                    this.data.points.pop();
+                    if (!this.data || !Array.isArray(this.data.plotPoints) || !this.data.plotPoints.length) return;
+                    this.data.plotPoints.pop();
                     this.refreshLabels();
                     mp.trigger('farms.zone.preview', JSON.stringify(this.getZonePayload()));
                 },
                 clearPoints() {
-                    if (!this.data) this.data = { npcPos: { x: 0, y: 0, z: 0 }, points: [] };
-                    this.data.points = [];
+                    if (!this.data) this.data = { npcPos: { x: 0, y: 0, z: 0 }, plotPoints: [] };
+                    this.data.plotPoints = [];
                     this.refreshLabels();
                     mp.trigger('farms.zone.preview', JSON.stringify(this.getZonePayload()));
                 },
                 getZonePayload() {
-                    var points = (this.data && Array.isArray(this.data.points)) ? this.data.points : [];
-                    var zs = points.map((p) => Number(p.z || 0));
+                    var plotPoints = (this.data && Array.isArray(this.data.plotPoints)) ? this.data.plotPoints : [];
+                    var zs = plotPoints.map((p) => Number(p.z || 0));
                     var minZ = zs.length ? Math.min.apply(null, zs) - 1.0 : 0;
                     var maxZ = zs.length ? Math.max.apply(null, zs) + 2.5 : 0;
                     return {
@@ -7430,7 +7430,7 @@ var selectMenu = new Vue({
                         dx: this.data ? Number(this.data.dx || 1) : 1,
                         dy: this.data ? Number(this.data.dy || 1) : 1,
                         dz: this.data ? Number(this.data.dz || 1) : 1,
-                        points: points,
+                        plotPoints: plotPoints,
                         minZ: Number(minZ.toFixed(3)),
                         maxZ: Number(maxZ.toFixed(3)),
                     };

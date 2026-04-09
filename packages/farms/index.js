@@ -212,6 +212,7 @@ module.exports = {
                 cols.add(name);
             };
             await addColumnIfMissing("points", "LONGTEXT");
+            await addColumnIfMissing("plotPoints", "LONGTEXT");
             await addColumnIfMissing("minZ", "FLOAT");
             await addColumnIfMissing("maxZ", "FLOAT");
             await addColumnIfMissing("npcX", "FLOAT");
@@ -302,6 +303,21 @@ module.exports = {
                 minZ: null,
                 maxZ: null,
             };
+            const hasPlotPointsColumn = this.farmZoneColumns && this.farmZoneColumns.has("plotPoints");
+            const rawPlotPointsJson = hasPlotPointsColumn ? model.plotPoints : null;
+            if (rawPlotPointsJson) {
+                try {
+                    const parsedPlotPoints = JSON.parse(rawPlotPointsJson);
+                    if (Array.isArray(parsedPlotPoints) && parsedPlotPoints.length) {
+                        this.plotsData = parsedPlotPoints.map((p) => ({
+                            x: parseFloat(p.x) || 0,
+                            y: parseFloat(p.y) || 0,
+                            z: parseFloat(p.z) || 0,
+                        }));
+                    }
+                } catch (e) {}
+            }
+
             if (this.farmZoneColumns && this.farmZoneColumns.has("points") && model.points) {
                 try {
                     const points = JSON.parse(model.points);
@@ -311,17 +327,18 @@ module.exports = {
                             y: parseFloat(p.y) || 0,
                             z: parseFloat(p.z) || 0,
                         }));
-                        const hasSavedPlotState = !!model.plotState;
-                        const looksLikeLegacyZone = rawPoints.length >= 3 && !hasSavedPlotState && rawPoints.length <= 12;
-                        this.plotsData = looksLikeLegacyZone
-                            ? this.buildPlotsFromLegacyZone(rawPoints, model.minZ, model.maxZ)
-                            : rawPoints;
-                        this.plantZone.points = points;
+                        if (!this.plotsData.length) {
+                            const hasSavedPlotState = !!model.plotState;
+                            const looksLikeLegacyZone = rawPoints.length >= 3 && !hasSavedPlotState && rawPoints.length <= 12;
+                            this.plotsData = looksLikeLegacyZone
+                                ? this.buildPlotsFromLegacyZone(rawPoints, model.minZ, model.maxZ)
+                                : rawPoints;
+                        }
+                        this.plantZone.points = rawPoints.length >= 3 ? rawPoints : null;
                         this.debugLog("Загрузка points из БД", {
                             rawPoints: rawPoints.length,
                             generatedPlots: this.plotsData.length,
-                            looksLikeLegacyZone,
-                            hasSavedPlotState,
+                            fromPlotPoints: !!rawPlotPointsJson,
                         });
                     }
                 } catch (e) {}
@@ -366,7 +383,14 @@ module.exports = {
                 dz: this.plantZone ? this.plantZone.dz : 1,
                 dimension: 0,
             };
-            if (this.farmZoneColumns && this.farmZoneColumns.has("points")) payload.points = this.plotsData && this.plotsData.length ? JSON.stringify(this.plotsData) : null;
+            if (this.farmZoneColumns && this.farmZoneColumns.has("points")) {
+                payload.points = this.plantZone && Array.isArray(this.plantZone.points) && this.plantZone.points.length
+                    ? JSON.stringify(this.plantZone.points)
+                    : null;
+            }
+            if (this.farmZoneColumns && this.farmZoneColumns.has("plotPoints")) {
+                payload.plotPoints = this.plotsData && this.plotsData.length ? JSON.stringify(this.plotsData) : null;
+            }
             if (this.farmZoneColumns && this.farmZoneColumns.has("minZ")) payload.minZ = this.plantZone ? this.plantZone.minZ : null;
             if (this.farmZoneColumns && this.farmZoneColumns.has("maxZ")) payload.maxZ = this.plantZone ? this.plantZone.maxZ : null;
             if (this.farmZoneColumns && this.farmZoneColumns.has("npcX")) {
@@ -393,10 +417,11 @@ module.exports = {
 
     getPlantZoneData() {
         const z = this.plantZone;
-        if (!z) return { x: 0, y: 0, z: 0, dx: 1, dy: 1, dz: 1, points: null, minZ: null, maxZ: null };
+        if (!z) return { x: 0, y: 0, z: 0, dx: 1, dy: 1, dz: 1, points: null, plotPoints: [], minZ: null, maxZ: null };
         return {
             x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz,
-            points: this.plotsData.map((p) => ({ x: p.x, y: p.y, z: p.z })),
+            points: Array.isArray(z.points) ? z.points.map((p) => ({ x: p.x, y: p.y, z: p.z })) : null,
+            plotPoints: this.plotsData.map((p) => ({ x: p.x, y: p.y, z: p.z })),
             minZ: z.minZ,
             maxZ: z.maxZ,
         };
@@ -447,6 +472,7 @@ module.exports = {
         const payload = {
             x: z.x, y: z.y, z: z.z, dx: z.dx, dy: z.dy, dz: z.dz,
             points: Array.isArray(z.points) ? z.points : null,
+            plotPoints: this.plotsData.map((p) => ({ x: p.x, y: p.y, z: p.z })),
             minZ: z.minZ,
             maxZ: z.maxZ,
             npcPos: this.farmMenuPos ? { x: this.farmMenuPos.x, y: this.farmMenuPos.y, z: this.farmMenuPos.z } : null,
@@ -807,6 +833,17 @@ module.exports = {
 
     plantSeed(player, index, seedId) {
         if (!this.isFarmer(player)) return;
+        if (!this.isPlayerInsidePlantZone(player)) {
+            this.debugLog("plantSeed: отказ, игрок вне зоны посадки", {
+                playerId: player.id,
+                pos: {
+                    x: Number(player.position.x.toFixed(3)),
+                    y: Number(player.position.y.toFixed(3)),
+                    z: Number(player.position.z.toFixed(3)),
+                },
+            });
+            return notifs.warning(player, "Сажать можно только внутри зоны посадки", "Ферма");
+        }
         const data = this.ensureJobData(player);
         const type = this.getSeedType(seedId) || this.seedTypes[0];
         const hasInvSeed = type.seedItemId && this.hasItem(player, type.seedItemId, 1);
