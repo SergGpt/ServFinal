@@ -15,6 +15,9 @@ let farmNpc = null;
 let zonePreviewUntil = 0;
 const MARKER_DRAW_DISTANCE = 90;
 const FARM_SEED_ITEM_IDS = new Set([400, 402, 404]);
+const FARM_INTERACT_RADIUS = 6.0;
+const FARM_PLANT_ANIM_MS = 1300;
+const FARM_HARVEST_ANIM_MS = 1100;
 
 function parsePayload(value, fallback) {
     if (typeof value === "string") {
@@ -266,7 +269,44 @@ function drawEditorPoints(points) {
     }
 }
 
-function getNearestPlotIndex(maxDistance = 4.0) {
+function isHarvestableState(state) {
+    if (!state) return false;
+    return state.action === "harvest"
+        || state.state === "ready"
+        || state.state === "ready_foreign"
+        || state.state === "overripe"
+        || state.state === "overripe_foreign";
+}
+
+function playFarmAction(animMs, done) {
+    const localPlayer = mp.players.local;
+    if (!localPlayer) return done();
+    localPlayer.taskPlayAnim("amb@world_human_gardener_plant@male@idle_a", "idle_a", 4.0, 0.0, animMs, 49, 0, false, false, false);
+    setTimeout(() => {
+        try { localPlayer.clearTasks(); } catch (e) {}
+        done();
+    }, animMs);
+}
+
+function performHarvest(index) {
+    plantingInProgress = true;
+    playFarmAction(FARM_HARVEST_ANIM_MS, () => {
+        mp.events.callRemote("farms.plot.harvest", index);
+        plantingInProgress = false;
+        mp.prompt.hide();
+    });
+}
+
+function performPlant(index, seedArg) {
+    plantingInProgress = true;
+    playFarmAction(FARM_PLANT_ANIM_MS, () => {
+        mp.events.callRemote("farms.plot.plant", index, seedArg);
+        plantingInProgress = false;
+        mp.prompt.hide();
+    });
+}
+
+function getNearestPlotIndex(maxDistance = FARM_INTERACT_RADIUS) {
     if (!plotPositions.length || !plotStates.length) return -1;
     const me = mp.players.local;
     if (!me) return -1;
@@ -412,7 +452,7 @@ function renderPlotMarkers() {
     }
 }
 
-function getNearestHarvestablePlotIndex(maxDistance = 4.0) {
+function getNearestHarvestablePlotIndex(maxDistance = FARM_INTERACT_RADIUS) {
     if (!plotPositions.length || !plotStates.length || !mp.players.local) return -1;
     let nearest = -1;
     let bestDistance = maxDistance;
@@ -420,12 +460,7 @@ function getNearestHarvestablePlotIndex(maxDistance = 4.0) {
         const state = plotStates[i];
         const pos = plotPositions[i];
         if (!state || !pos) continue;
-        const canHarvest = state.action === "harvest"
-            || state.state === "ready"
-            || state.state === "ready_foreign"
-            || state.state === "overripe"
-            || state.state === "overripe_foreign";
-        if (!canHarvest) continue;
+        if (!isHarvestableState(state)) continue;
         const dist = mp.players.local.position.distanceTo(pos);
         if (dist <= bestDistance) {
             bestDistance = dist;
@@ -599,69 +634,36 @@ mp.keys.bind(0x45, true, () => {
         return;
     }
 
-    if (!mp.busy.includes()) {
-        const harvestIndex = getNearestHarvestablePlotIndex();
-        if (harvestIndex !== -1) {
-            mp.events.callRemote("farms.plot.harvest", harvestIndex);
-            mp.prompt.hide();
-            return;
-        }
-    }
+    if (mp.busy.includes() || plantingInProgress) return;
 
-    if (currentPlot) {
-        if (mp.busy.includes() || plantingInProgress) return;
-        if (currentPlot.action === "plant") {
-            plantingInProgress = true;
-            mp.players.local.taskPlayAnim("amb@world_human_gardener_plant@male@idle_a", "idle_a", 4.0, 0.0, 1300, 49, 0, false, false, false);
-            setTimeout(() => {
-                const seedArg = getPlantSeedArg();
-                if (seedArg == null) {
-                    const fallbackHarvest = getNearestHarvestablePlotIndex(4.0);
-                    if (fallbackHarvest !== -1) {
-                        mp.events.callRemote("farms.plot.harvest", fallbackHarvest);
-                        mp.players.local.clearTasks();
-                        plantingInProgress = false;
-                        return;
-                    }
-                    if (currentPlot) {
-                        mp.events.callRemote("farms.plot.harvest", currentPlot.index);
-                        mp.players.local.clearTasks();
-                        plantingInProgress = false;
-                        return;
-                    }
-                    mp.notify.warning("Семена не в руках", "Ферма");
-                    mp.players.local.clearTasks();
-                    plantingInProgress = false;
-                    return;
-                }
-                mp.events.callRemote("farms.plot.plant", currentPlot.index, seedArg);
-                mp.players.local.clearTasks();
-                plantingInProgress = false;
-            }, 1300);
-            mp.prompt.hide();
-        } else if (currentPlot.action === "harvest") {
-            mp.events.callRemote("farms.plot.harvest", currentPlot.index);
-            mp.prompt.hide();
-        }
+    const nearestHarvestIndex = getNearestHarvestablePlotIndex(FARM_INTERACT_RADIUS);
+    if (nearestHarvestIndex !== -1) {
+        performHarvest(nearestHarvestIndex);
         return;
     }
 
-    if (insideFarmMenuZone && !mp.busy.includes()) {
+    if (currentPlot && isHarvestableState(currentPlot)) {
+        performHarvest(currentPlot.index);
+        return;
+    }
+
+    if (insideFarmMenuZone) {
         mp.events.callRemote("farms.menu.open");
         return;
     }
 
-    if (!mp.busy.includes() && isLocalInsidePlantZone()) {
-        const seedArg = getPlantSeedArg();
-        if (seedArg == null) {
-            const fallbackHarvest = getNearestHarvestablePlotIndex(4.0);
-            if (fallbackHarvest !== -1) return mp.events.callRemote("farms.plot.harvest", fallbackHarvest);
-            if (currentPlot) return mp.events.callRemote("farms.plot.harvest", currentPlot.index);
-            return mp.notify.warning("Семена не в руках", "Ферма");
-        }
-        mp.events.callRemote("farms.plot.plant", -1, seedArg);
+    if (!isLocalInsidePlantZone()) return;
+
+    const seedArg = getPlantSeedArg();
+    if (seedArg == null) {
+        mp.notify.warning("Семена не в руках", "Ферма");
+        return;
     }
+
+    const plantIndex = currentPlot ? currentPlot.index : -1;
+    performPlant(plantIndex, seedArg);
 });
+
 
 mp.keys.bind(0x0D, true, () => {
     if (!editorState.active || !editorState.points.length) return;
