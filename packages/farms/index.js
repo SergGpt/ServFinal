@@ -13,6 +13,7 @@ const PLOT_SPACING = 1.5;
 const HARVEST_INTERACT_RADIUS = 4.0;
 const READY_STAGE_MS = 60 * 1000;
 const OVERRIPE_STAGE_MS = 45 * 1000;
+const DEBUG_ENABLED = String(process.env.FARMS_DEBUG || "1") !== "0";
 
 function generatePlots(center, size, spacing) {
     const offsetBase = (size - 1) / 2;
@@ -105,6 +106,12 @@ module.exports = {
     farmZoneColumns: null,
     pendingPlotState: null,
     plotStateSaveTimer: null,
+
+    debugLog(message, data = null) {
+        if (!DEBUG_ENABLED) return;
+        if (data == null) return console.log(`[farms][debug] ${message}`);
+        console.log(`[farms][debug] ${message}`, data);
+    },
 
     buildPlotsFromLegacyZone(points, minZ, maxZ) {
         if (!Array.isArray(points) || points.length < 3) return [];
@@ -237,6 +244,7 @@ module.exports = {
                 this.farmMenuPos = null;
                 this.plotsData = [];
                 this.plots = [];
+                this.debugLog("farm_zones: запись id=1 не найдена");
                 return;
             }
             this.plantZone = {
@@ -259,11 +267,18 @@ module.exports = {
                             y: parseFloat(p.y) || 0,
                             z: parseFloat(p.z) || 0,
                         }));
-                        const looksLikeLegacyZone = rawPoints.length >= 3 && !model.plotState;
+                        const hasSavedPlotState = !!model.plotState;
+                        const looksLikeLegacyZone = rawPoints.length >= 3 && !hasSavedPlotState && rawPoints.length <= 12;
                         this.plotsData = looksLikeLegacyZone
                             ? this.buildPlotsFromLegacyZone(rawPoints, model.minZ, model.maxZ)
                             : rawPoints;
                         this.plantZone.points = points;
+                        this.debugLog("Загрузка points из БД", {
+                            rawPoints: rawPoints.length,
+                            generatedPlots: this.plotsData.length,
+                            looksLikeLegacyZone,
+                            hasSavedPlotState,
+                        });
                     }
                 } catch (e) {}
             }
@@ -278,12 +293,19 @@ module.exports = {
                 try {
                     const parsed = JSON.parse(model.plotState);
                     this.pendingPlotState = Array.isArray(parsed) ? parsed : null;
+                    this.debugLog("Загружено состояние plotState", {
+                        records: this.pendingPlotState ? this.pendingPlotState.length : 0,
+                    });
                 } catch (e) {
                     this.pendingPlotState = null;
                 }
             } else {
                 this.pendingPlotState = null;
             }
+            this.debugLog("farm zone loaded", {
+                menuPos: this.farmMenuPos ? { x: this.farmMenuPos.x, y: this.farmMenuPos.y, z: this.farmMenuPos.z } : null,
+                plots: this.plotsData.length,
+            });
         } catch (e) {
             console.log('[farms] failed load farm zone from DB', e.message);
         }
@@ -314,6 +336,10 @@ module.exports = {
             const model = await db.Models.FarmZone.findOne({ where: { id: 1 } });
             if (model) await model.update(payload);
             else await db.Models.FarmZone.create(Object.assign({ id: 1 }, payload));
+            this.debugLog("farm zone saved", {
+                plots: this.plotsData.length,
+                plotState: this.farmZoneColumns && this.farmZoneColumns.has("plotState") ? this.plots.length : 0,
+            });
             return true;
         } catch (e) {
             console.log('[farms] failed save farm zone to DB', e.message);
@@ -531,6 +557,10 @@ module.exports = {
             }
             this.reconcilePlotState(i, false);
         }
+        this.debugLog("Состояние грядок восстановлено после рестарта", {
+            plots: this.plots.length,
+            restored: this.pendingPlotState.length,
+        });
         this.pendingPlotState = null;
     },
 
@@ -739,6 +769,20 @@ module.exports = {
         const hasLegacySeed = (data.seeds[type.id] || 0) > 0;
         if (!hasInvSeed && !hasLegacySeed) return notifs.warning(player, `У вас нет семян: ${type.name}`, "Ферма");
 
+        this.debugLog("plantSeed: вход", {
+            playerId: player.id,
+            playerName: player.name,
+            reqIndex: index,
+            seedId,
+            seedType: type.id,
+            pos: {
+                x: Number(player.position.x.toFixed(3)),
+                y: Number(player.position.y.toFixed(3)),
+                z: Number(player.position.z.toFixed(3)),
+            },
+            insidePlantZone: this.isPlayerInsidePlantZone(player),
+        });
+
         index = parseInt(index);
         if (isNaN(index) || index < 0 || !this.plots[index]) {
             index = this.addPlotAtPosition(player.position);
@@ -759,6 +803,12 @@ module.exports = {
 
         const level = this.getPlayerLevel(player);
         const growthTime = this.getProcessTime(type.growthRange, level);
+        this.debugLog("plantSeed: выбранная грядка", {
+            index,
+            plotPos: plot.position ? { x: plot.position.x, y: plot.position.y, z: plot.position.z } : null,
+            state: plot.state,
+            growthTime,
+        });
 
         plot.state = "growing";
         plot.ownerId = player.id;
@@ -792,6 +842,11 @@ module.exports = {
         this.sendMenuUpdate(player);
         this.refreshPlayerPlots(player);
         notifs.info(player, `${type.name} посажен(а). Рост ~ ${Math.round(growthTime / 1000)} сек.`, "Ферма");
+        this.debugLog("plantSeed: успешно", {
+            index,
+            ownerId: plot.ownerId,
+            readyAt: plot.readyAt,
+        });
     },
 
     setPlotReady(index) {
@@ -855,42 +910,6 @@ module.exports = {
         this.schedulePlotStateSave();
     },
 
-    setPlotOverripe(index) {
-        const plot = this.plots[index];
-        if (!plot) return;
-        plot.ripeTimer = null;
-        if (plot.state !== "ready") return;
-        plot.state = "overripe";
-        plot.ripeEndsAt = null;
-        plot.overripeEndsAt = Date.now() + OVERRIPE_STAGE_MS;
-        if (plot.overripeTimer) timer.remove(plot.overripeTimer);
-        plot.overripeTimer = timer.add(() => this.expireOverripePlot(index), OVERRIPE_STAGE_MS);
-        this.broadcastPlotUpdate(index);
-    },
-
-    expireOverripePlot(index) {
-        const plot = this.plots[index];
-        if (!plot) return;
-        if (plot.overripeTimer) {
-            timer.remove(plot.overripeTimer);
-            plot.overripeTimer = null;
-        }
-        if (plot.ripeTimer) {
-            timer.remove(plot.ripeTimer);
-            plot.ripeTimer = null;
-        }
-        if (plot.state !== "overripe") return;
-        plot.state = "empty";
-        plot.ownerId = null;
-        plot.ownerName = null;
-        plot.seedType = null;
-        plot.readyAt = null;
-        plot.ripeEndsAt = null;
-        plot.overripeEndsAt = null;
-        this.destroyPlotObject(plot);
-        this.broadcastPlotUpdate(index);
-    },
-
     harvestPlot(player, index) {
         if (!this.isFarmer(player)) return;
         index = parseInt(index);
@@ -903,6 +922,15 @@ module.exports = {
             }
         }
         if (!plot) return notifs.error(player, "Грядка не найдена", "Ферма");
+        this.debugLog("harvestPlot: вход", {
+            playerId: player.id,
+            playerName: player.name,
+            reqIndex: index,
+            plotState: plot.state,
+            plotOwnerId: plot.ownerId,
+            plotOwnerName: plot.ownerName,
+            plotSeed: plot.seedType,
+        });
         const matured = this.reconcilePlotState(index, true);
         if (matured) this.broadcastPlotUpdate(index);
         if (plot.state !== "ready" && plot.state !== "overripe") {
@@ -920,6 +948,17 @@ module.exports = {
             const dy = player.position.y - sourcePos.y;
             const dz = player.position.z - sourcePos.z;
             const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            this.debugLog("harvestPlot: проверка дистанции", {
+                index,
+                sourcePos,
+                playerPos: {
+                    x: Number(player.position.x.toFixed(3)),
+                    y: Number(player.position.y.toFixed(3)),
+                    z: Number(player.position.z.toFixed(3)),
+                },
+                distance: Number(dist.toFixed(3)),
+                plantRadius,
+            });
             if (dist > plantRadius) return notifs.warning(player, `Подойдите ближе к грядке (радиус ${plantRadius.toFixed(1)}м)`, "Ферма");
         }
         const type = this.getSeedType(plot.seedType) || this.seedTypes[0];
@@ -958,6 +997,12 @@ module.exports = {
 
         this.broadcastPlotUpdate(index);
         this.schedulePlotStateSave();
+        this.debugLog("harvestPlot: успешно", {
+            index,
+            harvestedType: type.id,
+            yield: type.harvestYield,
+            cooldownAt: plot.cooldownAt,
+        });
     },
 
     resetPlot(index) {

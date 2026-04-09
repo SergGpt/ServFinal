@@ -64,6 +64,10 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.FLOAT,
             allowNull: true,
         },
+        plotState: {
+            type: DataTypes.TEXT('long'),
+            allowNull: true,
+        },
     }, {
         timestamps: false,
         tableName: 'farm_zones',
