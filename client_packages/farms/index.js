@@ -68,12 +68,10 @@ function getSecondsLeft(plotInfo) {
 function updatePrompt() {
     const handSeedItemId = getHandSeedItemId();
     const canPlantByHand = handSeedItemId != null;
-    const canPlantByUi = knownSeedsAmount > 0;
     if (!currentPlot) {
         if (isLocalInsidePlantZone()) {
             if (canPlantByHand) mp.prompt.show(`Нажмите <span>E</span>, чтобы посадить (семена из рук #${handSeedItemId})`);
-            else if (canPlantByUi) mp.prompt.show(`Нажмите <span>E</span>, чтобы посадить (${selectedSeedType})`);
-            else mp.prompt.show("У вас нет семян для посадки");
+            else mp.prompt.show("Семена должны быть в руках");
             return;
         }
         if (insideFarmMenuZone) {
@@ -87,7 +85,7 @@ function updatePrompt() {
     const owner = currentPlot.owner || "игрок";
     if (currentPlot.action === "plant") {
         if (canPlantByHand) mp.prompt.show(`Нажмите <span>E</span>, чтобы посадить (семена из рук #${handSeedItemId})`);
-        else mp.prompt.show(`Нажмите <span>E</span>, чтобы посадить (${selectedSeedType})`);
+        else mp.prompt.show("Семена должны быть в руках");
     } else if (currentPlot.action === "harvest") {
         if (state === "ready_foreign") mp.prompt.show(`Нажмите <span>E</span>, чтобы сорвать чужой урожай (${owner})`);
         else mp.prompt.show("Нажмите <span>E</span>, чтобы собрать урожай");
@@ -118,7 +116,7 @@ function getHandSeedItemId() {
 function getPlantSeedArg() {
     const handSeedItemId = getHandSeedItemId();
     if (handSeedItemId != null) return handSeedItemId;
-    return selectedSeedType;
+    return null;
 }
 
 function updateKnownSeeds(data) {
@@ -583,7 +581,14 @@ mp.keys.bind(0x45, true, () => {
             plantingInProgress = true;
             mp.players.local.taskPlayAnim("amb@world_human_gardener_plant@male@idle_a", "idle_a", 4.0, 0.0, 1300, 49, 0, false, false, false);
             setTimeout(() => {
-                mp.events.callRemote("farms.plot.plant", currentPlot.index, getPlantSeedArg());
+                const seedArg = getPlantSeedArg();
+                if (seedArg == null) {
+                    mp.notify.warning("Семена не в руках", "Ферма");
+                    mp.players.local.clearTasks();
+                    plantingInProgress = false;
+                    return;
+                }
+                mp.events.callRemote("farms.plot.plant", currentPlot.index, seedArg);
                 mp.players.local.clearTasks();
                 plantingInProgress = false;
             }, 1300);
@@ -601,7 +606,9 @@ mp.keys.bind(0x45, true, () => {
     }
 
     if (!mp.busy.includes() && isLocalInsidePlantZone()) {
-        mp.events.callRemote("farms.plot.plant", -1, getPlantSeedArg());
+        const seedArg = getPlantSeedArg();
+        if (seedArg == null) return mp.notify.warning("Семена не в руках", "Ферма");
+        mp.events.callRemote("farms.plot.plant", -1, seedArg);
     }
 });
 
