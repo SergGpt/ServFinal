@@ -16,6 +16,7 @@ let zonePreviewUntil = 0;
 let lastPromptText = null;
 let lastPromptAt = 0;
 const MARKER_DRAW_DISTANCE = 90;
+const PLANT_TEXT_DRAW_DISTANCE = 250;
 const PROMPT_REFRESH_MS = 450;
 const ENABLE_TOP_PROMPT = false;
 const FARM_SEED_ITEM_IDS = new Set([400, 402, 404]);
@@ -474,7 +475,7 @@ function renderPlantTimers() {
         text += `: ${getSecondsLeft(state)} сек.`;
         if (isReadyToHarvest) text += " | Нажмите E для сбора";
 
-        if (mp.players.local.position.distanceTo(pos) > 100) continue;
+        if (mp.players.local.position.distanceTo(pos) > PLANT_TEXT_DRAW_DISTANCE) continue;
 
         const screen = mp.game.graphics.world3dToScreen2d(new mp.Vector3(pos.x, pos.y, pos.z + 0.6));
         if (!screen) continue;
