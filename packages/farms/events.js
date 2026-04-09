@@ -59,7 +59,7 @@ module.exports = {
         farms.sellHarvest(player);
     },
     'farms.menu.sync': (player) => {
-        farms.sendMenuUpdate(player);
+        farms.syncPlayerState(player);
     },
     'farms.plots.set': (player, pointsJson) => {
         if (!player || !player.character || player.character.admin < 6) return;

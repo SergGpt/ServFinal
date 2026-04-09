@@ -11,6 +11,7 @@ const FIELD_CENTER = { x: 2050.4384765625, y: 4920.4482421875, z: 40.96115493774
 const PLOT_GRID_SIZE = 10;
 const PLOT_SPACING = 1.5;
 const HARVEST_INTERACT_RADIUS = 4.0;
+const HARVEST_COLLECT_RADIUS = 1.0;
 const EDITOR_LINE_SPACING = 2.0;
 const READY_STAGE_MS = 60 * 1000;
 const OVERRIPE_STAGE_MS = 45 * 1000;
@@ -505,7 +506,9 @@ module.exports = {
                 const owner = this.getPlotOwner(plot.ownerId);
                 if (owner) {
                     notifs.success(owner, `Грядка №${index + 1} созрела (60 сек до перезревания)`, "Ферма");
-                    owner.call("farms.plot.ready", [index]);
+                    owner.call("farms.plot.ready", [index, {
+                        ripeEndsAt: plot.ripeEndsAt,
+                    }]);
                 }
             }
         }
@@ -734,7 +737,6 @@ module.exports = {
 
     cleanupPlayer(player) {
         if (!player) return;
-        this.releasePlayerPlots(player);
         if (player.farmAtMenuZone) player.farmAtMenuZone = false;
         if (player.farmInPlantZone) player.farmInPlantZone = false;
     },
@@ -867,7 +869,7 @@ module.exports = {
         if (isNaN(index) || index < 0 || !this.plots[index]) {
             index = this.addPlotAtPosition(player.position);
             if (index === -1) {
-                const nearestReady = this.findNearestHarvestablePlotIndex(player.position, HARVEST_INTERACT_RADIUS);
+                const nearestReady = this.findNearestHarvestablePlotIndex(player.position, HARVEST_COLLECT_RADIUS);
                 if (nearestReady !== -1) {
                     this.debugLog("plantSeed: fallback -> harvest (рядом созревшая грядка)", { nearestReady });
                     return this.harvestPlot(player, nearestReady);
@@ -919,7 +921,7 @@ module.exports = {
             y: Number(player.position.y.toFixed(3)),
             z: Number(player.position.z.toFixed(3)),
         };
-        plot.plantRadius = HARVEST_INTERACT_RADIUS;
+        plot.plantRadius = HARVEST_COLLECT_RADIUS;
         plot.readyAt = Date.now() + growthTime;
         plot.ripeEndsAt = null;
         plot.overripeEndsAt = null;
@@ -962,7 +964,9 @@ module.exports = {
         const owner = this.getPlotOwner(plot.ownerId);
         if (owner) {
             notifs.success(owner, `Грядка №${index + 1} созрела (60 сек до перезревания)`, "Ферма");
-            owner.call("farms.plot.ready", [index]);
+            owner.call("farms.plot.ready", [index, {
+                ripeEndsAt: plot.ripeEndsAt,
+            }]);
         }
         this.debugLog("setPlotReady: грядка созрела", {
             index,
@@ -984,6 +988,12 @@ module.exports = {
         plot.overripeEndsAt = Date.now() + OVERRIPE_STAGE_MS;
         if (plot.overripeTimer) timer.remove(plot.overripeTimer);
         plot.overripeTimer = timer.add(() => this.expireOverripePlot(index), OVERRIPE_STAGE_MS);
+        const owner = this.getPlotOwner(plot.ownerId);
+        if (owner) {
+            owner.call("farms.plot.overripe", [index, {
+                overripeEndsAt: plot.overripeEndsAt,
+            }]);
+        }
         this.broadcastPlotUpdate(index);
         this.schedulePlotStateSave();
     },
@@ -1020,7 +1030,7 @@ module.exports = {
         index = parseInt(index);
         let plot = isNaN(index) ? null : this.plots[index];
         if (!plot || (plot.state !== "ready" && plot.state !== "overripe")) {
-            const nearestReady = this.findNearestHarvestablePlotIndex(player.position, 4.0);
+            const nearestReady = this.findNearestHarvestablePlotIndex(player.position, HARVEST_COLLECT_RADIUS);
             if (nearestReady !== -1) {
                 index = nearestReady;
                 plot = this.plots[index];
@@ -1046,7 +1056,8 @@ module.exports = {
 
         const ownerId = plot.ownerId;
         const ownerName = plot.ownerName;
-        const plantRadius = Number(plot.plantRadius) > 0 ? Number(plot.plantRadius) : HARVEST_INTERACT_RADIUS;
+        const rawPlantRadius = Number(plot.plantRadius) > 0 ? Number(plot.plantRadius) : HARVEST_COLLECT_RADIUS;
+        const plantRadius = Math.min(rawPlantRadius, HARVEST_COLLECT_RADIUS);
         const sourcePos = plot.plantedPos || plot.position;
         if (sourcePos) {
             const dx = player.position.x - sourcePos.x;
@@ -1186,6 +1197,19 @@ module.exports = {
         player.call("farms.menu.show", [this.collectMenuData(player)]);
     },
 
+    syncPlayerState(player) {
+        if (!player || !player.character) return;
+        this.broadcastPlantZone(player);
+        if (!this.isFarmer(player)) {
+            this.sendMenuUpdate(player);
+            player.call("farms.employment.show");
+            return;
+        }
+        this.syncPlotsForPlayer(player);
+        this.sendMenuUpdate(player);
+        player.call("farms.employment.hide");
+    },
+
     syncPlotsForPlayer(player) {
         if (!this.isFarmer(player)) return;
         const positions = this.plotsData.map(plot => ({ x: plot.x, y: plot.y, z: plot.z }));
@@ -1220,6 +1244,7 @@ module.exports = {
             ownerMine: plot.ownerId === player.id,
             seedType: plot.seedType,
             seedName: null,
+            interactPos: plot.plantedPos || (plot.position ? { x: plot.position.x, y: plot.position.y, z: plot.position.z } : null),
             readyAt: null,
             ripeEndsAt: null,
             overripeEndsAt: null,

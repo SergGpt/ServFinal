@@ -13,11 +13,26 @@ let knownSeedsAmount = 0;
 let wasInsidePlantZone = false;
 let farmNpc = null;
 let zonePreviewUntil = 0;
+let lastPromptText = null;
+let lastPromptAt = 0;
 const MARKER_DRAW_DISTANCE = 90;
+const PLANT_TEXT_DRAW_DISTANCE = 250;
+const PROMPT_REFRESH_MS = 450;
+const ENABLE_TOP_PROMPT = false;
 const FARM_SEED_ITEM_IDS = new Set([400, 402, 404]);
 const FARM_INTERACT_RADIUS = 6.0;
-const FARM_PLANT_ANIM_MS = 1300;
-const FARM_HARVEST_ANIM_MS = 1100;
+const FARM_HARVEST_RADIUS = 1.0;
+const FARM_PLANT_ANIM = { dict: "amb@world_human_gardener_plant@male@idle_a", name: "idle_b", duration: 1800 };
+const FARM_HARVEST_ANIM = { dict: "amb@world_human_gardener_plant@male@idle_a", name: "idle_b", duration: 1400 };
+const READY_STAGE_FALLBACK_MS = 60 * 1000;
+const OVERRIPE_STAGE_FALLBACK_MS = 45 * 1000;
+const FARMS_CLIENT_DEBUG = true;
+
+function debugLog(message, data) {
+    if (!FARMS_CLIENT_DEBUG) return;
+    if (data === undefined) return console.log(`[farms][client] ${message}`);
+    console.log(`[farms][client] ${message}`, data);
+}
 
 function parsePayload(value, fallback) {
     if (typeof value === "string") {
@@ -44,9 +59,18 @@ const markerColors = {
 };
 
 function createMarkers(positions) {
-    clearMarkers();
+    const previousStates = plotStates.slice();
     plotPositions = positions.map(pos => new mp.Vector3(pos.x, pos.y, pos.z));
-    plotStates = positions.map(() => ({ state: "available" }));
+    plotStates = positions.map((_, index) => Object.assign({
+        state: "available",
+        action: null,
+        owner: null,
+        seedName: null,
+        readyAt: null,
+        ripeEndsAt: null,
+        overripeEndsAt: null,
+    }, previousStates[index] || {}));
+    debugLog("farms.plots.init applied", { plots: positions.length, restoredStates: previousStates.filter(Boolean).length });
 }
 
 function clearMarkers() {
@@ -68,43 +92,79 @@ function getSecondsLeft(plotInfo) {
     return 0;
 }
 
+function setPromptText(text) {
+    if (!ENABLE_TOP_PROMPT) {
+        lastPromptText = null;
+        lastPromptAt = Date.now();
+        mp.prompt.hide();
+        return;
+    }
+    const nextText = text || null;
+    const now = Date.now();
+    if (nextText === lastPromptText && (!nextText || (now - lastPromptAt) < PROMPT_REFRESH_MS)) return;
+    lastPromptText = nextText;
+    lastPromptAt = now;
+    if (!nextText) return mp.prompt.hide();
+    mp.prompt.show(nextText);
+}
+
+function ensurePlotState(index) {
+    if (!plotStates[index]) {
+        plotStates[index] = {
+            state: "available",
+            action: null,
+            owner: null,
+            seedName: null,
+            readyAt: null,
+            ripeEndsAt: null,
+            overripeEndsAt: null,
+        };
+        debugLog("plot state created", { index });
+    }
+    return plotStates[index];
+}
+
 function updatePrompt() {
     const handSeedItemId = getHandSeedItemId();
     const canPlantByHand = handSeedItemId != null;
     if (!currentPlot) {
         if (isLocalInsidePlantZone()) {
-            if (canPlantByHand) mp.prompt.show(`Нажмите <span>E</span>, чтобы посадить (семена из рук #${handSeedItemId})`);
-            else mp.prompt.show("Семена должны быть в руках");
+            if (canPlantByHand) setPromptText("Нажмите <span>E</span>, чтобы посадить");
+            else setPromptText("Возьмите семена в руки для посадки");
             return;
         }
         if (insideFarmMenuZone) {
-            mp.prompt.show("Нажмите <span>E</span>, чтобы поговорить с фермером");
+            setPromptText("Нажмите <span>E</span>, чтобы поговорить с фермером");
             return;
         }
-        mp.prompt.hide();
+        setPromptText(null);
         return;
     }
     const state = currentPlot.state;
     const owner = currentPlot.owner || "игрок";
     if (currentPlot.action === "plant") {
-        if (canPlantByHand) mp.prompt.show(`Нажмите <span>E</span>, чтобы посадить (семена из рук #${handSeedItemId})`);
-        else mp.prompt.show("Семена должны быть в руках");
+        if (canPlantByHand) setPromptText("Нажмите <span>E</span>, чтобы посадить");
+        else setPromptText("Возьмите семена в руки для посадки");
     } else if (currentPlot.action === "harvest") {
-        if (state === "ready_foreign") mp.prompt.show(`Нажмите <span>E</span>, чтобы сорвать чужой урожай (${owner})`);
-        else mp.prompt.show("Нажмите <span>E</span>, чтобы собрать урожай");
+        if (state === "ready_foreign") setPromptText(`Нажмите <span>E</span>, чтобы сорвать чужой урожай (${owner})`);
+        else setPromptText("Нажмите <span>E</span>, чтобы собрать урожай");
     } else if (state === "growing" || state === "growing_foreign") {
         const seconds = getSecondsLeft(currentPlot);
         const prefix = state === "growing_foreign" ? `Чужая грядка (${owner})` : "Ваша грядка";
-        mp.prompt.show(`${prefix}: рост ~${seconds} сек.`);
+        setPromptText(`${prefix}: рост ~${seconds} сек.`);
     } else if (state === "ready" || state === "ready_foreign") {
-        mp.prompt.show(`Созрело: ${getSecondsLeft(currentPlot)} сек. до перезревания`);
+        setPromptText(`Созрело: ${getSecondsLeft(currentPlot)} сек. до перезревания`);
     } else if (state === "overripe" || state === "overripe_foreign") {
-        mp.prompt.show(`Перезрело: ${getSecondsLeft(currentPlot)} сек. до исчезновения`);
+        setPromptText(`Перезрело: ${getSecondsLeft(currentPlot)} сек. до исчезновения`);
     } else if (state === "cooldown") {
-        mp.prompt.show(`Грядка восстанавливается (~${getSecondsLeft(currentPlot)} сек.)`);
+        setPromptText(`Грядка восстанавливается (~${getSecondsLeft(currentPlot)} сек.)`);
     } else {
-        mp.prompt.hide();
+        setPromptText(null);
     }
+}
+
+function requestFarmSync() {
+    mp.events.callRemote("farms.menu.sync");
 }
 
 function getHandSeedItemId() {
@@ -175,8 +235,8 @@ function applyPlotUpdate(index, data) {
     if (Object.prototype.hasOwnProperty.call(payload, "state") && !Object.prototype.hasOwnProperty.call(payload, "action")) {
         payload.action = null;
     }
-    if (!plotStates[index]) plotStates[index] = {};
-    plotStates[index] = Object.assign({}, plotStates[index], payload);
+    const current = ensurePlotState(index);
+    plotStates[index] = Object.assign({}, current, payload);
     updateMarker(index);
     if (currentPlot && currentPlot.index === index) {
         currentPlot = Object.assign({}, currentPlot, payload);
@@ -278,31 +338,62 @@ function isHarvestableState(state) {
         || state.state === "overripe_foreign";
 }
 
-function playFarmAction(animMs, done) {
+function playFarmAction(animDict, animName, animMs, done) {
     const localPlayer = mp.players.local;
     if (!localPlayer) return done();
-    localPlayer.taskPlayAnim("amb@world_human_gardener_plant@male@idle_a", "idle_a", 4.0, 0.0, animMs, 49, 0, false, false, false);
-    setTimeout(() => {
-        try { localPlayer.clearTasks(); } catch (e) {}
+    let finished = false;
+    const finish = () => {
+        if (finished) return;
+        finished = true;
+        try {
+            if (localPlayer && mp.players.local) {
+                localPlayer.stopAnimTask(animDict, animName, -4.0);
+                localPlayer.clearTasksImmediately();
+            }
+        } catch (e) {}
         done();
-    }, animMs);
+    };
+    const startedAt = Date.now();
+    const tryPlay = (attempt = 0) => {
+        if (!mp.players.local) return finish();
+        mp.game.streaming.requestAnimDict(animDict);
+        if (!mp.game.streaming.hasAnimDictLoaded(animDict)) {
+            if (attempt >= 40) {
+                debugLog("anim dict load timeout", { animDict, animName, attempts: attempt });
+                return finish();
+            }
+            return setTimeout(() => tryPlay(attempt + 1), 25);
+        }
+        debugLog("anim dict loaded", { animDict, animName, waitMs: Date.now() - startedAt, attempts: attempt });
+        localPlayer.taskPlayAnim(animDict, animName, 4.0, 0.0, animMs, 49, 0, false, false, false);
+        debugLog("animation started", { animDict, animName, animMs });
+        setTimeout(finish, animMs + 120);
+    };
+    setTimeout(finish, animMs + 1200);
+    tryPlay(0);
 }
 
 function performHarvest(index) {
+    const nearestHarvestIndex = getNearestHarvestablePlotIndex(FARM_HARVEST_RADIUS);
+    const targetIndex = nearestHarvestIndex !== -1 ? nearestHarvestIndex : index;
+    if (targetIndex === -1) {
+        mp.notify.warning("Подойдите ближе к созревшей грядке (1м)", "Ферма");
+        return;
+    }
     plantingInProgress = true;
-    playFarmAction(FARM_HARVEST_ANIM_MS, () => {
-        mp.events.callRemote("farms.plot.harvest", index);
+    playFarmAction(FARM_HARVEST_ANIM.dict, FARM_HARVEST_ANIM.name, FARM_HARVEST_ANIM.duration, () => {
+        mp.events.callRemote("farms.plot.harvest", targetIndex);
         plantingInProgress = false;
-        mp.prompt.hide();
+        setPromptText(null);
     });
 }
 
 function performPlant(index, seedArg) {
     plantingInProgress = true;
-    playFarmAction(FARM_PLANT_ANIM_MS, () => {
+    playFarmAction(FARM_PLANT_ANIM.dict, FARM_PLANT_ANIM.name, FARM_PLANT_ANIM.duration, () => {
         mp.events.callRemote("farms.plot.plant", index, seedArg);
         plantingInProgress = false;
-        mp.prompt.hide();
+        setPromptText(null);
     });
 }
 
@@ -362,16 +453,18 @@ function renderPlantTimers() {
         const state = plotStates[i];
         const pos = plotPositions[i];
         if (!state || !pos) continue;
-        if ((state.state === "growing" || state.state === "growing_foreign") && getSecondsLeft(state) <= 0) {
+        if ((state.state === "growing" || state.state === "growing_foreign") && state.readyAt && getSecondsLeft(state) <= 0) {
             state.state = state.state === "growing_foreign" ? "ready_foreign" : "ready";
             state.action = "harvest";
             state.readyAt = null;
+            if (!state.ripeEndsAt) state.ripeEndsAt = Date.now() + READY_STAGE_FALLBACK_MS;
             updateMarker(i);
         }
-        if ((state.state === "ready" || state.state === "ready_foreign") && getSecondsLeft(state) <= 0) {
+        if ((state.state === "ready" || state.state === "ready_foreign") && state.ripeEndsAt && getSecondsLeft(state) <= 0) {
             state.state = state.state === "ready_foreign" ? "overripe_foreign" : "overripe";
             state.action = "harvest";
             state.ripeEndsAt = null;
+            if (!state.overripeEndsAt) state.overripeEndsAt = Date.now() + OVERRIPE_STAGE_FALLBACK_MS;
             updateMarker(i);
         }
         if (state.state !== "growing" && state.state !== "growing_foreign" && state.state !== "ready" && state.state !== "ready_foreign" && state.state !== "overripe" && state.state !== "overripe_foreign") continue;
@@ -382,7 +475,7 @@ function renderPlantTimers() {
         text += `: ${getSecondsLeft(state)} сек.`;
         if (isReadyToHarvest) text += " | Нажмите E для сбора";
 
-        if (mp.players.local.position.distanceTo(pos) > 100) continue;
+        if (mp.players.local.position.distanceTo(pos) > PLANT_TEXT_DRAW_DISTANCE) continue;
 
         const screen = mp.game.graphics.world3dToScreen2d(new mp.Vector3(pos.x, pos.y, pos.z + 0.6));
         if (!screen) continue;
@@ -410,6 +503,7 @@ function renderPlantTimers() {
 function renderPlotMarkers() {
     const player = mp.players.local;
     if (!player) return;
+    const nearestHarvestIndex = getNearestHarvestablePlotIndex(FARM_INTERACT_RADIUS);
     for (let i = 0; i < plotPositions.length; i++) {
         const pos = plotPositions[i];
         const state = plotStates[i];
@@ -428,13 +522,14 @@ function renderPlotMarkers() {
 
         const isHarvestReady = state.state === "ready" || state.state === "ready_foreign" || state.state === "overripe" || state.state === "overripe_foreign";
         if (isHarvestReady) {
+            const isNearestHarvest = i === nearestHarvestIndex;
             mp.game.graphics.drawMarker(
                 0,
                 pos.x, pos.y, pos.z + 0.35,
                 0, 0, 0,
                 0, 0, 0,
-                0.28, 0.28, 0.28,
-                100, 255, 100, 220,
+                isNearestHarvest ? 0.38 : 0.28, isNearestHarvest ? 0.38 : 0.28, isNearestHarvest ? 0.38 : 0.28,
+                isNearestHarvest ? 255 : 100, 255, isNearestHarvest ? 120 : 100, isNearestHarvest ? 245 : 220,
                 false, true, 2, false, null, null, false
             );
 
@@ -442,8 +537,8 @@ function renderPlotMarkers() {
             if (screen) {
                 mp.game.graphics.drawText("ГОТОВО К СБОРУ [E]", [screen.x, screen.y], {
                     font: 4,
-                    color: [100, 255, 100, 240],
-                    scale: [0.33, 0.33],
+                    color: isNearestHarvest ? [255, 255, 160, 250] : [100, 255, 100, 240],
+                    scale: isNearestHarvest ? [0.36, 0.36] : [0.33, 0.33],
                     outline: true,
                     centre: true,
                 });
@@ -454,14 +549,19 @@ function renderPlotMarkers() {
 
 function getNearestHarvestablePlotIndex(maxDistance = FARM_INTERACT_RADIUS) {
     if (!plotPositions.length || !plotStates.length || !mp.players.local) return -1;
+    const me = mp.players.local.position;
     let nearest = -1;
     let bestDistance = maxDistance;
     for (let i = 0; i < plotPositions.length; i++) {
         const state = plotStates[i];
-        const pos = plotPositions[i];
+        const fallbackPos = plotPositions[i];
+        const pos = (state && state.interactPos) ? state.interactPos : fallbackPos;
         if (!state || !pos) continue;
         if (!isHarvestableState(state)) continue;
-        const dist = mp.players.local.position.distanceTo(pos);
+        const dx = me.x - Number(pos.x);
+        const dy = me.y - Number(pos.y);
+        const dz = me.z - Number(pos.z);
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (dist <= bestDistance) {
             bestDistance = dist;
             nearest = i;
@@ -472,7 +572,7 @@ function getNearestHarvestablePlotIndex(maxDistance = FARM_INTERACT_RADIUS) {
 
 mp.events.add({
     "characterInit.done": () => {
-        mp.events.callRemote("farms.menu.sync");
+        requestFarmSync();
     },
     "farms.plots.init": (positions) => {
         positions = parsePayload(positions, []);
@@ -489,7 +589,7 @@ mp.events.add({
         index = parseInt(index);
         if (isNaN(index) || !pos) return;
         plotPositions[index] = new mp.Vector3(pos.x, pos.y, pos.z);
-        if (!plotStates[index]) plotStates[index] = { state: "available" };
+        ensurePlotState(index);
         updateMarker(index);
     },
     "farms.plot.enter": (index, info) => {
@@ -503,17 +603,36 @@ mp.events.add({
         currentPlot = null;
         updatePrompt();
     },
-    "farms.plot.ready": (index) => {
+    "farms.plot.ready": (index, info) => {
         index = parseInt(index);
-        if (isNaN(index) || !plotStates[index]) return;
-        plotStates[index].state = "ready";
-        plotStates[index].action = "harvest";
-        plotStates[index].readyAt = null;
+        if (isNaN(index)) return;
+        const state = ensurePlotState(index);
+        state.state = "ready";
+        state.action = "harvest";
+        state.readyAt = null;
+        info = parsePayload(info, {});
+        state.ripeEndsAt = Number(info.ripeEndsAt) || (Date.now() + READY_STAGE_FALLBACK_MS);
+        state.overripeEndsAt = null;
+        debugLog("event ready", { index, ripeEndsAt: state.ripeEndsAt });
+        updatePrompt();
+        updateMarker(index);
+    },
+    "farms.plot.overripe": (index, info) => {
+        index = parseInt(index);
+        if (isNaN(index)) return;
+        const state = ensurePlotState(index);
+        state.state = "overripe";
+        state.action = "harvest";
+        state.ripeEndsAt = null;
+        info = parsePayload(info, {});
+        state.overripeEndsAt = Number(info.overripeEndsAt) || (Date.now() + OVERRIPE_STAGE_FALLBACK_MS);
+        debugLog("event overripe", { index, overripeEndsAt: state.overripeEndsAt });
+        updatePrompt();
         updateMarker(index);
     },
     "farms.menu.enter": () => {
         insideFarmMenuZone = true;
-        mp.events.callRemote("farms.menu.sync");
+        requestFarmSync();
         updatePrompt();
     },
     "farms.menu.exit": () => {
@@ -548,6 +667,7 @@ mp.events.add({
         zone = parsePayload(zone, null);
         plantZone = zone;
         if (zone && zone.npcPos) createFarmNpc(zone.npcPos);
+        updatePrompt();
     },
     "farms.zone.preview": (zoneJson) => {
         try {
@@ -601,7 +721,7 @@ mp.events.add({
             wasInsidePlantZone = insideNow;
             if (insideNow) mp.notify.info("Вы вошли в зону посадки растений", "Ферма");
         }
-        if (currentPlot || insideFarmMenuZone) updatePrompt();
+        if (currentPlot || insideFarmMenuZone || insideNow) updatePrompt();
     },
     "farms.reset": () => {
         clearMarkers();
@@ -615,7 +735,7 @@ mp.events.add({
         }
         closeFarmMenu();
         handleFarmUiClosed();
-        mp.prompt.hide();
+        setPromptText(null);
     },
     "farms.ui.closed": () => {
         handleFarmUiClosed();
@@ -636,7 +756,7 @@ mp.keys.bind(0x45, true, () => {
 
     if (mp.busy.includes() || plantingInProgress) return;
 
-    const nearestHarvestIndex = getNearestHarvestablePlotIndex(FARM_INTERACT_RADIUS);
+    const nearestHarvestIndex = getNearestHarvestablePlotIndex(FARM_HARVEST_RADIUS);
     if (nearestHarvestIndex !== -1) {
         performHarvest(nearestHarvestIndex);
         return;
@@ -656,7 +776,8 @@ mp.keys.bind(0x45, true, () => {
 
     const seedArg = getPlantSeedArg();
     if (seedArg == null) {
-        mp.notify.warning("Семена не в руках", "Ферма");
+        const fallbackHarvestIndex = currentPlot ? currentPlot.index : -1;
+        performHarvest(fallbackHarvestIndex);
         return;
     }
 
@@ -690,5 +811,5 @@ mp.events.add("playerQuit", () => {
     }
     closeFarmMenu();
     handleFarmUiClosed();
-    mp.prompt.hide();
+    setPromptText(null);
 });
