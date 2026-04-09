@@ -343,6 +343,7 @@ function renderPlantTimers() {
         if (phase === "Рост") text += `: ${getSecondsLeft(state)} сек.`;
         if (phase === "Созрело") text += `: ${getSecondsLeft(state)} сек.`;
         if (phase === "Перезрело") text += `: ${getSecondsLeft(state)} сек.`;
+        if (phase === "Созрело" || phase === "Перезрело") text += " | Нажмите E для сбора";
 
         if (mp.players.local.position.distanceTo(pos) > 100) continue;
 

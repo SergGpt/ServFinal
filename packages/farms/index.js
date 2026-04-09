@@ -68,7 +68,7 @@ module.exports = {
             harvestItemId: 401,
             growthRange: [45 * 1000, 75 * 1000],
             cooldownRange: [30 * 1000, 60 * 1000],
-            objectModel: "prop_veg_crop_03_pump",
+            objectModel: "prop_bush_med_01",
         },
         {
             id: "cabbage",
@@ -79,7 +79,7 @@ module.exports = {
             harvestItemId: 403,
             growthRange: [120 * 1000, 180 * 1000],
             cooldownRange: [60 * 1000, 120 * 1000],
-            objectModel: "prop_veg_crop_04_leaf",
+            objectModel: "prop_bush_neat_06",
         },
         {
             id: "corn",
@@ -90,7 +90,7 @@ module.exports = {
             harvestItemId: 405,
             growthRange: [210 * 1000, 300 * 1000],
             cooldownRange: [90 * 1000, 150 * 1000],
-            objectModel: "prop_veg_crop_02",
+            objectModel: "prop_weed_01",
         }
     ],
     plantZone: null,
