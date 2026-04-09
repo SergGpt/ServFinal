@@ -356,6 +356,17 @@ function renderPlantTimers() {
             outline: true,
             centre: true,
         });
+
+        if (phase === "Созрело" || phase === "Перезрело") {
+            const harvestText = "ГОТОВО К СБОРУ [E]";
+            mp.game.graphics.drawText(harvestText, [screen.x, screen.y + 0.018], {
+                font: 4,
+                color: [100, 255, 100, 240],
+                scale: [0.32, 0.32],
+                outline: true,
+                centre: true,
+            });
+        }
     }
 }
 
@@ -442,7 +453,6 @@ mp.events.add({
         plotStates[index].state = "ready";
         plotStates[index].action = "harvest";
         plotStates[index].readyAt = null;
-        mp.notify.success(`Грядка #${index + 1} готова к сбору`, "Ферма");
         updateMarker(index);
     },
     "farms.menu.enter": () => {
