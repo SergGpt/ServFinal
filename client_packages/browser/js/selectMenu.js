@@ -7347,11 +7347,11 @@ var selectMenu = new Vue({
                 header: "Настройка фермы",
                 items: [
                     { text: "NPC", values: ["0, 0, 0"], i: 0 },
-                    { text: "Грядок", values: ["0"], i: 0 },
+                    { text: "Точек A/B", values: ["0"], i: 0 },
                     { text: "Установить NPC (моя позиция)" },
-                    { text: "Добавить грядку (моя позиция)" },
-                    { text: "Удалить последнюю грядку" },
-                    { text: "Очистить грядки" },
+                    { text: "Добавить точку A/B (моя позиция)" },
+                    { text: "Удалить последнюю точку" },
+                    { text: "Очистить точки" },
                     { text: "Сохранить в БД" },
                     { text: "Закрыть" }
                 ],
@@ -7440,11 +7440,11 @@ var selectMenu = new Vue({
                     if (eventName == 'onItemSelected') {
                         if (item.text == 'Установить NPC (моя позиция)') {
                             mp.trigger('farms.zone.menu.npc.fromPlayer');
-                        } else if (item.text == 'Добавить грядку (моя позиция)') {
+                        } else if (item.text == 'Добавить точку A/B (моя позиция)') {
                             mp.trigger('farms.zone.menu.point.fromPlayer');
-                        } else if (item.text == 'Удалить последнюю грядку') {
+                        } else if (item.text == 'Удалить последнюю точку') {
                             this.popPoint();
-                        } else if (item.text == 'Очистить грядки') {
+                        } else if (item.text == 'Очистить точки') {
                             this.clearPoints();
                         } else
                         if (item.text == 'Сохранить в БД') {

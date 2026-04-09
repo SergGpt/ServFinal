@@ -121,11 +121,19 @@ module.exports = {
         if (zoneData.npcPos) farms.setFarmMenuPosition(zoneData.npcPos);
 
         if (Array.isArray(zoneData.points) && zoneData.points.length) {
-            const points = zoneData.points.map((p) => ({
+            const editorPoints = zoneData.points.map((p) => ({
                 x: parseFloat(p.x) || 0,
                 y: parseFloat(p.y) || 0,
                 z: parseFloat(p.z) || 0,
             }));
+            if (editorPoints.length % 2 !== 0) {
+                notifs.warning(player, 'Нечетное число точек: последняя точка будет проигнорирована', "Ферма");
+            }
+            const points = farms.buildPlotsFromLinePairs(editorPoints, 2.0);
+            if (!points.length) {
+                notifs.error(player, 'Не удалось построить грядки: укажите минимум 2 точки (A и B)', "Ферма");
+                return;
+            }
             farms.resetPlotsData(points);
             const xs = points.map((p) => p.x);
             const ys = points.map((p) => p.y);
@@ -147,6 +155,7 @@ module.exports = {
                 minZ,
                 maxZ,
             });
+            notifs.success(player, `Сохранено грядок: ${points.length} (шаг 2м по линиям A→B)`, "Ферма");
         } else if (zoneData.x != null && zoneData.y != null && zoneData.z != null) {
             farms.setPlantZone({
                 x: parseFloat(zoneData.x) || 0,

@@ -11,6 +11,7 @@ const FIELD_CENTER = { x: 2050.4384765625, y: 4920.4482421875, z: 40.96115493774
 const PLOT_GRID_SIZE = 10;
 const PLOT_SPACING = 1.5;
 const HARVEST_INTERACT_RADIUS = 4.0;
+const EDITOR_LINE_SPACING = 2.0;
 const READY_STAGE_MS = 60 * 1000;
 const OVERRIPE_STAGE_MS = 45 * 1000;
 const DEBUG_ENABLED = String(process.env.FARMS_DEBUG || "1") !== "0";
@@ -136,6 +137,49 @@ module.exports = {
                     z: targetZ,
                 });
             }
+        }
+        return result;
+    },
+
+    buildPlotsFromLinePairs(points, spacing = EDITOR_LINE_SPACING) {
+        if (!Array.isArray(points) || points.length < 2) return [];
+        const safeSpacing = Math.max(0.5, Number(spacing) || EDITOR_LINE_SPACING);
+        const result = [];
+        const seen = new Set();
+        const pushUnique = (x, y, z) => {
+            const px = Number(x.toFixed(3));
+            const py = Number(y.toFixed(3));
+            const pz = Number(z.toFixed(3));
+            const key = `${px}:${py}:${pz}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            result.push({ x: px, y: py, z: pz });
+        };
+
+        for (let i = 0; i + 1 < points.length; i += 2) {
+            const a = points[i];
+            const b = points[i + 1];
+            if (!a || !b) continue;
+            const ax = Number(a.x) || 0;
+            const ay = Number(a.y) || 0;
+            const az = Number(a.z) || 0;
+            const bx = Number(b.x) || 0;
+            const by = Number(b.y) || 0;
+            const bz = Number(b.z) || 0;
+            const dx = bx - ax;
+            const dy = by - ay;
+            const dz = bz - az;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist < 0.001) {
+                pushUnique(ax, ay, az);
+                continue;
+            }
+            const segments = Math.max(1, Math.floor(dist / safeSpacing));
+            for (let s = 0; s <= segments; s++) {
+                const t = s / segments;
+                pushUnique(ax + dx * t, ay + dy * t, az + dz * t);
+            }
+            pushUnique(bx, by, bz);
         }
         return result;
     },
