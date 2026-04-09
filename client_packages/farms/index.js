@@ -626,7 +626,7 @@ mp.keys.bind(0x45, true, () => {
                         plantingInProgress = false;
                         return;
                     }
-                    if (currentPlot && (currentPlot.state === "ready" || currentPlot.state === "ready_foreign" || currentPlot.state === "overripe" || currentPlot.state === "overripe_foreign")) {
+                    if (currentPlot) {
                         mp.events.callRemote("farms.plot.harvest", currentPlot.index);
                         mp.players.local.clearTasks();
                         plantingInProgress = false;
@@ -659,6 +659,7 @@ mp.keys.bind(0x45, true, () => {
         if (seedArg == null) {
             const fallbackHarvest = getNearestHarvestablePlotIndex(4.0);
             if (fallbackHarvest !== -1) return mp.events.callRemote("farms.plot.harvest", fallbackHarvest);
+            if (currentPlot) return mp.events.callRemote("farms.plot.harvest", currentPlot.index);
             return mp.notify.warning("Семена не в руках", "Ферма");
         }
         mp.events.callRemote("farms.plot.plant", -1, seedArg);
