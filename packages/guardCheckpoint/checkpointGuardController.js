@@ -45,9 +45,8 @@ class CheckpointGuardController {
         this.notifs = call("notifications");
 
         this.log = (msg) => {
-            if (this.config.debug) {
-                console.log(`[GUARD-CHECKPOINT] ${msg}`);
-            }
+            if (!this.config.debug) return;
+            console.log(`[GUARD-CHECKPOINT] ${msg}`);
         };
 
         this.initPosts();
@@ -62,12 +61,16 @@ class CheckpointGuardController {
     }
 
     createPostRuntime(rawPost) {
-        const leader = new GuardNpc(rawPost, rawPost.leader, "leader", this.log, this.config.defaultRespawnMs);
-        const guards = (rawPost.guards || []).map((g) => new GuardNpc(rawPost, g, "guard", this.log, this.config.defaultRespawnMs));
+        const mergedPost = {
+            ...rawPost,
+            npcStreamDistance: Number(rawPost.npcStreamDistance || this.config.npcStreamDistance || 220),
+        };
+        const leader = new GuardNpc(mergedPost, mergedPost.leader, "leader", this.log, this.config.defaultRespawnMs);
+        const guards = (mergedPost.guards || []).map((g) => new GuardNpc(mergedPost, g, "guard", this.log, this.config.defaultRespawnMs));
 
         return {
-            id: rawPost.id,
-            cfg: rawPost,
+            id: mergedPost.id,
+            cfg: mergedPost,
             leader,
             guards,
             state: POST_STATE.IDLE,
@@ -79,11 +82,13 @@ class CheckpointGuardController {
             targetPlayerLastPos: null,
             targetStopStaySince: 0,
             lastWarningSoundAt: 0,
+            lastTargetDebugAt: 0,
         };
     }
 
     start() {
         if (this.tickTimer) return;
+        this.log(`controller start, posts=${this.posts.size}`);
         this.tickTimer = setInterval(() => this.tick(), this.config.tickMs || 300);
     }
 
@@ -111,12 +116,14 @@ class CheckpointGuardController {
         const weaponHash = Number(newWeapon) || 0;
         if (!weaponHash) return;
         this.markAggressive(player.id);
+        this.log(`aggressive by weapon player=${player.name}[${player.id}] weapon=${weaponHash}`);
     }
 
     onPlayerDamage(player, attacker) {
         if (!isValidPlayer(player)) return;
         if (!attacker || !mp.players.exists(attacker)) return;
         this.markAggressive(attacker.id);
+        this.log(`aggressive by damage attacker=${attacker.name}[${attacker.id}] target=${player.name}[${player.id}]`);
     }
 
     markAggressive(playerId) {
@@ -140,6 +147,7 @@ class CheckpointGuardController {
     tick() {
         const now = Date.now();
         for (const post of this.posts.values()) {
+            if (this.config.debugTick) this.log(`tick post=${post.id} state=${post.state}`);
             this.tickPost(post, now);
         }
     }
@@ -149,6 +157,10 @@ class CheckpointGuardController {
         for (const guard of post.guards) guard.syncDeathIfNeeded(now);
 
         const target = this.resolveTargetPlayer(post);
+        if (target && now - (post.lastTargetDebugAt || 0) > 2000) {
+            this.log(`post=${post.id} target=${target.name}[${target.id}] state=${post.state}`);
+            post.lastTargetDebugAt = now;
+        }
 
         if (!target && post.state !== POST_STATE.IDLE) {
             this.transition(post, POST_STATE.RETURN, "target-lost", now);
@@ -190,6 +202,7 @@ class CheckpointGuardController {
         const warnDistance = Number(post.cfg.warnDistance || this.config.defaultWarnDistance);
         if (dist <= warnDistance) {
             post.targetPlayerId = target.id;
+            this.log(`post=${post.id} warning trigger target=${target.name}[${target.id}] dist=${dist.toFixed(2)}`);
             this.transition(post, POST_STATE.WARNING, "player-in-warn-distance", now);
         }
     }
@@ -237,6 +250,7 @@ class CheckpointGuardController {
 
         const moved = dist3(target.position, post.targetPlayerLastPos || target.position);
         if (moved > Number(this.config.movementThreshold || 0.08)) {
+            this.log(`post=${post.id} moved during check by ${moved.toFixed(3)} target=${target.name}[${target.id}]`);
             this.transition(post, POST_STATE.ATTACK, "movement-during-check", now);
             return;
         }
@@ -262,6 +276,7 @@ class CheckpointGuardController {
         const allUnits = [post.leader, ...post.guards];
         for (const unit of allUnits) {
             if (unit.isOutsideLimits(post.cfg.guardZone, maxChaseDistance)) {
+                this.log(`post=${post.id} unit=${unit.id} outside limits -> force return`);
                 unit.forceReturn();
             }
         }
@@ -290,10 +305,16 @@ class CheckpointGuardController {
 
     shouldTriggerAttack(post, target) {
         if (!target || !mp.players.exists(target)) return false;
-        if (this.isPlayerAggressive(target.id)) return true;
+        if (this.isPlayerAggressive(target.id)) {
+            this.log(`post=${post.id} attack reason=aggressive target=${target.name}[${target.id}]`);
+            return true;
+        }
 
         const inGuardZone = inSphere(target.position, post.cfg.guardZone);
-        if (!inGuardZone) return true;
+        if (!inGuardZone) {
+            this.log(`post=${post.id} attack reason=left-guard-zone target=${target.name}[${target.id}]`);
+            return true;
+        }
 
         return false;
     }
@@ -336,7 +357,10 @@ class CheckpointGuardController {
 
     transition(post, nextState, reason, now) {
         if (post.state === nextState) return;
-        if (now < (post.stateCooldownUntil || 0)) return;
+        if (now < (post.stateCooldownUntil || 0)) {
+            this.log(`post=${post.id} transition blocked cooldown ${post.state} -> ${nextState} (${reason})`);
+            return;
+        }
 
         const prev = post.state;
         post.state = nextState;
@@ -364,6 +388,7 @@ class CheckpointGuardController {
         }
 
         this.log(`post=${post.id} ${prev} -> ${nextState} (${reason})`);
+        this.emitDebugToNearby(post, `${prev} -> ${nextState} (${reason})`);
     }
 
     sendWarningStart(player, post) {
@@ -378,11 +403,13 @@ class CheckpointGuardController {
         if (this.notifs && !this.notifs.isEmpty) {
             this.notifs.warning(player, "Остановитесь и зайдите в зону досмотра", "Пост охраны");
         }
+        this.log(`warning start sent to ${player.name}[${player.id}] post=${post.id}`);
     }
 
     sendWarningStop(player, postId) {
         if (!isValidPlayer(player)) return;
         player.call("guardCheckpoint:warning:stop", [postId]);
+        this.log(`warning stop sent to ${player.name}[${player.id}] post=${postId}`);
     }
 
     resetPostsByPlayer(playerId, reason) {
@@ -394,6 +421,16 @@ class CheckpointGuardController {
             post.targetPlayerLastPos = null;
             post.targetStopStaySince = 0;
         }
+    }
+
+    emitDebugToNearby(post, text) {
+        if (!this.config.debug) return;
+        const payload = `[${post.id}] ${text}`;
+        mp.players.forEachInRange(post.cfg.guardZone.center, Number(post.cfg.guardZone.radius || 1), (player) => {
+            if (!isValidPlayer(player)) return;
+            if (Number(player.dimension) !== Number(post.cfg.dimension || 0)) return;
+            player.call("guardCheckpoint:debug", [payload]);
+        });
     }
 }
 

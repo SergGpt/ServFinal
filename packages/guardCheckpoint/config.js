@@ -1,7 +1,8 @@
 "use strict";
 
 const GUARD_CHECKPOINT_CONFIG = {
-    debug: false,
+    debug: true,
+    debugTick: false,
     tickMs: 300,
     movementThreshold: 0.08,
     transitionCooldownMs: 900,
@@ -11,6 +12,7 @@ const GUARD_CHECKPOINT_CONFIG = {
     defaultCheckDurationMs: 5000,
     defaultWarnDistance: 18,
     defaultMaxChaseDistance: 25,
+    npcStreamDistance: 220,
 
     // Независимые посты охраны
     posts: [

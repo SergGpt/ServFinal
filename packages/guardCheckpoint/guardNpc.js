@@ -34,6 +34,9 @@ class GuardNpc {
         this.ped = null;
         this.deadAt = 0;
         this.respawnAt = 0;
+        this.respawnTimer = null;
+        this.lastOrderAt = 0;
+        this.lastOrderName = "none";
 
         this.spawn();
     }
@@ -48,6 +51,7 @@ class GuardNpc {
         this.ped = mp.peds.new(this.modelHash, this.spawnPos, {
             heading: this.spawnHeading,
             dimension: Number(this.postConfig.dimension) || 0,
+            streamDistance: Number(this.postConfig.npcStreamDistance) || Number(this.postConfig.streamDistance) || 220,
         });
 
         if (!this.exists()) return;
@@ -71,38 +75,48 @@ class GuardNpc {
             safeCall(method(this.ped, "destroy"));
         }
         this.ped = null;
+        if (this.respawnTimer) {
+            clearTimeout(this.respawnTimer);
+            this.respawnTimer = null;
+        }
     }
 
     markDead(now) {
-        if (!this.exists()) return;
+        if (this.respawnTimer) return;
         this.deadAt = now;
         this.respawnAt = now + this.respawnMs;
-        safeCall(method(this.ped, "setVariable"), "guardState", "dead");
-        safeCall(method(this.ped, "clearTasks"));
+        if (this.exists()) {
+            safeCall(method(this.ped, "setVariable"), "guardState", "dead");
+            safeCall(method(this.ped, "clearTasks"));
+            safeCall(method(this.ped, "destroy"));
+            this.ped = null;
+        }
+
+        this.log(`npc=${this.id} dead; respawn in ${this.respawnMs}ms`);
+        this.respawnTimer = setTimeout(() => {
+            this.respawnTimer = null;
+            this.respawnAt = 0;
+            this.spawn();
+        }, this.respawnMs);
     }
 
     syncDeathIfNeeded(now) {
-        if (!this.exists()) {
-            if (this.respawnAt && now >= this.respawnAt) {
-                this.respawnAt = 0;
-                this.spawn();
-            }
-            return;
-        }
+        if (!this.exists()) return;
 
         const hp = Number(this.ped.health) || 0;
         const dead = hp <= 0;
         if (!dead) return;
+        this.markDead(now);
+    }
 
-        if (!this.respawnAt) {
-            this.markDead(now);
-            safeCall(method(this.ped, "destroy"));
-            this.ped = null;
-            return;
+    shouldSendOrder(orderName, minDelayMs = 900) {
+        const now = Date.now();
+        if (this.lastOrderName === orderName && now - this.lastOrderAt < minDelayMs) {
+            return false;
         }
-
-        safeCall(method(this.ped, "destroy"));
-        this.ped = null;
+        this.lastOrderName = orderName;
+        this.lastOrderAt = now;
+        return true;
     }
 
     setFacing(pos) {
@@ -115,12 +129,14 @@ class GuardNpc {
 
     playStopAnim() {
         if (!this.exists()) return;
+        if (!this.shouldSendOrder("warning-stop", 1500)) return;
         safeCall(method(this.ped, "clearTasks"));
         safeCall(method(this.ped, "taskStartScenarioInPlace"), "WORLD_HUMAN_COP_IDLES", 0, true);
     }
 
     goIdle() {
         if (!this.exists()) return;
+        if (!this.shouldSendOrder("idle", 1200)) return;
         safeCall(method(this.ped, "clearTasks"));
         safeCall(method(this.ped, "taskGoToCoordAnyMeans"), this.spawnPos.x, this.spawnPos.y, this.spawnPos.z, 1.0, 0, false, 786603, 1.0);
         safeCall(method(this.ped, "setHeading"), this.spawnHeading);
@@ -129,6 +145,7 @@ class GuardNpc {
 
     attack(targetPlayer) {
         if (!this.exists() || !targetPlayer || !mp.players.exists(targetPlayer)) return;
+        if (!this.shouldSendOrder(`attack:${targetPlayer.id}`, 850)) return;
         safeCall(method(this.ped, "setVariable"), "guardState", "attack");
         safeCall(method(this.ped, "taskCombat"), targetPlayer.handle, 0, 16);
         safeCall(method(this.ped, "taskShootAt"), targetPlayer.handle, 60000, mp.joaat("FIRING_PATTERN_FULL_AUTO"));
@@ -136,6 +153,7 @@ class GuardNpc {
 
     forceReturn() {
         if (!this.exists()) return;
+        if (!this.shouldSendOrder("force-return", 1200)) return;
         safeCall(method(this.ped, "clearTasks"));
         safeCall(method(this.ped, "taskGoStraightToCoord"), this.spawnPos.x, this.spawnPos.y, this.spawnPos.z, 2.2, -1, this.spawnHeading, 0.05);
         safeCall(method(this.ped, "setVariable"), "guardState", "return");
