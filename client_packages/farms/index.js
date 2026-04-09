@@ -479,15 +479,10 @@ mp.events.add({
         const payload = { x: Number(p.x.toFixed(3)), y: Number(p.y.toFixed(3)), z: Number(p.z.toFixed(3)) };
         mp.callCEFV(`selectMenu.menus['farmsZoneEditor'].setNpcFromPlayer(${JSON.stringify(payload)})`);
     },
-    "farms.zone.menu.zoneA.fromPlayer": () => {
+    "farms.zone.menu.zonepoint.fromPlayer": () => {
         const p = mp.players.local.position;
         const payload = { x: Number(p.x.toFixed(3)), y: Number(p.y.toFixed(3)), z: Number(p.z.toFixed(3)) };
-        mp.callCEFV(`selectMenu.menus['farmsZoneEditor'].setZoneAFromPlayer(${JSON.stringify(payload)})`);
-    },
-    "farms.zone.menu.zoneB.fromPlayer": () => {
-        const p = mp.players.local.position;
-        const payload = { x: Number(p.x.toFixed(3)), y: Number(p.y.toFixed(3)), z: Number(p.z.toFixed(3)) };
-        mp.callCEFV(`selectMenu.menus['farmsZoneEditor'].setZoneBFromPlayer(${JSON.stringify(payload)})`);
+        mp.callCEFV(`selectMenu.menus['farmsZoneEditor'].addZonePointFromPlayer(${JSON.stringify(payload)})`);
     },
     "farms.zone.menu.point.fromPlayer": () => {
         const p = mp.players.local.position;

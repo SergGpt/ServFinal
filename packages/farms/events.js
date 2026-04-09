@@ -109,8 +109,6 @@ module.exports = {
         if (!player || !player.character || player.character.admin < 6) return;
         const zoneData = farms.getPlantZoneData();
         zoneData.npcPos = farms.farmMenuPos ? { x: farms.farmMenuPos.x, y: farms.farmMenuPos.y, z: farms.farmMenuPos.z } : null;
-        zoneData.zoneA = { x: zoneData.x, y: zoneData.y, z: zoneData.z };
-        zoneData.zoneB = { x: zoneData.x + zoneData.dx, y: zoneData.y + zoneData.dy, z: zoneData.z + zoneData.dz };
         player.call('farms.zone.menu.show', [zoneData]);
     },
     'farms.zone.menu.save': async (player, zoneJson) => {
@@ -141,7 +139,20 @@ module.exports = {
             notifs.success(player, `Сохранено грядок: ${points.length} (шаг 2м по линиям A→B)`, "Ферма");
         }
 
-        if (zoneData.x != null && zoneData.y != null && zoneData.z != null) {
+        if (Array.isArray(zoneData.points) && zoneData.points.length >= 3) {
+            const zonePoints = zoneData.points.map((p) => ({
+                x: parseFloat(p.x) || 0,
+                y: parseFloat(p.y) || 0,
+                z: parseFloat(p.z) || 0,
+            }));
+            const minZ = parseFloat(zoneData.minZ);
+            const maxZ = parseFloat(zoneData.maxZ);
+            farms.setPlantZone({
+                points: zonePoints,
+                minZ: Number.isFinite(minZ) ? minZ : Math.min(...zonePoints.map((p) => p.z)) - 1,
+                maxZ: Number.isFinite(maxZ) ? maxZ : Math.max(...zonePoints.map((p) => p.z)) + 2,
+            });
+        } else if (zoneData.x != null && zoneData.y != null && zoneData.z != null) {
             farms.setPlantZone({
                 x: parseFloat(zoneData.x) || 0,
                 y: parseFloat(zoneData.y) || 0,
@@ -172,8 +183,6 @@ module.exports = {
         else notifs.error(player, 'Не удалось сохранить зону фермы в БД', "Ферма");
         const payload = farms.getPlantZoneData();
         payload.npcPos = farms.farmMenuPos ? { x: farms.farmMenuPos.x, y: farms.farmMenuPos.y, z: farms.farmMenuPos.z } : null;
-        payload.zoneA = { x: payload.x, y: payload.y, z: payload.z };
-        payload.zoneB = { x: payload.x + payload.dx, y: payload.y + payload.dy, z: payload.z + payload.dz };
         player.call('farms.zone.menu.show', [payload]);
     },
 };
