@@ -602,7 +602,7 @@ mp.keys.bind(0x45, true, () => {
         return;
     }
 
-    if (!mp.busy.includes() && isLocalInsidePlantZone()) {
+    if (!mp.busy.includes()) {
         const harvestIndex = getNearestHarvestablePlotIndex();
         if (harvestIndex !== -1) {
             mp.events.callRemote("farms.plot.harvest", harvestIndex);
