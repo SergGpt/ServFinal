@@ -388,6 +388,30 @@ function renderPlotMarkers() {
             color[0], color[1], color[2], color[3],
             false, true, 2, false, null, null, false
         );
+
+        const isHarvestReady = state.state === "ready" || state.state === "ready_foreign" || state.state === "overripe" || state.state === "overripe_foreign";
+        if (isHarvestReady) {
+            mp.game.graphics.drawMarker(
+                0,
+                pos.x, pos.y, pos.z + 0.35,
+                0, 0, 0,
+                0, 0, 0,
+                0.28, 0.28, 0.28,
+                100, 255, 100, 220,
+                false, true, 2, false, null, null, false
+            );
+
+            const screen = mp.game.graphics.world3dToScreen2d(new mp.Vector3(pos.x, pos.y, pos.z + 0.9));
+            if (screen) {
+                mp.game.graphics.drawText("ГОТОВО К СБОРУ [E]", [screen.x, screen.y], {
+                    font: 4,
+                    color: [100, 255, 100, 240],
+                    scale: [0.33, 0.33],
+                    outline: true,
+                    centre: true,
+                });
+            }
+        }
     }
 }
 
