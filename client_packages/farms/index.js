@@ -1,6 +1,5 @@
 "use strict";
 
-let plotMarkers = [];
 let plotStates = [];
 let plotPositions = [];
 let currentPlot = null;
@@ -14,6 +13,7 @@ let knownSeedsAmount = 0;
 let wasInsidePlantZone = false;
 let farmNpc = null;
 let zonePreviewUntil = 0;
+const MARKER_DRAW_DISTANCE = 90;
 
 function parsePayload(value, fallback) {
     if (typeof value === "string") {
@@ -43,30 +43,15 @@ function createMarkers(positions) {
     clearMarkers();
     plotPositions = positions.map(pos => new mp.Vector3(pos.x, pos.y, pos.z));
     plotStates = positions.map(() => ({ state: "available" }));
-    plotPositions.forEach((pos, index) => {
-        plotMarkers[index] = mp.markers.new(1, new mp.Vector3(pos.x, pos.y, pos.z - 1), 0.65, {
-            color: markerColors.available,
-        });
-    });
 }
 
 function clearMarkers() {
-    plotMarkers.forEach(marker => {
-        if (marker && mp.markers.exists(marker)) marker.destroy();
-    });
-    plotMarkers = [];
     plotStates = [];
     plotPositions = [];
 }
 
 function updateMarker(index) {
     if (!plotPositions[index] || !plotStates[index]) return;
-    const color = markerColors[plotStates[index].state] || markerColors.busy;
-    const pos = plotPositions[index];
-    if (plotMarkers[index] && mp.markers.exists(plotMarkers[index])) {
-        plotMarkers[index].destroy();
-    }
-    plotMarkers[index] = mp.markers.new(1, new mp.Vector3(pos.x, pos.y, pos.z - 1), 0.65, { color });
 }
 
 function getSecondsLeft(plotInfo) {
@@ -354,6 +339,27 @@ function renderPlantTimers() {
     }
 }
 
+function renderPlotMarkers() {
+    const player = mp.players.local;
+    if (!player) return;
+    for (let i = 0; i < plotPositions.length; i++) {
+        const pos = plotPositions[i];
+        const state = plotStates[i];
+        if (!pos || !state) continue;
+        if (player.position.distanceTo(pos) > MARKER_DRAW_DISTANCE) continue;
+        const color = markerColors[state.state] || markerColors.busy;
+        mp.game.graphics.drawMarker(
+            1,
+            pos.x, pos.y, pos.z - 1,
+            0, 0, 0,
+            0, 0, 0,
+            0.55, 0.55, 0.55,
+            color[0], color[1], color[2], color[3],
+            false, true, 2, false, null, null, false
+        );
+    }
+}
+
 function getNearestHarvestablePlotIndex(maxDistance = 4.0) {
     if (!plotPositions.length || !plotStates.length || !mp.players.local) return -1;
     let nearest = -1;
@@ -494,6 +500,7 @@ mp.events.add({
         mp.callCEFV("selectMenu.showByName('farmsZoneEditor')");
     },
     "render": () => {
+        renderPlotMarkers();
         renderPlantTimers();
         const showZone = editorState.active || Date.now() < zonePreviewUntil;
         if (plantZone && showZone) {
