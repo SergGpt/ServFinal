@@ -442,6 +442,7 @@ mp.events.add({
         plotStates[index].state = "ready";
         plotStates[index].action = "harvest";
         plotStates[index].readyAt = null;
+        mp.notify.success(`Грядка #${index + 1} готова к сбору`, "Ферма");
         updateMarker(index);
     },
     "farms.menu.enter": () => {
@@ -584,6 +585,19 @@ mp.keys.bind(0x45, true, () => {
             setTimeout(() => {
                 const seedArg = getPlantSeedArg();
                 if (seedArg == null) {
+                    const fallbackHarvest = getNearestHarvestablePlotIndex(4.0);
+                    if (fallbackHarvest !== -1) {
+                        mp.events.callRemote("farms.plot.harvest", fallbackHarvest);
+                        mp.players.local.clearTasks();
+                        plantingInProgress = false;
+                        return;
+                    }
+                    if (currentPlot && (currentPlot.state === "ready" || currentPlot.state === "ready_foreign" || currentPlot.state === "overripe" || currentPlot.state === "overripe_foreign")) {
+                        mp.events.callRemote("farms.plot.harvest", currentPlot.index);
+                        mp.players.local.clearTasks();
+                        plantingInProgress = false;
+                        return;
+                    }
                     mp.notify.warning("Семена не в руках", "Ферма");
                     mp.players.local.clearTasks();
                     plantingInProgress = false;
@@ -608,7 +622,11 @@ mp.keys.bind(0x45, true, () => {
 
     if (!mp.busy.includes() && isLocalInsidePlantZone()) {
         const seedArg = getPlantSeedArg();
-        if (seedArg == null) return mp.notify.warning("Семена не в руках", "Ферма");
+        if (seedArg == null) {
+            const fallbackHarvest = getNearestHarvestablePlotIndex(4.0);
+            if (fallbackHarvest !== -1) return mp.events.callRemote("farms.plot.harvest", fallbackHarvest);
+            return mp.notify.warning("Семена не в руках", "Ферма");
+        }
         mp.events.callRemote("farms.plot.plant", -1, seedArg);
     }
 });
