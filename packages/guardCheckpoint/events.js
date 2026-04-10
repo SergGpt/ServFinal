@@ -1,11 +1,15 @@
 "use strict";
 
-const { controller } = require("./index");
+const guardCheckpoint = require("./index");
+const { controller } = guardCheckpoint;
 
 module.exports = {
     init: () => {
         controller.start();
         inited(__dirname);
+    },
+    shutdown: () => {
+        guardCheckpoint.shutdown();
     },
 
     playerQuit: (player) => {

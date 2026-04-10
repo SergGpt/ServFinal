@@ -37,6 +37,12 @@ class GuardNpc {
         this.respawnTimer = null;
         this.lastOrderAt = 0;
         this.lastOrderName = "none";
+        this.spawnedAt = 0;
+        this.initializedAt = 0;
+        this.hasSeenAliveHealth = false;
+        this.spawnGraceMs = Math.max(2000, Number(postConfig.spawnGraceMs) || 3500);
+        this.initHealth = Math.max(100, Number(postConfig.npcHealth) || 250);
+        this.initArmor = Math.max(0, Number(postConfig.npcArmor) || 0);
 
         this.spawn();
     }
@@ -47,6 +53,9 @@ class GuardNpc {
 
     spawn() {
         this.destroy();
+        this.spawnedAt = Date.now();
+        this.initializedAt = 0;
+        this.hasSeenAliveHealth = false;
 
         this.ped = mp.peds.new(this.modelHash, this.spawnPos, {
             heading: this.spawnHeading,
@@ -54,7 +63,9 @@ class GuardNpc {
             streamDistance: Number(this.postConfig.npcStreamDistance) || Number(this.postConfig.streamDistance) || 220,
         });
 
-        if (!this.exists()) return;
+        const existsNow = this.exists();
+        this.log(`spawn npc=${this.id} exists=${existsNow} model=${this.modelHash} graceMs=${this.spawnGraceMs}`);
+        if (!existsNow) return;
 
         safeCall(method(this.ped, "setVariable"), "guardPostId", this.postConfig.id);
         safeCall(method(this.ped, "setVariable"), "guardRole", this.role);
@@ -66,8 +77,10 @@ class GuardNpc {
             safeCall(method(this.ped, "setCurrentWeapon"), this.weaponHash);
         }
 
+        this.initializePedCombat();
+        this.initializedAt = Date.now();
         this.goIdle();
-        this.log(`spawned npc=${this.id}`);
+        this.log(`spawned npc=${this.id} health=${Number(this.ped.health) || 0} initAt=${this.initializedAt}`);
     }
 
     destroy() {
@@ -81,7 +94,31 @@ class GuardNpc {
         }
     }
 
-    markDead(now) {
+    initializePedCombat() {
+        if (!this.exists()) return;
+
+        safeCall(method(this.ped, "setHealth"), this.initHealth);
+        safeCall(method(this.ped, "setMaxHealth"), this.initHealth);
+        safeCall(method(this.ped, "setArmour"), this.initArmor);
+
+        try { this.ped.health = this.initHealth; } catch {}
+        try { this.ped.maxHealth = this.initHealth; } catch {}
+        try { this.ped.armour = this.initArmor; } catch {}
+
+        safeCall(method(this.ped, "setCanBeDamaged"), true);
+        safeCall(method(this.ped, "setCanRagdoll"), true);
+        safeCall(method(this.ped, "setFleeAttributes"), 0, false);
+        safeCall(method(this.ped, "setCombatAttributes"), 46, true);
+        safeCall(method(this.ped, "setCombatAttributes"), 5, true);
+        safeCall(method(this.ped, "setCombatAbility"), 2);
+        safeCall(method(this.ped, "setCombatRange"), 2);
+        safeCall(method(this.ped, "setCombatMovement"), 2);
+        safeCall(method(this.ped, "setConfigFlag"), 17, true);
+        safeCall(method(this.ped, "setConfigFlag"), 281, true);
+        safeCall(method(this.ped, "setBlockingOfNonTemporaryEvents"), true);
+    }
+
+    markDead(now, reason = "unknown") {
         if (this.respawnTimer) return;
         this.deadAt = now;
         this.respawnAt = now + this.respawnMs;
@@ -92,7 +129,7 @@ class GuardNpc {
             this.ped = null;
         }
 
-        this.log(`npc=${this.id} dead; respawn in ${this.respawnMs}ms`);
+        this.log(`npc=${this.id} dead reason=${reason}; respawn in ${this.respawnMs}ms`);
         this.respawnTimer = setTimeout(() => {
             this.respawnTimer = null;
             this.respawnAt = 0;
@@ -101,12 +138,35 @@ class GuardNpc {
     }
 
     syncDeathIfNeeded(now) {
-        if (!this.exists()) return;
+        const existsNow = this.exists();
+        if (!existsNow) {
+            this.log(`sync npc=${this.id} exists=false sinceSpawn=${now - (this.spawnedAt || now)}ms respawnTimer=${!!this.respawnTimer}`);
+            return;
+        }
 
+        const sinceSpawnMs = now - (this.spawnedAt || now);
         const hp = Number(this.ped.health) || 0;
-        const dead = hp <= 0;
-        if (!dead) return;
-        this.markDead(now);
+        const graceActive = sinceSpawnMs < this.spawnGraceMs;
+
+        this.log(`sync npc=${this.id} exists=true hp=${hp} sinceSpawn=${sinceSpawnMs}ms grace=${graceActive} seenAlive=${this.hasSeenAliveHealth}`);
+
+        if (hp > 0) {
+            this.hasSeenAliveHealth = true;
+            return;
+        }
+
+        if (graceActive) {
+            this.log(`sync npc=${this.id} hp<=0 ignored (spawn grace)`);
+            return;
+        }
+
+        if (!this.hasSeenAliveHealth && sinceSpawnMs < this.spawnGraceMs * 3) {
+            this.log(`sync npc=${this.id} hp<=0 ignored (not stabilized yet), reinit health`);
+            this.initializePedCombat();
+            return;
+        }
+
+        this.markDead(now, `hp<=0 sinceSpawn=${sinceSpawnMs}ms seenAlive=${this.hasSeenAliveHealth}`);
     }
 
     shouldSendOrder(orderName, minDelayMs = 900) {
@@ -148,7 +208,6 @@ class GuardNpc {
         if (!this.shouldSendOrder(`attack:${targetPlayer.id}`, 850)) return;
         safeCall(method(this.ped, "setVariable"), "guardState", "attack");
         safeCall(method(this.ped, "taskCombat"), targetPlayer.handle, 0, 16);
-        safeCall(method(this.ped, "taskShootAt"), targetPlayer.handle, 60000, mp.joaat("FIRING_PATTERN_FULL_AUTO"));
     }
 
     forceReturn() {
@@ -174,6 +233,17 @@ class GuardNpc {
         const distZone = Math.sqrt(gx * gx + gy * gy + gz * gz);
 
         return distSpawn > maxChaseDistance || distZone > guardZone.radius;
+    }
+
+    shutdown() {
+        this.destroy();
+        this.deadAt = 0;
+        this.respawnAt = 0;
+        this.lastOrderAt = 0;
+        this.lastOrderName = "none";
+        this.spawnedAt = 0;
+        this.initializedAt = 0;
+        this.hasSeenAliveHealth = false;
     }
 }
 

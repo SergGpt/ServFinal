@@ -64,6 +64,9 @@ class CheckpointGuardController {
         const mergedPost = {
             ...rawPost,
             npcStreamDistance: Number(rawPost.npcStreamDistance || this.config.npcStreamDistance || 220),
+            spawnGraceMs: Number(rawPost.spawnGraceMs || this.config.spawnGraceMs || 3500),
+            npcHealth: Number(rawPost.npcHealth || this.config.npcHealth || 250),
+            npcArmor: Number(rawPost.npcArmor || this.config.npcArmor || 0),
         };
         const leader = new GuardNpc(mergedPost, mergedPost.leader, "leader", this.log, this.config.defaultRespawnMs);
         const guards = (mergedPost.guards || []).map((g) => new GuardNpc(mergedPost, g, "guard", this.log, this.config.defaultRespawnMs));
@@ -97,6 +100,26 @@ class CheckpointGuardController {
             clearInterval(this.tickTimer);
             this.tickTimer = null;
         }
+    }
+
+    shutdown() {
+        this.log("controller shutdown start");
+        this.stop();
+
+        for (const post of this.posts.values()) {
+            if (post.leader && typeof post.leader.shutdown === "function") {
+                post.leader.shutdown();
+            }
+            for (const guard of post.guards || []) {
+                if (guard && typeof guard.shutdown === "function") {
+                    guard.shutdown();
+                }
+            }
+        }
+
+        this.posts.clear();
+        this.playerAggressiveUntil.clear();
+        this.log("controller shutdown complete");
     }
 
     onPlayerQuit(player) {

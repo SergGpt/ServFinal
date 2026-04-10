@@ -7,4 +7,5 @@ const controller = new CheckpointGuardController(GUARD_CHECKPOINT_CONFIG);
 
 module.exports = {
     controller,
+    shutdown: () => controller.shutdown(),
 };

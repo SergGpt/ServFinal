@@ -13,6 +13,9 @@ const GUARD_CHECKPOINT_CONFIG = {
     defaultWarnDistance: 18,
     defaultMaxChaseDistance: 25,
     npcStreamDistance: 220,
+    spawnGraceMs: 3500,
+    npcHealth: 250,
+    npcArmor: 100,
 
     // Независимые посты охраны
     posts: [
@@ -31,6 +34,7 @@ const GUARD_CHECKPOINT_CONFIG = {
             warnDistance: 24,
             checkDurationMs: 5000,
             maxChaseDistance: 30,
+            spawnGraceMs: 4000,
             leader: {
                 id: "leader",
                 model: "s_m_y_marine_01",
