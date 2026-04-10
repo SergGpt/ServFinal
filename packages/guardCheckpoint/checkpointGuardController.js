@@ -84,8 +84,10 @@ class CheckpointGuardController {
             targetPlayerId: null,
             targetPlayerLastPos: null,
             targetStopStaySince: 0,
-            lastWarningSoundAt: 0,
             lastTargetDebugAt: 0,
+            warningStartDistToLeader: 0,
+            warningStartClosestGuardDist: 0,
+            warningPrevDistToStopZone: Number.MAX_SAFE_INTEGER,
         };
     }
 
@@ -138,8 +140,7 @@ class CheckpointGuardController {
         if (!isValidPlayer(player)) return;
         const weaponHash = Number(newWeapon) || 0;
         if (!weaponHash) return;
-        this.markAggressive(player.id);
-        this.log(`aggressive by weapon player=${player.name}[${player.id}] weapon=${weaponHash}`);
+        this.log(`weapon raised player=${player.name}[${player.id}] weapon=${weaponHash} (no instant attack)`);
     }
 
     onPlayerDamage(player, attacker) {
@@ -180,6 +181,7 @@ class CheckpointGuardController {
         for (const guard of post.guards) guard.syncDeathIfNeeded(now);
 
         const target = this.resolveTargetPlayer(post);
+        const prevTargetPos = post.targetPlayerLastPos ? { ...post.targetPlayerLastPos } : null;
         if (target && now - (post.lastTargetDebugAt || 0) > 2000) {
             this.log(`post=${post.id} target=${target.name}[${target.id}] state=${post.state}`);
             post.lastTargetDebugAt = now;
@@ -189,23 +191,15 @@ class CheckpointGuardController {
             this.transition(post, POST_STATE.RETURN, "target-lost", now);
         }
 
-        if (target) {
-            post.targetPlayerLastPos = {
-                x: target.position.x,
-                y: target.position.y,
-                z: target.position.z,
-            };
-        }
-
         switch (post.state) {
             case POST_STATE.IDLE:
                 this.handleIdle(post, target, now);
                 break;
             case POST_STATE.WARNING:
-                this.handleWarning(post, target, now);
+                this.handleWarning(post, target, prevTargetPos, now);
                 break;
             case POST_STATE.CHECKING:
-                this.handleChecking(post, target, now);
+                this.handleChecking(post, target, prevTargetPos, now);
                 break;
             case POST_STATE.ATTACK:
                 this.handleAttack(post, target, now);
@@ -216,6 +210,14 @@ class CheckpointGuardController {
             default:
                 this.transition(post, POST_STATE.IDLE, "unknown-state", now);
                 break;
+        }
+
+        if (target) {
+            post.targetPlayerLastPos = {
+                x: target.position.x,
+                y: target.position.y,
+                z: target.position.z,
+            };
         }
     }
 
@@ -230,16 +232,39 @@ class CheckpointGuardController {
         }
     }
 
-    handleWarning(post, target, now) {
+    handleWarning(post, target, prevTargetPos, now) {
         if (!target) {
             this.transition(post, POST_STATE.RETURN, "no-target-warning", now);
             return;
         }
 
-        this.ensureLeaderWarningBehavior(post, target, now);
+        this.ensureLeaderWarningBehavior(post, target);
 
         if (this.shouldTriggerAttack(post, target, now)) {
             this.transition(post, POST_STATE.ATTACK, "warning-violation", now);
+            return;
+        }
+
+        const elapsed = now - (post.warningIssuedAt || now);
+        const distToStop = dist3(target.position, post.cfg.stopZone.center);
+        const prevDistToStop = Number(post.warningPrevDistToStopZone || distToStop);
+        const moved = prevTargetPos ? dist3(target.position, prevTargetPos) : 0;
+        const movementThreshold = Number(this.config.warningMoveTolerance || 0.09);
+        const progressEpsilon = Number(this.config.stopZoneProgressEpsilon || 0.03);
+
+        const distToLeader = post.leader && post.leader.exists() ? dist3(target.position, post.leader.ped.position) : Number.MAX_SAFE_INTEGER;
+        const closestGuardDist = post.guards.reduce((min, guard) => {
+            if (!guard.exists()) return min;
+            return Math.min(min, dist3(target.position, guard.ped.position));
+        }, Number.MAX_SAFE_INTEGER);
+
+        const advanceTolerance = Number(this.config.warningAdvanceTolerance || 0.6);
+        if (distToLeader < (post.warningStartDistToLeader - advanceTolerance)) {
+            this.transition(post, POST_STATE.ATTACK, "advanced-to-leader-after-warning", now);
+            return;
+        }
+        if (closestGuardDist < (post.warningStartClosestGuardDist - advanceTolerance)) {
+            this.transition(post, POST_STATE.ATTACK, "advanced-to-guard-after-warning", now);
             return;
         }
 
@@ -249,13 +274,19 @@ class CheckpointGuardController {
             return;
         }
 
-        const waited = now - post.warningIssuedAt;
-        if (waited > (this.config.warningTimeoutMs || 8000)) {
-            this.transition(post, POST_STATE.ATTACK, "warning-timeout", now);
+        if (moved > movementThreshold && (distToStop > prevDistToStop - progressEpsilon)) {
+            this.transition(post, POST_STATE.ATTACK, "moved-without-going-to-stop-zone", now);
+            return;
         }
+
+        if (elapsed > Number(this.config.warningResponseMs || 2500)) {
+            this.transition(post, POST_STATE.ATTACK, "did-not-enter-stop-zone-in-time", now);
+        }
+
+        post.warningPrevDistToStopZone = distToStop;
     }
 
-    handleChecking(post, target, now) {
+    handleChecking(post, target, prevTargetPos, now) {
         if (!target) {
             this.transition(post, POST_STATE.RETURN, "no-target-checking", now);
             return;
@@ -271,10 +302,13 @@ class CheckpointGuardController {
             return;
         }
 
-        const moved = dist3(target.position, post.targetPlayerLastPos || target.position);
+        const moved = prevTargetPos ? dist3(target.position, prevTargetPos) : 0;
         if (moved > Number(this.config.movementThreshold || 0.08)) {
-            this.log(`post=${post.id} moved during check by ${moved.toFixed(3)} target=${target.name}[${target.id}]`);
-            this.transition(post, POST_STATE.ATTACK, "movement-during-check", now);
+            this.log(`post=${post.id} movement during check=${moved.toFixed(3)} reset timer target=${target.name}[${target.id}]`);
+            post.targetStopStaySince = now;
+            if (moved > Number(this.config.movementThreshold || 0.08) * 2.2) {
+                this.transition(post, POST_STATE.ATTACK, "movement-during-check", now);
+            }
             return;
         }
 
@@ -333,23 +367,21 @@ class CheckpointGuardController {
             return true;
         }
 
-        const inGuardZone = inSphere(target.position, post.cfg.guardZone);
-        if (!inGuardZone) {
-            this.log(`post=${post.id} attack reason=left-guard-zone target=${target.name}[${target.id}]`);
+        if (post.cfg.violationZone && inSphere(target.position, post.cfg.violationZone)) {
+            this.log(`post=${post.id} attack reason=violation-zone target=${target.name}[${target.id}]`);
             return true;
         }
 
         return false;
     }
 
-    ensureLeaderWarningBehavior(post, target, now) {
+    ensureLeaderWarningBehavior(post, target) {
         if (!post.leader) return;
         post.leader.setFacing(target.position);
         post.leader.playStopAnim();
-
-        if (!post.lastWarningSoundAt || now - post.lastWarningSoundAt > 3000) {
-            this.sendWarningStart(target, post);
-            post.lastWarningSoundAt = now;
+        post.leader.aimAt(target);
+        for (const guard of post.guards) {
+            guard.aimAt(target);
         }
     }
 
@@ -394,6 +426,18 @@ class CheckpointGuardController {
             post.warningIssuedAt = now;
             post.checkStartedAt = 0;
             post.targetStopStaySince = 0;
+            const target = this.resolveTargetPlayer(post);
+            if (target) {
+                this.sendWarningStart(target, post);
+                post.warningPrevDistToStopZone = dist3(target.position, post.cfg.stopZone.center);
+                post.warningStartDistToLeader = post.leader && post.leader.exists()
+                    ? dist3(target.position, post.leader.ped.position)
+                    : Number.MAX_SAFE_INTEGER;
+                post.warningStartClosestGuardDist = post.guards.reduce((min, guard) => {
+                    if (!guard.exists()) return min;
+                    return Math.min(min, dist3(target.position, guard.ped.position));
+                }, Number.MAX_SAFE_INTEGER);
+            }
         }
 
         if (nextState === POST_STATE.CHECKING) {
@@ -443,6 +487,7 @@ class CheckpointGuardController {
             post.targetPlayerId = null;
             post.targetPlayerLastPos = null;
             post.targetStopStaySince = 0;
+            post.warningPrevDistToStopZone = Number.MAX_SAFE_INTEGER;
         }
     }
 

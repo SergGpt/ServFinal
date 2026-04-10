@@ -16,6 +16,10 @@ const GUARD_CHECKPOINT_CONFIG = {
     spawnGraceMs: 3500,
     npcHealth: 250,
     npcArmor: 100,
+    warningResponseMs: 2500,
+    warningMoveTolerance: 0.09,
+    stopZoneProgressEpsilon: 0.03,
+    warningAdvanceTolerance: 0.6,
 
     // Независимые посты охраны
     posts: [
@@ -30,6 +34,10 @@ const GUARD_CHECKPOINT_CONFIG = {
             stopZone: {
                 center: { x: -2248.36, y: 3174.1, z: 32.81 },
                 radius: 5.0,
+            },
+            violationZone: {
+                center: { x: -2250.44, y: 3176.15, z: 32.81 },
+                radius: 3.5,
             },
             warnDistance: 24,
             checkDurationMs: 5000,

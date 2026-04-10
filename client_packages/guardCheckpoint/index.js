@@ -63,12 +63,6 @@ mp.events.add("entityStreamOut", (entity) => {
 
 mp.events.add("render", () => {
     if (!activeWarning) return;
-    const now = Date.now();
-    if (now - lastSoundAt > 3500) {
-        playSound(activeWarning.soundName, activeWarning.soundSet);
-        lastSoundAt = now;
-    }
-
     if (Date.now() - lastRenderDebugAt > 2000) {
         lastRenderDebugAt = Date.now();
         clog(`render warning post=${activeWarning.postId} text="${activeWarning.text}"`);

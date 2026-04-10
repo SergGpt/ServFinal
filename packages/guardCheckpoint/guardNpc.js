@@ -210,6 +210,14 @@ class GuardNpc {
         safeCall(method(this.ped, "taskCombat"), targetPlayer.handle, 0, 16);
     }
 
+    aimAt(targetPlayer) {
+        if (!this.exists() || !targetPlayer || !mp.players.exists(targetPlayer)) return;
+        if (!this.shouldSendOrder(`aim:${targetPlayer.id}`, 1000)) return;
+        safeCall(method(this.ped, "setVariable"), "guardState", "warning_aim");
+        safeCall(method(this.ped, "clearTasks"));
+        safeCall(method(this.ped, "taskAimGunAt"), targetPlayer.handle, 1200, false);
+    }
+
     forceReturn() {
         if (!this.exists()) return;
         if (!this.shouldSendOrder("force-return", 1200)) return;
