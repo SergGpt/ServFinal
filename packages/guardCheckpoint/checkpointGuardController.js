@@ -227,6 +227,8 @@ class CheckpointGuardController {
             warningStartDistToLeader: 0,
             warningStartClosestGuardDist: 0,
             warningPrevDistToStopZone: Number.MAX_SAFE_INTEGER,
+            attackStartedAt: 0,
+            targetOutsidePursuitSince: 0,
         };
     }
 
@@ -414,7 +416,7 @@ class CheckpointGuardController {
             return;
         }
 
-        if (moved > movementThreshold && (distToStop > prevDistToStop - progressEpsilon)) {
+        if (elapsed > 700 && moved > movementThreshold && (distToStop > prevDistToStop - progressEpsilon)) {
             this.transition(post, POST_STATE.ATTACK, "moved-without-going-to-stop-zone", now);
             return;
         }
@@ -488,7 +490,12 @@ class CheckpointGuardController {
         }
 
         if (!isInsideZone(target.position, pursuitZone)) {
-            this.transition(post, POST_STATE.RETURN, "target-left-guard-zone", now);
+            if (!post.targetOutsidePursuitSince) post.targetOutsidePursuitSince = now;
+            if (now - post.targetOutsidePursuitSince > 2000) {
+                this.transition(post, POST_STATE.RETURN, "target-left-guard-zone", now);
+            }
+        } else {
+            post.targetOutsidePursuitSince = 0;
         }
     }
 
@@ -510,6 +517,8 @@ class CheckpointGuardController {
             post.targetPlayerId = null;
             post.targetPlayerLastPos = null;
             post.targetStopStaySince = 0;
+            post.attackStartedAt = 0;
+            post.targetOutsidePursuitSince = 0;
         }
     }
 
@@ -601,8 +610,8 @@ class CheckpointGuardController {
         }
 
         if (nextState === POST_STATE.ATTACK) {
-            const target = this.resolveTargetPlayer(post);
-            if (target) this.sendWarningStop(target, post.id);
+            post.attackStartedAt = now;
+            post.targetOutsidePursuitSince = 0;
         }
 
         if (nextState === POST_STATE.IDLE || nextState === POST_STATE.RETURN) {
