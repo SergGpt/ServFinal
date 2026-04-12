@@ -248,6 +248,7 @@ class CheckpointGuardController {
             checkingGraceUntil: 0,
             lastClientCommandKey: "",
             lastClientCommandAt: 0,
+            lastAppliedBehaviorKey: "",
         };
     }
 
@@ -419,7 +420,7 @@ class CheckpointGuardController {
             return;
         }
 
-        this.ensureLeaderWarningBehavior(post, target);
+        this.applyWarningBehavior(post, target);
 
         if (this.shouldTriggerAttack(post, target, now, { ignoreViolation: true })) {
             this.transition(post, POST_STATE.ATTACK, "warning-violation", now);
@@ -490,9 +491,7 @@ class CheckpointGuardController {
             return;
         }
 
-        post.leader.fireAtTarget(target);
-        for (const guard of post.guards) guard.fireAtTarget(target);
-        this.dispatchNpcCommand(post, "fire", target);
+        this.applyAttackBehavior(post, target);
 
         const maxChaseDistance = Number(post.cfg.maxChaseDistance || this.config.defaultMaxChaseDistance);
         const pursuitZone = this.getPursuitZone(post);
@@ -516,13 +515,7 @@ class CheckpointGuardController {
     }
 
     handleReturn(post, now) {
-        post.leader.stopCombat();
-        post.leader.returnToPost();
-        for (const guard of post.guards) {
-            guard.stopCombat();
-            guard.returnToPost();
-        }
-        this.dispatchNpcCommand(post, "return", null);
+        this.applyReturnBehavior(post);
 
         const arrived = [post.leader, ...post.guards].every((unit) => {
             if (!unit.exists()) return false;
@@ -555,8 +548,12 @@ class CheckpointGuardController {
         return false;
     }
 
-    ensureLeaderWarningBehavior(post, target) {
-        if (!post.leader) return;
+    applyWarningBehavior(post, target, force = false) {
+        if (!post.leader || !target) return;
+        const behaviorKey = `warning:${target.id}`;
+        if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
+        post.lastAppliedBehaviorKey = behaviorKey;
+
         post.leader.setFacing(target.position);
         post.leader.playStopAnim();
         post.leader.readyWeapon();
@@ -565,7 +562,32 @@ class CheckpointGuardController {
             guard.readyWeapon();
             guard.aimAtTarget(target);
         }
-        this.dispatchNpcCommand(post, "aim", target);
+        this.dispatchNpcCommand(post, "aim", target, { force });
+    }
+
+    applyAttackBehavior(post, target, force = false) {
+        if (!target) return;
+        const behaviorKey = `attack:${target.id}`;
+        if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
+        post.lastAppliedBehaviorKey = behaviorKey;
+
+        post.leader.fireAtTarget(target);
+        for (const guard of post.guards) guard.fireAtTarget(target);
+        this.dispatchNpcCommand(post, "fire", target, { force });
+    }
+
+    applyReturnBehavior(post, force = false) {
+        const behaviorKey = "return";
+        if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
+        post.lastAppliedBehaviorKey = behaviorKey;
+
+        post.leader.stopCombat();
+        post.leader.returnToPost();
+        for (const guard of post.guards) {
+            guard.stopCombat();
+            guard.returnToPost();
+        }
+        this.dispatchNpcCommand(post, "return", null, { force });
     }
 
     resolveTargetPlayer(post) {
@@ -608,6 +630,7 @@ class CheckpointGuardController {
         post.state = nextState;
         post.stateSince = now;
         post.stateCooldownUntil = now + (this.config.transitionCooldownMs || 900);
+        post.lastAppliedBehaviorKey = "";
 
         if (nextState === POST_STATE.WARNING) {
             post.warningIssuedAt = now;
@@ -791,7 +814,10 @@ class CheckpointGuardController {
         else if (post.state === POST_STATE.WARNING || post.state === POST_STATE.CHECKING) command = target ? "aim" : "return";
         else if (post.state === POST_STATE.RETURN) command = "return";
 
-        this.dispatchNpcCommand(post, command, target, { force: true, owner });
+        if (command === "aim") this.applyWarningBehavior(post, target, true);
+        else if (command === "fire") this.applyAttackBehavior(post, target, true);
+        else if (command === "return") this.applyReturnBehavior(post, true);
+        else this.dispatchNpcCommand(post, "idle", null, { force: true, owner });
         this.log(`post=${post.id} owner-resync cmd=${command} target=${target ? target.id : -1} reason=${reason}`);
     }
 
