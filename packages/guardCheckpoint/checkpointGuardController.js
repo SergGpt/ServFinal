@@ -21,6 +21,56 @@ function inSphere(pos, sphere) {
     return dist3(pos, sphere.center) <= Number(sphere.radius || 0);
 }
 
+function isPointInsidePolygon2D(point, polygon) {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = Number(polygon[i].x) || 0;
+        const yi = Number(polygon[i].y) || 0;
+        const xj = Number(polygon[j].x) || 0;
+        const yj = Number(polygon[j].y) || 0;
+
+        const intersect = ((yi > point.y) !== (yj > point.y))
+            && (point.x < ((xj - xi) * (point.y - yi)) / ((yj - yi) || 0.000001) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
+function isInsideZone(pos, zone) {
+    if (!zone) return false;
+    const zoneType = String(zone.type || "sphere");
+
+    if (zoneType === "polygon") {
+        const points = Array.isArray(zone.points) ? zone.points : [];
+        if (points.length < 3) return false;
+        const minZ = Number.isFinite(Number(zone.minZ)) ? Number(zone.minZ) : -10000;
+        const maxZ = Number.isFinite(Number(zone.maxZ)) ? Number(zone.maxZ) : 10000;
+        if (pos.z < minZ || pos.z > maxZ) return false;
+        return isPointInsidePolygon2D({ x: pos.x, y: pos.y }, points);
+    }
+
+    return inSphere(pos, zone);
+}
+
+function zoneCenter(zone) {
+    if (!zone) return { x: 0, y: 0, z: 0 };
+    const zoneType = String(zone.type || "sphere");
+    if (zoneType !== "polygon") return zone.center;
+    const points = Array.isArray(zone.points) ? zone.points : [];
+    if (!points.length) return { x: 0, y: 0, z: 0 };
+    const sum = points.reduce((acc, p) => {
+        acc.x += Number(p.x) || 0;
+        acc.y += Number(p.y) || 0;
+        acc.z += Number(p.z) || 0;
+        return acc;
+    }, { x: 0, y: 0, z: 0 });
+    return {
+        x: sum.x / points.length,
+        y: sum.y / points.length,
+        z: sum.z / points.length,
+    };
+}
+
 function isValidPlayer(player) {
     return !!(player && mp.players.exists(player) && player.character);
 }
@@ -41,6 +91,7 @@ class CheckpointGuardController {
         this.posts = new Map();
         this.playerAggressiveUntil = new Map();
         this.tickTimer = null;
+        this.isInitialized = false;
 
         this.notifs = call("notifications");
 
@@ -49,15 +100,103 @@ class CheckpointGuardController {
             console.log(`[GUARD-CHECKPOINT] ${msg}`);
         };
 
-        this.initPosts();
+    }
+
+    async initialize() {
+        if (this.isInitialized) return;
+        await this.ensureDbSchema();
+        const loaded = await this.loadPostsFromDb();
+        if (!loaded) {
+            this.initPosts();
+            for (const post of this.posts.values()) {
+                await this.savePostToDb(post.id);
+            }
+        }
+        this.isInitialized = true;
     }
 
     initPosts() {
+        this.posts.clear();
         for (const rawPost of this.config.posts || []) {
             const post = this.createPostRuntime(rawPost);
             this.posts.set(post.id, post);
             this.log(`post initialized id=${post.id}`);
         }
+    }
+
+    getDb() {
+        try {
+            if (typeof global !== "undefined" && global.db && global.db.sequelize) return global.db.sequelize;
+        } catch {}
+        return null;
+    }
+
+    async ensureDbSchema() {
+        const sequelize = this.getDb();
+        if (!sequelize) return;
+        await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS guard_checkpoint_posts (
+                id VARCHAR(64) PRIMARY KEY,
+                name VARCHAR(128) NULL,
+                dimension INT NOT NULL DEFAULT 0,
+                data LONGTEXT NOT NULL,
+                updatedAt BIGINT NULL
+            )
+        `);
+    }
+
+    async loadPostsFromDb() {
+        const sequelize = this.getDb();
+        if (!sequelize) return false;
+        const [rows] = await sequelize.query("SELECT id, data FROM guard_checkpoint_posts");
+        if (!rows || !rows.length) return false;
+
+        for (const existing of this.posts.values()) {
+            if (existing.leader) existing.leader.shutdown();
+            for (const guard of existing.guards || []) guard.shutdown();
+        }
+        this.posts.clear();
+        for (const row of rows) {
+            try {
+                const rawPost = JSON.parse(String(row.data || "{}"));
+                if (!rawPost || !rawPost.id) continue;
+                const post = this.createPostRuntime(rawPost);
+                this.posts.set(post.id, post);
+            } catch (e) {
+                this.log(`db parse failed post=${row.id}: ${e.message}`);
+            }
+        }
+
+        this.log(`loaded posts from DB count=${this.posts.size}`);
+        return this.posts.size > 0;
+    }
+
+    async savePostToDb(postId) {
+        const post = this.posts.get(postId);
+        if (!post) return false;
+        const sequelize = this.getDb();
+        if (!sequelize) return false;
+
+        const data = JSON.stringify(post.cfg);
+        await sequelize.query(
+            `INSERT INTO guard_checkpoint_posts (id, name, dimension, data, updatedAt)
+             VALUES (:id, :name, :dimension, :data, :updatedAt)
+             ON DUPLICATE KEY UPDATE
+                name = VALUES(name),
+                dimension = VALUES(dimension),
+                data = VALUES(data),
+                updatedAt = VALUES(updatedAt)`,
+            {
+                replacements: {
+                    id: post.cfg.id,
+                    name: post.cfg.name || post.cfg.id,
+                    dimension: Number(post.cfg.dimension) || 0,
+                    data,
+                    updatedAt: Date.now(),
+                },
+            }
+        );
+        return true;
     }
 
     createPostRuntime(rawPost) {
@@ -223,7 +362,7 @@ class CheckpointGuardController {
 
     handleIdle(post, target, now) {
         if (!target) return;
-        const dist = dist3(target.position, post.cfg.guardZone.center);
+        const dist = dist3(target.position, zoneCenter(this.getPostZone(post)));
         const warnDistance = Number(post.cfg.warnDistance || this.config.defaultWarnDistance);
         if (dist <= warnDistance) {
             post.targetPlayerId = target.id;
@@ -246,7 +385,7 @@ class CheckpointGuardController {
         }
 
         const elapsed = now - (post.warningIssuedAt || now);
-        const distToStop = dist3(target.position, post.cfg.stopZone.center);
+        const distToStop = dist3(target.position, zoneCenter(post.cfg.stopZone));
         const prevDistToStop = Number(post.warningPrevDistToStopZone || distToStop);
         const moved = prevTargetPos ? dist3(target.position, prevTargetPos) : 0;
         const movementThreshold = Number(this.config.warningMoveTolerance || 0.09);
@@ -268,7 +407,7 @@ class CheckpointGuardController {
             return;
         }
 
-        if (inSphere(target.position, post.cfg.stopZone)) {
+        if (isInsideZone(target.position, post.cfg.stopZone)) {
             post.targetStopStaySince = now;
             this.transition(post, POST_STATE.CHECKING, "entered-stop-zone", now);
             return;
@@ -297,7 +436,7 @@ class CheckpointGuardController {
             return;
         }
 
-        if (!inSphere(target.position, post.cfg.stopZone)) {
+        if (!isInsideZone(target.position, post.cfg.stopZone)) {
             this.transition(post, POST_STATE.ATTACK, "left-stop-zone", now);
             return;
         }
@@ -330,15 +469,16 @@ class CheckpointGuardController {
         for (const guard of post.guards) guard.attack(target);
 
         const maxChaseDistance = Number(post.cfg.maxChaseDistance || this.config.defaultMaxChaseDistance);
+        const pursuitZone = this.getPursuitZone(post);
         const allUnits = [post.leader, ...post.guards];
         for (const unit of allUnits) {
-            if (unit.isOutsideLimits(post.cfg.guardZone, maxChaseDistance)) {
+            if (unit.isOutsideLimits(pursuitZone, maxChaseDistance)) {
                 this.log(`post=${post.id} unit=${unit.id} outside limits -> force return`);
                 unit.forceReturn();
             }
         }
 
-        if (!inSphere(target.position, post.cfg.guardZone)) {
+        if (!isInsideZone(target.position, pursuitZone)) {
             this.transition(post, POST_STATE.RETURN, "target-left-guard-zone", now);
         }
     }
@@ -367,7 +507,7 @@ class CheckpointGuardController {
             return true;
         }
 
-        if (post.cfg.violationZone && inSphere(target.position, post.cfg.violationZone)) {
+        if (post.cfg.violationZone && isInsideZone(target.position, post.cfg.violationZone)) {
             this.log(`post=${post.id} attack reason=violation-zone target=${target.name}[${target.id}]`);
             return true;
         }
@@ -396,11 +536,12 @@ class CheckpointGuardController {
         let nearest = null;
         let nearestDist = Number.MAX_SAFE_INTEGER;
 
-        mp.players.forEachInRange(post.cfg.guardZone.center, Number(post.cfg.guardZone.radius || 1), (player) => {
+        mp.players.forEach((player) => {
             if (!isValidPlayer(player)) return;
             if (Number(player.dimension) !== Number(post.cfg.dimension || 0)) return;
+            if (!isInsideZone(player.position, this.getPostZone(post))) return;
 
-            const d = dist3(player.position, post.cfg.guardZone.center);
+            const d = dist3(player.position, zoneCenter(this.getPostZone(post)));
             if (d < nearestDist) {
                 nearestDist = d;
                 nearest = player;
@@ -429,7 +570,7 @@ class CheckpointGuardController {
             const target = this.resolveTargetPlayer(post);
             if (target) {
                 this.sendWarningStart(target, post);
-                post.warningPrevDistToStopZone = dist3(target.position, post.cfg.stopZone.center);
+                post.warningPrevDistToStopZone = dist3(target.position, zoneCenter(post.cfg.stopZone));
                 post.warningStartDistToLeader = post.leader && post.leader.exists()
                     ? dist3(target.position, post.leader.ped.position)
                     : Number.MAX_SAFE_INTEGER;
@@ -494,11 +635,66 @@ class CheckpointGuardController {
     emitDebugToNearby(post, text) {
         if (!this.config.debug) return;
         const payload = `[${post.id}] ${text}`;
-        mp.players.forEachInRange(post.cfg.guardZone.center, Number(post.cfg.guardZone.radius || 1), (player) => {
+        mp.players.forEach((player) => {
             if (!isValidPlayer(player)) return;
             if (Number(player.dimension) !== Number(post.cfg.dimension || 0)) return;
+            if (!isInsideZone(player.position, this.getPostZone(post))) return;
             player.call("guardCheckpoint:debug", [payload]);
         });
+    }
+
+    getPostZone(post) {
+        return post.cfg.postZone || post.cfg.guardZone;
+    }
+
+    getPursuitZone(post) {
+        return post.cfg.pursuitZone || post.cfg.guardZone;
+    }
+
+    getPost(postId) {
+        return this.posts.get(String(postId));
+    }
+
+    async createOrReplacePost(rawPost) {
+        if (!rawPost || !rawPost.id) return null;
+        const current = this.posts.get(rawPost.id);
+        if (current) {
+            if (current.leader) current.leader.shutdown();
+            for (const guard of current.guards || []) guard.shutdown();
+        }
+        const post = this.createPostRuntime(rawPost);
+        this.posts.set(post.id, post);
+        await this.savePostToDb(post.id);
+        return post;
+    }
+
+    async updateZone(postId, zoneKey, zoneData) {
+        const post = this.getPost(postId);
+        if (!post) return false;
+        post.cfg[zoneKey] = zoneData;
+        await this.savePostToDb(postId);
+        return true;
+    }
+
+    async updateLeader(postId, npcData) {
+        const post = this.getPost(postId);
+        if (!post) return false;
+        post.cfg.leader = npcData;
+        return !!(await this.createOrReplacePost(post.cfg));
+    }
+
+    async addGuard(postId, npcData) {
+        const post = this.getPost(postId);
+        if (!post) return false;
+        post.cfg.guards = Array.isArray(post.cfg.guards) ? post.cfg.guards : [];
+        post.cfg.guards.push(npcData);
+        return !!(await this.createOrReplacePost(post.cfg));
+    }
+
+    async reloadFromDb() {
+        const loaded = await this.loadPostsFromDb();
+        if (!loaded) return false;
+        return true;
     }
 }
 

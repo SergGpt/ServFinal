@@ -31,11 +31,23 @@ const GUARD_CHECKPOINT_CONFIG = {
                 center: { x: -2260.53, y: 3184.4, z: 32.81 },
                 radius: 75,
             },
+            postZone: {
+                type: "sphere",
+                center: { x: -2260.53, y: 3184.4, z: 32.81 },
+                radius: 75,
+            },
+            pursuitZone: {
+                type: "sphere",
+                center: { x: -2260.53, y: 3184.4, z: 32.81 },
+                radius: 95,
+            },
             stopZone: {
+                type: "sphere",
                 center: { x: -2248.36, y: 3174.1, z: 32.81 },
                 radius: 5.0,
             },
             violationZone: {
+                type: "sphere",
                 center: { x: -2250.44, y: 3176.15, z: 32.81 },
                 radius: 3.5,
             },

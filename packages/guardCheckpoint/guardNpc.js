@@ -17,6 +17,38 @@ function method(obj, name) {
     return fn.bind(obj);
 }
 
+function isPointInsidePolygon2D(point, polygon) {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = Number(polygon[i].x) || 0;
+        const yi = Number(polygon[i].y) || 0;
+        const xj = Number(polygon[j].x) || 0;
+        const yj = Number(polygon[j].y) || 0;
+        const intersect = ((yi > point.y) !== (yj > point.y))
+            && (point.x < ((xj - xi) * (point.y - yi)) / ((yj - yi) || 0.000001) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
+function isInsideZone(pos, zone) {
+    if (!zone) return false;
+    const zoneType = String(zone.type || "sphere");
+    if (zoneType === "polygon") {
+        const points = Array.isArray(zone.points) ? zone.points : [];
+        if (points.length < 3) return false;
+        const minZ = Number.isFinite(Number(zone.minZ)) ? Number(zone.minZ) : -10000;
+        const maxZ = Number.isFinite(Number(zone.maxZ)) ? Number(zone.maxZ) : 10000;
+        if (pos.z < minZ || pos.z > maxZ) return false;
+        return isPointInsidePolygon2D({ x: pos.x, y: pos.y }, points);
+    }
+    const dx = pos.x - zone.center.x;
+    const dy = pos.y - zone.center.y;
+    const dz = pos.z - zone.center.z;
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    return dist <= Number(zone.radius || 0);
+}
+
 class GuardNpc {
     constructor(postConfig, npcConfig, role, log, respawnMs) {
         this.postConfig = postConfig;
@@ -235,12 +267,8 @@ class GuardNpc {
         const dz = pos.z - this.spawnPos.z;
         const distSpawn = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-        const gx = pos.x - guardZone.center.x;
-        const gy = pos.y - guardZone.center.y;
-        const gz = pos.z - guardZone.center.z;
-        const distZone = Math.sqrt(gx * gx + gy * gy + gz * gz);
-
-        return distSpawn > maxChaseDistance || distZone > guardZone.radius;
+        const outsideZone = !isInsideZone(pos, guardZone);
+        return distSpawn > maxChaseDistance || outsideZone;
     }
 
     shutdown() {

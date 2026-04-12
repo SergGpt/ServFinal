@@ -4,7 +4,8 @@ const guardCheckpoint = require("./index");
 const { controller } = guardCheckpoint;
 
 module.exports = {
-    init: () => {
+    init: async () => {
+        await controller.initialize();
         controller.start();
         inited(__dirname);
     },
@@ -26,5 +27,11 @@ module.exports = {
 
     playerDamage: (player, healthLoss, armourLoss, attacker) => {
         controller.onPlayerDamage(player, attacker);
+    },
+
+    "guardCheckpoint.reload": async (player) => {
+        if (!player || !player.character || player.character.admin < 5) return;
+        await controller.reloadFromDb();
+        player.call("selectMenu.notification", ["guardCheckpoint: loaded from DB"]);
     },
 };
