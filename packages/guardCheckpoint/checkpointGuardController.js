@@ -268,6 +268,7 @@ class CheckpointGuardController {
             switchStartedAt: 0,
             switchReason: null,
             switchAttempts: 0,
+            nextOwnerReselectAt: 0,
             lastControllerSwitchAt: 0,
             lastControllerHeartbeatAt: 0,
             pendingMovementCommand: null,
@@ -791,6 +792,7 @@ class CheckpointGuardController {
     }
 
     updateController(post) {
+        const now = Date.now();
         const currentOwner = getPlayerById(post.streamOwnerId);
         const currentValid = isValidPlayer(currentOwner)
             && Number(currentOwner.dimension) === Number(post.cfg.dimension || 0)
@@ -803,6 +805,14 @@ class CheckpointGuardController {
         // Во время активного handoff не стартуем новый без причины.
         if (post.switching) return;
 
+        const nextOwner = this.chooseController(post);
+        if (!nextOwner) {
+            if (now < Number(post.nextOwnerReselectAt || 0)) return;
+            post.nextOwnerReselectAt = now + 1200;
+        } else {
+            post.nextOwnerReselectAt = 0;
+        }
+
         this.controllerManager.beginSwitch(post, currentValid ? "owner-keep" : "owner-reselect");
     }
 
@@ -814,6 +824,18 @@ class CheckpointGuardController {
             const d = dist3(player.position, zoneCenter(this.getPostZone(post)));
             candidates.push({ player, dist: d, seenAt: post.playerSeenAt.get(player.id) || now });
         });
+
+        if (!candidates.length) {
+            const guardZone = post.cfg.guardZone || this.getPostZone(post);
+            mp.players.forEach((player) => {
+                if (!isValidPlayer(player)) return;
+                if (Number(player.dimension) !== Number(post.cfg.dimension || 0)) return;
+                if (!isInsideZone(player.position, guardZone)) return;
+                if (!post.playerSeenAt.has(player.id)) post.playerSeenAt.set(player.id, now);
+                const d = dist3(player.position, zoneCenter(this.getPostZone(post)));
+                candidates.push({ player, dist: d, seenAt: post.playerSeenAt.get(player.id) || now });
+            });
+        }
 
         for (const pid of Array.from(post.playerSeenAt.keys())) {
             if (!candidates.some((v) => Number(v.player.id) === Number(pid))) post.playerSeenAt.delete(pid);
