@@ -473,7 +473,7 @@ class CheckpointGuardController {
         if (stayedMs >= checkDurationMs) {
             this.log(`post=${post.id} checking completed target=${target.id}`);
             this.markPlayerCleared(target.id, 20000);
-            this.sendStatusText(post, "Все отлично, можете проезжать", 3000);
+            this.sendStatusText(post, "Все отлично, можете проезжать", 3000, target);
             this.sendWarningStop(target, post.id);
             this.transition(post, POST_STATE.RETURN, "check-success", now);
         }
@@ -630,13 +630,15 @@ class CheckpointGuardController {
         if (nextState === POST_STATE.CHECKING) {
             post.checkStartedAt = now;
             post.checkingGraceUntil = now + 1100;
-            this.sendStatusText(post, "Идет досмотр, оставайтесь в зоне проверки (5 секунд)", 5000);
+            const target = getPlayerById(post.targetPlayerId);
+            this.sendStatusText(post, "Идет досмотр, оставайтесь в зоне проверки (5 секунд)", 5000, target);
         }
 
         if (nextState === POST_STATE.ATTACK) {
             post.attackStartedAt = now;
             post.targetOutsidePursuitSince = 0;
-            this.sendStatusText(post, "Нарушение! Охрана открывает огонь", 2500);
+            const target = getPlayerById(post.targetPlayerId);
+            this.sendStatusText(post, "Нарушение! Охрана открывает огонь", 2500, target);
         }
 
         if (nextState === POST_STATE.IDLE || nextState === POST_STATE.RETURN) {
@@ -651,35 +653,26 @@ class CheckpointGuardController {
     sendWarningStart(player, post) {
         if (!isValidPlayer(player)) return;
         const ui = post.cfg.warningUi || {};
-        this.forEachPlayersInPost(post, (rec) => {
-            rec.call("guardCheckpoint:warning:start", [{
-                postId: post.id,
-                text: ui.text || "Охрана требует остановиться",
-                soundName: ui.soundName || "5s",
-                soundSet: ui.soundSet || "MP_MISSION_COUNTDOWN_SOUNDSET",
-                stopZone: post.cfg.stopZone || null,
-                ownerId: post.streamOwnerId,
-                targetId: player.id,
-            }]);
-            if (this.notifs && !this.notifs.isEmpty) {
-                this.notifs.warning(rec, "Остановитесь и зайдите в зону досмотра", "Пост охраны");
-            }
-        });
-        this.log(`warning start broadcast post=${post.id} target=${player.name}[${player.id}] owner=${post.streamOwnerId}`);
+        player.call("guardCheckpoint:warning:start", [{
+            postId: post.id,
+            text: ui.text || "Охрана требует остановиться",
+            soundName: ui.soundName || "5s",
+            soundSet: ui.soundSet || "MP_MISSION_COUNTDOWN_SOUNDSET",
+            stopZone: post.cfg.stopZone || null,
+            ownerId: post.streamOwnerId,
+            targetId: player.id,
+        }]);
+        if (this.notifs && !this.notifs.isEmpty) {
+            this.notifs.warning(player, "Остановитесь и зайдите в зону досмотра", "Пост охраны");
+        }
+        this.log(`warning start target-only post=${post.id} target=${player.name}[${player.id}] owner=${post.streamOwnerId}`);
         const warningResponseMs = Number(post.cfg.warningResponseMs || this.config.warningResponseMs || 5000);
         const warningSeconds = Math.max(1, Math.round(warningResponseMs / 1000));
-        this.sendStatusText(post, `Стой! Встаньте в зону досмотра за ${warningSeconds} секунд`, warningResponseMs);
-        this.sendPhase(post, "warning", warningResponseMs);
+        this.sendStatusText(post, `Стой! Встаньте в зону досмотра за ${warningSeconds} секунд`, warningResponseMs, player);
+        this.sendPhase(post, "warning", warningResponseMs, player);
     }
 
     sendWarningStop(player, postId) {
-        const post = this.posts.get(String(postId));
-        if (post) {
-            this.forEachPlayersInPost(post, (rec) => rec.call("guardCheckpoint:warning:stop", [postId]));
-            if (isValidPlayer(player)) player.call("guardCheckpoint:warning:stop", [postId]);
-            this.log(`warning stop broadcast post=${postId}`);
-            return;
-        }
         if (!isValidPlayer(player)) return;
         player.call("guardCheckpoint:warning:stop", [postId]);
     }
@@ -696,13 +689,21 @@ class CheckpointGuardController {
         }
     }
 
-    sendStatusText(post, text, durationMs = 3000) {
+    sendStatusText(post, text, durationMs = 3000, player = null) {
+        if (isValidPlayer(player)) {
+            player.call("guardCheckpoint:status:text", [post.id, text, durationMs]);
+            return;
+        }
         this.forEachPlayersInPost(post, (rec) => {
             rec.call("guardCheckpoint:status:text", [post.id, text, durationMs]);
         });
     }
 
-    sendPhase(post, phase, durationMs) {
+    sendPhase(post, phase, durationMs, player = null) {
+        if (isValidPlayer(player)) {
+            player.call("guardCheckpoint:phase", [post.id, phase, Number(durationMs) || 0, Date.now()]);
+            return;
+        }
         this.forEachPlayersInPost(post, (rec) => {
             rec.call("guardCheckpoint:phase", [post.id, phase, Number(durationMs) || 0, Date.now()]);
         });
