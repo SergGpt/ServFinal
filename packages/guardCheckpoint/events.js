@@ -34,6 +34,10 @@ module.exports = {
         controller.onControllerAck(player, postId, ver);
     },
 
+    "guardCheckpoint:execReport": (player, postId, pedId, phase, detail) => {
+        controller.onClientExecReport(player, postId, pedId, phase, detail);
+    },
+
     "guardCheckpoint.reload": async (player) => {
         if (!player || !player.character || player.character.admin < 5) return;
         await controller.reloadFromDb();
