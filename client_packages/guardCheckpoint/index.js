@@ -17,7 +17,7 @@ const HUGE_DESYNC = 7.5;
 
 const ownerRuntime = new Map(); // pedId -> owner task cache
 const observerRuntime = new Map(); // pedId -> pose cache
-const commandByPost = new Map(); // postId -> payload
+const commandByPost = new Map(); // postId -> transient fast-path hint (source of truth = entity vars)
 const ownerPoseUplinkAt = new Map(); // postId -> ts
 
 function nowMs() {
@@ -226,6 +226,34 @@ function applyOwnerCommand(ped, cmd, cache, now) {
     cache.lastCtrlVer = Number(cmd.ctrlVer || 0);
 }
 
+function readAuthoritativeCommandFromPed(ped) {
+    if (!ped || !ped.getVariable) return null;
+    const postId = String(ped.getVariable("guardPostId") || "");
+    if (!postId) return null;
+
+    const state = String(ped.getVariable("guardState") || "idle");
+    const targetId = Number(ped.getVariable("guardTargetId"));
+    const ctrlVer = Number(ped.getVariable("guardCtrlVer"));
+    const actionSeq = Number(ped.getVariable("guardActionSeq"));
+    const weaponHash = Number(ped.getVariable("guardWeaponHash")) || 0;
+
+    return {
+        postId,
+        command: state,
+        targetId: Number.isFinite(targetId) ? targetId : -1,
+        ctrlVer: Number.isFinite(ctrlVer) ? ctrlVer : 0,
+        actionSeq: Number.isFinite(actionSeq) ? actionSeq : 0,
+        units: [{
+            pedId: getPedId(ped),
+            weaponHash,
+            returnX: Number(ped.getVariable("guardReturnX")) || ped.position.x,
+            returnY: Number(ped.getVariable("guardReturnY")) || ped.position.y,
+            returnZ: Number(ped.getVariable("guardReturnZ")) || ped.position.z,
+            returnHeading: Number(ped.getVariable("guardReturnHeading")) || 0,
+        }],
+    };
+}
+
 function sendOwnerPoseUplink() {
     const grouped = new Map(); // postId -> { ctrlVer, units[] }
     const now = nowMs();
@@ -235,7 +263,7 @@ function sendOwnerPoseUplink() {
             if (!ped || !ped.getVariable) return;
             const postId = String(ped.getVariable("guardPostId") || "");
             if (!postId || !isOwner(ped)) return;
-            const cmd = commandByPost.get(postId);
+            const cmd = readAuthoritativeCommandFromPed(ped);
             if (!cmd) return;
 
             const lastSentAt = Number(ownerPoseUplinkAt.get(postId)) || 0;
@@ -293,7 +321,12 @@ function processOwnerLoop() {
 
             const pedId = getPedId(ped);
             if (!Number.isFinite(pedId)) return;
-            const cmd = commandByPost.get(String(postId));
+            const authoritativeCmd = readAuthoritativeCommandFromPed(ped);
+            if (!authoritativeCmd) return;
+            const hinted = commandByPost.get(String(postId));
+            const cmd = (hinted && Number(hinted.actionSeq || 0) >= Number(authoritativeCmd.actionSeq || 0))
+                ? hinted
+                : authoritativeCmd;
             if (!cmd) return;
 
             const cache = ownerRuntime.get(pedId) || {
@@ -334,6 +367,7 @@ function processObserverRender() {
                 const pedId = getPedId(ped);
                 const rt = observerRuntime.get(pedId);
                 if (rt && rt.currPose) {
+                    ensureWeapon(ped, Number(ped.getVariable("guardWeaponHash")) || 0);
                     const px = ped.position.x;
                     const py = ped.position.y;
                     const pz = ped.position.z;
@@ -355,6 +389,7 @@ function processObserverRender() {
                     }
                 }
             } else {
+                ensureWeapon(ped, Number(ped.getVariable("guardWeaponHash")) || 0);
                 renderObserverPose(ped);
             }
         } catch {}

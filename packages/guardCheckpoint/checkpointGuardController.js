@@ -272,6 +272,7 @@ class CheckpointGuardController {
             lastControllerHeartbeatAt: 0,
             pendingMovementCommand: null,
             pendingCombatCommand: null,
+            actionSeq: 0,
             lastTaskType: GUARD_TASK.IDLE,
             lastTaskData: {},
             lastTaskAt: Date.now(),
@@ -553,26 +554,31 @@ class CheckpointGuardController {
     }
 
     applyTaskWarning(post, target, force = false) {
+        post.actionSeq = Number(post.actionSeq || 0) + 1;
         saveTask(post, GUARD_TASK.WARNING_AIM, { targetId: Number(target.id) });
         this.updateUnitState(post, "warning_aim", Number(target.id));
         this.queueControllerCommand(post, {
             command: "warning_aim",
             targetId: Number(target.id),
+            actionSeq: post.actionSeq,
             force,
         });
     }
 
     applyTaskAttack(post, target, force = false) {
+        post.actionSeq = Number(post.actionSeq || 0) + 1;
         saveTask(post, GUARD_TASK.ATTACK, { targetId: Number(target.id) });
         this.updateUnitState(post, "attack", Number(target.id));
         this.queueControllerCommand(post, {
             command: "attack",
             targetId: Number(target.id),
+            actionSeq: post.actionSeq,
             force,
         });
     }
 
     applyTaskReturn(post, force = false) {
+        post.actionSeq = Number(post.actionSeq || 0) + 1;
         const units = [post.leader, ...post.guards].map((unit) => ({
             pedId: unit.exists() ? Number(unit.ped.id) : -1,
             x: Number(unit.spawnPos.x) || 0,
@@ -586,16 +592,19 @@ class CheckpointGuardController {
             command: "return",
             targetId: -1,
             units,
+            actionSeq: post.actionSeq,
             force,
         });
     }
 
     applyTaskIdle(post, force = false) {
+        post.actionSeq = Number(post.actionSeq || 0) + 1;
         clearTask(post);
         this.updateUnitState(post, "idle", -1);
         this.queueControllerCommand(post, {
             command: "idle",
             targetId: -1,
+            actionSeq: post.actionSeq,
             force,
         });
     }
@@ -609,12 +618,16 @@ class CheckpointGuardController {
             try { unit.ped.setVariable("guardTargetId", Number(targetId)); } catch {}
             try { unit.ped.setVariable("guardStartedAt", now); } catch {}
             try { unit.ped.setVariable("guardMoveState", state === "return" ? "moving" : "stationary"); } catch {}
+            try { unit.ped.setVariable("guardOwnerId", Number(post.streamOwnerId == null ? -1 : post.streamOwnerId)); } catch {}
+            try { unit.ped.setVariable("guardCtrlVer", Number(post.ctrlVer || 0)); } catch {}
+            try { unit.ped.setVariable("guardActionSeq", Number(post.actionSeq || 0)); } catch {}
+            try { unit.ped.setVariable("guardStateStartedAt", Number(post.stateSince || now)); } catch {}
         }
     }
 
     queueControllerCommand(post, cmd) {
-        const payload = this.makeContinuityPayload(post, cmd.command, cmd.targetId, cmd.units || null);
-        const commandKey = `${payload.command}:${payload.targetId}:${payload.ctrlVer}:${JSON.stringify(payload.units || [])}`;
+        const payload = this.makeContinuityPayload(post, cmd.command, cmd.targetId, cmd.units || null, cmd.actionSeq);
+        const commandKey = `${payload.command}:${payload.targetId}:${payload.ctrlVer}:${payload.actionSeq}:${JSON.stringify(payload.units || [])}`;
         const now = Date.now();
 
         if (!cmd.force && post.lastControllerCommandKey === commandKey && now - (post.lastControllerCommandAt || 0) < 350) {
@@ -632,7 +645,7 @@ class CheckpointGuardController {
         owner.call("guardCheckpoint:controller:command", [payload]);
     }
 
-    makeContinuityPayload(post, command, targetId, unitsOverride = null) {
+    makeContinuityPayload(post, command, targetId, unitsOverride = null, actionSeqOverride = null) {
         const unitPayload = unitsOverride || [post.leader, ...post.guards]
             .filter((unit) => unit && unit.exists())
             .map((unit) => {
@@ -666,6 +679,7 @@ class CheckpointGuardController {
             state: post.state,
             targetPlayerId: Number(post.targetPlayerId == null ? -1 : post.targetPlayerId),
             stateSince: Number(post.stateSince || 0),
+            actionSeq: Number(actionSeqOverride == null ? post.actionSeq || 0 : actionSeqOverride),
             switchReason: post.switchReason || null,
             units: unitPayload,
             sentAt: Date.now(),
@@ -962,6 +976,11 @@ class CheckpointGuardController {
             try { ped.setVariable("guardTargetId", targetId); } catch {}
             try { ped.setVariable("guardTarget", targetId); } catch {}
             try { ped.setVariable("guardState", guardState); } catch {}
+            try { ped.setVariable("guardOwnerId", Number(post.streamOwnerId == null ? -1 : post.streamOwnerId)); } catch {}
+            try { ped.setVariable("guardCtrlVer", Number(post.ctrlVer || 0)); } catch {}
+            try { ped.setVariable("guardActionSeq", Number(post.actionSeq || 0)); } catch {}
+            try { ped.setVariable("guardPostState", String(post.state || "idle")); } catch {}
+            try { ped.setVariable("guardStateStartedAt", Number(post.stateSince || now)); } catch {}
         }
     }
 
