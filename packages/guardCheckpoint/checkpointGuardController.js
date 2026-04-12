@@ -426,6 +426,7 @@ class CheckpointGuardController {
             return;
         }
 
+        const warningResponseMs = Number(post.cfg.warningResponseMs || this.config.warningResponseMs || 5000);
         const elapsed = now - (post.warningIssuedAt || now);
         const distToStop = dist3(target.position, zoneCenter(post.cfg.stopZone));
         const prevDistToStop = Number(post.warningPrevDistToStopZone || distToStop);
@@ -436,8 +437,8 @@ class CheckpointGuardController {
             return;
         }
 
-        if (elapsed > Number(this.config.warningResponseMs || 2500)) {
-            this.transition(post, POST_STATE.ATTACK, "did-not-enter-stop-zone-in-5s", now);
+        if (elapsed > warningResponseMs) {
+            this.transition(post, POST_STATE.ATTACK, "did-not-enter-stop-zone-in-time", now);
             return;
         }
 
@@ -471,16 +472,6 @@ class CheckpointGuardController {
         }
 
         if (now < (post.checkingGraceUntil || 0)) return;
-
-        const moved = prevTargetPos ? dist3(target.position, prevTargetPos) : 0;
-        if (moved > Number(this.config.movementThreshold || 0.08)) {
-            this.log(`post=${post.id} movement during check=${moved.toFixed(3)} reset timer target=${target.name}[${target.id}]`);
-            post.targetStopStaySince = now;
-            if (moved > Number(this.config.movementThreshold || 0.08) * 2.2) {
-                this.transition(post, POST_STATE.ATTACK, "movement-during-check", now);
-            }
-            return;
-        }
 
         const checkDurationMs = Number(post.cfg.checkDurationMs || this.config.defaultCheckDurationMs);
         const stayedMs = now - (post.targetStopStaySince || now);
@@ -636,7 +627,7 @@ class CheckpointGuardController {
         if (nextState === POST_STATE.CHECKING) {
             post.checkStartedAt = now;
             post.checkingGraceUntil = now + 1100;
-            this.sendStatusText(post, "Не двигайтесь, идет досмотр (5 секунд)", 5000);
+            this.sendStatusText(post, "Идет досмотр, оставайтесь в зоне проверки (5 секунд)", 5000);
         }
 
         if (nextState === POST_STATE.ATTACK) {
@@ -671,8 +662,10 @@ class CheckpointGuardController {
             }
         });
         this.log(`warning start broadcast post=${post.id} target=${player.name}[${player.id}] owner=${post.streamOwnerId}`);
-        this.sendStatusText(post, "Стой! Встаньте в зону досмотра за 5 секунд", 5000);
-        this.sendPhase(post, "warning", Number(this.config.warningResponseMs || 5000));
+        const warningResponseMs = Number(post.cfg.warningResponseMs || this.config.warningResponseMs || 5000);
+        const warningSeconds = Math.max(1, Math.round(warningResponseMs / 1000));
+        this.sendStatusText(post, `Стой! Встаньте в зону досмотра за ${warningSeconds} секунд`, warningResponseMs);
+        this.sendPhase(post, "warning", warningResponseMs);
     }
 
     sendWarningStop(player, postId) {
