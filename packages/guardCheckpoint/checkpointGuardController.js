@@ -756,6 +756,7 @@ class CheckpointGuardController {
             if (target) {
                 this.sendWarningStart(target, post);
                 post.warningPrevDistToStopZone = dist3(target.position, zoneCenter(post.cfg.stopZone));
+                this.applyTaskWarning(post, target, true);
             }
         }
 
@@ -770,6 +771,7 @@ class CheckpointGuardController {
             post.targetOutsidePursuitSince = 0;
             const target = getPlayerById(post.targetPlayerId);
             this.sendStatusText(post, "Нарушение! Охрана открывает огонь", 2500, target);
+            if (target) this.applyTaskAttack(post, target, true);
         }
 
         if (nextState === POST_STATE.IDLE || nextState === POST_STATE.RETURN) {
