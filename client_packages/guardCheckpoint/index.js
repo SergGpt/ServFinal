@@ -11,7 +11,10 @@ const DEBUG_AIM_LINES = false;
 const AI_LOOP_MS = 250;
 const AIM_REPLAY_MS = 350;
 const SHOOT_REPLAY_MS = 420;
-const CLEAR_REPLAY_MS = 500;
+const CLEAR_REPLAY_MS = 900;
+const TARGET_SWITCH_DEBOUNCE_MS = 180;
+const RETURN_REPLAY_MS = 1200;
+const RETURN_DEVIATION_DIST = 2.8;
 const PENDING_RETRY_MS = 200;
 const PENDING_TTL_MS = 2500;
 
@@ -89,6 +92,9 @@ function getOrCreateCache(pedId) {
             lastAimAt: 0,
             lastShootAt: 0,
             lastClearAt: 0,
+            lastMoveAt: 0,
+            targetChangedAt: 0,
+            returnPos: null,
             weaponHashHint: 0,
         });
     }
@@ -152,13 +158,18 @@ function runGuardAiLoop() {
             const weaponHash = getGuardWeaponHash(ped, cache.weaponHashHint);
             if (weaponHash > 0) cache.weaponHashHint = weaponHash;
 
-            const stateChanged = cache.lastState !== state || cache.lastTargetId !== targetId;
+            const prevState = cache.lastState;
+            const prevTargetId = cache.lastTargetId;
+            const stateChanged = prevState !== state || prevTargetId !== targetId;
+            if (prevTargetId !== targetId) cache.targetChangedAt = t;
             cache.lastState = state;
             cache.lastTargetId = targetId;
 
+            const targetStable = targetId < 0 || (t - cache.targetChangedAt) >= TARGET_SWITCH_DEBOUNCE_MS;
+
             if (state === "attack") {
                 const target = getPlayerByServerId(targetId);
-                if (!target) {
+                if (!target || !targetStable) {
                     queuePendingTarget(pedId, targetId);
                     return;
                 }
@@ -188,7 +199,7 @@ function runGuardAiLoop() {
 
             if (state === "warning_aim") {
                 const target = getPlayerByServerId(targetId);
-                if (!target) {
+                if (!target || !targetStable) {
                     queuePendingTarget(pedId, targetId);
                     return;
                 }
@@ -202,6 +213,20 @@ function runGuardAiLoop() {
                         try { ped.taskAimGunAt(target.handle, AIM_REPLAY_MS + 200, false); } catch {}
                     }
                     cache.lastAimAt = t;
+                }
+                return;
+            }
+
+            if (state === "return") {
+                const rp = cache.returnPos;
+                if (!rp) return;
+                const dx = ped.position.x - rp.x;
+                const dy = ped.position.y - rp.y;
+                const dz = ped.position.z - rp.z;
+                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (stateChanged || dist > RETURN_DEVIATION_DIST || t - cache.lastMoveAt >= RETURN_REPLAY_MS) {
+                    try { ped.taskGoStraightToCoord(rp.x, rp.y, rp.z, 2.2, -1, rp.heading || 0, 0.05); } catch {}
+                    cache.lastMoveAt = t;
                 }
                 return;
             }
@@ -221,6 +246,14 @@ function applyNpcCommandHints(command, targetId, units) {
         if (!Number.isFinite(pedId)) return;
         const cache = getOrCreateCache(pedId);
         if (Number(u.weaponHash) > 0) cache.weaponHashHint = Number(u.weaponHash);
+        if (command === "return") {
+            cache.returnPos = {
+                x: Number(u.x) || 0,
+                y: Number(u.y) || 0,
+                z: Number(u.z) || 0,
+                heading: Number(u.heading) || 0,
+            };
+        }
 
         if (command === "aim" || command === "fire") {
             queuePendingTarget(pedId, Number(targetId));
