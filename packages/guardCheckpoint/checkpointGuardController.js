@@ -485,6 +485,11 @@ class CheckpointGuardController {
             return;
         }
 
+        if (!isInsideZone(target.position, this.getPostZone(post))) {
+            this.transition(post, POST_STATE.RETURN, "target-escaped-post-zone", now);
+            return;
+        }
+
         post.leader.fireAtTarget(target);
         for (const guard of post.guards) guard.fireAtTarget(target);
         this.dispatchNpcCommand(post, "fire", target);
