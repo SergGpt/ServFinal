@@ -330,7 +330,7 @@ function processObserverRender() {
             updateObserverPoseCache(ped);
             const guardState = String(ped.getVariable("guardState") || "idle");
             if (guardState === "attack" || guardState === "warning_aim") {
-                // В бою не трогаем мелкие коррекции, чтобы не ломать сетевую анимацию стрельбы/прицеливания.
+                // В бою не делаем жёсткий chase, но поддерживаем heading + мягкий catch-up, чтобы анимация не "замирала".
                 const pedId = getPedId(ped);
                 const rt = observerRuntime.get(pedId);
                 if (rt && rt.currPose) {
@@ -341,8 +341,17 @@ function processObserverRender() {
                     const dy = rt.currPose.y - py;
                     const dz = rt.currPose.z - pz;
                     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                    if (dist >= MEDIUM_DESYNC) {
+                    if (dist >= HUGE_DESYNC) {
+                        try { ped.setCoordsNoOffset(rt.currPose.x, rt.currPose.y, rt.currPose.z, false, false, false); } catch {}
+                    } else if (dist >= NORMAL_DESYNC) {
                         try { ped.setCoordsNoOffset(px + dx * 0.4, py + dy * 0.4, pz + dz * 0.4, false, false, false); } catch {}
+                    }
+
+                    const curHeading = Number(ped.getHeading ? ped.getHeading() : 0) || 0;
+                    const targetHeading = Number(rt.currPose.heading) || curHeading;
+                    const hDelta = shortestAngleDelta(curHeading, targetHeading);
+                    if (Math.abs(hDelta) > 0.15) {
+                        try { ped.setHeading(curHeading + hDelta * 0.35); } catch {}
                     }
                 }
             } else {
