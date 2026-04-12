@@ -41,6 +41,11 @@ function nowMs() {
     return Date.now();
 }
 
+
+function sendControllerAck(postId, ver) {
+    try { mp.events.callRemote("guardCheckpoint:controller.ack", postId, ver); } catch {}
+}
+
 function getPedRemoteId(ped) {
     return Number(ped && (ped.remoteId != null ? ped.remoteId : ped.id));
 }
@@ -373,6 +378,11 @@ mp.events.add({
         // npcCommand используется как hint/ускоритель. Основной визуал — AI loop по guardState.
         clog(`npcCommand post=${postId} cmd=${command} target=${targetId} units=${(units || []).length}`);
         applyNpcCommandHints(command, targetId, units);
+    },
+
+    "guardCheckpoint:controller:switch": (postId, ver) => {
+        sendControllerAck(postId, ver);
+        setTimeout(() => sendControllerAck(postId, ver), 300);
     },
 
     "guardCheckpoint:debug": (text) => {

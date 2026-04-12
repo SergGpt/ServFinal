@@ -29,6 +29,11 @@ module.exports = {
         controller.onPlayerDamage(player, attacker);
     },
 
+
+    "guardCheckpoint:controller.ack": (player, postId, ver) => {
+        controller.onControllerAck(player, postId, ver);
+    },
+
     "guardCheckpoint.reload": async (player) => {
         if (!player || !player.character || player.character.admin < 5) return;
         await controller.reloadFromDb();
