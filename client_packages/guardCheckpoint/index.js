@@ -96,7 +96,10 @@ mp.events.add({
     },
 
     "guardCheckpoint:npcCommand": (postId, command, targetId, units, streamOwnerId) => {
-        clog(`npcCommand post=${postId} cmd=${command} target=${targetId} units=${(units || []).length} owner=${streamOwnerId}`);
+        const localId = mp.players.local ? mp.players.local.id : null;
+        const isStreamOwner = streamOwnerId == null || localId === streamOwnerId;
+        clog(`npcCommand post=${postId} cmd=${command} target=${targetId} units=${(units || []).length} owner=${streamOwnerId} local=${localId} run=${isStreamOwner}`);
+        if (!isStreamOwner) return;
         applyNpcCommand(command, targetId, units);
     },
 });
