@@ -414,13 +414,19 @@ class CheckpointGuardController {
             return;
         }
 
+        if (!isInsideZone(target.position, this.getPostZone(post))) {
+            this.transition(post, POST_STATE.RETURN, "left-post-zone-warning", now);
+            return;
+        }
+
         this.ensureLeaderWarningBehavior(post, target);
 
-        if (this.shouldTriggerAttack(post, target, now)) {
+        if (this.shouldTriggerAttack(post, target, now, { ignoreViolation: true })) {
             this.transition(post, POST_STATE.ATTACK, "warning-violation", now);
             return;
         }
 
+        const warningResponseMs = Number(post.cfg.warningResponseMs || this.config.warningResponseMs || 5000);
         const elapsed = now - (post.warningIssuedAt || now);
         const distToStop = dist3(target.position, zoneCenter(post.cfg.stopZone));
         const prevDistToStop = Number(post.warningPrevDistToStopZone || distToStop);
@@ -431,8 +437,8 @@ class CheckpointGuardController {
             return;
         }
 
-        if (elapsed > Number(this.config.warningResponseMs || 2500)) {
-            this.transition(post, POST_STATE.ATTACK, "did-not-enter-stop-zone-in-5s", now);
+        if (elapsed > warningResponseMs) {
+            this.transition(post, POST_STATE.ATTACK, "did-not-enter-stop-zone-in-time", now);
             return;
         }
 
@@ -442,6 +448,11 @@ class CheckpointGuardController {
     handleChecking(post, target, prevTargetPos, now) {
         if (!target) {
             this.transition(post, POST_STATE.RETURN, "no-target-checking", now);
+            return;
+        }
+
+        if (!isInsideZone(target.position, this.getPostZone(post))) {
+            this.transition(post, POST_STATE.RETURN, "left-post-zone-checking", now);
             return;
         }
 
@@ -455,22 +466,7 @@ class CheckpointGuardController {
             return;
         }
 
-        if (target.vehicle) {
-            this.transition(post, POST_STATE.ATTACK, "vehicle-in-stop-zone", now);
-            return;
-        }
-
         if (now < (post.checkingGraceUntil || 0)) return;
-
-        const moved = prevTargetPos ? dist3(target.position, prevTargetPos) : 0;
-        if (moved > Number(this.config.movementThreshold || 0.08)) {
-            this.log(`post=${post.id} movement during check=${moved.toFixed(3)} reset timer target=${target.name}[${target.id}]`);
-            post.targetStopStaySince = now;
-            if (moved > Number(this.config.movementThreshold || 0.08) * 2.2) {
-                this.transition(post, POST_STATE.ATTACK, "movement-during-check", now);
-            }
-            return;
-        }
 
         const checkDurationMs = Number(post.cfg.checkDurationMs || this.config.defaultCheckDurationMs);
         const stayedMs = now - (post.targetStopStaySince || now);
@@ -486,6 +482,11 @@ class CheckpointGuardController {
     handleAttack(post, target, now) {
         if (!target) {
             this.transition(post, POST_STATE.RETURN, "no-target-attack", now);
+            return;
+        }
+
+        if (!isInsideZone(target.position, this.getPostZone(post))) {
+            this.transition(post, POST_STATE.RETURN, "target-escaped-post-zone", now);
             return;
         }
 
@@ -626,7 +627,7 @@ class CheckpointGuardController {
         if (nextState === POST_STATE.CHECKING) {
             post.checkStartedAt = now;
             post.checkingGraceUntil = now + 1100;
-            this.sendStatusText(post, "Не двигайтесь, идет досмотр (5 секунд)", 5000);
+            this.sendStatusText(post, "Идет досмотр, оставайтесь в зоне проверки (5 секунд)", 5000);
         }
 
         if (nextState === POST_STATE.ATTACK) {
@@ -636,8 +637,8 @@ class CheckpointGuardController {
         }
 
         if (nextState === POST_STATE.IDLE || nextState === POST_STATE.RETURN) {
-            const target = this.resolveTargetPlayer(post);
-            if (target) this.sendWarningStop(target, post.id);
+            const target = getPlayerById(post.targetPlayerId);
+            this.sendWarningStop(target, post.id);
         }
 
         this.log(`post=${post.id} ${prev} -> ${nextState} (${reason})`);
@@ -662,14 +663,17 @@ class CheckpointGuardController {
             }
         });
         this.log(`warning start broadcast post=${post.id} target=${player.name}[${player.id}] owner=${post.streamOwnerId}`);
-        this.sendStatusText(post, "Стой! Встаньте в зону досмотра за 5 секунд", 5000);
-        this.sendPhase(post, "warning", Number(this.config.warningResponseMs || 5000));
+        const warningResponseMs = Number(post.cfg.warningResponseMs || this.config.warningResponseMs || 5000);
+        const warningSeconds = Math.max(1, Math.round(warningResponseMs / 1000));
+        this.sendStatusText(post, `Стой! Встаньте в зону досмотра за ${warningSeconds} секунд`, warningResponseMs);
+        this.sendPhase(post, "warning", warningResponseMs);
     }
 
     sendWarningStop(player, postId) {
         const post = this.posts.get(String(postId));
         if (post) {
             this.forEachPlayersInPost(post, (rec) => rec.call("guardCheckpoint:warning:stop", [postId]));
+            if (isValidPlayer(player)) player.call("guardCheckpoint:warning:stop", [postId]);
             this.log(`warning stop broadcast post=${postId}`);
             return;
         }
@@ -767,10 +771,6 @@ class CheckpointGuardController {
     }
 
     dispatchNpcCommand(post, command, targetPlayer) {
-        const ownerId = post.streamOwnerId;
-        if (ownerId == null) return;
-        const owner = getPlayerById(ownerId);
-        if (!owner) return;
         const targetId = targetPlayer ? targetPlayer.id : -1;
         const now = Date.now();
         const key = `${command}:${targetId}`;
@@ -788,7 +788,9 @@ class CheckpointGuardController {
                 heading: unit.spawnHeading,
                 weaponHash: unit.weaponHash || 0,
             }));
-        owner.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units]);
+        this.forEachPlayersInPost(post, (rec) => {
+            rec.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
+        });
     }
 
     getPost(postId) {

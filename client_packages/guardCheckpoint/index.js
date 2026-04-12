@@ -23,10 +23,14 @@ function playSound(soundName, soundSet) {
 }
 
 function getPlayerByServerId(serverId) {
+    if (serverId == null || serverId < 0) return null;
+    const byRemoteId = mp.players.atRemoteId(Number(serverId));
+    if (byRemoteId) return byRemoteId;
+
     let found = null;
     mp.players.forEach((p) => {
         if (found) return;
-        if (p.id === serverId) found = p;
+        if (Number(p.remoteId) === Number(serverId) || Number(p.id) === Number(serverId)) found = p;
     });
     return found;
 }
@@ -95,8 +99,11 @@ mp.events.add({
         clog(`status post=${postId} text="${statusText}"`);
     },
 
-    "guardCheckpoint:npcCommand": (postId, command, targetId, units) => {
-        clog(`npcCommand post=${postId} cmd=${command} target=${targetId} units=${(units || []).length}`);
+    "guardCheckpoint:npcCommand": (postId, command, targetId, units, streamOwnerId) => {
+        const localId = mp.players.local ? mp.players.local.remoteId : null;
+        const isStreamOwner = streamOwnerId == null || localId === streamOwnerId;
+        clog(`npcCommand post=${postId} cmd=${command} target=${targetId} units=${(units || []).length} owner=${streamOwnerId} local=${localId} run=${isStreamOwner}`);
+        if (!isStreamOwner) return;
         applyNpcCommand(command, targetId, units);
     },
 });
