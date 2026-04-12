@@ -261,6 +261,8 @@ class CheckpointGuardController {
             controllerAckVer: 0,
             pendingMovementCommand: null,
             poseRuntime: new Map(), // npcId -> { x,y,z,heading,t, velX,velY,velZ }
+            ownerLeaseUntil: 0,
+            lastOwnerSwitchAt: 0,
         };
     }
 
@@ -855,22 +857,50 @@ class CheckpointGuardController {
             if (!inside.some((p) => p.id === pid)) post.playerSeenAt.delete(pid);
         }
 
+        const ownerLeaseMs = Math.max(1000, Number(this.config.ownerLeaseMs) || 7000);
+        const ownerSwitchCooldownMs = Math.max(800, Number(this.config.ownerSwitchCooldownMs) || 2500);
+        const ownerPingHysteresisMs = Math.max(0, Number(this.config.ownerPingHysteresisMs) || 12);
+
+        const scoreFor = (player) => {
+            const ping = Math.max(0, Number(player && player.ping) || 999);
+            const seenAt = Number(post.playerSeenAt.get(player.id)) || now;
+            const seenBonus = Math.min(10, Math.max(0, (now - seenAt) / 1000)) * 0.35;
+            return ping - seenBonus;
+        };
+
         let nextOwner = post.streamOwnerId;
-        const currentInside = inside.some((p) => p.id === post.streamOwnerId);
-        if (!currentInside) {
+        const currentOwner = inside.find((p) => p.id === post.streamOwnerId) || null;
+        const leaseActive = Number(post.ownerLeaseUntil) > now;
+        if (currentOwner && leaseActive) return;
+
+        const bestCandidate = inside
+            .slice()
+            .sort((a, b) => scoreFor(a) - scoreFor(b))[0] || null;
+
+        if (!bestCandidate) {
             nextOwner = null;
-            let earliest = Number.MAX_SAFE_INTEGER;
-            inside.forEach((p) => {
-                const seenAt = post.playerSeenAt.get(p.id) || now;
-                if (seenAt < earliest) {
-                    earliest = seenAt;
-                    nextOwner = p.id;
-                }
-            });
+        } else if (!currentOwner) {
+            nextOwner = bestCandidate.id;
+        } else {
+            const currentScore = scoreFor(currentOwner);
+            const bestScore = scoreFor(bestCandidate);
+            const switchCooldownActive = now - Number(post.lastOwnerSwitchAt || 0) < ownerSwitchCooldownMs;
+            const significantlyBetter = (currentScore - bestScore) > ownerPingHysteresisMs;
+            if (!switchCooldownActive && significantlyBetter) {
+                nextOwner = bestCandidate.id;
+            } else {
+                nextOwner = currentOwner.id;
+            }
         }
 
-        if (post.streamOwnerId === nextOwner) return;
+        if (post.streamOwnerId === nextOwner) {
+            if (nextOwner == null) post.ownerLeaseUntil = 0;
+            else post.ownerLeaseUntil = now + ownerLeaseMs;
+            return;
+        }
         post.streamOwnerId = nextOwner;
+        post.lastOwnerSwitchAt = now;
+        post.ownerLeaseUntil = now + ownerLeaseMs;
         post.lastClientCommandKey = null;
         post.lastClientCommandAt = 0;
         post.ctrlVer = (Number(post.ctrlVer) || 0) + 1;
