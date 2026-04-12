@@ -6,6 +6,7 @@ let lastRenderDebugAt = 0;
 let activeStopZone = null;
 let statusText = null;
 let statusUntil = 0;
+const DEBUG_AIM_LINES = false;
 
 function clog(text) {
     try {
@@ -48,7 +49,6 @@ function applyNpcCommand(command, targetId, units) {
                 ped.clearTasks();
                 ped.taskAimGunAt(target.handle, 1200, false);
             } else if (command === "fire" && target) {
-                ped.clearTasks();
                 ped.taskCombat(target.handle, 0, 16);
                 try { ped.setKeepTask(true); } catch (e) {}
             } else if (command === "return") {
@@ -128,30 +128,31 @@ mp.events.add("render", () => {
         statusText = null;
     }
 
-    // Debug aim lines
-    mp.peds.forEach((ped) => {
-        try {
-            if (!ped || !ped.getVariable) return;
-            const postId = ped.getVariable("guardPostId");
-            if (!postId) return;
-            const state = String(ped.getVariable("guardState") || "");
-            if (state !== "warning_aim" && state !== "attack") return;
-            const p = ped.position;
-            const me = mp.players.local.position;
-            mp.game.graphics.drawLine(
-                p.x,
-                p.y,
-                p.z + 1.0,
-                me.x,
-                me.y,
-                me.z + 0.7,
-                state === "attack" ? 255 : 255,
-                state === "attack" ? 80 : 220,
-                state === "attack" ? 80 : 80,
-                220
-            );
-        } catch (e) {}
-    });
+    if (DEBUG_AIM_LINES) {
+        mp.peds.forEach((ped) => {
+            try {
+                if (!ped || !ped.getVariable) return;
+                const postId = ped.getVariable("guardPostId");
+                if (!postId) return;
+                const state = String(ped.getVariable("guardState") || "");
+                if (state !== "warning_aim" && state !== "attack") return;
+                const p = ped.position;
+                const me = mp.players.local.position;
+                mp.game.graphics.drawLine(
+                    p.x,
+                    p.y,
+                    p.z + 1.0,
+                    me.x,
+                    me.y,
+                    me.z + 0.7,
+                    state === "attack" ? 255 : 255,
+                    state === "attack" ? 80 : 220,
+                    state === "attack" ? 80 : 80,
+                    220
+                );
+            } catch (e) {}
+        });
+    }
 
     if (!activeWarning) return;
     if (Date.now() - lastRenderDebugAt > 2000) {

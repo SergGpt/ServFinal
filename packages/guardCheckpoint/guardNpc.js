@@ -271,10 +271,9 @@ class GuardNpc {
 
     fireAtTarget(targetPlayer) {
         if (!this.exists() || !targetPlayer || !mp.players.exists(targetPlayer)) return;
-        if (!this.shouldSendOrder(`attack:${targetPlayer.id}`, 850)) return;
+        if (!this.shouldSendOrder(`attack:${targetPlayer.id}`, 2400)) return;
         this.readyWeapon();
         safeCall(method(this.ped, "setVariable"), "guardState", "attack");
-        safeCall(method(this.ped, "clearTasks"));
         safeCall(method(this.ped, "taskCombat"), targetPlayer.handle, 0, 16);
         safeCall(method(this.ped, "setKeepTask"), true);
         this.log(`npc=${this.id} fire target=${targetPlayer.id}`);
