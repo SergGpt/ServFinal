@@ -246,6 +246,8 @@ class CheckpointGuardController {
             streamOwnerId: null,
             playerSeenAt: new Map(),
             checkingGraceUntil: 0,
+            lastClientCommandKey: "",
+            lastClientCommandAt: 0,
         };
     }
 
@@ -443,7 +445,7 @@ class CheckpointGuardController {
             return;
         }
 
-        if (this.shouldTriggerAttack(post, target, now)) {
+        if (this.shouldTriggerAttack(post, target, now, { ignoreViolation: true })) {
             this.transition(post, POST_STATE.ATTACK, "checking-violation", now);
             return;
         }
@@ -536,7 +538,7 @@ class CheckpointGuardController {
         }
     }
 
-    shouldTriggerAttack(post, target) {
+    shouldTriggerAttack(post, target, now, options = {}) {
         if (!target || !mp.players.exists(target)) return false;
         if (this.isPlayerAggressive(target.id)) {
             this.log(`post=${post.id} attack reason=aggressive target=${target.name}[${target.id}]`);
@@ -544,7 +546,7 @@ class CheckpointGuardController {
         }
         if (this.isPlayerCleared(target.id)) return false;
 
-        if (post.cfg.violationZone && isInsideZone(target.position, post.cfg.violationZone)) {
+        if (!options.ignoreViolation && post.cfg.violationZone && isInsideZone(target.position, post.cfg.violationZone)) {
             this.log(`post=${post.id} attack reason=violation-zone target=${target.name}[${target.id}]`);
             return true;
         }
@@ -661,6 +663,7 @@ class CheckpointGuardController {
         });
         this.log(`warning start broadcast post=${post.id} target=${player.name}[${player.id}] owner=${post.streamOwnerId}`);
         this.sendStatusText(post, "Стой! Встаньте в зону досмотра за 5 секунд", 5000);
+        this.sendPhase(post, "warning", Number(this.config.warningResponseMs || 5000));
     }
 
     sendWarningStop(player, postId) {
@@ -689,6 +692,12 @@ class CheckpointGuardController {
     sendStatusText(post, text, durationMs = 3000) {
         this.forEachPlayersInPost(post, (rec) => {
             rec.call("guardCheckpoint:status:text", [post.id, text, durationMs]);
+        });
+    }
+
+    sendPhase(post, phase, durationMs) {
+        this.forEachPlayersInPost(post, (rec) => {
+            rec.call("guardCheckpoint:phase", [post.id, phase, Number(durationMs) || 0, Date.now()]);
         });
     }
 
@@ -762,6 +771,12 @@ class CheckpointGuardController {
         if (ownerId == null) return;
         const owner = getPlayerById(ownerId);
         if (!owner) return;
+        const targetId = targetPlayer ? targetPlayer.id : -1;
+        const now = Date.now();
+        const key = `${command}:${targetId}`;
+        if (post.lastClientCommandKey === key && now - (post.lastClientCommandAt || 0) < 900) return;
+        post.lastClientCommandKey = key;
+        post.lastClientCommandAt = now;
         const units = [post.leader, ...post.guards]
             .filter((unit) => unit && unit.exists())
             .map((unit) => ({
@@ -773,7 +788,7 @@ class CheckpointGuardController {
                 heading: unit.spawnHeading,
                 weaponHash: unit.weaponHash || 0,
             }));
-        owner.call("guardCheckpoint:npcCommand", [post.id, command, targetPlayer ? targetPlayer.id : -1, units]);
+        owner.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units]);
     }
 
     getPost(postId) {
