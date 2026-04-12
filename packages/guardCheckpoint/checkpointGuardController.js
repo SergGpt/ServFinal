@@ -97,6 +97,13 @@ function getPlayerById(playerId) {
     return found;
 }
 
+function normalizedMoveState(postState) {
+    if (postState === POST_STATE.ATTACK) return "attack";
+    if (postState === POST_STATE.WARNING || postState === POST_STATE.CHECKING) return "warning_aim";
+    if (postState === POST_STATE.RETURN) return "return";
+    return "idle";
+}
+
 class CheckpointGuardController {
     constructor(config) {
         this.config = config;
@@ -253,6 +260,7 @@ class CheckpointGuardController {
             ctrlVer: 0,
             controllerAckVer: 0,
             pendingMovementCommand: null,
+            poseRuntime: new Map(), // npcId -> { x,y,z,heading,t, velX,velY,velZ }
         };
     }
 
@@ -575,13 +583,15 @@ class CheckpointGuardController {
         if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
         post.lastAppliedBehaviorKey = behaviorKey;
 
-        post.leader.setFacing(target.position);
-        post.leader.playStopAnim();
-        post.leader.readyWeapon();
-        post.leader.aimAtTarget(target);
-        for (const guard of post.guards) {
-            guard.readyWeapon();
-            guard.aimAtTarget(target);
+        const units = [post.leader, ...post.guards];
+        for (const unit of units) {
+            if (!unit || !unit.exists()) continue;
+            const ped = unit.ped;
+            try { ped.setVariable("guardState", "warning_aim"); } catch {}
+            try { ped.setVariable("guardTarget", Number(target.id)); } catch {}
+            try { ped.setVariable("guardTargetId", Number(target.id)); } catch {}
+            try { ped.setVariable("guardStartedAt", Date.now()); } catch {}
+            try { ped.setVariable("guardWeaponHash", Number(unit.weaponHash) || 0); } catch {}
         }
         this.dispatchNpcCommand(post, "aim", target, { force });
     }
@@ -592,8 +602,16 @@ class CheckpointGuardController {
         if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
         post.lastAppliedBehaviorKey = behaviorKey;
 
-        post.leader.fireAtTarget(target);
-        for (const guard of post.guards) guard.fireAtTarget(target);
+        const units = [post.leader, ...post.guards];
+        for (const unit of units) {
+            if (!unit || !unit.exists()) continue;
+            const ped = unit.ped;
+            try { ped.setVariable("guardState", "attack"); } catch {}
+            try { ped.setVariable("guardTarget", Number(target.id)); } catch {}
+            try { ped.setVariable("guardTargetId", Number(target.id)); } catch {}
+            try { ped.setVariable("guardStartedAt", Date.now()); } catch {}
+            try { ped.setVariable("guardWeaponHash", Number(unit.weaponHash) || 0); } catch {}
+        }
         this.dispatchNpcCommand(post, "fire", target, { force });
     }
 
@@ -602,11 +620,19 @@ class CheckpointGuardController {
         if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
         post.lastAppliedBehaviorKey = behaviorKey;
 
-        post.leader.stopCombat();
-        post.leader.returnToPost();
-        for (const guard of post.guards) {
-            guard.stopCombat();
-            guard.returnToPost();
+        const units = [post.leader, ...post.guards];
+        for (const unit of units) {
+            if (!unit || !unit.exists()) continue;
+            const ped = unit.ped;
+            try { ped.setVariable("guardState", "return"); } catch {}
+            try { ped.setVariable("guardTarget", -1); } catch {}
+            try { ped.setVariable("guardTargetId", -1); } catch {}
+            try { ped.setVariable("guardStartedAt", Date.now()); } catch {}
+            try { ped.setVariable("guardReturnX", Number(unit.spawnPos.x) || 0); } catch {}
+            try { ped.setVariable("guardReturnY", Number(unit.spawnPos.y) || 0); } catch {}
+            try { ped.setVariable("guardReturnZ", Number(unit.spawnPos.z) || 0); } catch {}
+            try { ped.setVariable("guardReturnHeading", Number(unit.spawnHeading) || 0); } catch {}
+            try { ped.setVariable("guardWeaponHash", Number(unit.weaponHash) || 0); } catch {}
         }
         this.dispatchNpcCommand(post, "return", null, { force });
     }
@@ -779,15 +805,41 @@ class CheckpointGuardController {
     publishAuthoritativePose(post, now) {
         if (now - (post.lastPoseSyncAt || 0) < 150) return;
         post.lastPoseSyncAt = now;
+        const moveState = normalizedMoveState(post.state);
         const units = [post.leader, ...post.guards];
         for (const unit of units) {
             if (!unit || !unit.exists()) continue;
             const ped = unit.ped;
             const pos = ped.position;
+            const heading = Number(ped.getHeading ? ped.getHeading() : unit.spawnHeading) || 0;
+            const prev = post.poseRuntime.get(unit.id) || null;
+            let velX = 0;
+            let velY = 0;
+            let velZ = 0;
+            if (prev && Number(prev.t) > 0) {
+                const dt = Math.max(1, now - Number(prev.t)) / 1000;
+                velX = (Number(pos.x) - Number(prev.x)) / dt;
+                velY = (Number(pos.y) - Number(prev.y)) / dt;
+                velZ = (Number(pos.z) - Number(prev.z)) / dt;
+            }
+            post.poseRuntime.set(unit.id, {
+                x: Number(pos.x) || 0,
+                y: Number(pos.y) || 0,
+                z: Number(pos.z) || 0,
+                heading,
+                t: now,
+                velX,
+                velY,
+                velZ,
+            });
             try { ped.setVariable("guardPoseX", Number(pos.x) || 0); } catch {}
             try { ped.setVariable("guardPoseY", Number(pos.y) || 0); } catch {}
             try { ped.setVariable("guardPoseZ", Number(pos.z) || 0); } catch {}
-            try { ped.setVariable("guardPoseHeading", Number(ped.getHeading ? ped.getHeading() : unit.spawnHeading) || 0); } catch {}
+            try { ped.setVariable("guardPoseHeading", heading); } catch {}
+            try { ped.setVariable("guardVelX", Number.isFinite(velX) ? velX : 0); } catch {}
+            try { ped.setVariable("guardVelY", Number.isFinite(velY) ? velY : 0); } catch {}
+            try { ped.setVariable("guardVelZ", Number.isFinite(velZ) ? velZ : 0); } catch {}
+            try { ped.setVariable("guardMoveState", moveState); } catch {}
             try { ped.setVariable("guardPoseUpdatedAt", now); } catch {}
         }
     }
@@ -879,9 +931,17 @@ class CheckpointGuardController {
             .map((unit) => ({
                 pedId: unit.ped.id,
                 role: unit.role,
-                x: unit.spawnPos.x,
-                y: unit.spawnPos.y,
-                z: unit.spawnPos.z,
+                x: Number(unit.ped.position.x) || 0,
+                y: Number(unit.ped.position.y) || 0,
+                z: Number(unit.ped.position.z) || 0,
+                poseHeading: Number(unit.ped.getHeading ? unit.ped.getHeading() : unit.spawnHeading) || 0,
+                velX: Number(unit.ped.getVariable ? unit.ped.getVariable("guardVelX") : 0) || 0,
+                velY: Number(unit.ped.getVariable ? unit.ped.getVariable("guardVelY") : 0) || 0,
+                velZ: Number(unit.ped.getVariable ? unit.ped.getVariable("guardVelZ") : 0) || 0,
+                moveState: normalizedMoveState(post.state),
+                returnX: unit.spawnPos.x,
+                returnY: unit.spawnPos.y,
+                returnZ: unit.spawnPos.z,
                 heading: unit.spawnHeading,
                 weaponHash: unit.weaponHash || 0,
             }));

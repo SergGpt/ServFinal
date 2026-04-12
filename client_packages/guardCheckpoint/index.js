@@ -9,14 +9,22 @@ let lastRenderDebugAt = 0;
 
 const DEBUG_AIM_LINES = false;
 const AI_LOOP_MS = 200;
-const AIM_REPLAY_MS = 320;
-const SHOOT_REPLAY_MS = 360;
-const CLEAR_REPLAY_MS = 900;
+const AIM_REPLAY_MS = 850;
+const SHOOT_REPLAY_MS = 950;
+const IDLE_CLEAR_REPLAY_MS = 1800;
 const TARGET_SWITCH_DEBOUNCE_MS = 180;
-const RETURN_REPLAY_MS = 900;
+const RETURN_REPLAY_MS = 1200;
 const RETURN_DEVIATION_DIST = 2.8;
-const POSE_SMOOTH_FACTOR = 0.12;
-const POSE_SNAP_DIST = 7.5;
+const RETURN_PROGRESS_EPS = 0.08;
+const RETURN_STALL_MS = 900;
+const HEADING_SMOOTH_FACTOR = 0.2;
+const POSE_IGNORE_DIST = 0.03;
+const POSE_NORMAL_SMOOTH = 0.18;
+const POSE_CATCHUP_SMOOTH = 0.34;
+const POSE_MEDIUM_DIST = 1.8;
+const POSE_SNAP_DIST = 6.5;
+const POSE_EXTRAPOLATION_MS = 220;
+const AUTH_UPDATE_INTERVAL_MS = 150;
 const PENDING_RETRY_MS = 200;
 const PENDING_TTL_MS = 2500;
 
@@ -24,6 +32,8 @@ let lastAiLoopAt = 0;
 
 const pedAiCache = new Map(); // pedRemoteId -> runtime cache
 const pendingByPed = new Map(); // pedRemoteId -> { targetId, expiresAt, lastTryAt }
+const observerPoseCache = new Map(); // pedRemoteId -> interpolation/extrapolation runtime
+const ownerRecoveryPosts = new Map(); // postId -> expiresAt
 
 function clog(text) {
     try {
@@ -79,28 +89,75 @@ function smoothPedToAuthoritativePose(ped) {
     const y = Number(ped.getVariable("guardPoseY"));
     const z = Number(ped.getVariable("guardPoseZ"));
     const h = Number(ped.getVariable("guardPoseHeading"));
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return;
+    const updatedAt = Number(ped.getVariable("guardPoseUpdatedAt"));
+    const velX = Number(ped.getVariable("guardVelX"));
+    const velY = Number(ped.getVariable("guardVelY"));
+    const velZ = Number(ped.getVariable("guardVelZ"));
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z) || !Number.isFinite(updatedAt)) return;
+
+    const pedId = getPedRemoteId(ped);
+    if (!Number.isFinite(pedId)) return;
+
+    const now = nowMs();
+    let cache = observerPoseCache.get(pedId);
+    if (!cache) {
+        cache = {
+            prev: null,
+            curr: null,
+            lastUpdateAt: 0,
+        };
+        observerPoseCache.set(pedId, cache);
+    }
+
+    if (!cache.curr || Number(cache.curr.updatedAt) !== updatedAt) {
+        cache.prev = cache.curr ? { ...cache.curr } : null;
+        cache.curr = {
+            x,
+            y,
+            z,
+            heading: Number.isFinite(h) ? h : (cache.curr ? cache.curr.heading : 0),
+            velX: Number.isFinite(velX) ? velX : 0,
+            velY: Number.isFinite(velY) ? velY : 0,
+            velZ: Number.isFinite(velZ) ? velZ : 0,
+            updatedAt,
+            receivedAt: now,
+        };
+        cache.lastUpdateAt = now;
+    }
+    if (!cache.curr) return;
+
+    const ageFromReceive = Math.max(0, now - Number(cache.curr.receivedAt || now));
+    const interpAlpha = Math.min(1, ageFromReceive / AUTH_UPDATE_INTERVAL_MS);
+    const baseX = cache.prev ? cache.prev.x + (cache.curr.x - cache.prev.x) * interpAlpha : cache.curr.x;
+    const baseY = cache.prev ? cache.prev.y + (cache.curr.y - cache.prev.y) * interpAlpha : cache.curr.y;
+    const baseZ = cache.prev ? cache.prev.z + (cache.curr.z - cache.prev.z) * interpAlpha : cache.curr.z;
+
+    const extrapolationMs = Math.min(POSE_EXTRAPOLATION_MS, Math.max(0, ageFromReceive - AUTH_UPDATE_INTERVAL_MS));
+    const targetX = baseX + cache.curr.velX * (extrapolationMs / 1000);
+    const targetY = baseY + cache.curr.velY * (extrapolationMs / 1000);
+    const targetZ = baseZ + cache.curr.velZ * (extrapolationMs / 1000);
 
     const px = ped.position.x;
     const py = ped.position.y;
     const pz = ped.position.z;
-    const dx = x - px;
-    const dy = y - py;
-    const dz = z - pz;
+    const dx = targetX - px;
+    const dy = targetY - py;
+    const dz = targetZ - pz;
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
     if (dist > POSE_SNAP_DIST) {
-        try { ped.setCoordsNoOffset(x, y, z, false, false, false); } catch {}
-    } else if (dist > 0.05) {
-        try { ped.setCoordsNoOffset(px + dx * POSE_SMOOTH_FACTOR, py + dy * POSE_SMOOTH_FACTOR, pz + dz * POSE_SMOOTH_FACTOR, false, false, false); } catch {}
+        try { ped.setCoordsNoOffset(targetX, targetY, targetZ, false, false, false); } catch {}
+    } else if (dist > POSE_IGNORE_DIST) {
+        const smooth = dist > POSE_MEDIUM_DIST ? POSE_CATCHUP_SMOOTH : POSE_NORMAL_SMOOTH;
+        try { ped.setCoordsNoOffset(px + dx * smooth, py + dy * smooth, pz + dz * smooth, false, false, false); } catch {}
     }
 
-    if (Number.isFinite(h)) {
+    if (Number.isFinite(cache.curr.heading)) {
         try {
-            const cur = Number(ped.getHeading ? ped.getHeading() : 0) || 0;
-            let delta = ((h - cur + 540) % 360) - 180;
-            const next = cur + delta * 0.14;
-            ped.setHeading(next);
+            const curHeading = Number(ped.getHeading ? ped.getHeading() : 0) || 0;
+            const targetHeading = Number(cache.curr.heading) || 0;
+            const delta = ((targetHeading - curHeading + 540) % 360) - 180;
+            if (Math.abs(delta) > 0.6) ped.setHeading(curHeading + delta * HEADING_SMOOTH_FACTOR);
         } catch {}
     }
 }
@@ -155,6 +212,8 @@ function getOrCreateCache(pedId) {
             targetChangedAt: 0,
             returnPos: null,
             weaponHashHint: 0,
+            lastReturnPos: null,
+            lastReturnProgressAt: 0,
         });
     }
     return pedAiCache.get(pedId);
@@ -170,6 +229,7 @@ function restorePedBehaviorFromState(ped) {
     if (Number.isFinite(pedId)) {
         pedAiCache.delete(pedId);
         pendingByPed.delete(pedId);
+        observerPoseCache.delete(pedId);
     }
 
     // force immediate replay after stream-in
@@ -230,6 +290,8 @@ function runGuardAiLoop() {
 
             const cache = getOrCreateCache(pedId);
             const state = String(ped.getVariable("guardState") || "idle");
+            const postRecoveryUntil = Number(ownerRecoveryPosts.get(String(postId))) || 0;
+            const recoveryActive = t <= postRecoveryUntil;
             const targetId = getGuardTargetId(ped);
             const isOwner = isLocalStreamOwnerForPed(ped);
             const weaponHash = getGuardWeaponHash(ped, cache.weaponHashHint);
@@ -237,7 +299,7 @@ function runGuardAiLoop() {
 
             const prevState = cache.lastState;
             const prevTargetId = cache.lastTargetId;
-            const stateChanged = prevState !== state || prevTargetId !== targetId;
+            const stateChanged = prevState !== state || prevTargetId !== targetId || (isOwner && recoveryActive);
             if (prevTargetId !== targetId) cache.targetChangedAt = t;
             cache.lastState = state;
             cache.lastTargetId = targetId;
@@ -281,6 +343,8 @@ function runGuardAiLoop() {
                 return;
             }
 
+            if (isOwner && recoveryActive) ownerRecoveryPosts.delete(String(postId));
+
             if (state === "warning_aim") {
                 if (!isOwner) {
                     smoothPedToAuthoritativePose(ped);
@@ -307,9 +371,9 @@ function runGuardAiLoop() {
 
             if (state === "return") {
                 const rp = cache.returnPos || {
-                    x: Number(ped.getVariable("guardReturnX")) || ped.position.x,
-                    y: Number(ped.getVariable("guardReturnY")) || ped.position.y,
-                    z: Number(ped.getVariable("guardReturnZ")) || ped.position.z,
+                    x: Number(ped.getVariable("guardReturnX")) || Number(ped.getVariable("guardPoseX")) || ped.position.x,
+                    y: Number(ped.getVariable("guardReturnY")) || Number(ped.getVariable("guardPoseY")) || ped.position.y,
+                    z: Number(ped.getVariable("guardReturnZ")) || Number(ped.getVariable("guardPoseZ")) || ped.position.z,
                     heading: Number(ped.getVariable("guardReturnHeading")) || 0,
                 };
                 cache.returnPos = rp;
@@ -321,9 +385,20 @@ function runGuardAiLoop() {
                 const dy = ped.position.y - rp.y;
                 const dz = ped.position.z - rp.z;
                 const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (stateChanged || dist > RETURN_DEVIATION_DIST || t - cache.lastMoveAt >= RETURN_REPLAY_MS) {
+                const prevPos = cache.lastReturnPos || { x: ped.position.x, y: ped.position.y, z: ped.position.z };
+                const moved = Math.sqrt(
+                    Math.pow(ped.position.x - prevPos.x, 2)
+                    + Math.pow(ped.position.y - prevPos.y, 2)
+                    + Math.pow(ped.position.z - prevPos.z, 2)
+                );
+                if (moved > RETURN_PROGRESS_EPS) cache.lastReturnProgressAt = t;
+                cache.lastReturnPos = { x: ped.position.x, y: ped.position.y, z: ped.position.z };
+                const stalled = t - Number(cache.lastReturnProgressAt || 0) > RETURN_STALL_MS;
+
+                if (stateChanged || dist > RETURN_DEVIATION_DIST || stalled || t - cache.lastMoveAt >= RETURN_REPLAY_MS) {
                     try { ped.taskGoStraightToCoord(rp.x, rp.y, rp.z, 2.2, -1, rp.heading || 0, 0.05); } catch {}
                     cache.lastMoveAt = t;
+                    cache.lastReturnProgressAt = t;
                 }
                 return;
             }
@@ -332,7 +407,7 @@ function runGuardAiLoop() {
                 smoothPedToAuthoritativePose(ped);
                 return;
             }
-            if (stateChanged || t - cache.lastClearAt >= CLEAR_REPLAY_MS) {
+            if (stateChanged || t - cache.lastClearAt >= IDLE_CLEAR_REPLAY_MS) {
                 try { ped.clearTasks(); } catch {}
                 try { ped.setKeepTask(false); } catch {}
                 cache.lastClearAt = t;
@@ -349,9 +424,9 @@ function applyNpcCommandHints(command, targetId, units) {
         if (Number(u.weaponHash) > 0) cache.weaponHashHint = Number(u.weaponHash);
         if (command === "return") {
             cache.returnPos = {
-                x: Number(u.x) || 0,
-                y: Number(u.y) || 0,
-                z: Number(u.z) || 0,
+                x: Number(u.returnX) || Number(u.x) || 0,
+                y: Number(u.returnY) || Number(u.y) || 0,
+                z: Number(u.returnZ) || Number(u.z) || 0,
                 heading: Number(u.heading) || 0,
             };
         }
@@ -401,6 +476,7 @@ mp.events.add({
     "guardCheckpoint:controller:switch": (postId, ver) => {
         sendControllerAck(postId, ver);
         setTimeout(() => sendControllerAck(postId, ver), 300);
+        ownerRecoveryPosts.set(String(postId), nowMs() + 2200);
     },
 
     "guardCheckpoint:debug": (text) => {
@@ -423,6 +499,7 @@ mp.events.add("entityStreamOut", (entity) => {
     if (Number.isFinite(pedId)) {
         pendingByPed.delete(pedId);
         pedAiCache.delete(pedId);
+        observerPoseCache.delete(pedId);
     }
 });
 
