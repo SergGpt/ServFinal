@@ -429,6 +429,12 @@ class CheckpointGuardController {
         this.publishAuthoritativePose(post, now);
 
         const target = this.resolveTargetPlayer(post);
+        if (target && Number(post.targetPlayerId) !== Number(target.id)) {
+            // В idle/return разрешаем мягкий retarget, чтобы второй игрок мог инициировать новую проверку.
+            if (post.state === POST_STATE.IDLE || post.state === POST_STATE.RETURN || !getPlayerById(post.targetPlayerId)) {
+                post.targetPlayerId = target.id;
+            }
+        }
 
         if (!target && post.state !== POST_STATE.IDLE) this.transition(post, POST_STATE.RETURN, "target-lost", now);
 
@@ -950,25 +956,43 @@ class CheckpointGuardController {
     }
 
     resolveTargetPlayer(post) {
-        if (post.targetPlayerId != null) {
-            const player = getPlayerById(post.targetPlayerId);
-            if (isValidPlayer(player) && Number(player.dimension) === Number(post.cfg.dimension || 0)) return player;
-        }
+        const candidates = [];
+        const center = zoneCenter(this.getPostZone(post));
+        const violationZone = post.cfg.violationZone || null;
 
-        let nearest = null;
-        let nearestDist = Number.MAX_SAFE_INTEGER;
         mp.players.forEach((player) => {
             if (!isValidPlayer(player)) return;
             if (Number(player.dimension) !== Number(post.cfg.dimension || 0)) return;
             if (!isInsideZone(player.position, this.getPostZone(post))) return;
-            const d = dist3(player.position, zoneCenter(this.getPostZone(post)));
-            if (d < nearestDist) {
-                nearestDist = d;
-                nearest = player;
-            }
+
+            const distance = dist3(player.position, center);
+            const aggressive = this.isPlayerAggressive(player.id);
+            const cleared = this.isPlayerCleared(player.id);
+            const violation = violationZone ? isInsideZone(player.position, violationZone) : false;
+            const priority = aggressive || violation ? 0 : cleared ? 3 : 1;
+            candidates.push({ player, distance, priority, aggressive, cleared, violation });
         });
 
-        return nearest;
+        if (!candidates.length) return null;
+        candidates.sort((a, b) => a.priority - b.priority || a.distance - b.distance);
+        const best = candidates[0].player;
+
+        if (post.targetPlayerId == null) return best;
+        const current = getPlayerById(post.targetPlayerId);
+        if (!isValidPlayer(current) || Number(current.dimension) !== Number(post.cfg.dimension || 0)) return best;
+        if (!isInsideZone(current.position, this.getPostZone(post))) return best;
+
+        const currentInfo = candidates.find((c) => Number(c.player.id) === Number(current.id));
+        if (!currentInfo) return best;
+
+        // Если текущий очищен и появился неочищенный кандидат — переключаем таргет.
+        if (currentInfo.cleared && !candidates[0].cleared) return best;
+        // Если появился агрессивный/нарушитель — переключаем на него сразу.
+        if ((candidates[0].aggressive || candidates[0].violation) && Number(candidates[0].player.id) !== Number(current.id)) {
+            return candidates[0].player;
+        }
+
+        return current;
     }
 
     getPost(postId) {
