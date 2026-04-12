@@ -348,6 +348,17 @@ class CheckpointGuardController {
         this.log(`post=${post.id} controller ack ver=${ver} restore cmd=${task.command}`);
     }
 
+    onClientExecReport(player, postId, pedId, phase, detail = "") {
+        if (!isValidPlayer(player)) return;
+        const post = this.getPost(postId);
+        if (!post) return;
+        if (Number(player.id) !== Number(post.streamOwnerId)) return;
+        const msg = String(detail || "").slice(0, 220);
+        this.log(
+            `exec-report post=${post.id} owner=${player.id} ped=${Number(pedId)} phase=${String(phase || "n/a")} detail=${msg}`
+        );
+    }
+
     markAggressive(playerId) {
         this.playerAggressiveUntil.set(playerId, Date.now() + (this.config.aggressiveMemoryMs || 12000));
     }

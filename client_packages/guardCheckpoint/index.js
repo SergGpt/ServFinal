@@ -57,6 +57,10 @@ function sendControllerAck(postId, ver) {
     try { mp.events.callRemote("guardCheckpoint:controller.ack", postId, ver); } catch {}
 }
 
+function sendExecReport(postId, pedId, phase, detail = "") {
+    try { mp.events.callRemote("guardCheckpoint:execReport", postId, pedId, phase, String(detail || "")); } catch {}
+}
+
 function getPedRemoteId(ped) {
     return Number(ped && (ped.remoteId != null ? ped.remoteId : ped.id));
 }
@@ -222,6 +226,8 @@ function getOrCreateCache(pedId) {
             lastReturnPos: null,
             lastReturnProgressAt: 0,
             lastDiagAt: 0,
+            lastExecReportAt: 0,
+            lastExecReportKey: "",
         });
     }
     return pedAiCache.get(pedId);
@@ -313,6 +319,13 @@ function runGuardAiLoop() {
             cache.lastTargetId = targetId;
 
             const targetStable = targetId < 0 || (t - cache.targetChangedAt) >= TARGET_SWITCH_DEBOUNCE_MS;
+            const reportExec = (phase, detail) => {
+                const key = `${phase}:${detail}`;
+                if (cache.lastExecReportKey === key && t - Number(cache.lastExecReportAt || 0) < 700) return;
+                cache.lastExecReportKey = key;
+                cache.lastExecReportAt = t;
+                sendExecReport(postId, pedId, phase, detail);
+            };
             if (t - Number(cache.lastDiagAt || 0) >= DIAG_LOG_MS) {
                 cache.lastDiagAt = t;
                 const ctrlVer = Number(ped.getVariable("ctrlVer"));
@@ -335,6 +348,7 @@ function runGuardAiLoop() {
 
                 const target = getPlayerByServerId(targetId);
                 if (!target || !targetStable) {
+                    reportExec("attack_skip", `target-missing targetId=${targetId} stable=${targetStable}`);
                     queuePendingTarget(pedId, targetId);
                     return;
                 }
@@ -348,6 +362,7 @@ function runGuardAiLoop() {
                         try { ped.taskAimGunAt(target.handle, AIM_REPLAY_MS + 200, false); } catch {}
                     }
                     cache.lastAimAt = t;
+                    reportExec("attack_aim", `target=${targetId}`);
                 }
 
                 if (stateChanged || t - cache.lastShootAt >= SHOOT_REPLAY_MS) {
@@ -360,6 +375,7 @@ function runGuardAiLoop() {
                     }
                     try { ped.setKeepTask(true); } catch {}
                     cache.lastShootAt = t;
+                    reportExec("attack_shoot", `target=${targetId}`);
                 }
                 return;
             }
@@ -373,6 +389,7 @@ function runGuardAiLoop() {
                 }
                 const target = getPlayerByServerId(targetId);
                 if (!target || !targetStable) {
+                    reportExec("warning_skip", `target-missing targetId=${targetId} stable=${targetStable}`);
                     queuePendingTarget(pedId, targetId);
                     return;
                 }
@@ -386,6 +403,7 @@ function runGuardAiLoop() {
                         try { ped.taskAimGunAt(target.handle, AIM_REPLAY_MS + 200, false); } catch {}
                     }
                     cache.lastAimAt = t;
+                    reportExec("warning_aim", `target=${targetId}`);
                 }
                 return;
             }
@@ -420,6 +438,7 @@ function runGuardAiLoop() {
                     try { ped.taskGoStraightToCoord(rp.x, rp.y, rp.z, 2.2, -1, rp.heading || 0, 0.05); } catch {}
                     cache.lastMoveAt = t;
                     cache.lastReturnProgressAt = t;
+                    reportExec("return_move", `dist=${dist.toFixed(2)} stalled=${stalled}`);
                 }
                 return;
             }
@@ -432,6 +451,7 @@ function runGuardAiLoop() {
                 try { ped.clearTasks(); } catch {}
                 try { ped.setKeepTask(false); } catch {}
                 cache.lastClearAt = t;
+                reportExec("idle_clear", "clearTasks");
             }
         } catch {}
     });
