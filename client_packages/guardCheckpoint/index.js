@@ -1,16 +1,24 @@
 "use strict";
 
 let activeWarning = null;
-let lastSoundAt = 0;
-let lastRenderDebugAt = 0;
 let activeStopZone = null;
+let lastSoundAt = 0;
 let statusText = null;
 let statusUntil = 0;
+let lastRenderDebugAt = 0;
+
 const DEBUG_AIM_LINES = false;
-const lastPedCommandState = new Map();
-const pendingPedCommands = new Map();
-let lastPendingProcessAt = 0;
-let lastGuardAiSyncAt = 0;
+const AI_LOOP_MS = 250;
+const AIM_REPLAY_MS = 350;
+const SHOOT_REPLAY_MS = 420;
+const CLEAR_REPLAY_MS = 500;
+const PENDING_RETRY_MS = 200;
+const PENDING_TTL_MS = 2500;
+
+let lastAiLoopAt = 0;
+
+const pedAiCache = new Map(); // pedRemoteId -> runtime cache
+const pendingByPed = new Map(); // pedRemoteId -> { targetId, expiresAt, lastTryAt }
 
 function clog(text) {
     try {
@@ -21,158 +29,113 @@ function clog(text) {
 function playSound(soundName, soundSet) {
     try {
         mp.game.audio.playSoundFrontend(-1, soundName, soundSet, true);
-    } catch (e) {
-        // silent
-    }
+    } catch {}
 }
 
-function getPlayerByServerId(serverId) {
-    if (serverId == null || serverId < 0) return null;
-    const byRemoteId = mp.players.atRemoteId(Number(serverId));
-    if (byRemoteId) return byRemoteId;
-
-    let found = null;
-    mp.players.forEach((p) => {
-        if (found) return;
-        if (Number(p.remoteId) === Number(serverId) || Number(p.id) === Number(serverId)) found = p;
-    });
-    return found;
+function nowMs() {
+    return Date.now();
 }
-
-
-function restorePedBehaviorFromState(ped) {
-    if (!ped || !ped.getVariable) return;
-    const state = String(ped.getVariable("guardState") || "idle");
-    const targetIdRaw = ped.getVariable("guardTargetId");
-    const targetId = Number.isFinite(Number(targetIdRaw)) ? Number(targetIdRaw) : -1;
-    const target = targetId >= 0 ? getPlayerByServerId(targetId) : null;
-
-    try {
-        if (state === "attack" && target) {
-            ped.taskCombat(target.handle, 0, 16);
-            try { ped.setKeepTask(true); } catch (e) {}
-            return;
-        }
-
-        if (state === "warning_aim" && target) {
-            ped.clearTasks();
-            ped.taskAimGunAt(target.handle, 1200, false);
-            return;
-        }
-
-        if (state === "return") {
-            // Server will resend an explicit return command on owner resync.
-            return;
-        }
-
-        ped.clearTasks();
-    } catch (e) {}
-}
-
-function shouldApplyPedCommand(pedId, command, targetId, minIntervalMs = 700) {
-    const key = `${command}:${targetId}`;
-    const now = Date.now();
-    const prev = lastPedCommandState.get(pedId);
-    if (prev && prev.key === key && now - prev.at < minIntervalMs) return false;
-    lastPedCommandState.set(pedId, { key, at: now });
-    return true;
-}
-
-function queuePendingPedCommand(pedRemoteId, payload, ttlMs = 2000) {
-    pendingPedCommands.set(Number(pedRemoteId), {
-        ...payload,
-        expiresAt: Date.now() + ttlMs,
-        lastTryAt: 0,
-    });
-}
-
-function processPendingPedCommands() {
-    const now = Date.now();
-    if (now - lastPendingProcessAt < 200) return;
-    lastPendingProcessAt = now;
-
-    for (const [pedRemoteId, pending] of pendingPedCommands.entries()) {
-        if (!pending || now > pending.expiresAt) {
-            pendingPedCommands.delete(pedRemoteId);
-            continue;
-        }
-        if (now - pending.lastTryAt < 200) continue;
-        pending.lastTryAt = now;
-
-        const ped = mp.peds.atRemoteId(Number(pedRemoteId));
-        if (!ped) continue;
-
-        const target = pending.targetId >= 0 ? getPlayerByServerId(pending.targetId) : null;
-        if ((pending.command === "aim" || pending.command === "fire") && !target) continue;
-
-        applyNpcCommand(pending.command, pending.targetId, [pending.unit], true);
-        pendingPedCommands.delete(pedRemoteId);
-    }
-}
-
-function applyNpcCommand(command, targetId, units, fromPending = false) {
-    const target = targetId >= 0 ? getPlayerByServerId(targetId) : null;
-    (units || []).forEach((u) => {
-        const ped = mp.peds.atRemoteId(u.pedId);
-        if (!ped) return;
-        if (!shouldApplyPedCommand(u.pedId, command, targetId) && !fromPending) return;
-        try {
-            if (u.weaponHash) {
-                try { ped.giveWeapon(u.weaponHash, 9999, true); } catch (e) {}
-                try { ped.setCurrentWeapon(u.weaponHash); } catch (e) {}
-                try { ped.setAmmo(u.weaponHash, 9999); } catch (e) {}
-                try { ped.setAmmoInClip(u.weaponHash, 9999); } catch (e) {}
-                try { ped.setInfiniteAmmo(true, u.weaponHash); } catch (e) {}
-                try { ped.setInfiniteAmmoClip(true); } catch (e) {}
-            }
-
-            if (command === "aim") {
-                if (!target) {
-                    queuePendingPedCommand(u.pedId, { command, targetId, unit: u });
-                    return;
-                }
-                ped.clearTasks();
-                ped.taskAimGunAt(target.handle, 1200, false);
-                return;
-            }
-
-            if (command === "fire") {
-                if (!target) {
-                    queuePendingPedCommand(u.pedId, { command, targetId, unit: u });
-                    return;
-                }
-                ped.clearTasks();
-                try {
-                    mp.game.ai.taskShootAtEntity(ped.handle, target.handle, -1, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
-                } catch (e) {
-                    ped.taskCombat(target.handle, 0, 16);
-                }
-                try { ped.setKeepTask(true); } catch (e) {}
-                return;
-            }
-
-            if (command === "return") {
-                ped.clearTasks();
-                ped.taskGoStraightToCoord(u.x, u.y, u.z, 2.2, -1, u.heading, 0.05);
-                return;
-            }
-
-            if (command === "idle") {
-                ped.clearTasks();
-            }
-        } catch (e) {}
-    });
-}
-
 
 function getPedRemoteId(ped) {
     return Number(ped && (ped.remoteId != null ? ped.remoteId : ped.id));
 }
 
-function syncGuardPedsFromState() {
-    const now = Date.now();
-    if (now - lastGuardAiSyncAt < 250) return;
-    lastGuardAiSyncAt = now;
+function getPlayerByServerId(serverId) {
+    if (serverId == null || Number(serverId) < 0) return null;
+    const id = Number(serverId);
+
+    const byRemoteId = mp.players.atRemoteId(id);
+    if (byRemoteId) return byRemoteId;
+
+    let found = null;
+    mp.players.forEach((p) => {
+        if (found) return;
+        if (Number(p.remoteId) === id || Number(p.id) === id) found = p;
+    });
+    return found;
+}
+
+function getGuardTargetId(ped) {
+    if (!ped || !ped.getVariable) return -1;
+    const raw = ped.getVariable("guardTarget");
+    if (Number.isFinite(Number(raw))) return Number(raw);
+    const rawLegacy = ped.getVariable("guardTargetId");
+    if (Number.isFinite(Number(rawLegacy))) return Number(rawLegacy);
+    return -1;
+}
+
+function getGuardWeaponHash(ped, hint = null) {
+    if (hint && Number(hint) > 0) return Number(hint);
+    if (!ped || !ped.getVariable) return 0;
+    const raw = Number(ped.getVariable("guardWeaponHash"));
+    return Number.isFinite(raw) ? raw : 0;
+}
+
+function ensurePedWeapon(ped, weaponHash) {
+    if (!ped || !weaponHash) return;
+    try { ped.giveWeapon(weaponHash, 9999, true); } catch {}
+    try { ped.setCurrentWeapon(weaponHash); } catch {}
+    try { ped.setAmmo(weaponHash, 9999); } catch {}
+    try { ped.setAmmoInClip(weaponHash, 9999); } catch {}
+    try { ped.setInfiniteAmmo(true, weaponHash); } catch {}
+    try { ped.setInfiniteAmmoClip(true); } catch {}
+}
+
+function getOrCreateCache(pedId) {
+    if (!pedAiCache.has(pedId)) {
+        pedAiCache.set(pedId, {
+            lastState: "",
+            lastTargetId: -1,
+            lastAimAt: 0,
+            lastShootAt: 0,
+            lastClearAt: 0,
+            weaponHashHint: 0,
+        });
+    }
+    return pedAiCache.get(pedId);
+}
+
+function queuePendingTarget(pedId, targetId) {
+    pendingByPed.set(pedId, {
+        targetId,
+        expiresAt: nowMs() + PENDING_TTL_MS,
+        lastTryAt: 0,
+    });
+}
+
+function processPendingTargets() {
+    const t = nowMs();
+    for (const [pedId, item] of pendingByPed.entries()) {
+        if (!item || t > item.expiresAt) {
+            pendingByPed.delete(pedId);
+            continue;
+        }
+        if (t - item.lastTryAt < PENDING_RETRY_MS) continue;
+        item.lastTryAt = t;
+
+        const ped = mp.peds.atRemoteId(pedId);
+        if (!ped || !ped.getVariable) continue;
+
+        const state = String(ped.getVariable("guardState") || "idle");
+        if (state !== "attack" && state !== "warning_aim") {
+            pendingByPed.delete(pedId);
+            continue;
+        }
+
+        const target = getPlayerByServerId(item.targetId);
+        if (!target) continue;
+
+        // target появился — цикл AI подхватит выполнение
+        pendingByPed.delete(pedId);
+    }
+}
+
+function runGuardAiLoop() {
+    const t = nowMs();
+    if (t - lastAiLoopAt < AI_LOOP_MS) return;
+    lastAiLoopAt = t;
+
+    processPendingTargets();
 
     mp.peds.forEach((ped) => {
         try {
@@ -180,37 +143,93 @@ function syncGuardPedsFromState() {
             const postId = ped.getVariable("guardPostId");
             if (!postId) return;
 
+            const pedId = getPedRemoteId(ped);
+            if (!Number.isFinite(pedId)) return;
+
+            const cache = getOrCreateCache(pedId);
             const state = String(ped.getVariable("guardState") || "idle");
-            const targetRaw = ped.getVariable("guardTargetId");
-            const targetId = Number.isFinite(Number(targetRaw)) ? Number(targetRaw) : -1;
-            const unit = {
-                pedId: getPedRemoteId(ped),
-                x: ped.position.x,
-                y: ped.position.y,
-                z: ped.position.z,
-                heading: ped.getHeading ? ped.getHeading() : 0,
-                weaponHash: 0,
-            };
+            const targetId = getGuardTargetId(ped);
+            const weaponHash = getGuardWeaponHash(ped, cache.weaponHashHint);
+            if (weaponHash > 0) cache.weaponHashHint = weaponHash;
+
+            const stateChanged = cache.lastState !== state || cache.lastTargetId !== targetId;
+            cache.lastState = state;
+            cache.lastTargetId = targetId;
 
             if (state === "attack") {
-                applyNpcCommand("fire", targetId, [unit]);
+                const target = getPlayerByServerId(targetId);
+                if (!target) {
+                    queuePendingTarget(pedId, targetId);
+                    return;
+                }
+
+                ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
+
+                if (stateChanged || t - cache.lastAimAt >= AIM_REPLAY_MS) {
+                    try {
+                        mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, AIM_REPLAY_MS + 200, false);
+                    } catch {
+                        try { ped.taskAimGunAt(target.handle, AIM_REPLAY_MS + 200, false); } catch {}
+                    }
+                    cache.lastAimAt = t;
+                }
+
+                if (stateChanged || t - cache.lastShootAt >= SHOOT_REPLAY_MS) {
+                    try {
+                        mp.game.ai.taskShootAtEntity(ped.handle, target.handle, SHOOT_REPLAY_MS + 250, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
+                    } catch {
+                        try { ped.taskCombat(target.handle, 0, 16); } catch {}
+                    }
+                    try { ped.setKeepTask(true); } catch {}
+                    cache.lastShootAt = t;
+                }
                 return;
             }
+
             if (state === "warning_aim") {
-                applyNpcCommand("aim", targetId, [unit]);
+                const target = getPlayerByServerId(targetId);
+                if (!target) {
+                    queuePendingTarget(pedId, targetId);
+                    return;
+                }
+
+                ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
+
+                if (stateChanged || t - cache.lastAimAt >= AIM_REPLAY_MS) {
+                    try {
+                        mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, AIM_REPLAY_MS + 200, false);
+                    } catch {
+                        try { ped.taskAimGunAt(target.handle, AIM_REPLAY_MS + 200, false); } catch {}
+                    }
+                    cache.lastAimAt = t;
+                }
                 return;
             }
-            if (state === "return") {
-                return;
+
+            if (stateChanged || t - cache.lastClearAt >= CLEAR_REPLAY_MS) {
+                try { ped.clearTasks(); } catch {}
+                try { ped.setKeepTask(false); } catch {}
+                cache.lastClearAt = t;
             }
-            applyNpcCommand("idle", -1, [unit]);
-        } catch (e) {}
+        } catch {}
+    });
+}
+
+function applyNpcCommandHints(command, targetId, units) {
+    (units || []).forEach((u) => {
+        const pedId = Number(u.pedId);
+        if (!Number.isFinite(pedId)) return;
+        const cache = getOrCreateCache(pedId);
+        if (Number(u.weaponHash) > 0) cache.weaponHashHint = Number(u.weaponHash);
+
+        if (command === "aim" || command === "fire") {
+            queuePendingTarget(pedId, Number(targetId));
+        }
     });
 }
 
 mp.events.add({
     "guardCheckpoint:warning:start": (data) => {
-        clog(`warning:start post=${data.postId} target=${data.targetId} owner=${data.ownerId} text="${data.text}"`);
         activeWarning = {
             postId: data.postId,
             text: data.text || "Остановитесь",
@@ -219,38 +238,34 @@ mp.events.add({
         };
         activeStopZone = data.stopZone || null;
 
-        const now = Date.now();
-        if (!lastSoundAt || now - lastSoundAt > 1000) {
+        const t = nowMs();
+        if (!lastSoundAt || t - lastSoundAt > 1000) {
             playSound(activeWarning.soundName, activeWarning.soundSet);
-            lastSoundAt = now;
+            lastSoundAt = t;
         }
     },
 
     "guardCheckpoint:warning:stop": (postId) => {
-        clog(`warning:stop post=${postId}`);
         if (!activeWarning) return;
         if (postId && activeWarning.postId && postId !== activeWarning.postId) return;
         activeWarning = null;
         activeStopZone = null;
     },
 
-    "guardCheckpoint:debug": (text) => {
-        clog(`server-debug: ${text}`);
-    },
-
     "guardCheckpoint:status:text": (postId, text, durationMs) => {
         statusText = String(text || "");
-        statusUntil = Date.now() + Math.max(1000, Number(durationMs) || 3000);
+        statusUntil = nowMs() + Math.max(1000, Number(durationMs) || 3000);
         clog(`status post=${postId} text="${statusText}"`);
     },
 
-    "guardCheckpoint:npcCommand": (postId, command, targetId, units, streamOwnerId) => {
-        const localId = mp.players.local ? Number(mp.players.local.remoteId) : null;
-        const ownerId = streamOwnerId == null ? null : Number(streamOwnerId);
-        const ownerLooksMatched = ownerId != null && localId === ownerId;
-        clog(`npcCommand post=${postId} cmd=${command} target=${targetId} units=${(units || []).length} owner=${ownerId} local=${localId} ownerMatch=${ownerLooksMatched} run=true`);
-        // Command is already owner-targeted by server. Execute even if owner variable is briefly stale.
-        applyNpcCommand(command, targetId, units);
+    "guardCheckpoint:npcCommand": (postId, command, targetId, units) => {
+        // npcCommand используется как hint/ускоритель. Основной визуал — AI loop по guardState.
+        clog(`npcCommand post=${postId} cmd=${command} target=${targetId} units=${(units || []).length}`);
+        applyNpcCommandHints(command, targetId, units);
+    },
+
+    "guardCheckpoint:debug": (text) => {
+        clog(`server-debug: ${text}`);
     },
 });
 
@@ -258,7 +273,6 @@ mp.events.add("entityStreamIn", (entity) => {
     if (!entity || entity.type !== "ped") return;
     const postId = entity.getVariable ? entity.getVariable("guardPostId") : null;
     if (!postId) return;
-    clog(`ped stream IN post=${postId} npc=${entity.getVariable("guardNpcId")} role=${entity.getVariable("guardRole")} state=${entity.getVariable("guardState")}`);
     restorePedBehaviorFromState(entity);
 });
 
@@ -266,13 +280,17 @@ mp.events.add("entityStreamOut", (entity) => {
     if (!entity || entity.type !== "ped") return;
     const postId = entity.getVariable ? entity.getVariable("guardPostId") : null;
     if (!postId) return;
-    clog(`ped stream OUT post=${postId} npc=${entity.getVariable("guardNpcId")} role=${entity.getVariable("guardRole")} state=${entity.getVariable("guardState")}`);
+    const pedId = getPedRemoteId(entity);
+    if (Number.isFinite(pedId)) {
+        pendingByPed.delete(pedId);
+        pedAiCache.delete(pedId);
+    }
 });
 
 mp.events.add("render", () => {
-    processPendingPedCommands();
-    syncGuardPedsFromState();
-    if (statusText && Date.now() < statusUntil) {
+    runGuardAiLoop();
+
+    if (statusText && nowMs() < statusUntil) {
         mp.game.graphics.drawText(statusText, [0.5, 0.84], {
             font: 4,
             color: [120, 255, 120, 230],
@@ -280,7 +298,7 @@ mp.events.add("render", () => {
             centre: true,
             outline: true,
         });
-    } else if (statusText && Date.now() >= statusUntil) {
+    } else if (statusText && nowMs() >= statusUntil) {
         statusText = null;
     }
 
@@ -306,13 +324,13 @@ mp.events.add("render", () => {
                     state === "attack" ? 80 : 80,
                     220
                 );
-            } catch (e) {}
+            } catch {}
         });
     }
 
     if (!activeWarning) return;
-    if (Date.now() - lastRenderDebugAt > 2000) {
-        lastRenderDebugAt = Date.now();
+    if (nowMs() - lastRenderDebugAt > 2000) {
+        lastRenderDebugAt = nowMs();
         clog(`render warning post=${activeWarning.postId} text="${activeWarning.text}"`);
     }
 
@@ -354,34 +372,5 @@ mp.events.add("render", () => {
             null,
             false
         );
-    } else if (type === "polygon" && Array.isArray(activeStopZone.points)) {
-        activeStopZone.points.forEach((p) => {
-            mp.game.graphics.drawMarker(
-                1,
-                p.x,
-                p.y,
-                p.z - 1.0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0.8,
-                0.8,
-                0.6,
-                50,
-                180,
-                255,
-                120,
-                false,
-                false,
-                2,
-                false,
-                null,
-                null,
-                false
-            );
-        });
     }
 });
