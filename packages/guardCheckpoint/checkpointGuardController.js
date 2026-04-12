@@ -414,6 +414,11 @@ class CheckpointGuardController {
             return;
         }
 
+        if (!isInsideZone(target.position, this.getPostZone(post))) {
+            this.transition(post, POST_STATE.RETURN, "left-post-zone-warning", now);
+            return;
+        }
+
         this.ensureLeaderWarningBehavior(post, target);
 
         if (this.shouldTriggerAttack(post, target, now)) {
@@ -442,6 +447,11 @@ class CheckpointGuardController {
     handleChecking(post, target, prevTargetPos, now) {
         if (!target) {
             this.transition(post, POST_STATE.RETURN, "no-target-checking", now);
+            return;
+        }
+
+        if (!isInsideZone(target.position, this.getPostZone(post))) {
+            this.transition(post, POST_STATE.RETURN, "left-post-zone-checking", now);
             return;
         }
 
@@ -636,8 +646,7 @@ class CheckpointGuardController {
         }
 
         if (nextState === POST_STATE.IDLE || nextState === POST_STATE.RETURN) {
-            const target = this.resolveTargetPlayer(post);
-            if (target) this.sendWarningStop(target, post.id);
+            this.sendWarningStop(null, post.id);
         }
 
         this.log(`post=${post.id} ${prev} -> ${nextState} (${reason})`);
