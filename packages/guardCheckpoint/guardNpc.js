@@ -78,8 +78,6 @@ class GuardNpc {
         this.debugSync = !!postConfig.debugSync;
         this.lastEquipAt = 0;
         this.weaponAmmo = Math.max(60, Number(postConfig.npcWeaponAmmo) || 9999);
-
-        this.spawn();
     }
 
     exists() {

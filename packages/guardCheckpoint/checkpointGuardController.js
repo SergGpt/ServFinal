@@ -382,9 +382,10 @@ class CheckpointGuardController {
     }
 
     tickPost(post, now) {
+        this.updateStreamOwner(post, now);
+        this.ensureUnitsSpawnedForController(post);
         post.leader.syncDeathIfNeeded(now);
         for (const guard of post.guards) guard.syncDeathIfNeeded(now);
-        this.updateStreamOwner(post, now);
         this.publishAuthoritativePose(post, now);
 
         const target = this.resolveTargetPlayer(post);
@@ -426,6 +427,21 @@ class CheckpointGuardController {
                 z: target.position.z,
             };
         }
+    }
+
+    ensureUnitsSpawnedForController(post) {
+        if (post.streamOwnerId == null) return;
+        const units = [post.leader, ...post.guards];
+        let spawnedAny = false;
+        for (const unit of units) {
+            if (!unit) continue;
+            if (!unit.exists()) {
+                unit.spawn();
+                spawnedAny = true;
+                this.log(`post=${post.id} spawn unit=${unit.id} by controller=${post.streamOwnerId}`);
+            }
+        }
+        if (spawnedAny) this.applyStreamOwner(post, post.streamOwnerId);
     }
 
     handleIdle(post, target, now) {
