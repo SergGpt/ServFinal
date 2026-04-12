@@ -43,6 +43,7 @@ module.exports = {
                 name: `Checkpoint ${postId}`,
                 dimension: Number(player.dimension) || 0,
                 guardZone: zoneFromPlayer(player, "sphere", 45),
+                postZone: zoneFromPlayer(player, "sphere", 45),
                 pursuitZone: zoneFromPlayer(player, "sphere", 65),
                 stopZone: zoneFromPlayer(player, "sphere", 5),
                 violationZone: zoneFromPlayer(player, "sphere", 3),
@@ -81,8 +82,8 @@ module.exports = {
             const type = String(args[2] || "sphere");
             const radius = Number(args[3]) || 5;
 
-            if (!["guardZone", "pursuitZone", "stopZone", "violationZone"].includes(zoneKey)) {
-                return out.error("zoneKey: guardZone|pursuitZone|stopZone|violationZone", player);
+            if (!["postZone", "guardZone", "pursuitZone", "stopZone", "violationZone"].includes(zoneKey)) {
+                return out.error("zoneKey: postZone|guardZone|pursuitZone|stopZone|violationZone", player);
             }
 
             const zoneData = zoneFromPlayer(player, type, radius);

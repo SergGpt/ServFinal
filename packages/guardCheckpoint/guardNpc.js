@@ -104,15 +104,27 @@ class GuardNpc {
         safeCall(method(this.ped, "setVariable"), "guardNpcId", this.id);
         safeCall(method(this.ped, "setVariable"), "guardState", "idle");
 
-        if (this.weaponHash) {
-            safeCall(method(this.ped, "giveWeapon"), this.weaponHash, 9999);
-            safeCall(method(this.ped, "setCurrentWeapon"), this.weaponHash);
-        }
+        this.equipWeapon();
 
         this.initializePedCombat();
         this.initializedAt = Date.now();
         this.goIdle();
         this.log(`spawned npc=${this.id} health=${Number(this.ped.health) || 0} initAt=${this.initializedAt}`);
+    }
+
+    equipWeapon() {
+        if (!this.exists() || !this.weaponHash) return false;
+        safeCall(method(this.ped, "giveWeapon"), this.weaponHash, 9999);
+        safeCall(method(this.ped, "setCurrentWeapon"), this.weaponHash);
+        this.log(`npc=${this.id} weapon equipped hash=${this.weaponHash}`);
+        return true;
+    }
+
+    readyWeapon() {
+        if (!this.exists()) return;
+        this.equipWeapon();
+        safeCall(method(this.ped, "setVariable"), "guardWeaponReady", true);
+        this.log(`npc=${this.id} weapon ready`);
     }
 
     destroy() {
@@ -236,26 +248,53 @@ class GuardNpc {
     }
 
     attack(targetPlayer) {
+        this.fireAtTarget(targetPlayer);
+    }
+
+    fireAtTarget(targetPlayer) {
         if (!this.exists() || !targetPlayer || !mp.players.exists(targetPlayer)) return;
         if (!this.shouldSendOrder(`attack:${targetPlayer.id}`, 850)) return;
+        this.readyWeapon();
         safeCall(method(this.ped, "setVariable"), "guardState", "attack");
+        safeCall(method(this.ped, "clearTasks"));
         safeCall(method(this.ped, "taskCombat"), targetPlayer.handle, 0, 16);
+        safeCall(method(this.ped, "taskShootAt"), targetPlayer.handle, 2000, mp.joaat("FIRING_PATTERN_FULL_AUTO"));
+        this.log(`npc=${this.id} fire target=${targetPlayer.id}`);
     }
 
     aimAt(targetPlayer) {
+        this.aimAtTarget(targetPlayer);
+    }
+
+    aimAtTarget(targetPlayer) {
         if (!this.exists() || !targetPlayer || !mp.players.exists(targetPlayer)) return;
         if (!this.shouldSendOrder(`aim:${targetPlayer.id}`, 1000)) return;
+        this.readyWeapon();
         safeCall(method(this.ped, "setVariable"), "guardState", "warning_aim");
         safeCall(method(this.ped, "clearTasks"));
         safeCall(method(this.ped, "taskAimGunAt"), targetPlayer.handle, 1200, false);
+        this.log(`npc=${this.id} aim target=${targetPlayer.id}`);
+    }
+
+    stopCombat() {
+        if (!this.exists()) return;
+        safeCall(method(this.ped, "clearTasks"));
+        safeCall(method(this.ped, "setVariable"), "guardState", "idle");
+        this.log(`npc=${this.id} combat stopped`);
     }
 
     forceReturn() {
+        this.returnToPost();
+    }
+
+    returnToPost() {
         if (!this.exists()) return;
         if (!this.shouldSendOrder("force-return", 1200)) return;
+        this.stopCombat();
         safeCall(method(this.ped, "clearTasks"));
         safeCall(method(this.ped, "taskGoStraightToCoord"), this.spawnPos.x, this.spawnPos.y, this.spawnPos.z, 2.2, -1, this.spawnHeading, 0.05);
         safeCall(method(this.ped, "setVariable"), "guardState", "return");
+        this.log(`npc=${this.id} return to post`);
     }
 
     isOutsideLimits(guardZone, maxChaseDistance) {

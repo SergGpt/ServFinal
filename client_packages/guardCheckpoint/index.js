@@ -3,6 +3,7 @@
 let activeWarning = null;
 let lastSoundAt = 0;
 let lastRenderDebugAt = 0;
+let activeStopZone = null;
 
 function clog(text) {
     try {
@@ -27,6 +28,7 @@ mp.events.add({
             soundName: data.soundName || "5s",
             soundSet: data.soundSet || "MP_MISSION_COUNTDOWN_SOUNDSET",
         };
+        activeStopZone = data.stopZone || null;
 
         const now = Date.now();
         if (!lastSoundAt || now - lastSoundAt > 1000) {
@@ -40,6 +42,7 @@ mp.events.add({
         if (!activeWarning) return;
         if (postId && activeWarning.postId && postId !== activeWarning.postId) return;
         activeWarning = null;
+        activeStopZone = null;
     },
 
     "guardCheckpoint:debug": (text) => {
@@ -75,4 +78,65 @@ mp.events.add("render", () => {
         centre: true,
         outline: true,
     });
+
+    if (!activeStopZone) return;
+    const type = String(activeStopZone.type || "sphere");
+    if (type === "sphere" && activeStopZone.center) {
+        const c = activeStopZone.center;
+        mp.game.graphics.drawMarker(
+            1,
+            c.x,
+            c.y,
+            c.z - 1.0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            activeStopZone.radius * 2.0,
+            activeStopZone.radius * 2.0,
+            0.8,
+            50,
+            180,
+            255,
+            120,
+            false,
+            false,
+            2,
+            false,
+            null,
+            null,
+            false
+        );
+    } else if (type === "polygon" && Array.isArray(activeStopZone.points)) {
+        activeStopZone.points.forEach((p) => {
+            mp.game.graphics.drawMarker(
+                1,
+                p.x,
+                p.y,
+                p.z - 1.0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0.8,
+                0.8,
+                0.6,
+                50,
+                180,
+                255,
+                120,
+                false,
+                false,
+                2,
+                false,
+                null,
+                null,
+                false
+            );
+        });
+    }
 });

@@ -409,6 +409,7 @@ class CheckpointGuardController {
 
         if (isInsideZone(target.position, post.cfg.stopZone)) {
             post.targetStopStaySince = now;
+            this.log(`post=${post.id} target=${target.id} entered stopZone`);
             this.transition(post, POST_STATE.CHECKING, "entered-stop-zone", now);
             return;
         }
@@ -420,6 +421,7 @@ class CheckpointGuardController {
 
         if (elapsed > Number(this.config.warningResponseMs || 2500)) {
             this.transition(post, POST_STATE.ATTACK, "did-not-enter-stop-zone-in-time", now);
+            return;
         }
 
         post.warningPrevDistToStopZone = distToStop;
@@ -441,6 +443,11 @@ class CheckpointGuardController {
             return;
         }
 
+        if (target.vehicle) {
+            this.transition(post, POST_STATE.ATTACK, "vehicle-in-stop-zone", now);
+            return;
+        }
+
         const moved = prevTargetPos ? dist3(target.position, prevTargetPos) : 0;
         if (moved > Number(this.config.movementThreshold || 0.08)) {
             this.log(`post=${post.id} movement during check=${moved.toFixed(3)} reset timer target=${target.name}[${target.id}]`);
@@ -454,6 +461,7 @@ class CheckpointGuardController {
         const checkDurationMs = Number(post.cfg.checkDurationMs || this.config.defaultCheckDurationMs);
         const stayedMs = now - (post.targetStopStaySince || now);
         if (stayedMs >= checkDurationMs) {
+            this.log(`post=${post.id} checking completed target=${target.id}`);
             this.sendWarningStop(target, post.id);
             this.transition(post, POST_STATE.RETURN, "check-success", now);
         }
@@ -465,8 +473,8 @@ class CheckpointGuardController {
             return;
         }
 
-        post.leader.attack(target);
-        for (const guard of post.guards) guard.attack(target);
+        post.leader.fireAtTarget(target);
+        for (const guard of post.guards) guard.fireAtTarget(target);
 
         const maxChaseDistance = Number(post.cfg.maxChaseDistance || this.config.defaultMaxChaseDistance);
         const pursuitZone = this.getPursuitZone(post);
@@ -474,7 +482,8 @@ class CheckpointGuardController {
         for (const unit of allUnits) {
             if (unit.isOutsideLimits(pursuitZone, maxChaseDistance)) {
                 this.log(`post=${post.id} unit=${unit.id} outside limits -> force return`);
-                unit.forceReturn();
+                unit.stopCombat();
+                unit.returnToPost();
             }
         }
 
@@ -484,8 +493,12 @@ class CheckpointGuardController {
     }
 
     handleReturn(post, now) {
-        post.leader.goIdle();
-        for (const guard of post.guards) guard.goIdle();
+        post.leader.stopCombat();
+        post.leader.returnToPost();
+        for (const guard of post.guards) {
+            guard.stopCombat();
+            guard.returnToPost();
+        }
 
         const arrived = [post.leader, ...post.guards].every((unit) => {
             if (!unit.exists()) return false;
@@ -519,9 +532,11 @@ class CheckpointGuardController {
         if (!post.leader) return;
         post.leader.setFacing(target.position);
         post.leader.playStopAnim();
-        post.leader.aimAt(target);
+        post.leader.readyWeapon();
+        post.leader.aimAtTarget(target);
         for (const guard of post.guards) {
-            guard.aimAt(target);
+            guard.readyWeapon();
+            guard.aimAtTarget(target);
         }
     }
 
@@ -607,6 +622,7 @@ class CheckpointGuardController {
             text: ui.text || "Охрана требует остановиться",
             soundName: ui.soundName || "5s",
             soundSet: ui.soundSet || "MP_MISSION_COUNTDOWN_SOUNDSET",
+            stopZone: post.cfg.stopZone || null,
         }]);
         if (this.notifs && !this.notifs.isEmpty) {
             this.notifs.warning(player, "Остановитесь и зайдите в зону досмотра", "Пост охраны");
