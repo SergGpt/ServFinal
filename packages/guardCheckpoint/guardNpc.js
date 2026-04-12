@@ -106,6 +106,14 @@ class GuardNpc {
         safeCall(method(this.ped, "setVariable"), "guardRole", this.role);
         safeCall(method(this.ped, "setVariable"), "guardNpcId", this.id);
         safeCall(method(this.ped, "setVariable"), "guardState", "idle");
+        safeCall(method(this.ped, "setVariable"), "guardTarget", -1);
+        safeCall(method(this.ped, "setVariable"), "guardTargetId", -1);
+        safeCall(method(this.ped, "setVariable"), "guardStartedAt", Date.now());
+        safeCall(method(this.ped, "setVariable"), "guardWeaponHash", Number(this.weaponHash) || 0);
+        safeCall(method(this.ped, "setVariable"), "guardReturnX", Number(this.spawnPos.x) || 0);
+        safeCall(method(this.ped, "setVariable"), "guardReturnY", Number(this.spawnPos.y) || 0);
+        safeCall(method(this.ped, "setVariable"), "guardReturnZ", Number(this.spawnPos.z) || 0);
+        safeCall(method(this.ped, "setVariable"), "guardReturnHeading", Number(this.spawnHeading) || 0);
 
         this.equipWeapon();
 
@@ -127,6 +135,7 @@ class GuardNpc {
         safeCall(method(this.ped, "setCurrentWeapon"), this.weaponHash);
         this.ensureWeaponAmmo();
         this.lastEquipAt = now;
+        safeCall(method(this.ped, "setVariable"), "guardWeaponHash", Number(this.weaponHash) || 0);
         this.log(`npc=${this.id} weapon equipped hash=${this.weaponHash} ammo=${this.weaponAmmo}`);
         return true;
     }
@@ -274,6 +283,9 @@ class GuardNpc {
         if (!this.shouldSendOrder(`attack:${targetPlayer.id}`, 2400)) return;
         this.readyWeapon();
         safeCall(method(this.ped, "setVariable"), "guardState", "attack");
+        safeCall(method(this.ped, "setVariable"), "guardTarget", Number(targetPlayer.id));
+        safeCall(method(this.ped, "setVariable"), "guardTargetId", Number(targetPlayer.id));
+        safeCall(method(this.ped, "setVariable"), "guardStartedAt", Date.now());
         safeCall(method(this.ped, "taskCombat"), targetPlayer.handle, 0, 16);
         safeCall(method(this.ped, "setKeepTask"), true);
         this.log(`npc=${this.id} fire target=${targetPlayer.id}`);
@@ -288,6 +300,9 @@ class GuardNpc {
         if (!this.shouldSendOrder(`aim:${targetPlayer.id}`, 1000)) return;
         this.readyWeapon();
         safeCall(method(this.ped, "setVariable"), "guardState", "warning_aim");
+        safeCall(method(this.ped, "setVariable"), "guardTarget", Number(targetPlayer.id));
+        safeCall(method(this.ped, "setVariable"), "guardTargetId", Number(targetPlayer.id));
+        safeCall(method(this.ped, "setVariable"), "guardStartedAt", Date.now());
         safeCall(method(this.ped, "clearTasks"));
         safeCall(method(this.ped, "taskAimGunAt"), targetPlayer.handle, 1200, false);
         this.log(`npc=${this.id} aim target=${targetPlayer.id}`);
@@ -297,6 +312,10 @@ class GuardNpc {
         if (!this.exists()) return;
         safeCall(method(this.ped, "clearTasks"));
         safeCall(method(this.ped, "setVariable"), "guardState", "idle");
+        safeCall(method(this.ped, "setVariable"), "guardTarget", -1);
+        safeCall(method(this.ped, "setVariable"), "guardTargetId", -1);
+        safeCall(method(this.ped, "setVariable"), "guardStartedAt", Date.now());
+        safeCall(method(this.ped, "setVariable"), "guardWeaponHash", Number(this.weaponHash) || 0);
         this.log(`npc=${this.id} combat stopped`);
     }
 
@@ -311,6 +330,9 @@ class GuardNpc {
         safeCall(method(this.ped, "clearTasks"));
         safeCall(method(this.ped, "taskGoStraightToCoord"), this.spawnPos.x, this.spawnPos.y, this.spawnPos.z, 2.2, -1, this.spawnHeading, 0.05);
         safeCall(method(this.ped, "setVariable"), "guardState", "return");
+        safeCall(method(this.ped, "setVariable"), "guardTarget", -1);
+        safeCall(method(this.ped, "setVariable"), "guardTargetId", -1);
+        safeCall(method(this.ped, "setVariable"), "guardStartedAt", Date.now());
         this.log(`npc=${this.id} return to post`);
     }
 
