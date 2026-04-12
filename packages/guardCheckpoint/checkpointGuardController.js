@@ -759,33 +759,57 @@ class CheckpointGuardController {
 
         if (post.streamOwnerId === nextOwner) return;
         post.streamOwnerId = nextOwner;
+        post.lastClientCommandKey = null;
+        post.lastClientCommandAt = 0;
         this.applyStreamOwner(post, nextOwner);
         this.log(`post=${post.id} stream owner -> ${nextOwner}`);
+        this.resyncPostStateForOwner(post, nextOwner, "owner-changed");
     }
 
     applyStreamOwner(post, ownerId) {
-        if (ownerId == null) return;
-        const owner = getPlayerById(ownerId);
-        if (!owner) return;
+        const owner = ownerId == null ? null : getPlayerById(ownerId);
         [post.leader, ...post.guards].forEach((unit) => {
             if (!unit.exists()) return;
+            try { unit.ped.setVariable("streamOwnerId", ownerId == null ? -1 : ownerId); } catch {}
+            if (!owner) return;
             try { unit.ped.controller = owner; } catch {}
-            try { unit.ped.setVariable("streamOwnerId", ownerId); } catch {}
         });
     }
 
-    dispatchNpcCommand(post, command, targetPlayer) {
+    getCurrentTarget(post) {
+        const target = getPlayerById(post.targetPlayerId);
+        return isValidPlayer(target) ? target : null;
+    }
+
+    resyncPostStateForOwner(post, ownerId, reason = "resync") {
+        const owner = getPlayerById(ownerId);
+        if (!isValidPlayer(owner)) return;
+
+        const target = this.getCurrentTarget(post);
+        let command = "idle";
+        if (post.state === POST_STATE.ATTACK) command = target ? "fire" : "return";
+        else if (post.state === POST_STATE.WARNING || post.state === POST_STATE.CHECKING) command = target ? "aim" : "return";
+        else if (post.state === POST_STATE.RETURN) command = "return";
+
+        this.dispatchNpcCommand(post, command, target, { force: true, owner });
+        this.log(`post=${post.id} owner-resync cmd=${command} target=${target ? target.id : -1} reason=${reason}`);
+    }
+
+    dispatchNpcCommand(post, command, targetPlayer, options = {}) {
         const targetId = targetPlayer ? targetPlayer.id : -1;
         const now = Date.now();
+        const force = !!options.force;
         const key = `${command}:${targetId}`;
-        if (post.lastClientCommandKey === key && now - (post.lastClientCommandAt || 0) < 900) return;
+        if (!force && post.lastClientCommandKey === key && now - (post.lastClientCommandAt || 0) < 900) return;
         post.lastClientCommandKey = key;
         post.lastClientCommandAt = now;
-        const owner = getPlayerById(post.streamOwnerId);
+
+        const owner = options.owner || getPlayerById(post.streamOwnerId);
         if (!isValidPlayer(owner)) {
             this.log(`post=${post.id} npcCommand skipped cmd=${command} target=${targetId} reason=no-stream-owner`);
             return;
         }
+
         const units = [post.leader, ...post.guards]
             .filter((unit) => unit && unit.exists())
             .map((unit) => ({

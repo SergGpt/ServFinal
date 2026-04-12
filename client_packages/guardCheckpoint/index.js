@@ -35,6 +35,47 @@ function getPlayerByServerId(serverId) {
     return found;
 }
 
+
+function isLocalStreamOwnerForPed(ped) {
+    try {
+        const ownerId = ped && ped.getVariable ? Number(ped.getVariable("streamOwnerId")) : null;
+        const localId = mp.players.local ? Number(mp.players.local.remoteId) : null;
+        return Number.isFinite(ownerId) && Number.isFinite(localId) && ownerId === localId;
+    } catch (e) {
+        return false;
+    }
+}
+
+function restorePedBehaviorFromState(ped) {
+    if (!ped || !ped.getVariable) return;
+    if (!isLocalStreamOwnerForPed(ped)) return;
+
+    const state = String(ped.getVariable("guardState") || "idle");
+    const targetIdRaw = ped.getVariable("guardTargetId");
+    const targetId = Number.isFinite(Number(targetIdRaw)) ? Number(targetIdRaw) : -1;
+    const target = targetId >= 0 ? getPlayerByServerId(targetId) : null;
+
+    try {
+        if (state === "attack" && target) {
+            ped.taskCombat(target.handle, 0, 16);
+            try { ped.setKeepTask(true); } catch (e) {}
+            return;
+        }
+
+        if (state === "warning_aim" && target) {
+            ped.clearTasks();
+            ped.taskAimGunAt(target.handle, 1200, false);
+            return;
+        }
+
+        if (state === "return") {
+            // Server will resend an explicit return command on owner resync.
+            return;
+        }
+
+        ped.clearTasks();
+    } catch (e) {}
+}
 function applyNpcCommand(command, targetId, units) {
     const target = targetId >= 0 ? getPlayerByServerId(targetId) : null;
     (units || []).forEach((u) => {
@@ -58,6 +99,8 @@ function applyNpcCommand(command, targetId, units) {
             } else if (command === "return") {
                 ped.clearTasks();
                 ped.taskGoStraightToCoord(u.x, u.y, u.z, 2.2, -1, u.heading, 0.05);
+            } else if (command === "idle") {
+                ped.clearTasks();
             }
         } catch (e) {}
     });
@@ -114,6 +157,7 @@ mp.events.add("entityStreamIn", (entity) => {
     const postId = entity.getVariable ? entity.getVariable("guardPostId") : null;
     if (!postId) return;
     clog(`ped stream IN post=${postId} npc=${entity.getVariable("guardNpcId")} role=${entity.getVariable("guardRole")} state=${entity.getVariable("guardState")}`);
+    restorePedBehaviorFromState(entity);
 });
 
 mp.events.add("entityStreamOut", (entity) => {
