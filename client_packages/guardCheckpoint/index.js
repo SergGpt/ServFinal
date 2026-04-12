@@ -7,6 +7,7 @@ let statusText = null;
 let statusUntil = 0;
 
 const OWNER_LOOP_MS = 120;
+const POSE_UPLINK_MS = 110;
 const POSE_BUFFER_DELAY_MS = 100;
 const MAX_EXTRAP_MS = 260;
 const TINY_DESYNC = 0.06;
@@ -17,6 +18,7 @@ const HUGE_DESYNC = 7.5;
 const ownerRuntime = new Map(); // pedId -> owner task cache
 const observerRuntime = new Map(); // pedId -> pose cache
 const commandByPost = new Map(); // postId -> payload
+const ownerPoseUplinkAt = new Map(); // postId -> ts
 
 function nowMs() {
     return Date.now();
@@ -224,6 +226,62 @@ function applyOwnerCommand(ped, cmd, cache, now) {
     cache.lastCtrlVer = Number(cmd.ctrlVer || 0);
 }
 
+function sendOwnerPoseUplink() {
+    const grouped = new Map(); // postId -> { ctrlVer, units[] }
+    const now = nowMs();
+
+    mp.peds.forEach((ped) => {
+        try {
+            if (!ped || !ped.getVariable) return;
+            const postId = String(ped.getVariable("guardPostId") || "");
+            if (!postId || !isOwner(ped)) return;
+            const cmd = commandByPost.get(postId);
+            if (!cmd) return;
+
+            const lastSentAt = Number(ownerPoseUplinkAt.get(postId)) || 0;
+            if (now - lastSentAt < POSE_UPLINK_MS) return;
+
+            const pedId = getPedId(ped);
+            if (!Number.isFinite(pedId)) return;
+
+            const cache = ownerRuntime.get(pedId) || {};
+            const pos = ped.position;
+            const heading = Number(ped.getHeading ? ped.getHeading() : 0) || 0;
+            const prev = cache.lastPoseSample || { x: pos.x, y: pos.y, z: pos.z, at: now };
+            const dt = Math.max(0.05, (now - Number(prev.at || now)) / 1000);
+            const velX = (Number(pos.x) - Number(prev.x || pos.x)) / dt;
+            const velY = (Number(pos.y) - Number(prev.y || pos.y)) / dt;
+            const velZ = (Number(pos.z) - Number(prev.z || pos.z)) / dt;
+            const speed = Math.sqrt(velX * velX + velY * velY + velZ * velZ);
+            const moveState = speed > 0.08 ? "moving" : "stationary";
+
+            cache.lastPoseSample = { x: pos.x, y: pos.y, z: pos.z, at: now };
+            ownerRuntime.set(pedId, cache);
+
+            if (!grouped.has(postId)) {
+                grouped.set(postId, { ctrlVer: Number(cmd.ctrlVer || 0), units: [] });
+            }
+            grouped.get(postId).units.push({
+                pedId,
+                x: Number(pos.x) || 0,
+                y: Number(pos.y) || 0,
+                z: Number(pos.z) || 0,
+                heading,
+                velX,
+                velY,
+                velZ,
+                moveState,
+                poseUpdatedAt: now,
+            });
+        } catch {}
+    });
+
+    for (const [postId, data] of grouped.entries()) {
+        ownerPoseUplinkAt.set(postId, now);
+        try { mp.events.callRemote("guardCheckpoint:controller.pose", postId, Number(data.ctrlVer || 0), JSON.stringify(data.units || [])); } catch {}
+    }
+}
+
 function processOwnerLoop() {
     const now = nowMs();
     mp.peds.forEach((ped) => {
@@ -270,7 +328,26 @@ function processObserverRender() {
             if (!ped.getVariable("guardPostId")) return;
             if (isOwner(ped)) return;
             updateObserverPoseCache(ped);
-            renderObserverPose(ped);
+            const guardState = String(ped.getVariable("guardState") || "idle");
+            if (guardState === "attack" || guardState === "warning_aim") {
+                // В бою не трогаем мелкие коррекции, чтобы не ломать сетевую анимацию стрельбы/прицеливания.
+                const pedId = getPedId(ped);
+                const rt = observerRuntime.get(pedId);
+                if (rt && rt.currPose) {
+                    const px = ped.position.x;
+                    const py = ped.position.y;
+                    const pz = ped.position.z;
+                    const dx = rt.currPose.x - px;
+                    const dy = rt.currPose.y - py;
+                    const dz = rt.currPose.z - pz;
+                    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    if (dist >= MEDIUM_DESYNC) {
+                        try { ped.setCoordsNoOffset(px + dx * 0.4, py + dy * 0.4, pz + dz * 0.4, false, false, false); } catch {}
+                    }
+                }
+            } else {
+                renderObserverPose(ped);
+            }
         } catch {}
     });
 }
@@ -337,6 +414,7 @@ mp.events.add("entityStreamOut", (entity) => {
 
 mp.events.add("render", () => {
     processOwnerLoop();
+    sendOwnerPoseUplink();
     processObserverRender();
 
     if (statusText && nowMs() < statusUntil) {

@@ -342,6 +342,47 @@ class CheckpointGuardController {
         this.controllerManager.onControllerAck(post, player.id, Number(ver));
     }
 
+    onControllerPose(player, postId, ver, unitsJson) {
+        if (!isValidPlayer(player)) return;
+        const post = this.getPost(postId);
+        if (!post) return;
+        if (Number(post.streamOwnerId) !== Number(player.id)) return;
+        if (Number(post.ctrlVer || 0) !== Number(ver || 0)) return;
+
+        let units = [];
+        try {
+            units = JSON.parse(String(unitsJson || "[]"));
+        } catch {
+            return;
+        }
+        if (!Array.isArray(units) || !units.length) return;
+
+        const now = Date.now();
+        for (const unitData of units) {
+            const pedId = Number(unitData.pedId);
+            if (!Number.isFinite(pedId)) continue;
+            const unit = [post.leader, ...post.guards].find((u) => u && u.exists() && Number(u.ped.id) === pedId);
+            if (!unit) continue;
+
+            const key = unit.id;
+            post.poseRuntime.set(key, {
+                prevPos: {
+                    x: Number(unitData.x) || 0,
+                    y: Number(unitData.y) || 0,
+                    z: Number(unitData.z) || 0,
+                },
+                prevHeading: Number(unitData.heading) || 0,
+                prevPoseAt: Number(unitData.poseUpdatedAt) || now,
+                velX: Number(unitData.velX) || 0,
+                velY: Number(unitData.velY) || 0,
+                velZ: Number(unitData.velZ) || 0,
+                moveState: String(unitData.moveState || "stationary"),
+                receivedAt: now,
+                fromOwner: true,
+            });
+        }
+    }
+
     markAggressive(playerId) {
         this.playerAggressiveUntil.set(playerId, Date.now() + (this.config.aggressiveMemoryMs || 12000));
     }
@@ -857,30 +898,46 @@ class CheckpointGuardController {
                 velZ: 0,
                 moveState: "stationary",
             };
+            const ownerFresh = prev && prev.fromOwner && (now - Number(prev.receivedAt || 0) < 700);
+            const authPos = ownerFresh ? prev.prevPos : { x: pos.x, y: pos.y, z: pos.z };
+            const authHeading = ownerFresh ? Number(prev.prevHeading || heading) : heading;
+            let velX;
+            let velY;
+            let velZ;
+            let moveState;
 
-            const dt = Math.max(0.05, (now - Number(prev.prevPoseAt || now)) / 1000);
-            const velX = (Number(pos.x) - Number(prev.prevPos.x || pos.x)) / dt;
-            const velY = (Number(pos.y) - Number(prev.prevPos.y || pos.y)) / dt;
-            const velZ = (Number(pos.z) - Number(prev.prevPos.z || pos.z)) / dt;
-            const speed = Math.sqrt(velX * velX + velY * velY + velZ * velZ);
-            const moveState = speed > 0.08 ? "moving" : "stationary";
+            if (ownerFresh) {
+                velX = Number(prev.velX) || 0;
+                velY = Number(prev.velY) || 0;
+                velZ = Number(prev.velZ) || 0;
+                moveState = String(prev.moveState || "stationary");
+            } else {
+                const dt = Math.max(0.05, (now - Number(prev.prevPoseAt || now)) / 1000);
+                velX = (Number(pos.x) - Number(prev.prevPos.x || pos.x)) / dt;
+                velY = (Number(pos.y) - Number(prev.prevPos.y || pos.y)) / dt;
+                velZ = (Number(pos.z) - Number(prev.prevPos.z || pos.z)) / dt;
+                const speed = Math.sqrt(velX * velX + velY * velY + velZ * velZ);
+                moveState = speed > 0.08 ? "moving" : "stationary";
+            }
 
             post.poseRuntime.set(key, {
-                prevPos: { x: pos.x, y: pos.y, z: pos.z },
-                prevHeading: heading,
+                prevPos: { ...authPos },
+                prevHeading: authHeading,
                 prevPoseAt: now,
                 velX,
                 velY,
                 velZ,
                 moveState,
+                receivedAt: now,
+                fromOwner: ownerFresh,
             });
 
             const targetId = Number(post.targetPlayerId == null ? -1 : post.targetPlayerId);
             const guardState = String(ped.getVariable("guardState") || "idle");
-            try { ped.setVariable("guardPoseX", Number(pos.x) || 0); } catch {}
-            try { ped.setVariable("guardPoseY", Number(pos.y) || 0); } catch {}
-            try { ped.setVariable("guardPoseZ", Number(pos.z) || 0); } catch {}
-            try { ped.setVariable("guardPoseHeading", heading); } catch {}
+            try { ped.setVariable("guardPoseX", Number(authPos.x) || 0); } catch {}
+            try { ped.setVariable("guardPoseY", Number(authPos.y) || 0); } catch {}
+            try { ped.setVariable("guardPoseZ", Number(authPos.z) || 0); } catch {}
+            try { ped.setVariable("guardPoseHeading", authHeading); } catch {}
             try { ped.setVariable("guardPoseUpdatedAt", now); } catch {}
             try { ped.setVariable("guardVelX", Number(velX) || 0); } catch {}
             try { ped.setVariable("guardVelY", Number(velY) || 0); } catch {}
