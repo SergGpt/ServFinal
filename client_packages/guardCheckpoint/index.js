@@ -245,7 +245,10 @@ function runGuardAiLoop() {
             const targetStable = targetId < 0 || (t - cache.targetChangedAt) >= TARGET_SWITCH_DEBOUNCE_MS;
 
             if (state === "attack") {
-                if (!isOwner) smoothPedToAuthoritativePose(ped);
+                if (!isOwner) {
+                    smoothPedToAuthoritativePose(ped);
+                    return;
+                }
 
                 const target = getPlayerByServerId(targetId);
                 if (!target || !targetStable) {
@@ -279,7 +282,10 @@ function runGuardAiLoop() {
             }
 
             if (state === "warning_aim") {
-                if (!isOwner) smoothPedToAuthoritativePose(ped);
+                if (!isOwner) {
+                    smoothPedToAuthoritativePose(ped);
+                    return;
+                }
                 const target = getPlayerByServerId(targetId);
                 if (!target || !targetStable) {
                     queuePendingTarget(pedId, targetId);
