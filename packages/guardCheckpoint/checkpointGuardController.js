@@ -596,7 +596,10 @@ class CheckpointGuardController {
 
     transition(post, nextState, reason, now) {
         if (post.state === nextState) return;
-        if (now < (post.stateCooldownUntil || 0)) {
+        const bypassCooldown = post.state === POST_STATE.WARNING
+            && nextState === POST_STATE.CHECKING
+            && reason === "entered-stop-zone";
+        if (!bypassCooldown && now < (post.stateCooldownUntil || 0)) {
             this.log(`post=${post.id} transition blocked cooldown ${post.state} -> ${nextState} (${reason})`);
             return;
         }
@@ -777,6 +780,11 @@ class CheckpointGuardController {
         if (post.lastClientCommandKey === key && now - (post.lastClientCommandAt || 0) < 900) return;
         post.lastClientCommandKey = key;
         post.lastClientCommandAt = now;
+        const owner = getPlayerById(post.streamOwnerId);
+        if (!isValidPlayer(owner)) {
+            this.log(`post=${post.id} npcCommand skipped cmd=${command} target=${targetId} reason=no-stream-owner`);
+            return;
+        }
         const units = [post.leader, ...post.guards]
             .filter((unit) => unit && unit.exists())
             .map((unit) => ({
@@ -788,9 +796,7 @@ class CheckpointGuardController {
                 heading: unit.spawnHeading,
                 weaponHash: unit.weaponHash || 0,
             }));
-        this.forEachPlayersInPost(post, (rec) => {
-            rec.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
-        });
+        owner.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
     }
 
     getPost(postId) {
