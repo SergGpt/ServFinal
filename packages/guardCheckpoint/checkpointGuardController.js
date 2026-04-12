@@ -52,6 +52,18 @@ function isInsideZone(pos, zone) {
     return inSphere(pos, zone);
 }
 
+function isInsideZoneWithTolerance(pos, zone, tolerance = 0.6) {
+    if (!zone) return false;
+    if (String(zone.type || "sphere") === "sphere") {
+        const extended = {
+            ...zone,
+            radius: Number(zone.radius || 0) + Number(tolerance || 0),
+        };
+        return isInsideZone(pos, extended);
+    }
+    return isInsideZone(pos, zone);
+}
+
 function zoneCenter(zone) {
     if (!zone) return { x: 0, y: 0, z: 0 };
     const zoneType = String(zone.type || "sphere");
@@ -233,6 +245,7 @@ class CheckpointGuardController {
             targetOutsidePursuitSince: 0,
             streamOwnerId: null,
             playerSeenAt: new Map(),
+            checkingGraceUntil: 0,
         };
     }
 
@@ -409,7 +422,7 @@ class CheckpointGuardController {
         const elapsed = now - (post.warningIssuedAt || now);
         const distToStop = dist3(target.position, zoneCenter(post.cfg.stopZone));
         const prevDistToStop = Number(post.warningPrevDistToStopZone || distToStop);
-        if (isInsideZone(target.position, post.cfg.stopZone)) {
+        if (isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9)) {
             post.targetStopStaySince = now;
             this.log(`post=${post.id} target=${target.id} entered stopZone`);
             this.transition(post, POST_STATE.CHECKING, "entered-stop-zone", now);
@@ -435,7 +448,7 @@ class CheckpointGuardController {
             return;
         }
 
-        if (!isInsideZone(target.position, post.cfg.stopZone)) {
+        if (!isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9)) {
             this.transition(post, POST_STATE.ATTACK, "left-stop-zone", now);
             return;
         }
@@ -444,6 +457,8 @@ class CheckpointGuardController {
             this.transition(post, POST_STATE.ATTACK, "vehicle-in-stop-zone", now);
             return;
         }
+
+        if (now < (post.checkingGraceUntil || 0)) return;
 
         const moved = prevTargetPos ? dist3(target.position, prevTargetPos) : 0;
         if (moved > Number(this.config.movementThreshold || 0.08)) {
@@ -608,6 +623,7 @@ class CheckpointGuardController {
 
         if (nextState === POST_STATE.CHECKING) {
             post.checkStartedAt = now;
+            post.checkingGraceUntil = now + 1100;
             this.sendStatusText(post, "Не двигайтесь, идет досмотр (5 секунд)", 5000);
         }
 
@@ -755,6 +771,7 @@ class CheckpointGuardController {
                 y: unit.spawnPos.y,
                 z: unit.spawnPos.z,
                 heading: unit.spawnHeading,
+                weaponHash: unit.weaponHash || 0,
             }));
         owner.call("guardCheckpoint:npcCommand", [post.id, command, targetPlayer ? targetPlayer.id : -1, units]);
     }

@@ -36,6 +36,10 @@ function applyNpcCommand(command, targetId, units) {
         const ped = mp.peds.atRemoteId(u.pedId);
         if (!ped) return;
         try {
+            if (u.weaponHash) {
+                try { ped.giveWeapon(u.weaponHash, 9999, true); } catch (e) {}
+                try { ped.setCurrentWeapon(u.weaponHash); } catch (e) {}
+            }
             if (command === "aim" && target) {
                 ped.clearTasks();
                 ped.taskAimGunAt(target.handle, 1200, false);

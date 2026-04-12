@@ -76,6 +76,7 @@ class GuardNpc {
         this.initHealth = Math.max(100, Number(postConfig.npcHealth) || 250);
         this.initArmor = Math.max(0, Number(postConfig.npcArmor) || 0);
         this.debugSync = !!postConfig.debugSync;
+        this.lastEquipAt = 0;
 
         this.spawn();
     }
@@ -115,8 +116,14 @@ class GuardNpc {
 
     equipWeapon() {
         if (!this.exists() || !this.weaponHash) return false;
+        const now = Date.now();
+        if (now - this.lastEquipAt < 4000) {
+            safeCall(method(this.ped, "setCurrentWeapon"), this.weaponHash);
+            return true;
+        }
         safeCall(method(this.ped, "giveWeapon"), this.weaponHash, 9999);
         safeCall(method(this.ped, "setCurrentWeapon"), this.weaponHash);
+        this.lastEquipAt = now;
         this.log(`npc=${this.id} weapon equipped hash=${this.weaponHash}`);
         return true;
     }
