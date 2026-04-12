@@ -264,6 +264,10 @@ class CheckpointGuardController {
             ownerLeaseUntil: 0,
             lastOwnerSwitchAt: 0,
             processOwnerId: null,
+            controllerRid: null,
+            controllerSwitching: false,
+            lastSwitchNotifyAt: 0,
+            savedTask: null,
         };
     }
 
@@ -334,12 +338,13 @@ class CheckpointGuardController {
         if (Number(ver) !== expectedVer) return;
 
         post.controllerAckVer = expectedVer;
-        const pending = post.pendingMovementCommand;
-        if (!pending) return;
+        post.controllerSwitching = false;
+        const task = post.savedTask || post.pendingMovementCommand;
+        if (!task) return;
         post.pendingMovementCommand = null;
-        const target = pending.targetId >= 0 ? getPlayerById(pending.targetId) : null;
-        this.dispatchNpcCommand(post, pending.command, target, { force: true, owner: player });
-        this.log(`post=${post.id} controller ack ver=${ver} replay cmd=${pending.command}`);
+        const target = task.targetId >= 0 ? getPlayerById(task.targetId) : null;
+        this.dispatchNpcCommand(post, task.command, target, { force: true, owner: player, bypassAckGate: true });
+        this.log(`post=${post.id} controller ack ver=${ver} restore cmd=${task.command}`);
     }
 
     markAggressive(playerId) {
@@ -384,6 +389,7 @@ class CheckpointGuardController {
 
     tickPost(post, now) {
         this.updateStreamOwner(post, now);
+        this.processControllerSwitch(post, now);
         this.ensureUnitsSpawnedForController(post);
         post.leader.syncDeathIfNeeded(now);
         for (const guard of post.guards) guard.syncDeathIfNeeded(now);
@@ -428,6 +434,19 @@ class CheckpointGuardController {
                 z: target.position.z,
             };
         }
+    }
+
+    processControllerSwitch(post, now) {
+        if (!post.streamOwnerId || Number(post.controllerAckVer) === Number(post.ctrlVer)) {
+            post.controllerSwitching = false;
+            return;
+        }
+        const owner = getPlayerById(post.streamOwnerId);
+        if (!isValidPlayer(owner)) return;
+        const retryMs = 700;
+        if (now - Number(post.lastSwitchNotifyAt || 0) < retryMs) return;
+        post.lastSwitchNotifyAt = now;
+        owner.call("guardCheckpoint:controller:switch", [post.id, post.ctrlVer, post.state]);
     }
 
     ensureUnitsSpawnedForController(post) {
@@ -882,8 +901,11 @@ class CheckpointGuardController {
         if (preferredOwner) {
             if (post.streamOwnerId === preferredOwner.id) return;
             post.streamOwnerId = preferredOwner.id;
+            post.controllerRid = preferredOwner.id;
             post.lastOwnerSwitchAt = now;
             post.ownerLeaseUntil = now;
+            post.controllerSwitching = true;
+            post.lastSwitchNotifyAt = now;
             post.lastClientCommandKey = null;
             post.lastClientCommandAt = 0;
             post.ctrlVer = (Number(post.ctrlVer) || 0) + 1;
@@ -921,8 +943,11 @@ class CheckpointGuardController {
         const nextOwner = bestCandidate ? bestCandidate.id : null;
         if (post.streamOwnerId === nextOwner) return;
         post.streamOwnerId = nextOwner;
+        post.controllerRid = nextOwner;
         post.lastOwnerSwitchAt = now;
         post.ownerLeaseUntil = nextOwner == null ? 0 : now;
+        post.controllerSwitching = nextOwner != null;
+        post.lastSwitchNotifyAt = now;
         post.lastClientCommandKey = null;
         post.lastClientCommandAt = 0;
         post.ctrlVer = (Number(post.ctrlVer) || 0) + 1;
@@ -941,6 +966,7 @@ class CheckpointGuardController {
         [post.leader, ...post.guards].forEach((unit) => {
             if (!unit.exists()) return;
             try { unit.ped.setVariable("streamOwnerId", ownerId == null ? -1 : ownerId); } catch {}
+            try { unit.ped.setVariable("controllerRid", ownerId == null ? -1 : ownerId); } catch {}
             try { unit.ped.setVariable("ctrlVer", Number(post.ctrlVer) || 0); } catch {}
             if (!owner) return;
             try { unit.ped.controller = owner; } catch {}
@@ -973,10 +999,12 @@ class CheckpointGuardController {
         const targetId = targetPlayer ? targetPlayer.id : -1;
         const now = Date.now();
         const force = !!options.force;
+        const bypassAckGate = !!options.bypassAckGate;
         const key = `${command}:${targetId}`;
         if (!force && post.lastClientCommandKey === key && now - (post.lastClientCommandAt || 0) < 900) return;
         post.lastClientCommandKey = key;
         post.lastClientCommandAt = now;
+        post.savedTask = { command, targetId, at: now };
 
         const units = [post.leader, ...post.guards]
             .filter((unit) => unit && unit.exists())
@@ -998,21 +1026,15 @@ class CheckpointGuardController {
                 weaponHash: unit.weaponHash || 0,
             }));
         const owner = getPlayerById(post.streamOwnerId);
-        if (command === "return") {
-            if (!isValidPlayer(owner)) {
-                post.pendingMovementCommand = { command, targetId, at: Date.now() };
-                return;
-            }
-            if (Number(post.controllerAckVer) !== Number(post.ctrlVer)) {
-                post.pendingMovementCommand = { command, targetId, at: Date.now() };
-                return;
-            }
-            owner.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
+        if (!isValidPlayer(owner)) {
+            post.pendingMovementCommand = { command, targetId, at: Date.now() };
             return;
         }
-        this.forEachPlayersInPost(post, (rec) => {
-            rec.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
-        });
+        if (!bypassAckGate && Number(post.controllerAckVer) !== Number(post.ctrlVer)) {
+            post.pendingMovementCommand = { command, targetId, at: Date.now() };
+            return;
+        }
+        owner.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
     }
 
     getPost(postId) {

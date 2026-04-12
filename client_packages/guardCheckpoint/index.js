@@ -17,8 +17,6 @@ const RETURN_REPLAY_MS = 1200;
 const RETURN_DEVIATION_DIST = 2.8;
 const RETURN_PROGRESS_EPS = 0.08;
 const RETURN_STALL_MS = 900;
-const OBSERVER_AIM_REPLAY_MS = 900;
-const OBSERVER_SHOOT_REPLAY_MS = 1050;
 const HEADING_SMOOTH_FACTOR = 0.2;
 const POSE_IGNORE_DIST = 0.03;
 const POSE_NORMAL_SMOOTH = 0.18;
@@ -80,12 +78,14 @@ function getPlayerByServerId(serverId) {
 
 function isLocalStreamOwnerForPed(ped) {
     if (!ped || !ped.getVariable || !mp.players.local) return false;
-    const ownerId = Number(ped.getVariable("streamOwnerId"));
+    const ownerId = Number(ped.getVariable("controllerRid"));
+    const ownerFallback = Number(ped.getVariable("streamOwnerId"));
+    const effectiveOwner = Number.isFinite(ownerId) && ownerId >= 0 ? ownerId : ownerFallback;
     const localRemoteId = Number(mp.players.local.remoteId);
     const localId = Number(mp.players.local.id);
-    if (!Number.isFinite(ownerId)) return false;
-    if (Number.isFinite(localRemoteId) && ownerId === localRemoteId) return true;
-    if (Number.isFinite(localId) && ownerId === localId) return true;
+    if (!Number.isFinite(effectiveOwner)) return false;
+    if (Number.isFinite(localRemoteId) && effectiveOwner === localRemoteId) return true;
+    if (Number.isFinite(localId) && effectiveOwner === localId) return true;
     return false;
 }
 
@@ -220,8 +220,6 @@ function getOrCreateCache(pedId) {
             weaponHashHint: 0,
             lastReturnPos: null,
             lastReturnProgressAt: 0,
-            lastObserverAimAt: 0,
-            lastObserverShootAt: 0,
         });
     }
     return pedAiCache.get(pedId);
@@ -316,25 +314,6 @@ function runGuardAiLoop() {
 
             if (state === "attack") {
                 if (!isOwner) {
-                    const target = getPlayerByServerId(targetId);
-                    if (target && targetStable) {
-                        ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
-                        if (stateChanged || t - cache.lastObserverAimAt >= OBSERVER_AIM_REPLAY_MS) {
-                            try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, OBSERVER_AIM_REPLAY_MS + 150, false); } catch {}
-                            cache.lastObserverAimAt = t;
-                        }
-                        if (stateChanged || t - cache.lastObserverShootAt >= OBSERVER_SHOOT_REPLAY_MS) {
-                            try {
-                                mp.game.ai.taskShootAtEntity(
-                                    ped.handle,
-                                    target.handle,
-                                    OBSERVER_SHOOT_REPLAY_MS + 220,
-                                    mp.game.joaat("FIRING_PATTERN_FULL_AUTO")
-                                );
-                            } catch {}
-                            cache.lastObserverShootAt = t;
-                        }
-                    }
                     smoothPedToAuthoritativePose(ped);
                     return;
                 }
@@ -374,14 +353,6 @@ function runGuardAiLoop() {
 
             if (state === "warning_aim") {
                 if (!isOwner) {
-                    const target = getPlayerByServerId(targetId);
-                    if (target && targetStable) {
-                        ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
-                        if (stateChanged || t - cache.lastObserverAimAt >= OBSERVER_AIM_REPLAY_MS) {
-                            try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, OBSERVER_AIM_REPLAY_MS + 150, false); } catch {}
-                            cache.lastObserverAimAt = t;
-                        }
-                    }
                     smoothPedToAuthoritativePose(ped);
                     return;
                 }
