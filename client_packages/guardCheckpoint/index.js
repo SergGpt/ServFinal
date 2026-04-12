@@ -21,6 +21,36 @@ function playSound(soundName, soundSet) {
     }
 }
 
+function getPlayerByServerId(serverId) {
+    let found = null;
+    mp.players.forEach((p) => {
+        if (found) return;
+        if (p.id === serverId) found = p;
+    });
+    return found;
+}
+
+function applyNpcCommand(command, targetId, units) {
+    const target = targetId >= 0 ? getPlayerByServerId(targetId) : null;
+    (units || []).forEach((u) => {
+        const ped = mp.peds.atRemoteId(u.pedId);
+        if (!ped) return;
+        try {
+            if (command === "aim" && target) {
+                ped.clearTasks();
+                ped.taskAimGunAt(target.handle, 1200, false);
+            } else if (command === "fire" && target) {
+                ped.clearTasks();
+                ped.taskCombat(target.handle, 0, 16);
+                ped.taskShootAt(target.handle, 2000, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
+            } else if (command === "return") {
+                ped.clearTasks();
+                ped.taskGoStraightToCoord(u.x, u.y, u.z, 2.2, -1, u.heading, 0.05);
+            }
+        } catch (e) {}
+    });
+}
+
 mp.events.add({
     "guardCheckpoint:warning:start": (data) => {
         clog(`warning:start post=${data.postId} target=${data.targetId} owner=${data.ownerId} text="${data.text}"`);
@@ -55,6 +85,11 @@ mp.events.add({
         statusText = String(text || "");
         statusUntil = Date.now() + Math.max(1000, Number(durationMs) || 3000);
         clog(`status post=${postId} text="${statusText}"`);
+    },
+
+    "guardCheckpoint:npcCommand": (postId, command, targetId, units) => {
+        clog(`npcCommand post=${postId} cmd=${command} target=${targetId} units=${(units || []).length}`);
+        applyNpcCommand(command, targetId, units);
     },
 });
 

@@ -75,6 +75,7 @@ class GuardNpc {
         this.spawnGraceMs = Math.max(2000, Number(postConfig.spawnGraceMs) || 3500);
         this.initHealth = Math.max(100, Number(postConfig.npcHealth) || 250);
         this.initArmor = Math.max(0, Number(postConfig.npcArmor) || 0);
+        this.debugSync = !!postConfig.debugSync;
 
         this.spawn();
     }
@@ -183,16 +184,15 @@ class GuardNpc {
 
     syncDeathIfNeeded(now) {
         const existsNow = this.exists();
-        if (!existsNow) {
-            this.log(`sync npc=${this.id} exists=false sinceSpawn=${now - (this.spawnedAt || now)}ms respawnTimer=${!!this.respawnTimer}`);
-            return;
-        }
+        if (!existsNow) return;
 
         const sinceSpawnMs = now - (this.spawnedAt || now);
         const hp = Number(this.ped.health) || 0;
         const graceActive = sinceSpawnMs < this.spawnGraceMs;
 
-        this.log(`sync npc=${this.id} exists=true hp=${hp} sinceSpawn=${sinceSpawnMs}ms grace=${graceActive} seenAlive=${this.hasSeenAliveHealth}`);
+        if (this.debugSync) {
+            this.log(`sync npc=${this.id} exists=true hp=${hp} sinceSpawn=${sinceSpawnMs}ms grace=${graceActive} seenAlive=${this.hasSeenAliveHealth}`);
+        }
 
         if (hp > 0) {
             this.hasSeenAliveHealth = true;

@@ -207,6 +207,7 @@ class CheckpointGuardController {
             spawnGraceMs: Number(rawPost.spawnGraceMs || this.config.spawnGraceMs || 3500),
             npcHealth: Number(rawPost.npcHealth || this.config.npcHealth || 250),
             npcArmor: Number(rawPost.npcArmor || this.config.npcArmor || 0),
+            debugSync: !!(rawPost.debugSync || this.config.debugSync),
         };
         const leader = new GuardNpc(mergedPost, mergedPost.leader, "leader", this.log, this.config.defaultRespawnMs);
         const guards = (mergedPost.guards || []).map((g) => new GuardNpc(mergedPost, g, "guard", this.log, this.config.defaultRespawnMs));
@@ -473,6 +474,7 @@ class CheckpointGuardController {
 
         post.leader.fireAtTarget(target);
         for (const guard of post.guards) guard.fireAtTarget(target);
+        this.dispatchNpcCommand(post, "fire", target);
 
         const maxChaseDistance = Number(post.cfg.maxChaseDistance || this.config.defaultMaxChaseDistance);
         const pursuitZone = this.getPursuitZone(post);
@@ -502,6 +504,7 @@ class CheckpointGuardController {
             guard.stopCombat();
             guard.returnToPost();
         }
+        this.dispatchNpcCommand(post, "return", null);
 
         const arrived = [post.leader, ...post.guards].every((unit) => {
             if (!unit.exists()) return false;
@@ -544,6 +547,7 @@ class CheckpointGuardController {
             guard.readyWeapon();
             guard.aimAtTarget(target);
         }
+        this.dispatchNpcCommand(post, "aim", target);
     }
 
     resolveTargetPlayer(post) {
@@ -735,6 +739,24 @@ class CheckpointGuardController {
             try { unit.ped.controller = owner; } catch {}
             try { unit.ped.setVariable("streamOwnerId", ownerId); } catch {}
         });
+    }
+
+    dispatchNpcCommand(post, command, targetPlayer) {
+        const ownerId = post.streamOwnerId;
+        if (ownerId == null) return;
+        const owner = getPlayerById(ownerId);
+        if (!owner) return;
+        const units = [post.leader, ...post.guards]
+            .filter((unit) => unit && unit.exists())
+            .map((unit) => ({
+                pedId: unit.ped.id,
+                role: unit.role,
+                x: unit.spawnPos.x,
+                y: unit.spawnPos.y,
+                z: unit.spawnPos.z,
+                heading: unit.spawnHeading,
+            }));
+        owner.call("guardCheckpoint:npcCommand", [post.id, command, targetPlayer ? targetPlayer.id : -1, units]);
     }
 
     getPost(postId) {

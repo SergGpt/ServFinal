@@ -3,6 +3,7 @@
 const GUARD_CHECKPOINT_CONFIG = {
     debug: true,
     debugTick: false,
+    debugSync: false,
     tickMs: 300,
     movementThreshold: 0.08,
     transitionCooldownMs: 900,
