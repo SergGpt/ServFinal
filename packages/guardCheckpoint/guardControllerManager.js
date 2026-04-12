@@ -28,7 +28,9 @@ function createGuardControllerManager(deps) {
         }
 
         // Если этот controller уже назначен и живой — ничего не делаем.
-        if (Number(post.controllerRid) === Number(nextController.id)
+        if (post.controllerRid != null
+            && post.streamOwnerId != null
+            && Number(post.controllerRid) === Number(nextController.id)
             && Number(post.streamOwnerId) === Number(nextController.id)
             && !post.switching) {
             return false;
