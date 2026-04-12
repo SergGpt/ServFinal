@@ -777,15 +777,19 @@ class CheckpointGuardController {
     }
 
     updateController(post) {
-        const prevOwner = post.streamOwnerId;
-        const nextOwner = this.chooseController(post);
+        const currentOwner = getPlayerById(post.streamOwnerId);
+        const currentValid = isValidPlayer(currentOwner)
+            && Number(currentOwner.dimension) === Number(post.cfg.dimension || 0)
+            && isInsideZone(currentOwner.position, this.getPostZone(post));
 
-        const currentOwnerPlayer = getPlayerById(prevOwner);
-        const isCurrentValid = isValidPlayer(currentOwnerPlayer) && Number(currentOwnerPlayer.dimension) === Number(post.cfg.dimension || 0);
+        // Если текущий владелец жив, в нужном dimension и всё ещё в зоне поста —
+        // НЕ перекидываем ownership.
+        if (currentValid) return;
 
-        if (!isCurrentValid || Number(nextOwner && nextOwner.id) !== Number(prevOwner)) {
-            this.controllerManager.beginSwitch(post, "owner-reselect");
-        }
+        // Во время активного handoff не стартуем новый без причины.
+        if (post.switching) return;
+
+        this.controllerManager.beginSwitch(post, currentValid ? "owner-keep" : "owner-reselect");
     }
 
     chooseController(post) {
@@ -802,7 +806,13 @@ class CheckpointGuardController {
         }
 
         if (!candidates.length) return null;
-        candidates.sort((a, b) => a.dist - b.dist || a.seenAt - b.seenAt);
+
+        // 1. Если текущий controller всё ещё среди кандидатов — оставляем его.
+        const current = candidates.find((v) => Number(v.player.id) === Number(post.streamOwnerId));
+        if (current) return current.player;
+
+        // 2. Иначе берём самого "старого" в зоне, а не самого ближнего.
+        candidates.sort((a, b) => a.seenAt - b.seenAt || a.dist - b.dist);
         return candidates[0].player;
     }
 

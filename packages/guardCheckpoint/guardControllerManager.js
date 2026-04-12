@@ -27,6 +27,13 @@ function createGuardControllerManager(deps) {
             return false;
         }
 
+        // Если этот controller уже назначен и живой — ничего не делаем.
+        if (Number(post.controllerRid) === Number(nextController.id)
+            && Number(post.streamOwnerId) === Number(nextController.id)
+            && !post.switching) {
+            return false;
+        }
+
         const sameController = Number(post.controllerRid) === Number(nextController.id);
         const recentlySwitched = now - (post.lastControllerSwitchAt || 0) < cooldownMs;
         if (sameController && recentlySwitched) return false;
