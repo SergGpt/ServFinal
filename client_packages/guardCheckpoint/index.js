@@ -15,8 +15,8 @@ const CLEAR_REPLAY_MS = 900;
 const TARGET_SWITCH_DEBOUNCE_MS = 180;
 const RETURN_REPLAY_MS = 900;
 const RETURN_DEVIATION_DIST = 2.8;
-const POSE_SMOOTH_FACTOR = 0.22;
-const POSE_SNAP_DIST = 4.5;
+const POSE_SMOOTH_FACTOR = 0.12;
+const POSE_SNAP_DIST = 7.5;
 const PENDING_RETRY_MS = 200;
 const PENDING_TTL_MS = 2500;
 
@@ -99,10 +99,22 @@ function smoothPedToAuthoritativePose(ped) {
         try {
             const cur = Number(ped.getHeading ? ped.getHeading() : 0) || 0;
             let delta = ((h - cur + 540) % 360) - 180;
-            const next = cur + delta * 0.25;
+            const next = cur + delta * 0.14;
             ped.setHeading(next);
         } catch {}
     }
+}
+
+
+function smoothObserverPedsEachFrame() {
+    mp.peds.forEach((ped) => {
+        try {
+            if (!ped || !ped.getVariable) return;
+            if (!ped.getVariable("guardPostId")) return;
+            if (isLocalStreamOwnerForPed(ped)) return;
+            smoothPedToAuthoritativePose(ped);
+        } catch {}
+    });
 }
 
 function getGuardTargetId(ped) {
@@ -410,6 +422,7 @@ mp.events.add("entityStreamOut", (entity) => {
 
 mp.events.add("render", () => {
     runGuardAiLoop();
+    smoothObserverPedsEachFrame();
 
     if (statusText && nowMs() < statusUntil) {
         mp.game.graphics.drawText(statusText, [0.5, 0.84], {
