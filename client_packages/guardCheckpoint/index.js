@@ -27,6 +27,7 @@ const POSE_EXTRAPOLATION_MS = 220;
 const AUTH_UPDATE_INTERVAL_MS = 150;
 const PENDING_RETRY_MS = 200;
 const PENDING_TTL_MS = 2500;
+const DIAG_LOG_MS = 1200;
 
 let lastAiLoopAt = 0;
 
@@ -220,6 +221,7 @@ function getOrCreateCache(pedId) {
             weaponHashHint: 0,
             lastReturnPos: null,
             lastReturnProgressAt: 0,
+            lastDiagAt: 0,
         });
     }
     return pedAiCache.get(pedId);
@@ -311,6 +313,19 @@ function runGuardAiLoop() {
             cache.lastTargetId = targetId;
 
             const targetStable = targetId < 0 || (t - cache.targetChangedAt) >= TARGET_SWITCH_DEBOUNCE_MS;
+            if (t - Number(cache.lastDiagAt || 0) >= DIAG_LOG_MS) {
+                cache.lastDiagAt = t;
+                const ctrlVer = Number(ped.getVariable("ctrlVer"));
+                const ownerVar = Number(ped.getVariable("controllerRid"));
+                const ownerFallback = Number(ped.getVariable("streamOwnerId"));
+                const moveState = String(ped.getVariable("guardMoveState") || "n/a");
+                const poseAt = Number(ped.getVariable("guardPoseUpdatedAt")) || 0;
+                clog(
+                    `diag ped=${pedId} post=${postId} state=${state} target=${targetId} owner=${isOwner} `
+                    + `ctrlVer=${ctrlVer} controllerRid=${ownerVar} streamOwnerId=${ownerFallback} `
+                    + `moveState=${moveState} poseAge=${Math.max(0, t - poseAt)}ms`
+                );
+            }
 
             if (state === "attack") {
                 if (!isOwner) {

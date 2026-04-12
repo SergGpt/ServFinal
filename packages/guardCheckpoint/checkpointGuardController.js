@@ -268,6 +268,7 @@ class CheckpointGuardController {
             controllerSwitching: false,
             lastSwitchNotifyAt: 0,
             savedTask: null,
+            lastDiagLogAt: 0,
         };
     }
 
@@ -394,6 +395,7 @@ class CheckpointGuardController {
         post.leader.syncDeathIfNeeded(now);
         for (const guard of post.guards) guard.syncDeathIfNeeded(now);
         this.publishAuthoritativePose(post, now);
+        this.logPostDiagnostics(post, now);
 
         const target = this.resolveTargetPlayer(post);
         const prevTargetPos = post.targetPlayerLastPos ? { ...post.targetPlayerLastPos } : null;
@@ -462,6 +464,28 @@ class CheckpointGuardController {
             }
         }
         if (spawnedAny) this.applyStreamOwner(post, post.streamOwnerId);
+    }
+
+    logPostDiagnostics(post, now) {
+        if (!this.config.debug) return;
+        if (now - Number(post.lastDiagLogAt || 0) < 1200) return;
+        post.lastDiagLogAt = now;
+        const target = post.targetPlayerId == null ? -1 : Number(post.targetPlayerId);
+        const savedTask = post.savedTask ? `${post.savedTask.command}:${post.savedTask.targetId}` : "none";
+        const pending = post.pendingMovementCommand ? `${post.pendingMovementCommand.command}:${post.pendingMovementCommand.targetId}` : "none";
+        const units = [post.leader, ...post.guards].map((unit) => {
+            if (!unit || !unit.exists()) return `${unit ? unit.role : "unk"}:missing`;
+            const ped = unit.ped;
+            const p = ped.position;
+            const gState = String(ped.getVariable ? ped.getVariable("guardState") : "n/a");
+            const gTarget = Number(ped.getVariable ? ped.getVariable("guardTargetId") : -1);
+            return `${unit.role}#${ped.id}@${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)} s=${gState} t=${gTarget}`;
+        }).join(" | ");
+        this.log(
+            `diag post=${post.id} state=${post.state} target=${target} owner=${post.streamOwnerId} `
+            + `ctrlVer=${post.ctrlVer} ack=${post.controllerAckVer} switching=${post.controllerSwitching} `
+            + `saved=${savedTask} pending=${pending} units=[${units}]`
+        );
     }
 
     handleIdle(post, target, now) {
@@ -1028,12 +1052,15 @@ class CheckpointGuardController {
         const owner = getPlayerById(post.streamOwnerId);
         if (!isValidPlayer(owner)) {
             post.pendingMovementCommand = { command, targetId, at: Date.now() };
+            this.log(`dispatch queued post=${post.id} cmd=${command} target=${targetId} reason=no-owner`);
             return;
         }
         if (!bypassAckGate && Number(post.controllerAckVer) !== Number(post.ctrlVer)) {
             post.pendingMovementCommand = { command, targetId, at: Date.now() };
+            this.log(`dispatch queued post=${post.id} cmd=${command} target=${targetId} reason=ack-pending owner=${post.streamOwnerId}`);
             return;
         }
+        this.log(`dispatch send post=${post.id} cmd=${command} target=${targetId} owner=${post.streamOwnerId} units=${units.length}`);
         owner.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
     }
 
