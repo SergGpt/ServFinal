@@ -8,12 +8,12 @@ let statusUntil = 0;
 let lastRenderDebugAt = 0;
 
 const DEBUG_AIM_LINES = false;
-const AI_LOOP_MS = 250;
-const AIM_REPLAY_MS = 350;
-const SHOOT_REPLAY_MS = 420;
+const AI_LOOP_MS = 200;
+const AIM_REPLAY_MS = 320;
+const SHOOT_REPLAY_MS = 360;
 const CLEAR_REPLAY_MS = 900;
 const TARGET_SWITCH_DEBOUNCE_MS = 180;
-const RETURN_REPLAY_MS = 1200;
+const RETURN_REPLAY_MS = 900;
 const RETURN_DEVIATION_DIST = 2.8;
 const PENDING_RETRY_MS = 200;
 const PENDING_TTL_MS = 2500;
@@ -99,6 +99,23 @@ function getOrCreateCache(pedId) {
         });
     }
     return pedAiCache.get(pedId);
+}
+
+
+function restorePedBehaviorFromState(ped) {
+    if (!ped || !ped.getVariable) return;
+    const postId = ped.getVariable("guardPostId");
+    if (!postId) return;
+
+    const pedId = getPedRemoteId(ped);
+    if (Number.isFinite(pedId)) {
+        pedAiCache.delete(pedId);
+        pendingByPed.delete(pedId);
+    }
+
+    // force immediate replay after stream-in
+    lastAiLoopAt = 0;
+    runGuardAiLoop();
 }
 
 function queuePendingTarget(pedId, targetId) {
