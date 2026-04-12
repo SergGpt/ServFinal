@@ -5,6 +5,7 @@ let activeStopZone = null;
 let lastSoundAt = 0;
 let statusText = null;
 let statusUntil = 0;
+const DEBUG_VISUAL = true;
 
 const OWNER_LOOP_MS = 120;
 const POSE_UPLINK_MS = 110;
@@ -19,6 +20,7 @@ const ownerRuntime = new Map(); // pedId -> owner task cache
 const observerRuntime = new Map(); // pedId -> pose cache
 const commandByPost = new Map(); // postId -> transient fast-path hint (source of truth = entity vars)
 const ownerPoseUplinkAt = new Map(); // postId -> ts
+const debugPostState = new Map(); // postId -> payload
 
 function nowMs() {
     return Date.now();
@@ -442,6 +444,64 @@ function clearPedCaches(entity) {
     }
 }
 
+function drawSphereZone(zone, rgba = [60, 160, 255, 80]) {
+    if (!zone || String(zone.type || "sphere") !== "sphere" || !zone.center) return;
+    const c = zone.center;
+    const r = Number(zone.radius || 0);
+    if (r <= 0) return;
+    try {
+        mp.game.graphics.drawMarker(
+            1, c.x, c.y, c.z - 1.0,
+            0, 0, 0, 0, 0, 0,
+            r * 2.0, r * 2.0, 0.7,
+            rgba[0], rgba[1], rgba[2], rgba[3],
+            false, false, 2, false, null, null, false
+        );
+    } catch {}
+}
+
+function renderDebugOverlay() {
+    if (!DEBUG_VISUAL) return;
+    const me = mp.players.local;
+    if (!me) return;
+
+    for (const payload of debugPostState.values()) {
+        if (!payload || !payload.zones) continue;
+        drawSphereZone(payload.zones.streamZone, [100, 200, 255, 35]);
+        drawSphereZone(payload.zones.postZone, [40, 220, 120, 45]);
+        drawSphereZone(payload.zones.stopZone, [240, 220, 50, 85]);
+        drawSphereZone(payload.zones.violationZone, [255, 70, 70, 95]);
+        drawSphereZone(payload.zones.pursuitZone, [180, 120, 255, 45]);
+
+        const txt = `POST:${payload.postId} owner:${payload.ownerId} state:${payload.state} target:${payload.targetId} cv:${payload.ctrlVer} seq:${payload.actionSeq}`;
+        try {
+            mp.game.graphics.drawText(txt, [0.5, 0.06], {
+                font: 4, color: [255, 255, 255, 210], scale: [0.35, 0.35], centre: true, outline: true,
+            });
+        } catch {}
+    }
+
+    mp.peds.forEach((ped) => {
+        try {
+            if (!ped || !ped.getVariable || !ped.getVariable("guardPostId")) return;
+            ensureWeapon(ped, Number(ped.getVariable("guardWeaponHash")) || 0);
+            const pos = ped.position;
+            const heading = Number(ped.getVariable("guardPoseHeading")) || Number(ped.getHeading ? ped.getHeading() : 0) || 0;
+            const hx = pos.x + Math.cos((heading * Math.PI) / 180) * 2.0;
+            const hy = pos.y + Math.sin((heading * Math.PI) / 180) * 2.0;
+            const hz = pos.z + 0.9;
+            mp.game.graphics.drawLine(pos.x, pos.y, pos.z + 1.0, hx, hy, hz, 80, 180, 255, 220);
+
+            const targetId = Number(ped.getVariable("guardTargetId"));
+            const target = getPlayerByServerId(targetId);
+            if (target) {
+                const tp = target.position;
+                mp.game.graphics.drawLine(pos.x, pos.y, pos.z + 1.0, tp.x, tp.y, tp.z + 0.8, 255, 90, 90, 220);
+            }
+        } catch {}
+    });
+}
+
 mp.events.add({
     "guardCheckpoint:warning:start": (data) => {
         activeWarning = {
@@ -479,6 +539,11 @@ mp.events.add({
         if (!payload || !payload.postId) return;
         commandByPost.set(String(payload.postId), payload);
     },
+
+    "guardCheckpoint:debug:state": (payload) => {
+        if (!payload || !payload.postId) return;
+        debugPostState.set(String(payload.postId), payload);
+    },
 });
 
 mp.events.add("entityStreamIn", (entity) => {
@@ -503,6 +568,7 @@ mp.events.add("render", () => {
     processOwnerLoop();
     sendOwnerPoseUplink();
     processObserverRender();
+    renderDebugOverlay();
 
     if (statusText && nowMs() < statusUntil) {
         mp.game.graphics.drawText(statusText, [0.5, 0.84], {

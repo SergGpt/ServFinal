@@ -283,6 +283,7 @@ class CheckpointGuardController {
             lastPoseSyncAt: 0,
             lastControllerCommandAt: 0,
             lastControllerCommandKey: "",
+            lastDebugBroadcastAt: 0,
         };
     }
 
@@ -464,6 +465,8 @@ class CheckpointGuardController {
                 this.transition(post, POST_STATE.IDLE, "unknown-state", now);
                 break;
         }
+
+        this.broadcastDebugState(post, now);
 
         if (target) {
             post.targetPlayerLastPos = { x: target.position.x, y: target.position.y, z: target.position.z };
@@ -1014,6 +1017,30 @@ class CheckpointGuardController {
         post.switching = false;
         this.log(`post=${post.id} deactivated (no players in stream zone)`);
         return false;
+    }
+
+    broadcastDebugState(post, now) {
+        if (!this.config.debug) return;
+        if (now - Number(post.lastDebugBroadcastAt || 0) < 1000) return;
+        post.lastDebugBroadcastAt = now;
+        const payload = {
+            postId: post.id,
+            ownerId: Number(post.streamOwnerId == null ? -1 : post.streamOwnerId),
+            ctrlVer: Number(post.ctrlVer || 0),
+            actionSeq: Number(post.actionSeq || 0),
+            state: String(post.state || "idle"),
+            targetId: Number(post.targetPlayerId == null ? -1 : post.targetPlayerId),
+            zones: {
+                streamZone: this.getStreamZone(post),
+                postZone: this.getPostZone(post),
+                stopZone: post.cfg.stopZone || null,
+                violationZone: post.cfg.violationZone || null,
+                pursuitZone: this.getPursuitZone(post),
+            },
+        };
+        this.forEachPlayersInStream(post, (player) => {
+            try { player.call("guardCheckpoint:debug:state", [payload]); } catch {}
+        });
     }
 
     publishAuthoritativePose(post, now) {
