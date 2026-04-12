@@ -145,9 +145,9 @@ mp.events.add({
     "guardCheckpoint:npcCommand": (postId, command, targetId, units, streamOwnerId) => {
         const localId = mp.players.local ? Number(mp.players.local.remoteId) : null;
         const ownerId = streamOwnerId == null ? null : Number(streamOwnerId);
-        const isStreamOwner = ownerId != null && localId === ownerId;
-        clog(`npcCommand post=${postId} cmd=${command} target=${targetId} units=${(units || []).length} owner=${ownerId} local=${localId} run=${isStreamOwner}`);
-        if (!isStreamOwner) return;
+        const ownerLooksMatched = ownerId != null && localId === ownerId;
+        clog(`npcCommand post=${postId} cmd=${command} target=${targetId} units=${(units || []).length} owner=${ownerId} local=${localId} ownerMatch=${ownerLooksMatched} run=true`);
+        // Command is already owner-targeted by server. Execute even if owner variable is briefly stale.
         applyNpcCommand(command, targetId, units);
     },
 });
