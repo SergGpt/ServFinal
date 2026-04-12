@@ -14,6 +14,7 @@ const POST_STATE = {
 
 const GUARD_TASK = {
     IDLE: "idle",
+    PATROL: "patrol",
     WARNING_AIM: "warning_aim",
     ATTACK: "attack",
     RETURN: "return",
@@ -247,6 +248,7 @@ class CheckpointGuardController {
             cfg: mergedPost,
             leader,
             guards,
+            active: false,
             state: POST_STATE.IDLE,
             stateSince: Date.now(),
             stateCooldownUntil: 0,
@@ -423,6 +425,8 @@ class CheckpointGuardController {
     }
 
     tickPost(post, now) {
+        if (!this.ensurePostActive(post, now)) return;
+
         post.leader.syncDeathIfNeeded(now);
         for (const guard of post.guards) guard.syncDeathIfNeeded(now);
 
@@ -467,11 +471,14 @@ class CheckpointGuardController {
     }
 
     handleIdle(post, target, now) {
+        this.applyTaskPatrol(post);
         if (!target || this.isPlayerCleared(target.id)) return;
-        const dist = dist3(target.position, zoneCenter(this.getPostZone(post)));
-        const warnDistance = Number(post.cfg.warnDistance || this.config.defaultWarnDistance);
+        const stopCenter = zoneCenter(post.cfg.stopZone || this.getPostZone(post));
+        const dist = dist3(target.position, stopCenter);
+        const warnDistance = 50;
         if (dist <= warnDistance) {
             post.targetPlayerId = target.id;
+            this.sendStatusText(post, "Подъедьте в зону досмотра для осмотра", 4000);
             this.transition(post, POST_STATE.WARNING, "player-in-warn-distance", now);
         }
     }
@@ -491,7 +498,10 @@ class CheckpointGuardController {
             return this.transition(post, POST_STATE.CHECKING, "entered-stop-zone", now);
         }
 
-        if (elapsed > warningResponseMs) return this.transition(post, POST_STATE.ATTACK, "did-not-enter-stop-zone-in-time", now);
+        if (elapsed > warningResponseMs) {
+            this.sendStatusText(post, "Не все игроки в зоне досмотра. Последнее предупреждение!", 2500);
+            return this.transition(post, POST_STATE.ATTACK, "did-not-enter-stop-zone-in-time", now);
+        }
     }
 
     handleChecking(post, target, now) {
@@ -561,6 +571,37 @@ class CheckpointGuardController {
         this.queueControllerCommand(post, {
             command: "warning_aim",
             targetId: Number(target.id),
+            actionSeq: post.actionSeq,
+            force,
+        });
+    }
+
+    applyTaskPatrol(post, force = false) {
+        if (post.state !== POST_STATE.IDLE) return;
+        const now = Date.now();
+        if (!force && now - Number(post.lastPatrolIssuedAt || 0) < 2800) return;
+        post.lastPatrolIssuedAt = now;
+        post.actionSeq = Number(post.actionSeq || 0) + 1;
+
+        const stop = zoneCenter(post.cfg.stopZone || this.getPostZone(post));
+        const units = [post.leader, ...post.guards].map((unit, idx) => {
+            const angle = ((now / 1000) + idx * 2.1) % (Math.PI * 2);
+            const radius = 5 + (idx % 3) * 2;
+            return {
+                pedId: unit.exists() ? Number(unit.ped.id) : -1,
+                x: stop.x + Math.cos(angle) * radius,
+                y: stop.y + Math.sin(angle) * radius,
+                z: stop.z,
+                heading: unit.spawnHeading,
+            };
+        });
+
+        saveTask(post, GUARD_TASK.PATROL, { units });
+        this.updateUnitState(post, "patrol", -1);
+        this.queueControllerCommand(post, {
+            command: "patrol",
+            targetId: -1,
+            units,
             actionSeq: post.actionSeq,
             force,
         });
@@ -828,23 +869,11 @@ class CheckpointGuardController {
     chooseController(post) {
         const candidates = [];
         const now = Date.now();
-        this.forEachPlayersInPost(post, (player) => {
+        this.forEachPlayersInStream(post, (player) => {
             if (!post.playerSeenAt.has(player.id)) post.playerSeenAt.set(player.id, now);
             const d = dist3(player.position, zoneCenter(this.getPostZone(post)));
             candidates.push({ player, dist: d, seenAt: post.playerSeenAt.get(player.id) || now });
         });
-
-        if (!candidates.length) {
-            const guardZone = post.cfg.guardZone || this.getPostZone(post);
-            mp.players.forEach((player) => {
-                if (!isValidPlayer(player)) return;
-                if (Number(player.dimension) !== Number(post.cfg.dimension || 0)) return;
-                if (!isInsideZone(player.position, guardZone)) return;
-                if (!post.playerSeenAt.has(player.id)) post.playerSeenAt.set(player.id, now);
-                const d = dist3(player.position, zoneCenter(this.getPostZone(post)));
-                candidates.push({ player, dist: d, seenAt: post.playerSeenAt.get(player.id) || now });
-            });
-        }
 
         for (const pid of Array.from(post.playerSeenAt.keys())) {
             if (!candidates.some((v) => Number(v.player.id) === Number(pid))) post.playerSeenAt.delete(pid);
@@ -907,6 +936,7 @@ class CheckpointGuardController {
         owner.call("guardCheckpoint:controller:command", [continuity]);
 
         restoreTask(post, {
+            [GUARD_TASK.PATROL]: () => this.applyTaskPatrol(post, true),
             [GUARD_TASK.WARNING_AIM]: () => {
                 const target = getPlayerById(Number((post.lastTaskData || {}).targetId));
                 if (target) this.applyTaskWarning(post, target, true);
@@ -927,6 +957,18 @@ class CheckpointGuardController {
         return post.cfg.postZone || post.cfg.guardZone;
     }
 
+    getStreamZone(post) {
+        if (post.cfg.streamZone) return post.cfg.streamZone;
+        const postZone = this.getPostZone(post);
+        if (String(postZone.type || "sphere") === "sphere") {
+            return {
+                ...postZone,
+                radius: Math.max(150, Number(postZone.radius || 0)),
+            };
+        }
+        return postZone;
+    }
+
     getPursuitZone(post) {
         return post.cfg.pursuitZone || post.cfg.guardZone;
     }
@@ -938,6 +980,40 @@ class CheckpointGuardController {
             if (!isInsideZone(player.position, this.getPostZone(post))) return;
             callback(player);
         });
+    }
+
+    forEachPlayersInStream(post, callback) {
+        const streamZone = this.getStreamZone(post);
+        mp.players.forEach((player) => {
+            if (!isValidPlayer(player)) return;
+            if (Number(player.dimension) !== Number(post.cfg.dimension || 0)) return;
+            if (!isInsideZone(player.position, streamZone)) return;
+            callback(player);
+        });
+    }
+
+    ensurePostActive(post, now) {
+        let count = 0;
+        this.forEachPlayersInStream(post, () => { count += 1; });
+        const shouldBeActive = count > 0;
+        if (post.active === shouldBeActive) return shouldBeActive;
+
+        post.active = shouldBeActive;
+        if (shouldBeActive) {
+            if (!post.leader.exists()) post.leader.spawn();
+            for (const guard of post.guards) if (!guard.exists()) guard.spawn();
+            this.applyTaskIdle(post, true);
+            this.log(`post=${post.id} activated streamPlayers=${count}`);
+            return true;
+        }
+
+        if (post.leader.exists()) post.leader.destroy();
+        for (const guard of post.guards) if (guard.exists()) guard.destroy();
+        post.streamOwnerId = null;
+        post.controllerRid = null;
+        post.switching = false;
+        this.log(`post=${post.id} deactivated (no players in stream zone)`);
+        return false;
     }
 
     publishAuthoritativePose(post, now) {

@@ -219,6 +219,19 @@ function applyOwnerCommand(ped, cmd, cache, now) {
             try { ped.taskGoStraightToCoord(returnPos.x, returnPos.y, returnPos.z, 2.2, -1, returnPos.heading, 0.05); } catch {}
             cache.lastMoveAt = now;
         }
+    } else if (state === "patrol") {
+        const patrolPos = unit ? {
+            x: Number(unit.x || unit.returnX) || ped.position.x,
+            y: Number(unit.y || unit.returnY) || ped.position.y,
+            z: Number(unit.z || unit.returnZ) || ped.position.z,
+            heading: Number(unit.heading || unit.returnHeading) || 0,
+        } : null;
+        if (!patrolPos) return;
+        if (stateChanged || now - cache.lastMoveAt > 1400) {
+            try { ped.taskGoToCoordAnyMeans(patrolPos.x, patrolPos.y, patrolPos.z, 1.2, 0, false, 786603, 1.0); } catch {}
+            try { ped.setHeading(patrolPos.heading); } catch {}
+            cache.lastMoveAt = now;
+        }
     }
 
     cache.lastState = state;
