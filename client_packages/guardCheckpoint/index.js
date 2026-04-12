@@ -305,7 +305,10 @@ function runGuardAiLoop() {
                 return;
             }
 
-            if (!isOwner) smoothPedToAuthoritativePose(ped);
+            if (!isOwner) {
+                smoothPedToAuthoritativePose(ped);
+                return;
+            }
             if (stateChanged || t - cache.lastClearAt >= CLEAR_REPLAY_MS) {
                 try { ped.clearTasks(); } catch {}
                 try { ped.setKeepTask(false); } catch {}

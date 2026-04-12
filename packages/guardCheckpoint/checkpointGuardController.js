@@ -302,7 +302,6 @@ class CheckpointGuardController {
         if (!isValidPlayer(player)) return;
         const weaponHash = Number(newWeapon) || 0;
         if (!weaponHash) return;
-        this.log(`weapon raised player=${player.name}[${player.id}] weapon=${weaponHash} (no instant attack)`);
     }
 
     onPlayerDamage(player, attacker) {
