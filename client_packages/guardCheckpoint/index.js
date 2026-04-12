@@ -21,7 +21,7 @@ function playSound(soundName, soundSet) {
 
 mp.events.add({
     "guardCheckpoint:warning:start": (data) => {
-        clog(`warning:start post=${data.postId} text="${data.text}"`);
+        clog(`warning:start post=${data.postId} target=${data.targetId} owner=${data.ownerId} text="${data.text}"`);
         activeWarning = {
             postId: data.postId,
             text: data.text || "Остановитесь",

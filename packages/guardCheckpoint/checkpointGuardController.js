@@ -229,6 +229,8 @@ class CheckpointGuardController {
             warningPrevDistToStopZone: Number.MAX_SAFE_INTEGER,
             attackStartedAt: 0,
             targetOutsidePursuitSince: 0,
+            streamOwnerId: null,
+            playerSeenAt: new Map(),
         };
     }
 
@@ -320,6 +322,7 @@ class CheckpointGuardController {
     tickPost(post, now) {
         post.leader.syncDeathIfNeeded(now);
         for (const guard of post.guards) guard.syncDeathIfNeeded(now);
+        this.updateStreamOwner(post, now);
 
         const target = this.resolveTargetPlayer(post);
         const prevTargetPos = post.targetPlayerLastPos ? { ...post.targetPlayerLastPos } : null;
@@ -626,23 +629,32 @@ class CheckpointGuardController {
     sendWarningStart(player, post) {
         if (!isValidPlayer(player)) return;
         const ui = post.cfg.warningUi || {};
-        player.call("guardCheckpoint:warning:start", [{
-            postId: post.id,
-            text: ui.text || "Охрана требует остановиться",
-            soundName: ui.soundName || "5s",
-            soundSet: ui.soundSet || "MP_MISSION_COUNTDOWN_SOUNDSET",
-            stopZone: post.cfg.stopZone || null,
-        }]);
-        if (this.notifs && !this.notifs.isEmpty) {
-            this.notifs.warning(player, "Остановитесь и зайдите в зону досмотра", "Пост охраны");
-        }
-        this.log(`warning start sent to ${player.name}[${player.id}] post=${post.id}`);
+        this.forEachPlayersInPost(post, (rec) => {
+            rec.call("guardCheckpoint:warning:start", [{
+                postId: post.id,
+                text: ui.text || "Охрана требует остановиться",
+                soundName: ui.soundName || "5s",
+                soundSet: ui.soundSet || "MP_MISSION_COUNTDOWN_SOUNDSET",
+                stopZone: post.cfg.stopZone || null,
+                ownerId: post.streamOwnerId,
+                targetId: player.id,
+            }]);
+            if (this.notifs && !this.notifs.isEmpty) {
+                this.notifs.warning(rec, "Остановитесь и зайдите в зону досмотра", "Пост охраны");
+            }
+        });
+        this.log(`warning start broadcast post=${post.id} target=${player.name}[${player.id}] owner=${post.streamOwnerId}`);
     }
 
     sendWarningStop(player, postId) {
+        const post = this.posts.get(String(postId));
+        if (post) {
+            this.forEachPlayersInPost(post, (rec) => rec.call("guardCheckpoint:warning:stop", [postId]));
+            this.log(`warning stop broadcast post=${postId}`);
+            return;
+        }
         if (!isValidPlayer(player)) return;
         player.call("guardCheckpoint:warning:stop", [postId]);
-        this.log(`warning stop sent to ${player.name}[${player.id}] post=${postId}`);
     }
 
     resetPostsByPlayer(playerId, reason) {
@@ -660,12 +672,7 @@ class CheckpointGuardController {
     emitDebugToNearby(post, text) {
         if (!this.config.debug) return;
         const payload = `[${post.id}] ${text}`;
-        mp.players.forEach((player) => {
-            if (!isValidPlayer(player)) return;
-            if (Number(player.dimension) !== Number(post.cfg.dimension || 0)) return;
-            if (!isInsideZone(player.position, this.getPostZone(post))) return;
-            player.call("guardCheckpoint:debug", [payload]);
-        });
+        this.forEachPlayersInPost(post, (player) => player.call("guardCheckpoint:debug", [payload]));
     }
 
     getPostZone(post) {
@@ -674,6 +681,57 @@ class CheckpointGuardController {
 
     getPursuitZone(post) {
         return post.cfg.pursuitZone || post.cfg.guardZone;
+    }
+
+    forEachPlayersInPost(post, callback) {
+        mp.players.forEach((player) => {
+            if (!isValidPlayer(player)) return;
+            if (Number(player.dimension) !== Number(post.cfg.dimension || 0)) return;
+            if (!isInsideZone(player.position, this.getPostZone(post))) return;
+            callback(player);
+        });
+    }
+
+    updateStreamOwner(post, now) {
+        const inside = [];
+        this.forEachPlayersInPost(post, (player) => {
+            if (!post.playerSeenAt.has(player.id)) post.playerSeenAt.set(player.id, now);
+            inside.push(player);
+        });
+
+        for (const pid of Array.from(post.playerSeenAt.keys())) {
+            if (!inside.some((p) => p.id === pid)) post.playerSeenAt.delete(pid);
+        }
+
+        let nextOwner = post.streamOwnerId;
+        const currentInside = inside.some((p) => p.id === post.streamOwnerId);
+        if (!currentInside) {
+            nextOwner = null;
+            let earliest = Number.MAX_SAFE_INTEGER;
+            inside.forEach((p) => {
+                const seenAt = post.playerSeenAt.get(p.id) || now;
+                if (seenAt < earliest) {
+                    earliest = seenAt;
+                    nextOwner = p.id;
+                }
+            });
+        }
+
+        if (post.streamOwnerId === nextOwner) return;
+        post.streamOwnerId = nextOwner;
+        this.applyStreamOwner(post, nextOwner);
+        this.log(`post=${post.id} stream owner -> ${nextOwner}`);
+    }
+
+    applyStreamOwner(post, ownerId) {
+        if (ownerId == null) return;
+        const owner = getPlayerById(ownerId);
+        if (!owner) return;
+        [post.leader, ...post.guards].forEach((unit) => {
+            if (!unit.exists()) return;
+            try { unit.ped.controller = owner; } catch {}
+            try { unit.ped.setVariable("streamOwnerId", ownerId); } catch {}
+        });
     }
 
     getPost(postId) {
