@@ -421,7 +421,7 @@ class CheckpointGuardController {
 
         this.ensureLeaderWarningBehavior(post, target);
 
-        if (this.shouldTriggerAttack(post, target, now)) {
+        if (this.shouldTriggerAttack(post, target, now, { ignoreViolation: true })) {
             this.transition(post, POST_STATE.ATTACK, "warning-violation", now);
             return;
         }
@@ -463,11 +463,6 @@ class CheckpointGuardController {
 
         if (!isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9)) {
             this.transition(post, POST_STATE.ATTACK, "left-stop-zone", now);
-            return;
-        }
-
-        if (target.vehicle) {
-            this.transition(post, POST_STATE.ATTACK, "vehicle-in-stop-zone", now);
             return;
         }
 
@@ -637,7 +632,8 @@ class CheckpointGuardController {
         }
 
         if (nextState === POST_STATE.IDLE || nextState === POST_STATE.RETURN) {
-            this.sendWarningStop(null, post.id);
+            const target = getPlayerById(post.targetPlayerId);
+            this.sendWarningStop(target, post.id);
         }
 
         this.log(`post=${post.id} ${prev} -> ${nextState} (${reason})`);
@@ -672,6 +668,7 @@ class CheckpointGuardController {
         const post = this.posts.get(String(postId));
         if (post) {
             this.forEachPlayersInPost(post, (rec) => rec.call("guardCheckpoint:warning:stop", [postId]));
+            if (isValidPlayer(player)) player.call("guardCheckpoint:warning:stop", [postId]);
             this.log(`warning stop broadcast post=${postId}`);
             return;
         }
