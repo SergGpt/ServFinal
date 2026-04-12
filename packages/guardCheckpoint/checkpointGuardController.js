@@ -249,6 +249,7 @@ class CheckpointGuardController {
             lastClientCommandKey: "",
             lastClientCommandAt: 0,
             lastAppliedBehaviorKey: "",
+            lastPoseSyncAt: 0,
         };
     }
 
@@ -355,6 +356,7 @@ class CheckpointGuardController {
         post.leader.syncDeathIfNeeded(now);
         for (const guard of post.guards) guard.syncDeathIfNeeded(now);
         this.updateStreamOwner(post, now);
+        this.publishAuthoritativePose(post, now);
 
         const target = this.resolveTargetPlayer(post);
         const prevTargetPos = post.targetPlayerLastPos ? { ...post.targetPlayerLastPos } : null;
@@ -755,6 +757,22 @@ class CheckpointGuardController {
         });
     }
 
+    publishAuthoritativePose(post, now) {
+        if (now - (post.lastPoseSyncAt || 0) < 150) return;
+        post.lastPoseSyncAt = now;
+        const units = [post.leader, ...post.guards];
+        for (const unit of units) {
+            if (!unit || !unit.exists()) continue;
+            const ped = unit.ped;
+            const pos = ped.position;
+            try { ped.setVariable("guardPoseX", Number(pos.x) || 0); } catch {}
+            try { ped.setVariable("guardPoseY", Number(pos.y) || 0); } catch {}
+            try { ped.setVariable("guardPoseZ", Number(pos.z) || 0); } catch {}
+            try { ped.setVariable("guardPoseHeading", Number(ped.getHeading ? ped.getHeading() : unit.spawnHeading) || 0); } catch {}
+            try { ped.setVariable("guardPoseUpdatedAt", now); } catch {}
+        }
+    }
+
     updateStreamOwner(post, now) {
         const inside = [];
         this.forEachPlayersInPost(post, (player) => {
@@ -841,6 +859,13 @@ class CheckpointGuardController {
                 heading: unit.spawnHeading,
                 weaponHash: unit.weaponHash || 0,
             }));
+        const owner = getPlayerById(post.streamOwnerId);
+        if (command === "return") {
+            if (isValidPlayer(owner)) {
+                owner.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
+            }
+            return;
+        }
         this.forEachPlayersInPost(post, (rec) => {
             rec.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
         });

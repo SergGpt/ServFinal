@@ -15,6 +15,8 @@ const CLEAR_REPLAY_MS = 900;
 const TARGET_SWITCH_DEBOUNCE_MS = 180;
 const RETURN_REPLAY_MS = 900;
 const RETURN_DEVIATION_DIST = 2.8;
+const POSE_SMOOTH_FACTOR = 0.22;
+const POSE_SNAP_DIST = 4.5;
 const PENDING_RETRY_MS = 200;
 const PENDING_TTL_MS = 2500;
 
@@ -56,6 +58,46 @@ function getPlayerByServerId(serverId) {
         if (Number(p.remoteId) === id || Number(p.id) === id) found = p;
     });
     return found;
+}
+
+
+function isLocalStreamOwnerForPed(ped) {
+    if (!ped || !ped.getVariable || !mp.players.local) return false;
+    const ownerId = Number(ped.getVariable("streamOwnerId"));
+    const localId = Number(mp.players.local.remoteId);
+    return Number.isFinite(ownerId) && Number.isFinite(localId) && ownerId === localId;
+}
+
+function smoothPedToAuthoritativePose(ped) {
+    if (!ped || !ped.getVariable) return;
+    const x = Number(ped.getVariable("guardPoseX"));
+    const y = Number(ped.getVariable("guardPoseY"));
+    const z = Number(ped.getVariable("guardPoseZ"));
+    const h = Number(ped.getVariable("guardPoseHeading"));
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return;
+
+    const px = ped.position.x;
+    const py = ped.position.y;
+    const pz = ped.position.z;
+    const dx = x - px;
+    const dy = y - py;
+    const dz = z - pz;
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    if (dist > POSE_SNAP_DIST) {
+        try { ped.setCoordsNoOffset(x, y, z, false, false, false); } catch {}
+    } else if (dist > 0.05) {
+        try { ped.setCoordsNoOffset(px + dx * POSE_SMOOTH_FACTOR, py + dy * POSE_SMOOTH_FACTOR, pz + dz * POSE_SMOOTH_FACTOR, false, false, false); } catch {}
+    }
+
+    if (Number.isFinite(h)) {
+        try {
+            const cur = Number(ped.getHeading ? ped.getHeading() : 0) || 0;
+            let delta = ((h - cur + 540) % 360) - 180;
+            const next = cur + delta * 0.25;
+            ped.setHeading(next);
+        } catch {}
+    }
 }
 
 function getGuardTargetId(ped) {
@@ -172,6 +214,7 @@ function runGuardAiLoop() {
             const cache = getOrCreateCache(pedId);
             const state = String(ped.getVariable("guardState") || "idle");
             const targetId = getGuardTargetId(ped);
+            const isOwner = isLocalStreamOwnerForPed(ped);
             const weaponHash = getGuardWeaponHash(ped, cache.weaponHashHint);
             if (weaponHash > 0) cache.weaponHashHint = weaponHash;
 
@@ -185,6 +228,8 @@ function runGuardAiLoop() {
             const targetStable = targetId < 0 || (t - cache.targetChangedAt) >= TARGET_SWITCH_DEBOUNCE_MS;
 
             if (state === "attack") {
+                if (!isOwner) smoothPedToAuthoritativePose(ped);
+
                 const target = getPlayerByServerId(targetId);
                 if (!target || !targetStable) {
                     queuePendingTarget(pedId, targetId);
@@ -206,7 +251,9 @@ function runGuardAiLoop() {
                     try {
                         mp.game.ai.taskShootAtEntity(ped.handle, target.handle, SHOOT_REPLAY_MS + 250, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
                     } catch {
-                        try { ped.taskCombat(target.handle, 0, 16); } catch {}
+                        if (isOwner) {
+                            try { ped.taskCombat(target.handle, 0, 16); } catch {}
+                        }
                     }
                     try { ped.setKeepTask(true); } catch {}
                     cache.lastShootAt = t;
@@ -215,6 +262,7 @@ function runGuardAiLoop() {
             }
 
             if (state === "warning_aim") {
+                if (!isOwner) smoothPedToAuthoritativePose(ped);
                 const target = getPlayerByServerId(targetId);
                 if (!target || !targetStable) {
                     queuePendingTarget(pedId, targetId);
@@ -242,6 +290,10 @@ function runGuardAiLoop() {
                     heading: Number(ped.getVariable("guardReturnHeading")) || 0,
                 };
                 cache.returnPos = rp;
+                if (!isOwner) {
+                    smoothPedToAuthoritativePose(ped);
+                    return;
+                }
                 const dx = ped.position.x - rp.x;
                 const dy = ped.position.y - rp.y;
                 const dz = ped.position.z - rp.z;
@@ -253,6 +305,7 @@ function runGuardAiLoop() {
                 return;
             }
 
+            if (!isOwner) smoothPedToAuthoritativePose(ped);
             if (stateChanged || t - cache.lastClearAt >= CLEAR_REPLAY_MS) {
                 try { ped.clearTasks(); } catch {}
                 try { ped.setKeepTask(false); } catch {}
