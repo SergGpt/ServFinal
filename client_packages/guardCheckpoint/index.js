@@ -39,6 +39,10 @@ function applyNpcCommand(command, targetId, units) {
             if (u.weaponHash) {
                 try { ped.giveWeapon(u.weaponHash, 9999, true); } catch (e) {}
                 try { ped.setCurrentWeapon(u.weaponHash); } catch (e) {}
+                try { ped.setAmmo(u.weaponHash, 9999); } catch (e) {}
+                try { ped.setAmmoInClip(u.weaponHash, 9999); } catch (e) {}
+                try { ped.setInfiniteAmmo(true, u.weaponHash); } catch (e) {}
+                try { ped.setInfiniteAmmoClip(true); } catch (e) {}
             }
             if (command === "aim" && target) {
                 ped.clearTasks();

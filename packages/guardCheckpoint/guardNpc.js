@@ -77,6 +77,7 @@ class GuardNpc {
         this.initArmor = Math.max(0, Number(postConfig.npcArmor) || 0);
         this.debugSync = !!postConfig.debugSync;
         this.lastEquipAt = 0;
+        this.weaponAmmo = Math.max(60, Number(postConfig.npcWeaponAmmo) || 9999);
 
         this.spawn();
     }
@@ -119,13 +120,23 @@ class GuardNpc {
         const now = Date.now();
         if (now - this.lastEquipAt < 4000) {
             safeCall(method(this.ped, "setCurrentWeapon"), this.weaponHash);
+            this.ensureWeaponAmmo();
             return true;
         }
-        safeCall(method(this.ped, "giveWeapon"), this.weaponHash, 9999);
+        safeCall(method(this.ped, "giveWeapon"), this.weaponHash, this.weaponAmmo);
         safeCall(method(this.ped, "setCurrentWeapon"), this.weaponHash);
+        this.ensureWeaponAmmo();
         this.lastEquipAt = now;
-        this.log(`npc=${this.id} weapon equipped hash=${this.weaponHash}`);
+        this.log(`npc=${this.id} weapon equipped hash=${this.weaponHash} ammo=${this.weaponAmmo}`);
         return true;
+    }
+
+    ensureWeaponAmmo() {
+        if (!this.exists() || !this.weaponHash) return;
+        safeCall(method(this.ped, "setAmmo"), this.weaponHash, this.weaponAmmo);
+        safeCall(method(this.ped, "setAmmoInClip"), this.weaponHash, this.weaponAmmo);
+        safeCall(method(this.ped, "setInfiniteAmmo"), true, this.weaponHash);
+        safeCall(method(this.ped, "setInfiniteAmmoClip"), true);
     }
 
     readyWeapon() {
