@@ -10,6 +10,7 @@ const DEBUG_AIM_LINES = false;
 const lastPedCommandState = new Map();
 const pendingPedCommands = new Map();
 let lastPendingProcessAt = 0;
+let lastGuardAiSyncAt = 0;
 
 function clog(text) {
     try {
@@ -39,20 +40,8 @@ function getPlayerByServerId(serverId) {
 }
 
 
-function isLocalStreamOwnerForPed(ped) {
-    try {
-        const ownerId = ped && ped.getVariable ? Number(ped.getVariable("streamOwnerId")) : null;
-        const localId = mp.players.local ? Number(mp.players.local.remoteId) : null;
-        return Number.isFinite(ownerId) && Number.isFinite(localId) && ownerId === localId;
-    } catch (e) {
-        return false;
-    }
-}
-
 function restorePedBehaviorFromState(ped) {
     if (!ped || !ped.getVariable) return;
-    if (!isLocalStreamOwnerForPed(ped)) return;
-
     const state = String(ped.getVariable("guardState") || "idle");
     const targetIdRaw = ped.getVariable("guardTargetId");
     const targetId = Number.isFinite(Number(targetIdRaw)) ? Number(targetIdRaw) : -1;
@@ -175,6 +164,50 @@ function applyNpcCommand(command, targetId, units, fromPending = false) {
     });
 }
 
+
+function getPedRemoteId(ped) {
+    return Number(ped && (ped.remoteId != null ? ped.remoteId : ped.id));
+}
+
+function syncGuardPedsFromState() {
+    const now = Date.now();
+    if (now - lastGuardAiSyncAt < 250) return;
+    lastGuardAiSyncAt = now;
+
+    mp.peds.forEach((ped) => {
+        try {
+            if (!ped || !ped.getVariable) return;
+            const postId = ped.getVariable("guardPostId");
+            if (!postId) return;
+
+            const state = String(ped.getVariable("guardState") || "idle");
+            const targetRaw = ped.getVariable("guardTargetId");
+            const targetId = Number.isFinite(Number(targetRaw)) ? Number(targetRaw) : -1;
+            const unit = {
+                pedId: getPedRemoteId(ped),
+                x: ped.position.x,
+                y: ped.position.y,
+                z: ped.position.z,
+                heading: ped.getHeading ? ped.getHeading() : 0,
+                weaponHash: 0,
+            };
+
+            if (state === "attack") {
+                applyNpcCommand("fire", targetId, [unit]);
+                return;
+            }
+            if (state === "warning_aim") {
+                applyNpcCommand("aim", targetId, [unit]);
+                return;
+            }
+            if (state === "return") {
+                return;
+            }
+            applyNpcCommand("idle", -1, [unit]);
+        } catch (e) {}
+    });
+}
+
 mp.events.add({
     "guardCheckpoint:warning:start": (data) => {
         clog(`warning:start post=${data.postId} target=${data.targetId} owner=${data.ownerId} text="${data.text}"`);
@@ -238,6 +271,7 @@ mp.events.add("entityStreamOut", (entity) => {
 
 mp.events.add("render", () => {
     processPendingPedCommands();
+    syncGuardPedsFromState();
     if (statusText && Date.now() < statusUntil) {
         mp.game.graphics.drawText(statusText, [0.5, 0.84], {
             font: 4,
