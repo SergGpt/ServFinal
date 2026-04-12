@@ -771,10 +771,6 @@ class CheckpointGuardController {
     }
 
     dispatchNpcCommand(post, command, targetPlayer) {
-        const ownerId = post.streamOwnerId;
-        if (ownerId == null) return;
-        const owner = getPlayerById(ownerId);
-        if (!owner) return;
         const targetId = targetPlayer ? targetPlayer.id : -1;
         const now = Date.now();
         const key = `${command}:${targetId}`;
@@ -792,7 +788,9 @@ class CheckpointGuardController {
                 heading: unit.spawnHeading,
                 weaponHash: unit.weaponHash || 0,
             }));
-        owner.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units]);
+        this.forEachPlayersInPost(post, (rec) => {
+            rec.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
+        });
     }
 
     getPost(postId) {

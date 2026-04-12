@@ -95,8 +95,8 @@ mp.events.add({
         clog(`status post=${postId} text="${statusText}"`);
     },
 
-    "guardCheckpoint:npcCommand": (postId, command, targetId, units) => {
-        clog(`npcCommand post=${postId} cmd=${command} target=${targetId} units=${(units || []).length}`);
+    "guardCheckpoint:npcCommand": (postId, command, targetId, units, streamOwnerId) => {
+        clog(`npcCommand post=${postId} cmd=${command} target=${targetId} units=${(units || []).length} owner=${streamOwnerId}`);
         applyNpcCommand(command, targetId, units);
     },
 });
