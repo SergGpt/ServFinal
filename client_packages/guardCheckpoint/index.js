@@ -7,6 +7,9 @@ let activeStopZone = null;
 let statusText = null;
 let statusUntil = 0;
 const DEBUG_AIM_LINES = false;
+const lastPedCommandState = new Map();
+const pendingPedCommands = new Map();
+let lastPendingProcessAt = 0;
 
 function clog(text) {
     try {
@@ -76,11 +79,54 @@ function restorePedBehaviorFromState(ped) {
         ped.clearTasks();
     } catch (e) {}
 }
-function applyNpcCommand(command, targetId, units) {
+
+function shouldApplyPedCommand(pedId, command, targetId, minIntervalMs = 700) {
+    const key = `${command}:${targetId}`;
+    const now = Date.now();
+    const prev = lastPedCommandState.get(pedId);
+    if (prev && prev.key === key && now - prev.at < minIntervalMs) return false;
+    lastPedCommandState.set(pedId, { key, at: now });
+    return true;
+}
+
+function queuePendingPedCommand(pedRemoteId, payload, ttlMs = 2000) {
+    pendingPedCommands.set(Number(pedRemoteId), {
+        ...payload,
+        expiresAt: Date.now() + ttlMs,
+        lastTryAt: 0,
+    });
+}
+
+function processPendingPedCommands() {
+    const now = Date.now();
+    if (now - lastPendingProcessAt < 200) return;
+    lastPendingProcessAt = now;
+
+    for (const [pedRemoteId, pending] of pendingPedCommands.entries()) {
+        if (!pending || now > pending.expiresAt) {
+            pendingPedCommands.delete(pedRemoteId);
+            continue;
+        }
+        if (now - pending.lastTryAt < 200) continue;
+        pending.lastTryAt = now;
+
+        const ped = mp.peds.atRemoteId(Number(pedRemoteId));
+        if (!ped) continue;
+
+        const target = pending.targetId >= 0 ? getPlayerByServerId(pending.targetId) : null;
+        if ((pending.command === "aim" || pending.command === "fire") && !target) continue;
+
+        applyNpcCommand(pending.command, pending.targetId, [pending.unit], true);
+        pendingPedCommands.delete(pedRemoteId);
+    }
+}
+
+function applyNpcCommand(command, targetId, units, fromPending = false) {
     const target = targetId >= 0 ? getPlayerByServerId(targetId) : null;
     (units || []).forEach((u) => {
         const ped = mp.peds.atRemoteId(u.pedId);
         if (!ped) return;
+        if (!shouldApplyPedCommand(u.pedId, command, targetId) && !fromPending) return;
         try {
             if (u.weaponHash) {
                 try { ped.giveWeapon(u.weaponHash, 9999, true); } catch (e) {}
@@ -90,16 +136,39 @@ function applyNpcCommand(command, targetId, units) {
                 try { ped.setInfiniteAmmo(true, u.weaponHash); } catch (e) {}
                 try { ped.setInfiniteAmmoClip(true); } catch (e) {}
             }
-            if (command === "aim" && target) {
+
+            if (command === "aim") {
+                if (!target) {
+                    queuePendingPedCommand(u.pedId, { command, targetId, unit: u });
+                    return;
+                }
                 ped.clearTasks();
                 ped.taskAimGunAt(target.handle, 1200, false);
-            } else if (command === "fire" && target) {
-                ped.taskCombat(target.handle, 0, 16);
+                return;
+            }
+
+            if (command === "fire") {
+                if (!target) {
+                    queuePendingPedCommand(u.pedId, { command, targetId, unit: u });
+                    return;
+                }
+                ped.clearTasks();
+                try {
+                    mp.game.ai.taskShootAtEntity(ped.handle, target.handle, -1, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
+                } catch (e) {
+                    ped.taskCombat(target.handle, 0, 16);
+                }
                 try { ped.setKeepTask(true); } catch (e) {}
-            } else if (command === "return") {
+                return;
+            }
+
+            if (command === "return") {
                 ped.clearTasks();
                 ped.taskGoStraightToCoord(u.x, u.y, u.z, 2.2, -1, u.heading, 0.05);
-            } else if (command === "idle") {
+                return;
+            }
+
+            if (command === "idle") {
                 ped.clearTasks();
             }
         } catch (e) {}
@@ -168,6 +237,7 @@ mp.events.add("entityStreamOut", (entity) => {
 });
 
 mp.events.add("render", () => {
+    processPendingPedCommands();
     if (statusText && Date.now() < statusUntil) {
         mp.game.graphics.drawText(statusText, [0.5, 0.84], {
             font: 4,
