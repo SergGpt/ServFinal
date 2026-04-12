@@ -110,6 +110,10 @@ class GuardNpc {
         safeCall(method(this.ped, "setVariable"), "guardTargetId", -1);
         safeCall(method(this.ped, "setVariable"), "guardStartedAt", Date.now());
         safeCall(method(this.ped, "setVariable"), "guardWeaponHash", Number(this.weaponHash) || 0);
+        safeCall(method(this.ped, "setVariable"), "guardReturnX", Number(this.spawnPos.x) || 0);
+        safeCall(method(this.ped, "setVariable"), "guardReturnY", Number(this.spawnPos.y) || 0);
+        safeCall(method(this.ped, "setVariable"), "guardReturnZ", Number(this.spawnPos.z) || 0);
+        safeCall(method(this.ped, "setVariable"), "guardReturnHeading", Number(this.spawnHeading) || 0);
 
         this.equipWeapon();
 

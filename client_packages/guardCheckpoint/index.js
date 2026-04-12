@@ -235,8 +235,13 @@ function runGuardAiLoop() {
             }
 
             if (state === "return") {
-                const rp = cache.returnPos;
-                if (!rp) return;
+                const rp = cache.returnPos || {
+                    x: Number(ped.getVariable("guardReturnX")) || ped.position.x,
+                    y: Number(ped.getVariable("guardReturnY")) || ped.position.y,
+                    z: Number(ped.getVariable("guardReturnZ")) || ped.position.z,
+                    heading: Number(ped.getVariable("guardReturnHeading")) || 0,
+                };
+                cache.returnPos = rp;
                 const dx = ped.position.x - rp.x;
                 const dy = ped.position.y - rp.y;
                 const dz = ped.position.z - rp.z;

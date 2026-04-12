@@ -830,12 +830,6 @@ class CheckpointGuardController {
         post.lastClientCommandKey = key;
         post.lastClientCommandAt = now;
 
-        const owner = options.owner || getPlayerById(post.streamOwnerId);
-        if (!isValidPlayer(owner)) {
-            this.log(`post=${post.id} npcCommand skipped cmd=${command} target=${targetId} reason=no-stream-owner`);
-            return;
-        }
-
         const units = [post.leader, ...post.guards]
             .filter((unit) => unit && unit.exists())
             .map((unit) => ({
