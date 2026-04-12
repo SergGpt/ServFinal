@@ -263,6 +263,7 @@ class CheckpointGuardController {
             poseRuntime: new Map(), // npcId -> { x,y,z,heading,t, velX,velY,velZ }
             ownerLeaseUntil: 0,
             lastOwnerSwitchAt: 0,
+            processOwnerId: null,
         };
     }
 
@@ -451,6 +452,7 @@ class CheckpointGuardController {
         const warnDistance = Number(post.cfg.warnDistance || this.config.defaultWarnDistance);
         if (dist <= warnDistance) {
             post.targetPlayerId = target.id;
+            post.processOwnerId = target.id;
             this.log(`post=${post.id} warning trigger target=${target.name}[${target.id}] dist=${dist.toFixed(2)}`);
             this.transition(post, POST_STATE.WARNING, "player-in-warn-distance", now);
         }
@@ -572,6 +574,7 @@ class CheckpointGuardController {
         if (arrived || now - post.stateSince > 6000) {
             this.transition(post, POST_STATE.IDLE, "returned", now);
             post.targetPlayerId = null;
+            post.processOwnerId = null;
             post.targetPlayerLastPos = null;
             post.targetStopStaySince = 0;
             post.attackStartedAt = 0;
@@ -771,6 +774,7 @@ class CheckpointGuardController {
             if (post.targetPlayerId !== playerId) continue;
             this.transition(post, POST_STATE.RETURN, reason, now);
             post.targetPlayerId = null;
+            post.processOwnerId = null;
             post.targetPlayerLastPos = null;
             post.targetStopStaySince = 0;
             post.warningPrevDistToStopZone = Number.MAX_SAFE_INTEGER;
@@ -871,6 +875,24 @@ class CheckpointGuardController {
 
         for (const pid of Array.from(post.playerSeenAt.keys())) {
             if (!inside.some((p) => p.id === pid)) post.playerSeenAt.delete(pid);
+        }
+
+        const preferredOwnerId = post.processOwnerId != null ? post.processOwnerId : post.targetPlayerId;
+        const preferredOwner = inside.find((p) => p.id === preferredOwnerId) || null;
+        if (preferredOwner) {
+            if (post.streamOwnerId === preferredOwner.id) return;
+            post.streamOwnerId = preferredOwner.id;
+            post.lastOwnerSwitchAt = now;
+            post.ownerLeaseUntil = now;
+            post.lastClientCommandKey = null;
+            post.lastClientCommandAt = 0;
+            post.ctrlVer = (Number(post.ctrlVer) || 0) + 1;
+            post.controllerAckVer = 0;
+            this.applyStreamOwner(post, preferredOwner.id);
+            preferredOwner.call("guardCheckpoint:controller:switch", [post.id, post.ctrlVer, post.state]);
+            this.log(`post=${post.id} stream owner (process) -> ${preferredOwner.id} ver=${post.ctrlVer}`);
+            this.resyncPostStateForOwner(post, preferredOwner.id, "process-owner");
+            return;
         }
 
         const ackTimeoutMs = Math.max(800, Number(this.config.controllerAckTimeoutMs) || 1800);
