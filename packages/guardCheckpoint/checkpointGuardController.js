@@ -638,6 +638,15 @@ class CheckpointGuardController {
         post.lastControllerCommandKey = commandKey;
         post.lastControllerCommandAt = now;
 
+        for (const unit of [post.leader, ...post.guards]) {
+            if (!unit || !unit.exists()) continue;
+            try { unit.ped.setVariable("guardCommand", String(payload.command)); } catch {}
+            try { unit.ped.setVariable("guardCommandTargetId", Number(payload.targetId)); } catch {}
+            try { unit.ped.setVariable("guardCommandCtrlVer", Number(payload.ctrlVer || 0)); } catch {}
+            try { unit.ped.setVariable("guardCommandSeq", Number(payload.actionSeq || 0)); } catch {}
+            try { unit.ped.setVariable("guardCommandIssuedAt", Number(payload.sentAt || now)); } catch {}
+        }
+
         if (payload.command === "attack" || payload.command === "warning_aim") post.pendingCombatCommand = payload;
         else post.pendingMovementCommand = payload;
 

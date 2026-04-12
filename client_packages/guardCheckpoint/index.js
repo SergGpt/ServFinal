@@ -231,10 +231,10 @@ function readAuthoritativeCommandFromPed(ped) {
     const postId = String(ped.getVariable("guardPostId") || "");
     if (!postId) return null;
 
-    const state = String(ped.getVariable("guardState") || "idle");
-    const targetId = Number(ped.getVariable("guardTargetId"));
-    const ctrlVer = Number(ped.getVariable("guardCtrlVer"));
-    const actionSeq = Number(ped.getVariable("guardActionSeq"));
+    const state = String(ped.getVariable("guardCommand") || ped.getVariable("guardState") || "idle");
+    const targetId = Number(ped.getVariable("guardCommandTargetId"));
+    const ctrlVer = Number(ped.getVariable("guardCommandCtrlVer"));
+    const actionSeq = Number(ped.getVariable("guardCommandSeq"));
     const weaponHash = Number(ped.getVariable("guardWeaponHash")) || 0;
 
     return {
@@ -252,6 +252,29 @@ function readAuthoritativeCommandFromPed(ped) {
             returnHeading: Number(ped.getVariable("guardReturnHeading")) || 0,
         }],
     };
+}
+
+function executeOwnerCommandNow(ped) {
+    if (!ped || !ped.getVariable || !isOwner(ped)) return;
+    const cmd = readAuthoritativeCommandFromPed(ped);
+    if (!cmd) return;
+    const pedId = getPedId(ped);
+    if (!Number.isFinite(pedId)) return;
+    const now = nowMs();
+    const cache = ownerRuntime.get(pedId) || {
+        lastState: "",
+        lastTargetId: -1,
+        lastCtrlVer: -1,
+        lastAimAt: 0,
+        lastShootAt: 0,
+        lastMoveAt: 0,
+        lastClearAt: 0,
+        lastReturnDist: Number.MAX_SAFE_INTEGER,
+        lastReturnProgressAt: now,
+        weaponHash: Number(ped.getVariable("guardWeaponHash")) || 0,
+    };
+    applyOwnerCommand(ped, cmd, cache, now);
+    ownerRuntime.set(pedId, cache);
 }
 
 function sendOwnerPoseUplink() {
@@ -450,10 +473,17 @@ mp.events.add("entityStreamIn", (entity) => {
     if (!entity.getVariable || !entity.getVariable("guardPostId")) return;
     clearPedCaches(entity);
     updateObserverPoseCache(entity);
+    executeOwnerCommandNow(entity);
 });
 
 mp.events.add("entityStreamOut", (entity) => {
     clearPedCaches(entity);
+});
+
+mp.events.addDataHandler("guardCommandSeq", (entity) => {
+    if (!entity || entity.type !== "ped") return;
+    if (!entity.getVariable || !entity.getVariable("guardPostId")) return;
+    executeOwnerCommandNow(entity);
 });
 
 mp.events.add("render", () => {
