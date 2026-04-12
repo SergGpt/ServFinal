@@ -16,7 +16,7 @@ const GUARD_CHECKPOINT_CONFIG = {
     spawnGraceMs: 3500,
     npcHealth: 250,
     npcArmor: 100,
-    warningResponseMs: 2500,
+    warningResponseMs: 5000,
     warningMoveTolerance: 0.09,
     stopZoneProgressEpsilon: 0.03,
     warningAdvanceTolerance: 0.6,

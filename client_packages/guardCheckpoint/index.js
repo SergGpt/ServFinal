@@ -4,6 +4,8 @@ let activeWarning = null;
 let lastSoundAt = 0;
 let lastRenderDebugAt = 0;
 let activeStopZone = null;
+let statusText = null;
+let statusUntil = 0;
 
 function clog(text) {
     try {
@@ -48,6 +50,12 @@ mp.events.add({
     "guardCheckpoint:debug": (text) => {
         clog(`server-debug: ${text}`);
     },
+
+    "guardCheckpoint:status:text": (postId, text, durationMs) => {
+        statusText = String(text || "");
+        statusUntil = Date.now() + Math.max(1000, Number(durationMs) || 3000);
+        clog(`status post=${postId} text="${statusText}"`);
+    },
 });
 
 mp.events.add("entityStreamIn", (entity) => {
@@ -65,6 +73,43 @@ mp.events.add("entityStreamOut", (entity) => {
 });
 
 mp.events.add("render", () => {
+    if (statusText && Date.now() < statusUntil) {
+        mp.game.graphics.drawText(statusText, [0.5, 0.84], {
+            font: 4,
+            color: [120, 255, 120, 230],
+            scale: [0.45, 0.45],
+            centre: true,
+            outline: true,
+        });
+    } else if (statusText && Date.now() >= statusUntil) {
+        statusText = null;
+    }
+
+    // Debug aim lines
+    mp.peds.forEach((ped) => {
+        try {
+            if (!ped || !ped.getVariable) return;
+            const postId = ped.getVariable("guardPostId");
+            if (!postId) return;
+            const state = String(ped.getVariable("guardState") || "");
+            if (state !== "warning_aim" && state !== "attack") return;
+            const p = ped.position;
+            const me = mp.players.local.position;
+            mp.game.graphics.drawLine(
+                p.x,
+                p.y,
+                p.z + 1.0,
+                me.x,
+                me.y,
+                me.z + 0.7,
+                state === "attack" ? 255 : 255,
+                state === "attack" ? 80 : 220,
+                state === "attack" ? 80 : 80,
+                220
+            );
+        } catch (e) {}
+    });
+
     if (!activeWarning) return;
     if (Date.now() - lastRenderDebugAt > 2000) {
         lastRenderDebugAt = Date.now();
