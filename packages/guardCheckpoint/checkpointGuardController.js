@@ -857,11 +857,20 @@ class CheckpointGuardController {
             if (!inside.some((p) => p.id === pid)) post.playerSeenAt.delete(pid);
         }
 
+        const ackTimeoutMs = Math.max(800, Number(this.config.controllerAckTimeoutMs) || 1800);
         const currentOwner = inside.find((p) => p.id === post.streamOwnerId) || null;
-        if (currentOwner) return;
+        let blockedOwnerId = null;
+        if (currentOwner) {
+            const ackInSync = Number(post.controllerAckVer) === Number(post.ctrlVer);
+            if (ackInSync) return;
+            if (now - Number(post.lastOwnerSwitchAt || 0) <= ackTimeoutMs) return;
+            blockedOwnerId = currentOwner.id;
+            this.log(`post=${post.id} owner=${currentOwner.id} ack-timeout -> reelect`);
+        }
 
         const bestCandidate = inside
             .slice()
+            .filter((p) => p && p.id !== blockedOwnerId)
             .sort((a, b) => {
                 const pingA = Math.max(0, Number(a && a.ping) || 999);
                 const pingB = Math.max(0, Number(b && b.ping) || 999);

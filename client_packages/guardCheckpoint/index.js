@@ -79,8 +79,12 @@ function getPlayerByServerId(serverId) {
 function isLocalStreamOwnerForPed(ped) {
     if (!ped || !ped.getVariable || !mp.players.local) return false;
     const ownerId = Number(ped.getVariable("streamOwnerId"));
-    const localId = Number(mp.players.local.remoteId);
-    return Number.isFinite(ownerId) && Number.isFinite(localId) && ownerId === localId;
+    const localRemoteId = Number(mp.players.local.remoteId);
+    const localId = Number(mp.players.local.id);
+    if (!Number.isFinite(ownerId)) return false;
+    if (Number.isFinite(localRemoteId) && ownerId === localRemoteId) return true;
+    if (Number.isFinite(localId) && ownerId === localId) return true;
+    return false;
 }
 
 function smoothPedToAuthoritativePose(ped) {
