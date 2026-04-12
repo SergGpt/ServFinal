@@ -50,7 +50,7 @@ function applyNpcCommand(command, targetId, units) {
             } else if (command === "fire" && target) {
                 ped.clearTasks();
                 ped.taskCombat(target.handle, 0, 16);
-                ped.taskShootAt(target.handle, 2000, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
+                try { ped.setKeepTask(true); } catch (e) {}
             } else if (command === "return") {
                 ped.clearTasks();
                 ped.taskGoStraightToCoord(u.x, u.y, u.z, 2.2, -1, u.heading, 0.05);

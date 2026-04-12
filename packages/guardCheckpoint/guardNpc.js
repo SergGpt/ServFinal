@@ -276,7 +276,7 @@ class GuardNpc {
         safeCall(method(this.ped, "setVariable"), "guardState", "attack");
         safeCall(method(this.ped, "clearTasks"));
         safeCall(method(this.ped, "taskCombat"), targetPlayer.handle, 0, 16);
-        safeCall(method(this.ped, "taskShootAt"), targetPlayer.handle, 2000, mp.joaat("FIRING_PATTERN_FULL_AUTO"));
+        safeCall(method(this.ped, "setKeepTask"), true);
         this.log(`npc=${this.id} fire target=${targetPlayer.id}`);
     }
 
