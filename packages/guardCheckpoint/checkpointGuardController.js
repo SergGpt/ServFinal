@@ -593,7 +593,7 @@ class CheckpointGuardController {
         if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
         post.lastAppliedBehaviorKey = behaviorKey;
 
-        this.dispatchNpcCommand(post, "warn", target, { force });
+        this.dispatchNpcCommand(post, "warning", target, { force });
     }
 
     applyAttackBehavior(post, target, force = false) {
@@ -678,7 +678,7 @@ class CheckpointGuardController {
             post.checkingGraceUntil = now + 1100;
             const target = getPlayerById(post.targetPlayerId);
             this.sendStatusText(post, "Идет досмотр, оставайтесь в зоне проверки (5 секунд)", 5000, target);
-            if (target) this.dispatchNpcCommand(post, "check", target, { force: true });
+            if (target) this.dispatchNpcCommand(post, "checking", target, { force: true });
         }
 
         if (nextState === POST_STATE.ATTACK) {
@@ -844,12 +844,12 @@ class CheckpointGuardController {
         const target = this.getCurrentTarget(post);
         let command = "idle";
         if (post.state === POST_STATE.ATTACK) command = target ? "attack" : "return";
-        else if (post.state === POST_STATE.WARNING) command = target ? "warn" : "return";
-        else if (post.state === POST_STATE.CHECKING) command = target ? "check" : "return";
+        else if (post.state === POST_STATE.WARNING) command = target ? "warning" : "return";
+        else if (post.state === POST_STATE.CHECKING) command = target ? "checking" : "return";
         else if (post.state === POST_STATE.RETURN) command = "return";
 
-        if (command === "warn") this.dispatchNpcCommand(post, "warn", target, { force: true, owner });
-        else if (command === "check") this.dispatchNpcCommand(post, "check", target, { force: true, owner });
+        if (command === "warning") this.dispatchNpcCommand(post, "warning", target, { force: true, owner });
+        else if (command === "checking") this.dispatchNpcCommand(post, "checking", target, { force: true, owner });
         else if (command === "attack") this.dispatchNpcCommand(post, "attack", target, { force: true, owner });
         else if (command === "return") this.dispatchNpcCommand(post, "return", null, { force: true, owner });
         else this.dispatchNpcCommand(post, "idle", null, { force: true, owner });
@@ -872,8 +872,10 @@ class CheckpointGuardController {
             return;
         }
 
+        const unitPayload = [];
         for (const unit of units) {
             const ped = unit.ped;
+            const pedId = Number(ped && (ped.id != null ? ped.id : ped.remoteId));
             try { ped.setVariable("guardState", command); } catch {}
             try { ped.setVariable("guardTarget", Number(targetId)); } catch {}
             try { ped.setVariable("guardTargetId", Number(targetId)); } catch {}
@@ -884,9 +886,33 @@ class CheckpointGuardController {
             try { ped.setVariable("guardReturnZ", Number(unit.spawnPos.z) || 0); } catch {}
             try { ped.setVariable("guardReturnHeading", Number(unit.spawnHeading) || 0); } catch {}
             try { ped.setVariable("guardCmdVer", now); } catch {}
+            if (Number.isFinite(pedId)) {
+                unitPayload.push({
+                    pedId,
+                    weaponHash: Number(unit.weaponHash) || 0,
+                    returnPos: {
+                        x: Number(unit.spawnPos.x) || 0,
+                        y: Number(unit.spawnPos.y) || 0,
+                        z: Number(unit.spawnPos.z) || 0,
+                        heading: Number(unit.spawnHeading) || 0,
+                    },
+                });
+            }
         }
 
-        owner.call("guardCheckpoint:executeCommand", [post.id, command, targetId, now]);
+        this.forEachPlayersInPost(post, (rec) => {
+            const role = Number(rec.id) === Number(post.streamOwnerId) ? "owner" : "observer";
+            rec.call("guardCheckpoint:executeCommand", [{
+                postId: post.id,
+                command,
+                targetId,
+                cmdVer: now,
+                ctrlVer: Number(post.ctrlVer) || 0,
+                controllerRid: Number(post.streamOwnerId) || -1,
+                role,
+                units: unitPayload,
+            }]);
+        });
     }
 
     getPost(postId) {

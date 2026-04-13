@@ -9,7 +9,7 @@ let statusUntil = 0;
 const OWNER_REFRESH_MS = 1200;
 let lastOwnerTickAt = 0;
 
-const ownerRuntime = new Map(); // pedRemoteId -> { cmd, targetId, at, lastExecAt, returnPos, weaponHash }
+const guardRuntime = new Map(); // pedRemoteId -> { cmd, targetId, at, lastExecAt, returnPos, weaponHash, role }
 
 function nowMs() { return Date.now(); }
 
@@ -55,9 +55,9 @@ function ensurePedWeapon(ped, weaponHash) {
     try { ped.setInfiniteAmmoClip(true); } catch {}
 }
 
-function executeCommandForPed(ped, data, force = false) {
+function executeCommandForPed(ped, data, force = false, authoritative = true) {
     if (!ped || !ped.getVariable || !data) return;
-    if (!isControllerPed(ped)) return;
+    if (authoritative && !isControllerPed(ped)) return;
 
     const t = nowMs();
     if (!force && t - (data.lastExecAt || 0) < 250) return;
@@ -77,8 +77,8 @@ function executeCommandForPed(ped, data, force = false) {
                 }
                 try { ped.setKeepTask(true); } catch {}
                 break;
-            case "warn":
-            case "check":
+            case "warning":
+            case "checking":
                 if (!target) break;
                 try { ped.clearTasks(); } catch {}
                 try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, OWNER_REFRESH_MS + 250, false); } catch {
@@ -112,7 +112,7 @@ function sendControllerAck(postId, ver) {
     try { mp.events.callRemote("guardCheckpoint:controller.ack", postId, ver); } catch {}
 }
 
-function runOwnerRefreshLoop() {
+function runCommandRefreshLoop() {
     const t = nowMs();
     if (t - lastOwnerTickAt < OWNER_REFRESH_MS) return;
     lastOwnerTickAt = t;
@@ -123,15 +123,24 @@ function runOwnerRefreshLoop() {
         try {
             if (!ped || !ped.getVariable) return;
             if (!ped.getVariable("guardPostId")) return;
-            if (!isControllerPed(ped)) return;
 
             const pedId = getPedRemoteId(ped);
-            const state = ownerRuntime.get(pedId);
-            if (state) executeCommandForPed(ped, state, false);
+            const state = guardRuntime.get(pedId);
+            if (!state) return;
 
-            const postId = String(ped.getVariable("guardPostId") || "");
-            const ver = Number(ped.getVariable("ctrlVer")) || 0;
-            if (postId) postsHeartbeat.set(postId, ver);
+            const isOwnerRole = state.role === "owner";
+            const isController = isControllerPed(ped);
+            if (isOwnerRole && isController) {
+                executeCommandForPed(ped, state, false, true);
+                const postId = String(ped.getVariable("guardPostId") || "");
+                const ver = Number(ped.getVariable("ctrlVer")) || 0;
+                if (postId) postsHeartbeat.set(postId, ver);
+                return;
+            }
+
+            if (!isOwnerRole && !isController) {
+                executeCommandForPed(ped, state, false, false);
+            }
         } catch {}
     });
 
@@ -175,27 +184,47 @@ mp.events.add({
         setTimeout(() => sendControllerAck(postId, ver), 300);
     },
 
-    "guardCheckpoint:executeCommand": (postId, command, targetId, commandVer) => {
+    "guardCheckpoint:executeCommand": (payload) => {
+        const dataPayload = payload && typeof payload === "object" ? payload : {};
+        const postId = String(dataPayload.postId || "");
+        const command = String(dataPayload.command || "idle");
+        const targetId = Number(dataPayload.targetId);
+        const commandVer = Number(dataPayload.cmdVer) || nowMs();
+        const role = String(dataPayload.role || "observer");
+        const units = Array.isArray(dataPayload.units) ? dataPayload.units : [];
+
+        const hints = new Map();
+        units.forEach((u) => {
+            const pedId = Number(u && u.pedId);
+            if (!Number.isFinite(pedId)) return;
+            hints.set(pedId, u);
+        });
+
         mp.peds.forEach((ped) => {
             try {
                 if (!ped || !ped.getVariable) return;
-                if (String(ped.getVariable("guardPostId") || "") !== String(postId)) return;
-                if (!isControllerPed(ped)) return;
+                if (String(ped.getVariable("guardPostId") || "") !== postId) return;
 
                 const pedId = getPedRemoteId(ped);
-                const data = ownerRuntime.get(pedId) || {};
-                data.cmd = String(command || "idle");
-                data.targetId = Number(targetId);
-                data.at = Number(commandVer) || nowMs();
-                data.weaponHash = Number(ped.getVariable("guardWeaponHash")) || 0;
-                data.returnPos = {
-                    x: Number(ped.getVariable("guardReturnX")) || ped.position.x,
-                    y: Number(ped.getVariable("guardReturnY")) || ped.position.y,
-                    z: Number(ped.getVariable("guardReturnZ")) || ped.position.z,
-                    heading: Number(ped.getVariable("guardReturnHeading")) || 0,
+                if (!Number.isFinite(pedId)) return;
+                const hint = hints.get(pedId) || {};
+                const state = guardRuntime.get(pedId) || {};
+                state.cmd = command;
+                state.targetId = targetId;
+                state.at = commandVer;
+                state.role = role;
+                state.weaponHash = Number(hint.weaponHash) || Number(ped.getVariable("guardWeaponHash")) || 0;
+                const hRet = hint.returnPos || {};
+                state.returnPos = {
+                    x: Number(hRet.x) || Number(ped.getVariable("guardReturnX")) || ped.position.x,
+                    y: Number(hRet.y) || Number(ped.getVariable("guardReturnY")) || ped.position.y,
+                    z: Number(hRet.z) || Number(ped.getVariable("guardReturnZ")) || ped.position.z,
+                    heading: Number(hRet.heading) || Number(ped.getVariable("guardReturnHeading")) || 0,
                 };
-                ownerRuntime.set(pedId, data);
-                executeCommandForPed(ped, data, true);
+                guardRuntime.set(pedId, state);
+
+                const authoritative = role === "owner";
+                executeCommandForPed(ped, state, true, authoritative);
             } catch {}
         });
     },
@@ -208,11 +237,11 @@ mp.events.add({
 mp.events.add("entityStreamOut", (entity) => {
     if (!entity || entity.type !== "ped") return;
     const pedId = getPedRemoteId(entity);
-    if (Number.isFinite(pedId)) ownerRuntime.delete(pedId);
+    if (Number.isFinite(pedId)) guardRuntime.delete(pedId);
 });
 
 mp.events.add("render", () => {
-    runOwnerRefreshLoop();
+    runCommandRefreshLoop();
 
     if (statusText && nowMs() < statusUntil) {
         mp.game.graphics.drawText(statusText, [0.5, 0.84], {
