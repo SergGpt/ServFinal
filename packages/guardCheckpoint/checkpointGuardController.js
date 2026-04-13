@@ -347,6 +347,7 @@ class CheckpointGuardController {
         if (!isValidPlayer(player)) return;
         const post = this.getPost(postId);
         if (!post) return;
+        if (Number(player.id) !== Number(post.streamOwnerId)) return;
 
         const allUnits = [post.leader, ...post.guards];
         const found = allUnits.find((unit) => unit && unit.ped && Number(unit.ped.id) === Number(pedId));

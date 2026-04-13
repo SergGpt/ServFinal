@@ -162,6 +162,7 @@ function getOrCreateCache(pedId) {
             weaponHashHint: 0,
             lastDeadSignalAt: 0,
             lastBurstAt: 0,
+            hasSeenAliveHealth: false,
         });
     }
     return pedAiCache.get(pedId);
@@ -258,8 +259,9 @@ function runGuardAiLoop() {
             if (weaponHash > 0) cache.weaponHashHint = weaponHash;
 
             const hp = Number(ped.getHealth ? ped.getHealth() : ped.health) || 0;
+            if (hp > 0) cache.hasSeenAliveHealth = true;
             const dead = !!(ped.isDead && ped.isDead()) || hp <= 0;
-            if (dead && t - (cache.lastDeadSignalAt || 0) > 1200) {
+            if (isOwner && cache.hasSeenAliveHealth && dead && t - (cache.lastDeadSignalAt || 0) > 1800) {
                 sendNpcDeadSignal(postId, pedId);
                 cache.lastDeadSignalAt = t;
             }
