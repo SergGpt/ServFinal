@@ -276,8 +276,6 @@ class GuardNpc {
     goIdle() {
         if (!this.exists()) return;
         if (!this.shouldSendOrder("idle", 1200)) return;
-        safeCall(method(this.ped, "clearTasks"));
-        safeCall(method(this.ped, "taskGoToCoordAnyMeans"), this.spawnPos.x, this.spawnPos.y, this.spawnPos.z, 1.0, 0, false, 786603, 1.0);
         safeCall(method(this.ped, "setHeading"), this.spawnHeading);
         safeCall(method(this.ped, "setVariable"), "guardState", "idle");
     }
@@ -294,8 +292,6 @@ class GuardNpc {
         safeCall(method(this.ped, "setVariable"), "guardTarget", Number(targetPlayer.id));
         safeCall(method(this.ped, "setVariable"), "guardTargetId", Number(targetPlayer.id));
         safeCall(method(this.ped, "setVariable"), "guardStartedAt", Date.now());
-        safeCall(method(this.ped, "taskCombat"), targetPlayer.handle, 0, 16);
-        safeCall(method(this.ped, "setKeepTask"), true);
         this.log(`npc=${this.id} fire target=${targetPlayer.id}`);
     }
 
@@ -311,14 +307,11 @@ class GuardNpc {
         safeCall(method(this.ped, "setVariable"), "guardTarget", Number(targetPlayer.id));
         safeCall(method(this.ped, "setVariable"), "guardTargetId", Number(targetPlayer.id));
         safeCall(method(this.ped, "setVariable"), "guardStartedAt", Date.now());
-        safeCall(method(this.ped, "clearTasks"));
-        safeCall(method(this.ped, "taskAimGunAt"), targetPlayer.handle, 1200, false);
         this.log(`npc=${this.id} aim target=${targetPlayer.id}`);
     }
 
     stopCombat() {
         if (!this.exists()) return;
-        safeCall(method(this.ped, "clearTasks"));
         safeCall(method(this.ped, "setVariable"), "guardState", "idle");
         safeCall(method(this.ped, "setVariable"), "guardTarget", -1);
         safeCall(method(this.ped, "setVariable"), "guardTargetId", -1);
@@ -335,8 +328,6 @@ class GuardNpc {
         if (!this.exists()) return;
         if (!this.shouldSendOrder("force-return", 1200)) return;
         this.stopCombat();
-        safeCall(method(this.ped, "clearTasks"));
-        safeCall(method(this.ped, "taskGoStraightToCoord"), this.spawnPos.x, this.spawnPos.y, this.spawnPos.z, 2.2, -1, this.spawnHeading, 0.05);
         safeCall(method(this.ped, "setVariable"), "guardState", "return");
         safeCall(method(this.ped, "setVariable"), "guardTarget", -1);
         safeCall(method(this.ped, "setVariable"), "guardTargetId", -1);

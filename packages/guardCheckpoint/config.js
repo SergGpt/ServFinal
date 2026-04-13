@@ -24,6 +24,7 @@ const GUARD_CHECKPOINT_CONFIG = {
     attackDamageIntervalMs: 450,
     attackDamageRange: 38,
     attackDamagePerAttacker: 7,
+    attackBurstIntervalMs: 280,
 
     // Независимые посты охраны
     posts: [

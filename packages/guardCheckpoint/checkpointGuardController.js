@@ -255,6 +255,12 @@ class CheckpointGuardController {
             controllerAckVer: 0,
             pendingMovementCommand: null,
             lastAttackDamageAt: 0,
+            commandSeq: 0,
+            lastBroadcastCommand: null,
+            behaviorSessionId: 0,
+            attackSessionId: 0,
+            lastAttackBurstAt: 0,
+            unitAlive: new Map(),
         };
     }
 
@@ -326,11 +332,15 @@ class CheckpointGuardController {
 
         post.controllerAckVer = expectedVer;
         const pending = post.pendingMovementCommand;
-        if (!pending) return;
-        post.pendingMovementCommand = null;
-        const target = pending.targetId >= 0 ? getPlayerById(pending.targetId) : null;
-        this.dispatchNpcCommand(post, pending.command, target, { force: true, owner: player });
-        this.log(`post=${post.id} controller ack ver=${ver} replay cmd=${pending.command}`);
+        if (pending) {
+            post.pendingMovementCommand = null;
+            const target = pending.targetId >= 0 ? getPlayerById(pending.targetId) : null;
+            this.dispatchNpcCommand(post, pending.command, target, { force: true, owner: player });
+            this.log(`post=${post.id} controller ack ver=${ver} replay cmd=${pending.command}`);
+        }
+        if (post.lastBroadcastCommand) {
+            player.call("guardCheckpoint:npcCommand", [post.lastBroadcastCommand]);
+        }
     }
 
     onNpcDeadSignal(player, postId, pedId) {
@@ -388,6 +398,7 @@ class CheckpointGuardController {
     tickPost(post, now) {
         post.leader.syncDeathIfNeeded(now);
         for (const guard of post.guards) guard.syncDeathIfNeeded(now);
+        this.syncUnitLifeProtocol(post);
         this.updateStreamOwner(post, now);
         this.publishAuthoritativePose(post, now);
 
@@ -532,6 +543,7 @@ class CheckpointGuardController {
 
         this.applyAttackBehavior(post, target);
         this.applyAttackDamage(post, target, now);
+        this.broadcastAttackBurst(post, target, now);
 
         const maxChaseDistance = Number(post.cfg.maxChaseDistance || this.config.defaultMaxChaseDistance);
         const pursuitZone = this.getPursuitZone(post);
@@ -712,6 +724,10 @@ class CheckpointGuardController {
         post.stateSince = now;
         post.stateCooldownUntil = now + (this.config.transitionCooldownMs || 900);
         post.lastAppliedBehaviorKey = "";
+        post.behaviorSessionId = (Number(post.behaviorSessionId) || 0) + 1;
+        if (nextState === POST_STATE.ATTACK) {
+            post.attackSessionId = (Number(post.attackSessionId) || 0) + 1;
+        }
 
         if (nextState === POST_STATE.WARNING) {
             post.warningIssuedAt = now;
@@ -911,6 +927,7 @@ class CheckpointGuardController {
     resyncPostStateForOwner(post, ownerId, reason = "resync") {
         const owner = getPlayerById(ownerId);
         if (!isValidPlayer(owner)) return;
+        owner.call("guardCheckpoint:stateSnapshot", [this.buildStateSnapshot(post)]);
 
         const target = this.getCurrentTarget(post);
         let command = "idle";
@@ -929,38 +946,118 @@ class CheckpointGuardController {
         const targetId = targetPlayer ? targetPlayer.id : -1;
         const now = Date.now();
         const force = !!options.force;
-        const key = `${command}:${targetId}`;
+        const key = `${command}:${targetId}:${post.behaviorSessionId}:${post.attackSessionId}`;
         if (!force && post.lastClientCommandKey === key && now - (post.lastClientCommandAt || 0) < 900) return;
         post.lastClientCommandKey = key;
         post.lastClientCommandAt = now;
-
-        const units = [post.leader, ...post.guards]
-            .filter((unit) => unit && unit.exists())
-            .map((unit) => ({
-                pedId: unit.ped.id,
-                role: unit.role,
-                x: unit.spawnPos.x,
-                y: unit.spawnPos.y,
-                z: unit.spawnPos.z,
-                heading: unit.spawnHeading,
-                weaponHash: unit.weaponHash || 0,
-            }));
+        const packet = this.buildCommandPacket(post, command, targetId);
+        post.lastBroadcastCommand = packet;
         const owner = getPlayerById(post.streamOwnerId);
-        if (command === "return") {
-            if (!isValidPlayer(owner)) {
-                post.pendingMovementCommand = { command, targetId, at: Date.now() };
-                return;
-            }
-            if (Number(post.controllerAckVer) !== Number(post.ctrlVer)) {
-                post.pendingMovementCommand = { command, targetId, at: Date.now() };
-                return;
-            }
-            owner.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
-            return;
+        if (!isValidPlayer(owner) || Number(post.controllerAckVer) !== Number(post.ctrlVer)) {
+            post.pendingMovementCommand = { command, targetId, at: Date.now() };
         }
         this.forEachPlayersInPost(post, (rec) => {
-            rec.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
+            rec.call("guardCheckpoint:npcCommand", [packet]);
         });
+    }
+
+    buildCommandPacket(post, command, targetId = -1) {
+        post.commandSeq = (Number(post.commandSeq) || 0) + 1;
+        const units = [post.leader, ...post.guards].map((unit) => ({
+            unitId: unit.id,
+            pedId: unit.exists() ? unit.ped.id : -1,
+            role: unit.role,
+            alive: !!unit.exists(),
+            state: unit.exists() ? String(unit.ped.getVariable("guardState") || post.state || "idle") : "dead",
+            x: unit.spawnPos.x,
+            y: unit.spawnPos.y,
+            z: unit.spawnPos.z,
+            heading: unit.spawnHeading,
+            weaponHash: unit.weaponHash || 0,
+            returnX: unit.spawnPos.x,
+            returnY: unit.spawnPos.y,
+            returnZ: unit.spawnPos.z,
+            returnHeading: unit.spawnHeading,
+        }));
+        return {
+            postId: post.id,
+            commandSeq: post.commandSeq,
+            command,
+            targetId,
+            issuedAt: Date.now(),
+            streamOwnerId: post.streamOwnerId == null ? -1 : post.streamOwnerId,
+            ctrlVer: Number(post.ctrlVer) || 0,
+            behaviorSessionId: Number(post.behaviorSessionId) || 0,
+            attackSessionId: Number(post.attackSessionId) || 0,
+            state: post.state,
+            units,
+        };
+    }
+
+    buildStateSnapshot(post) {
+        return {
+            postId: post.id,
+            state: post.state,
+            commandSeq: Number(post.commandSeq) || 0,
+            behaviorSessionId: Number(post.behaviorSessionId) || 0,
+            attackSessionId: Number(post.attackSessionId) || 0,
+            targetPlayerId: post.targetPlayerId == null ? -1 : post.targetPlayerId,
+            streamOwnerId: post.streamOwnerId == null ? -1 : post.streamOwnerId,
+            ctrlVer: Number(post.ctrlVer) || 0,
+            units: [post.leader, ...post.guards].map((unit) => ({
+                unitId: unit.id,
+                pedId: unit.exists() ? unit.ped.id : -1,
+                role: unit.role,
+                alive: !!unit.exists(),
+                x: unit.exists() ? Number(unit.ped.position.x) : unit.spawnPos.x,
+                y: unit.exists() ? Number(unit.ped.position.y) : unit.spawnPos.y,
+                z: unit.exists() ? Number(unit.ped.position.z) : unit.spawnPos.z,
+                heading: unit.exists() ? Number(unit.ped.getHeading ? unit.ped.getHeading() : unit.spawnHeading) : unit.spawnHeading,
+                weaponHash: unit.weaponHash || 0,
+                returnX: unit.spawnPos.x,
+                returnY: unit.spawnPos.y,
+                returnZ: unit.spawnPos.z,
+                returnHeading: unit.spawnHeading,
+                guardState: unit.exists() ? String(unit.ped.getVariable("guardState") || "idle") : "dead",
+                guardTarget: unit.exists() ? Number(unit.ped.getVariable("guardTarget") || -1) : -1,
+            })),
+        };
+    }
+
+    syncUnitLifeProtocol(post) {
+        const units = [post.leader, ...post.guards];
+        units.forEach((unit) => {
+            const alive = !!unit.exists();
+            const prev = post.unitAlive.get(unit.id);
+            if (prev == null) {
+                post.unitAlive.set(unit.id, alive);
+                return;
+            }
+            if (prev === alive) return;
+            post.unitAlive.set(unit.id, alive);
+            const target = this.getCurrentTarget(post);
+            this.dispatchNpcCommand(post, alive ? "respawn" : "dead", target, { force: true });
+        });
+    }
+
+    broadcastAttackBurst(post, target, now) {
+        const interval = Math.max(120, Number(post.cfg.attackBurstIntervalMs || this.config.attackBurstIntervalMs || 280));
+        if (now - (post.lastAttackBurstAt || 0) < interval) return;
+        post.lastAttackBurstAt = now;
+        const pedIds = [post.leader, ...post.guards]
+            .filter((u) => u && u.exists())
+            .map((u) => u.ped.id);
+        if (!pedIds.length) return;
+        const payload = {
+            postId: post.id,
+            commandSeq: Number(post.commandSeq) || 0,
+            behaviorSessionId: Number(post.behaviorSessionId) || 0,
+            attackSessionId: Number(post.attackSessionId) || 0,
+            targetId: target ? target.id : -1,
+            pedIds,
+            at: now,
+        };
+        this.forEachPlayersInPost(post, (rec) => rec.call("guardCheckpoint:attackBurst", [payload]));
     }
 
     getPost(postId) {

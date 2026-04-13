@@ -24,6 +24,7 @@ let lastAiLoopAt = 0;
 
 const pedAiCache = new Map(); // pedRemoteId -> runtime cache
 const pendingByPed = new Map(); // pedRemoteId -> { targetId, expiresAt, lastTryAt }
+const postRuntime = new Map(); // postId -> { lastAppliedSeq, behaviorSessionId, attackSessionId, ctrlVer, streamOwnerId, state }
 
 function clog(text) {
     try {
@@ -160,9 +161,25 @@ function getOrCreateCache(pedId) {
             returnPos: null,
             weaponHashHint: 0,
             lastDeadSignalAt: 0,
+            lastBurstAt: 0,
         });
     }
     return pedAiCache.get(pedId);
+}
+
+function getPostRuntime(postId) {
+    const key = String(postId || "");
+    if (!postRuntime.has(key)) {
+        postRuntime.set(key, {
+            lastAppliedSeq: 0,
+            behaviorSessionId: 0,
+            attackSessionId: 0,
+            ctrlVer: 0,
+            streamOwnerId: -1,
+            state: "idle",
+        });
+    }
+    return postRuntime.get(key);
 }
 
 
@@ -327,18 +344,28 @@ function runGuardAiLoop() {
     });
 }
 
-function applyNpcCommandHints(command, targetId, units) {
+function applyNpcCommandHints(packet) {
+    if (!packet) return;
+    const command = String(packet.command || "idle");
+    const targetId = Number(packet.targetId);
+    const units = packet.units || [];
     (units || []).forEach((u) => {
         const pedId = Number(u.pedId);
         if (!Number.isFinite(pedId)) return;
         const cache = getOrCreateCache(pedId);
         if (Number(u.weaponHash) > 0) cache.weaponHashHint = Number(u.weaponHash);
+        if (command === "dead") {
+            cache.lastState = "dead";
+        }
+        if (command === "respawn") {
+            cache.lastState = "idle";
+        }
         if (command === "return") {
             cache.returnPos = {
-                x: Number(u.x) || 0,
-                y: Number(u.y) || 0,
-                z: Number(u.z) || 0,
-                heading: Number(u.heading) || 0,
+                x: Number(u.returnX != null ? u.returnX : u.x) || 0,
+                y: Number(u.returnY != null ? u.returnY : u.y) || 0,
+                z: Number(u.returnZ != null ? u.returnZ : u.z) || 0,
+                heading: Number(u.returnHeading != null ? u.returnHeading : u.heading) || 0,
             };
         }
 
@@ -378,15 +405,78 @@ mp.events.add({
         clog(`status post=${postId} text="${statusText}"`);
     },
 
-    "guardCheckpoint:npcCommand": (postId, command, targetId, units) => {
-        // npcCommand используется как hint/ускоритель. Основной визуал — AI loop по guardState.
-        clog(`npcCommand post=${postId} cmd=${command} target=${targetId} units=${(units || []).length}`);
-        applyNpcCommandHints(command, targetId, units);
+    "guardCheckpoint:npcCommand": (packetOrPostId, legacyCommand, legacyTargetId, legacyUnits, legacyOwnerId) => {
+        let packet = null;
+        if (typeof packetOrPostId === "object" && packetOrPostId) {
+            packet = packetOrPostId;
+        } else {
+            packet = {
+                postId: packetOrPostId,
+                command: legacyCommand,
+                targetId: legacyTargetId,
+                units: legacyUnits || [],
+                streamOwnerId: legacyOwnerId,
+                commandSeq: 0,
+                behaviorSessionId: 0,
+                attackSessionId: 0,
+                ctrlVer: 0,
+            };
+        }
+        const postId = String(packet.postId || "");
+        const rt = getPostRuntime(postId);
+        const seq = Number(packet.commandSeq) || 0;
+        const behaviorSessionId = Number(packet.behaviorSessionId) || 0;
+        const attackSessionId = Number(packet.attackSessionId) || 0;
+        if (seq && seq <= (rt.lastAppliedSeq || 0)) return;
+        if (attackSessionId && attackSessionId < (rt.attackSessionId || 0)) return;
+        if (behaviorSessionId && behaviorSessionId < (rt.behaviorSessionId || 0)) return;
+
+        rt.lastAppliedSeq = Math.max(rt.lastAppliedSeq || 0, seq);
+        rt.behaviorSessionId = Math.max(rt.behaviorSessionId || 0, behaviorSessionId);
+        rt.attackSessionId = Math.max(rt.attackSessionId || 0, attackSessionId);
+        rt.streamOwnerId = Number(packet.streamOwnerId == null ? rt.streamOwnerId : packet.streamOwnerId);
+        rt.ctrlVer = Number(packet.ctrlVer == null ? rt.ctrlVer : packet.ctrlVer);
+        rt.state = String(packet.state || rt.state || "idle");
+
+        clog(`npcCommand post=${postId} seq=${seq} cmd=${packet.command} target=${packet.targetId} units=${(packet.units || []).length}`);
+        applyNpcCommandHints(packet);
     },
 
-    "guardCheckpoint:controller:switch": (postId, ver) => {
+    "guardCheckpoint:controller:switch": (postId, ver, state) => {
+        const rt = getPostRuntime(postId);
+        rt.ctrlVer = Number(ver) || 0;
+        rt.state = String(state || rt.state || "idle");
         sendControllerAck(postId, ver);
         setTimeout(() => sendControllerAck(postId, ver), 300);
+    },
+
+    "guardCheckpoint:stateSnapshot": (snapshot) => {
+        if (!snapshot || !snapshot.postId) return;
+        const rt = getPostRuntime(snapshot.postId);
+        rt.lastAppliedSeq = Number(snapshot.commandSeq) || 0;
+        rt.behaviorSessionId = Number(snapshot.behaviorSessionId) || 0;
+        rt.attackSessionId = Number(snapshot.attackSessionId) || 0;
+        rt.ctrlVer = Number(snapshot.ctrlVer) || 0;
+        rt.streamOwnerId = Number(snapshot.streamOwnerId) || -1;
+        rt.state = String(snapshot.state || "idle");
+        applyNpcCommandHints({
+            postId: snapshot.postId,
+            command: snapshot.state || "idle",
+            targetId: snapshot.targetPlayerId == null ? -1 : snapshot.targetPlayerId,
+            units: snapshot.units || [],
+        });
+    },
+
+    "guardCheckpoint:attackBurst": (payload) => {
+        if (!payload || !Array.isArray(payload.pedIds)) return;
+        const target = getPlayerByServerId(payload.targetId);
+        payload.pedIds.forEach((id) => {
+            const pedId = Number(id);
+            if (!Number.isFinite(pedId)) return;
+            const cache = getOrCreateCache(pedId);
+            cache.lastBurstAt = nowMs();
+            if (target) cache.lastTargetId = Number(payload.targetId);
+        });
     },
 
     "guardCheckpoint:debug": (text) => {
@@ -415,6 +505,27 @@ mp.events.add("entityStreamOut", (entity) => {
 mp.events.add("render", () => {
     runGuardAiLoop();
     smoothObserverPedsEachFrame();
+
+    mp.peds.forEach((ped) => {
+        try {
+            if (!ped || !ped.getVariable) return;
+            if (!ped.getVariable("guardPostId")) return;
+            const pedId = getPedRemoteId(ped);
+            if (!Number.isFinite(pedId)) return;
+            const cache = pedAiCache.get(pedId);
+            if (!cache || !cache.lastBurstAt) return;
+            if (nowMs() - cache.lastBurstAt > 140) return;
+            const target = getPlayerByServerId(cache.lastTargetId);
+            if (!target) return;
+            const p = ped.position;
+            const tPos = target.position;
+            mp.game.graphics.drawLine(
+                p.x, p.y, p.z + 1.0,
+                tPos.x, tPos.y, tPos.z + 0.7,
+                255, 170, 70, 210
+            );
+        } catch {}
+    });
 
     if (statusText && nowMs() < statusUntil) {
         mp.game.graphics.drawText(statusText, [0.5, 0.84], {
