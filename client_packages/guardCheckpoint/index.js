@@ -6,24 +6,12 @@ let lastSoundAt = 0;
 let statusText = null;
 let statusUntil = 0;
 
-const OWNER_REFRESH_MS = 1200;
-let lastOwnerTickAt = 0;
+const REFRESH_MS = 500;
+let lastRefreshAt = 0;
 
-const POSE_EPSILON_IGNORE = 0.35;
-const POSE_EPSILON_SOFT = 1.5;
-const POSE_EPSILON_HARD = 3.2;
-const POSE_SOFT_LERP = 0.18;
-const POSE_HARD_LERP = 0.38;
-
-const guardRuntime = new Map(); // pedRemoteId -> { cmd, targetId, at, lastExecAt, returnPos, weaponHash, role }
-const poseState = new Map(); // pedRemoteId -> last authoritative pose snapshot
-const lastPoseSentAt = new Map(); // pedRemoteId -> ts
+const runtimeByNpc = new Map(); // npcId -> runtime
 
 function nowMs() { return Date.now(); }
-
-function clog(text) {
-    try { console.log(`[GUARD-CHECKPOINT][CLIENT] ${text}`); } catch {}
-}
 
 function playSound(soundName, soundSet) {
     try { mp.game.audio.playSoundFrontend(-1, soundName, soundSet, true); } catch {}
@@ -33,10 +21,21 @@ function getPedRemoteId(ped) {
     return Number(ped && (ped.remoteId != null ? ped.remoteId : ped.id));
 }
 
-function isControllerPed(ped) {
-    if (!ped || !ped.getVariable || !mp.players.local) return false;
-    const rid = Number(ped.getVariable("controllerRid"));
-    return Number.isFinite(rid) && rid === Number(mp.players.local.remoteId);
+function isControllerPedByRid(controllerRid) {
+    if (!mp.players.local) return false;
+    return Number(controllerRid) === Number(mp.players.local.remoteId);
+}
+
+function findPedByNpcId(npcId) {
+    let found = null;
+    mp.peds.forEach((ped) => {
+        if (found) return;
+        try {
+            if (!ped || !ped.getVariable) return;
+            if (String(ped.getVariable("guardNpcId") || "") === String(npcId)) found = ped;
+        } catch {}
+    });
+    return found;
 }
 
 function getPlayerByServerId(serverId) {
@@ -44,7 +43,6 @@ function getPlayerByServerId(serverId) {
     const id = Number(serverId);
     const byRemoteId = mp.players.atRemoteId(id);
     if (byRemoteId) return byRemoteId;
-
     let found = null;
     mp.players.forEach((p) => {
         if (found) return;
@@ -63,195 +61,94 @@ function ensurePedWeapon(ped, weaponHash) {
     try { ped.setInfiniteAmmoClip(true); } catch {}
 }
 
-function executeCommandForPed(ped, data, force = false, authoritative = true) {
-    if (!ped || !ped.getVariable || !data) return;
-    if (authoritative && !isControllerPed(ped)) return;
+function executeNpcRuntime(rt, force = false) {
+    if (!rt) return;
+    const ped = (Number(rt.pedId) >= 0 ? mp.peds.atRemoteId(Number(rt.pedId)) : null) || findPedByNpcId(rt.npcId);
+    if (!ped || !ped.getVariable) return;
+
+    const isOwnerRole = String(rt.role) === "owner";
+    const isController = isControllerPedByRid(rt.controllerRid);
+    const authoritative = isOwnerRole && isController;
+    const observer = !isOwnerRole && !isController;
+    if (!authoritative && !observer) return;
 
     const t = nowMs();
-    if (!force && t - (data.lastExecAt || 0) < 250) return;
+    if (!force && t - (Number(rt.lastExecAt) || 0) < REFRESH_MS) return;
 
-    const command = String(data.cmd || "idle");
-    const target = getPlayerByServerId(data.targetId);
+    const command = String(rt.command || "idle");
+    const target = getPlayerByServerId(rt.targetId);
 
-    if (Number(data.weaponHash) > 0) ensurePedWeapon(ped, Number(data.weaponHash));
+    if (Number(rt.weaponHash) > 0) ensurePedWeapon(ped, Number(rt.weaponHash));
 
-    try {
-        switch (command) {
-            case "attack":
-                if (!target) break;
-                try { ped.clearTasks(); } catch {}
-                try { mp.game.ai.taskCombatPed(ped.handle, target.handle, 0, 16); } catch {
-                    try { ped.taskCombat(target.handle, 0, 16); } catch {}
-                }
-                try { ped.setKeepTask(true); } catch {}
-                break;
-            case "warning":
-            case "checking":
-                if (!target) break;
-                try { ped.clearTasks(); } catch {}
-                try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, OWNER_REFRESH_MS + 250, false); } catch {
-                    try { ped.taskAimGunAt(target.handle, OWNER_REFRESH_MS + 250, false); } catch {}
-                }
-                try { ped.setKeepTask(true); } catch {}
-                break;
-            case "return": {
-                const rp = data.returnPos || {
-                    x: Number(ped.getVariable("guardReturnX")) || ped.position.x,
-                    y: Number(ped.getVariable("guardReturnY")) || ped.position.y,
-                    z: Number(ped.getVariable("guardReturnZ")) || ped.position.z,
-                    heading: Number(ped.getVariable("guardReturnHeading")) || 0,
-                };
-                data.returnPos = rp;
-                try { ped.taskGoStraightToCoord(rp.x, rp.y, rp.z, 2.2, -1, rp.heading || 0, 0.05); } catch {}
-                break;
-            }
-            default:
-                try { ped.clearTasks(); } catch {}
-                try { ped.taskStandStill(1000); } catch {}
-                try { ped.setKeepTask(false); } catch {}
-                break;
-        }
-    } catch {}
-
-    data.lastExecAt = t;
-}
-
-
-function posePublishIntervalByCommand(command) {
-    switch (String(command || "idle")) {
-        case "attack":
-        case "warning":
-        case "checking":
-            return 130;
-        case "return":
-            return 220;
-        default:
-            return 650;
+    if (command === "dead" || rt.dead || rt.alive === false) {
+        try { ped.clearTasksImmediately(); } catch {}
+        try { ped.setKeepTask(false); } catch {}
+        try { ped.setHealth(0); } catch {}
+        try { mp.game.ped.setPedToRagdoll(ped.handle, 5000, 5000, 0, false, false, false); } catch {}
+        rt.lastExecAt = t;
+        return;
     }
-}
 
-function maybePublishOwnerPose(ped, state, postId, ver, now, outList) {
-    if (!ped || !state || !postId) return;
-    const pedId = getPedRemoteId(ped);
-    if (!Number.isFinite(pedId)) return;
-    const minDelay = posePublishIntervalByCommand(state.cmd);
-    const last = Number(lastPoseSentAt.get(pedId)) || 0;
-    if (now - last < minDelay) return;
-    lastPoseSentAt.set(pedId, now);
-
-    const pos = ped.position;
-    if (!pos) return;
-    let velX = 0; let velY = 0; let velZ = 0; let speed = 0;
-    try {
-        const v = ped.getVelocity ? ped.getVelocity() : null;
-        if (v) {
-            velX = Number(v.x) || 0;
-            velY = Number(v.y) || 0;
-            velZ = Number(v.z) || 0;
-            speed = Math.sqrt(velX * velX + velY * velY + velZ * velZ);
+    switch (command) {
+        case "followTarget": {
+            if (!target) break;
+            const targetPos = target.position;
+            try { ped.taskFollowToOffsetOfEntity(target.handle, 0, 0, 0, Number(rt.speed) || 1.7, 2000, Number(rt.stopDistance) || 1.6, true); } catch {}
+            try { ped.taskGoToCoordAnyMeans(targetPos.x, targetPos.y, targetPos.z, Number(rt.speed) || 1.7, 0, false, 0, 0.0); } catch {}
+            try { ped.setKeepTask(true); } catch {}
+            break;
         }
-    } catch {}
-
-    outList.push({
-        pedId,
-        x: Number(pos.x) || 0,
-        y: Number(pos.y) || 0,
-        z: Number(pos.z) || 0,
-        heading: Number(ped.getHeading ? ped.getHeading() : 0) || 0,
-        timestamp: now,
-        velX,
-        velY,
-        velZ,
-        speed,
-    });
-}
-
-function applyObserverPoseCorrections() {
-    poseState.forEach((snap, pedId) => {
-        try {
-            const ped = mp.peds.atRemoteId(pedId);
-            if (!ped || !ped.getVariable) return;
-            if (isControllerPed(ped)) return;
-
-            const px = Number(ped.position.x) || 0;
-            const py = Number(ped.position.y) || 0;
-            const pz = Number(ped.position.z) || 0;
-            const dx = Number(snap.x) - px;
-            const dy = Number(snap.y) - py;
-            const dz = Number(snap.z) - pz;
-            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-            if (dist < POSE_EPSILON_IGNORE) return;
-
-            if (dist > POSE_EPSILON_HARD) {
-                try { ped.setCoordsNoOffset(Number(snap.x), Number(snap.y), Number(snap.z), false, false, false); } catch {}
-            } else {
-                const k = dist > POSE_EPSILON_SOFT ? POSE_HARD_LERP : POSE_SOFT_LERP;
-                try { ped.setCoordsNoOffset(px + dx * k, py + dy * k, pz + dz * k, false, false, false); } catch {}
+        case "attackTarget": {
+            if (!target) break;
+            try { ped.clearTasks(); } catch {}
+            try { mp.game.ai.taskCombatPed(ped.handle, target.handle, 0, 16); } catch {
+                try { ped.taskCombat(target.handle, 0, 16); } catch {}
             }
+            try { ped.setKeepTask(true); } catch {}
+            break;
+        }
+        case "returnPost": {
+            const rp = rt.returnPost || {};
+            try { ped.taskGoStraightToCoord(Number(rp.x) || ped.position.x, Number(rp.y) || ped.position.y, Number(rp.z) || ped.position.z, 2.2, -1, Number(rp.heading) || 0, 0.05); } catch {}
+            try { ped.setKeepTask(true); } catch {}
+            break;
+        }
+        default:
+            try { ped.clearTasks(); } catch {}
+            try { ped.taskStandStill(1000); } catch {}
+            try { ped.setKeepTask(false); } catch {}
+            break;
+    }
 
-            const h = Number(snap.heading);
-            if (Number.isFinite(h)) {
-                try {
-                    const cur = Number(ped.getHeading ? ped.getHeading() : 0) || 0;
-                    const dH = ((h - cur + 540) % 360) - 180;
-                    const hk = dist > POSE_EPSILON_SOFT ? 0.22 : 0.12;
-                    ped.setHeading(cur + dH * hk);
-                } catch {}
-            }
-        } catch {}
-    });
+    rt.lastExecAt = t;
+    rt.pedId = getPedRemoteId(ped);
 }
 
 function sendControllerAck(postId, ver) {
     try { mp.events.callRemote("guardCheckpoint:controller.ack", postId, ver); } catch {}
 }
 
-function runCommandRefreshLoop() {
-    const t = nowMs();
-    if (t - lastOwnerTickAt < OWNER_REFRESH_MS) return;
-    lastOwnerTickAt = t;
-
-    const postsHeartbeat = new Map();
-    const poseBatchByPost = new Map();
-
-    mp.peds.forEach((ped) => {
-        try {
-            if (!ped || !ped.getVariable) return;
-            if (!ped.getVariable("guardPostId")) return;
-
-            const pedId = getPedRemoteId(ped);
-            const state = guardRuntime.get(pedId);
-            if (!state) return;
-
-            const isOwnerRole = state.role === "owner";
-            const isController = isControllerPed(ped);
-            if (isOwnerRole && isController) {
-                executeCommandForPed(ped, state, false, true);
-                const postId = String(ped.getVariable("guardPostId") || "");
-                const ver = Number(ped.getVariable("ctrlVer")) || 0;
-                if (postId) {
-                    postsHeartbeat.set(postId, ver);
-                    const list = poseBatchByPost.get(postId) || [];
-                    maybePublishOwnerPose(ped, state, postId, ver, t, list);
-                    poseBatchByPost.set(postId, list);
-                }
-                return;
-            }
-
-            if (!isOwnerRole && !isController) {
-                executeCommandForPed(ped, state, false, false);
-            }
-        } catch {}
+function sendOwnerHeartbeats() {
+    const posts = new Map();
+    runtimeByNpc.forEach((rt) => {
+        if (!rt) return;
+        if (String(rt.role) !== "owner") return;
+        if (!isControllerPedByRid(rt.controllerRid)) return;
+        posts.set(String(rt.postId), Number(rt.ctrlVer) || 0);
     });
 
-    postsHeartbeat.forEach((ver, postId) => {
+    posts.forEach((ver, postId) => {
         try { mp.events.callRemote("guardCheckpoint:controller.heartbeat", postId, ver); } catch {}
-        const poses = poseBatchByPost.get(postId) || [];
-        if (poses.length) {
-            try { mp.events.callRemote("guardCheckpoint:pose:update", postId, ver, poses); } catch {}
-        }
     });
+}
+
+function runRuntimeRefresh() {
+    const t = nowMs();
+    if (t - lastRefreshAt < REFRESH_MS) return;
+    lastRefreshAt = t;
+
+    runtimeByNpc.forEach((rt) => executeNpcRuntime(rt, false));
+    sendOwnerHeartbeats();
 }
 
 mp.events.add({
@@ -281,7 +178,6 @@ mp.events.add({
     "guardCheckpoint:status:text": (postId, text, durationMs) => {
         statusText = String(text || "");
         statusUntil = nowMs() + Math.max(1000, Number(durationMs) || 3000);
-        clog(`status post=${postId} text="${statusText}"`);
     },
 
     "guardCheckpoint:controller:switch": (postId, ver) => {
@@ -290,87 +186,50 @@ mp.events.add({
     },
 
     "guardCheckpoint:executeCommand": (payload) => {
-        const dataPayload = payload && typeof payload === "object" ? payload : {};
-        const postId = String(dataPayload.postId || "");
-        const command = String(dataPayload.command || "idle");
-        const targetId = Number(dataPayload.targetId);
-        const commandVer = Number(dataPayload.cmdVer) || nowMs();
-        const role = String(dataPayload.role || "observer");
-        const units = Array.isArray(dataPayload.units) ? dataPayload.units : [];
+        const p = payload && typeof payload === "object" ? payload : {};
+        const postId = String(p.postId || "");
+        const role = String(p.role || "observer");
+        const controllerRid = Number(p.controllerRid) || -1;
+        const ctrlVer = Number(p.ctrlVer) || 0;
+        const cmdVer = Number(p.cmdVer) || nowMs();
+        const units = Array.isArray(p.units) ? p.units : [];
 
-        const hints = new Map();
         units.forEach((u) => {
-            const pedId = Number(u && u.pedId);
-            if (!Number.isFinite(pedId)) return;
-            hints.set(pedId, u);
+            const npcId = String(u && u.npcId || "");
+            if (!npcId) return;
+            const rt = runtimeByNpc.get(npcId) || {};
+            rt.postId = postId;
+            rt.role = role;
+            rt.controllerRid = controllerRid;
+            rt.ctrlVer = ctrlVer;
+            rt.cmdVer = cmdVer;
+            rt.pedId = Number(u.pedId);
+            rt.npcId = npcId;
+            rt.command = String(u.command || p.command || "idle");
+            rt.targetId = Number(u.targetId);
+            rt.weaponHash = Number(u.weaponHash) || 0;
+            rt.returnPost = u.returnPost || null;
+            rt.alive = !!u.alive;
+            rt.dead = !!u.dead;
+            rt.deathTs = Number(u.deathTs) || 0;
+            rt.speed = Number(u.speed) || 1.7;
+            rt.stopDistance = Number(u.stopDistance) || 1.6;
+            runtimeByNpc.set(npcId, rt);
+            executeNpcRuntime(rt, true);
         });
-
-        mp.peds.forEach((ped) => {
-            try {
-                if (!ped || !ped.getVariable) return;
-                if (String(ped.getVariable("guardPostId") || "") !== postId) return;
-
-                const pedId = getPedRemoteId(ped);
-                if (!Number.isFinite(pedId)) return;
-                const hint = hints.get(pedId) || {};
-                const state = guardRuntime.get(pedId) || {};
-                state.cmd = command;
-                state.targetId = targetId;
-                state.at = commandVer;
-                state.role = role;
-                state.weaponHash = Number(hint.weaponHash) || Number(ped.getVariable("guardWeaponHash")) || 0;
-                const hRet = hint.returnPos || {};
-                state.returnPos = {
-                    x: Number(hRet.x) || Number(ped.getVariable("guardReturnX")) || ped.position.x,
-                    y: Number(hRet.y) || Number(ped.getVariable("guardReturnY")) || ped.position.y,
-                    z: Number(hRet.z) || Number(ped.getVariable("guardReturnZ")) || ped.position.z,
-                    heading: Number(hRet.heading) || Number(ped.getVariable("guardReturnHeading")) || 0,
-                };
-                guardRuntime.set(pedId, state);
-
-                const authoritative = role === "owner";
-                executeCommandForPed(ped, state, true, authoritative);
-            } catch {}
-        });
-    },
-
-    "guardCheckpoint:pose:snapshot": (postId, ctrlVer, poses) => {
-        const arr = Array.isArray(poses) ? poses : [];
-        arr.forEach((item) => {
-            const pedId = Number(item && item.pedId);
-            if (!Number.isFinite(pedId)) return;
-            poseState.set(pedId, {
-                x: Number(item.x) || 0,
-                y: Number(item.y) || 0,
-                z: Number(item.z) || 0,
-                heading: Number(item.heading) || 0,
-                timestamp: Number(item.timestamp) || nowMs(),
-                velX: Number(item.velX) || 0,
-                velY: Number(item.velY) || 0,
-                velZ: Number(item.velZ) || 0,
-                speed: Number(item.speed) || 0,
-            });
-        });
-    },
-
-    "guardCheckpoint:debug": (text) => {
-        clog(`server-debug: ${text}`);
     },
 });
 
 mp.events.add("entityStreamOut", (entity) => {
     if (!entity || entity.type !== "ped") return;
-    const pedId = getPedRemoteId(entity);
-    if (Number.isFinite(pedId)) {
-        guardRuntime.delete(pedId);
-        poseState.delete(pedId);
-        lastPoseSentAt.delete(pedId);
-    }
+    const rid = getPedRemoteId(entity);
+    runtimeByNpc.forEach((rt, npcId) => {
+        if (Number(rt.pedId) === Number(rid)) rt.pedId = -1;
+    });
 });
 
 mp.events.add("render", () => {
-    runCommandRefreshLoop();
-    applyObserverPoseCorrections();
+    runRuntimeRefresh();
 
     if (statusText && nowMs() < statusUntil) {
         mp.game.graphics.drawText(statusText, [0.5, 0.84], {

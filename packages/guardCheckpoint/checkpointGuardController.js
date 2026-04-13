@@ -342,53 +342,6 @@ class CheckpointGuardController {
         post.lastControllerHeartbeatAt = Date.now();
     }
 
-    onPoseUpdate(player, postId, ver, payload) {
-        if (!isValidPlayer(player)) return;
-        const post = this.getPost(postId);
-        if (!post) return;
-        if (Number(player.id) !== Number(post.streamOwnerId)) return;
-        if (Number(ver) !== Number(post.ctrlVer || 0)) return;
-
-        const poses = Array.isArray(payload) ? payload : [];
-        if (!poses.length) return;
-
-        const unitIds = new Set();
-        [post.leader, ...post.guards].forEach((u) => {
-            if (!u || !u.exists()) return;
-            const pid = Number(u.ped && (u.ped.id != null ? u.ped.id : u.ped.remoteId));
-            if (Number.isFinite(pid)) unitIds.add(pid);
-        });
-
-        const sanitized = [];
-        for (const item of poses) {
-            const pedId = Number(item && item.pedId);
-            if (!Number.isFinite(pedId) || !unitIds.has(pedId)) continue;
-            const x = Number(item.x);
-            const y = Number(item.y);
-            const z = Number(item.z);
-            if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
-            sanitized.push({
-                pedId,
-                x,
-                y,
-                z,
-                heading: Number(item.heading) || 0,
-                timestamp: Number(item.timestamp) || Date.now(),
-                velX: Number(item.velX) || 0,
-                velY: Number(item.velY) || 0,
-                velZ: Number(item.velZ) || 0,
-                speed: Number(item.speed) || 0,
-            });
-        }
-
-        if (!sanitized.length) return;
-
-        this.forEachPlayersInPost(post, (rec) => {
-            if (Number(rec.id) === Number(post.streamOwnerId)) return;
-            rec.call("guardCheckpoint:pose:snapshot", [post.id, Number(post.ctrlVer) || 0, sanitized]);
-        });
-    }
-
     markAggressive(playerId) {
         this.playerAggressiveUntil.set(playerId, Date.now() + (this.config.aggressiveMemoryMs || 12000));
     }
@@ -640,7 +593,7 @@ class CheckpointGuardController {
         if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
         post.lastAppliedBehaviorKey = behaviorKey;
 
-        this.dispatchNpcCommand(post, "warning", target, { force });
+        this.dispatchNpcCommand(post, "followTarget", target, { force });
     }
 
     applyAttackBehavior(post, target, force = false) {
@@ -649,7 +602,7 @@ class CheckpointGuardController {
         if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
         post.lastAppliedBehaviorKey = behaviorKey;
 
-        this.dispatchNpcCommand(post, "attack", target, { force });
+        this.dispatchNpcCommand(post, "attackTarget", target, { force });
     }
 
     applyReturnBehavior(post, force = false) {
@@ -657,7 +610,7 @@ class CheckpointGuardController {
         if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
         post.lastAppliedBehaviorKey = behaviorKey;
 
-        this.dispatchNpcCommand(post, "return", null, { force });
+        this.dispatchNpcCommand(post, "returnPost", null, { force });
     }
 
     resolveTargetPlayer(post) {
@@ -725,7 +678,7 @@ class CheckpointGuardController {
             post.checkingGraceUntil = now + 1100;
             const target = getPlayerById(post.targetPlayerId);
             this.sendStatusText(post, "Идет досмотр, оставайтесь в зоне проверки (5 секунд)", 5000, target);
-            if (target) this.dispatchNpcCommand(post, "checking", target, { force: true });
+            if (target) this.dispatchNpcCommand(post, "followTarget", target, { force: true });
         }
 
         if (nextState === POST_STATE.ATTACK) {
@@ -738,6 +691,10 @@ class CheckpointGuardController {
         if (nextState === POST_STATE.IDLE || nextState === POST_STATE.RETURN) {
             const target = getPlayerById(post.targetPlayerId);
             this.sendWarningStop(target, post.id);
+        }
+
+        if (nextState === POST_STATE.IDLE) {
+            this.dispatchNpcCommand(post, "idle", null, { force: true });
         }
 
         this.log(`post=${post.id} ${prev} -> ${nextState} (${reason})`);
@@ -890,15 +847,13 @@ class CheckpointGuardController {
 
         const target = this.getCurrentTarget(post);
         let command = "idle";
-        if (post.state === POST_STATE.ATTACK) command = target ? "attack" : "return";
-        else if (post.state === POST_STATE.WARNING) command = target ? "warning" : "return";
-        else if (post.state === POST_STATE.CHECKING) command = target ? "checking" : "return";
-        else if (post.state === POST_STATE.RETURN) command = "return";
+        if (post.state === POST_STATE.ATTACK) command = target ? "attackTarget" : "returnPost";
+        else if (post.state === POST_STATE.WARNING || post.state === POST_STATE.CHECKING) command = target ? "followTarget" : "returnPost";
+        else if (post.state === POST_STATE.RETURN) command = "returnPost";
 
-        if (command === "warning") this.dispatchNpcCommand(post, "warning", target, { force: true, owner });
-        else if (command === "checking") this.dispatchNpcCommand(post, "checking", target, { force: true, owner });
-        else if (command === "attack") this.dispatchNpcCommand(post, "attack", target, { force: true, owner });
-        else if (command === "return") this.dispatchNpcCommand(post, "return", null, { force: true, owner });
+        if (command === "followTarget") this.dispatchNpcCommand(post, "followTarget", target, { force: true, owner });
+        else if (command === "attackTarget") this.dispatchNpcCommand(post, "attackTarget", target, { force: true, owner });
+        else if (command === "returnPost") this.dispatchNpcCommand(post, "returnPost", null, { force: true, owner });
         else this.dispatchNpcCommand(post, "idle", null, { force: true, owner });
         this.log(`post=${post.id} owner-resync cmd=${command} target=${target ? target.id : -1} reason=${reason}`);
     }
@@ -912,39 +867,54 @@ class CheckpointGuardController {
         post.lastClientCommandKey = key;
         post.lastClientCommandAt = now;
 
-        const units = [post.leader, ...post.guards].filter((unit) => unit && unit.exists());
         const owner = getPlayerById(post.streamOwnerId);
         if (!isValidPlayer(owner) || Number(post.controllerAckVer) !== Number(post.ctrlVer)) {
             post.pendingMovementCommand = { command, targetId, at: Date.now() };
             return;
         }
 
+        const unitsAll = [post.leader, ...post.guards].filter(Boolean);
         const unitPayload = [];
-        for (const unit of units) {
-            const ped = unit.ped;
+        for (const unit of unitsAll) {
+            const alive = !!(unit && unit.exists && unit.exists());
+            const ped = alive ? unit.ped : null;
             const pedId = Number(ped && (ped.id != null ? ped.id : ped.remoteId));
-            try { ped.setVariable("guardState", command); } catch {}
-            try { ped.setVariable("guardTarget", Number(targetId)); } catch {}
-            try { ped.setVariable("guardTargetId", Number(targetId)); } catch {}
-            try { ped.setVariable("guardStartedAt", now); } catch {}
-            try { ped.setVariable("guardWeaponHash", Number(unit.weaponHash) || 0); } catch {}
-            try { ped.setVariable("guardReturnX", Number(unit.spawnPos.x) || 0); } catch {}
-            try { ped.setVariable("guardReturnY", Number(unit.spawnPos.y) || 0); } catch {}
-            try { ped.setVariable("guardReturnZ", Number(unit.spawnPos.z) || 0); } catch {}
-            try { ped.setVariable("guardReturnHeading", Number(unit.spawnHeading) || 0); } catch {}
-            try { ped.setVariable("guardCmdVer", now); } catch {}
-            if (Number.isFinite(pedId)) {
-                unitPayload.push({
-                    pedId,
-                    weaponHash: Number(unit.weaponHash) || 0,
-                    returnPos: {
-                        x: Number(unit.spawnPos.x) || 0,
-                        y: Number(unit.spawnPos.y) || 0,
-                        z: Number(unit.spawnPos.z) || 0,
-                        heading: Number(unit.spawnHeading) || 0,
-                    },
-                });
+            const unitCommand = alive ? command : 'dead';
+            const deathTs = Number(unit && unit.deadAt) || 0;
+
+            if (alive) {
+                try { ped.setVariable("guardState", unitCommand); } catch {}
+                try { ped.setVariable("guardTarget", Number(targetId)); } catch {}
+                try { ped.setVariable("guardTargetId", Number(targetId)); } catch {}
+                try { ped.setVariable("guardStartedAt", now); } catch {}
+                try { ped.setVariable("guardWeaponHash", Number(unit.weaponHash) || 0); } catch {}
+                try { ped.setVariable("guardReturnX", Number(unit.spawnPos.x) || 0); } catch {}
+                try { ped.setVariable("guardReturnY", Number(unit.spawnPos.y) || 0); } catch {}
+                try { ped.setVariable("guardReturnZ", Number(unit.spawnPos.z) || 0); } catch {}
+                try { ped.setVariable("guardReturnHeading", Number(unit.spawnHeading) || 0); } catch {}
+                try { ped.setVariable("guardCmdVer", now); } catch {}
             }
+
+            unitPayload.push({
+                pedId: Number.isFinite(pedId) ? pedId : -1,
+                npcId: String(unit.id),
+                command: unitCommand,
+                targetId: Number(targetId),
+                controllerRid: Number(post.streamOwnerId) || -1,
+                ctrlVer: Number(post.ctrlVer) || 0,
+                weaponHash: Number(unit.weaponHash) || 0,
+                returnPost: {
+                    x: Number(unit.spawnPos.x) || 0,
+                    y: Number(unit.spawnPos.y) || 0,
+                    z: Number(unit.spawnPos.z) || 0,
+                    heading: Number(unit.spawnHeading) || 0,
+                },
+                alive,
+                dead: !alive,
+                deathTs,
+                speed: 2.2,
+                stopDistance: 1.6,
+            });
         }
 
         this.forEachPlayersInPost(post, (rec) => {

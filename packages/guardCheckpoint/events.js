@@ -38,9 +38,6 @@ module.exports = {
         controller.onControllerHeartbeat(player, postId, ver);
     },
 
-    "guardCheckpoint:pose:update": (player, postId, ver, payload) => {
-        controller.onPoseUpdate(player, postId, ver, payload);
-    },
 
     "guardCheckpoint.reload": async (player) => {
         if (!player || !player.character || player.character.admin < 5) return;
