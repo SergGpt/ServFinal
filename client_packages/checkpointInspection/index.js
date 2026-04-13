@@ -1,1 +1,1 @@
-require('./runtime');
+require('checkpointInspection/runtime.js');

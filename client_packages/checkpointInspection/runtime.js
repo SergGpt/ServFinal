@@ -1,4 +1,4 @@
-const CFG = require('./config');
+const CFG = require('checkpointInspection/config.js');
 
 const me = mp.players.local;
 const guards = new Map();
