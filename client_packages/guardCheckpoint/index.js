@@ -7,9 +7,9 @@ let statusText = null;
 let statusUntil = 0;
 
 const AI_LOOP_MS = 200;
-const AIM_REPLAY_MS = 300;
-const SHOOT_REPLAY_MS = 360;
-const COMBAT_REPLAY_MS = 1200;
+const AIM_REPLAY_MS = 1200;
+const SHOOT_REPLAY_MS = 1400;
+const COMBAT_REPLAY_MS = 1500;
 const RETURN_REPLAY_MS = 900;
 const CLEAR_REPLAY_MS = 900;
 const POSE_SMOOTH_FACTOR = 0.12;
@@ -258,11 +258,13 @@ function runOwnerExecution(ped, rt, t) {
             rt.lastCombatAt = t;
         }
         if (t - rt.lastAimAt >= AIM_REPLAY_MS) {
-            try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, AIM_REPLAY_MS + 200, false); } catch {}
+            // keep as a soft nudge only; taskCombatPed remains the primary attack task
+            try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, 350, false); } catch {}
             rt.lastAimAt = t;
         }
         if (t - rt.lastShootAt >= SHOOT_REPLAY_MS) {
-            try { mp.game.ai.taskShootAtEntity(ped.handle, target.handle, SHOOT_REPLAY_MS + 200, mp.game.joaat("FIRING_PATTERN_FULL_AUTO")); } catch {}
+            // avoid long shoot tasks that fight with taskCombatPed and cause sliding
+            try { mp.game.ai.taskShootAtEntity(ped.handle, target.handle, 250, mp.game.joaat("FIRING_PATTERN_FULL_AUTO")); } catch {}
             rt.lastShootAt = t;
         }
         return;
@@ -293,7 +295,11 @@ function runOwnerExecution(ped, rt, t) {
         return;
     }
 
-    if (t - rt.lastClearAt >= CLEAR_REPLAY_MS) { clearTasksImmediate(ped); rt.lastClearAt = t; }
+    // idle/fallback: do not spam clear tasks every tick cycle
+    if (t - rt.lastClearAt >= 8000) {
+        try { ped.setKeepTask(false); } catch {}
+        rt.lastClearAt = t;
+    }
 }
 
 function runGuardAiLoop() {
