@@ -252,6 +252,7 @@ class CheckpointGuardController {
             lastPoseSyncAt: 0,
             ctrlVer: 0,
             controllerAckVer: 0,
+            lastControllerHeartbeatAt: 0,
             pendingMovementCommand: null,
         };
     }
@@ -323,12 +324,22 @@ class CheckpointGuardController {
         if (Number(ver) !== expectedVer) return;
 
         post.controllerAckVer = expectedVer;
+        post.lastControllerHeartbeatAt = Date.now();
         const pending = post.pendingMovementCommand;
         if (!pending) return;
         post.pendingMovementCommand = null;
         const target = pending.targetId >= 0 ? getPlayerById(pending.targetId) : null;
         this.dispatchNpcCommand(post, pending.command, target, { force: true, owner: player });
         this.log(`post=${post.id} controller ack ver=${ver} replay cmd=${pending.command}`);
+    }
+
+    onControllerHeartbeat(player, postId, ver) {
+        if (!isValidPlayer(player)) return;
+        const post = this.getPost(postId);
+        if (!post) return;
+        if (Number(player.id) !== Number(post.streamOwnerId)) return;
+        if (Number(ver) !== Number(post.ctrlVer || 0)) return;
+        post.lastControllerHeartbeatAt = Date.now();
     }
 
     markAggressive(playerId) {
@@ -375,7 +386,14 @@ class CheckpointGuardController {
         post.leader.syncDeathIfNeeded(now);
         for (const guard of post.guards) guard.syncDeathIfNeeded(now);
         this.updateStreamOwner(post, now);
-        this.publishAuthoritativePose(post, now);
+        const hbTimeoutMs = Number(this.config.controllerHeartbeatTimeoutMs || 5000);
+        if (post.streamOwnerId != null && post.controllerAckVer === post.ctrlVer && post.lastControllerHeartbeatAt && (now - post.lastControllerHeartbeatAt > hbTimeoutMs)) {
+            this.log(`post=${post.id} heartbeat timeout owner=${post.streamOwnerId}`);
+            post.streamOwnerId = null;
+            post.controllerAckVer = 0;
+            post.lastControllerHeartbeatAt = 0;
+            this.applyStreamOwner(post, null);
+        }
 
         const target = this.resolveTargetPlayer(post);
         const prevTargetPos = post.targetPlayerLastPos ? { ...post.targetPlayerLastPos } : null;
@@ -575,15 +593,7 @@ class CheckpointGuardController {
         if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
         post.lastAppliedBehaviorKey = behaviorKey;
 
-        post.leader.setFacing(target.position);
-        post.leader.playStopAnim();
-        post.leader.readyWeapon();
-        post.leader.aimAtTarget(target);
-        for (const guard of post.guards) {
-            guard.readyWeapon();
-            guard.aimAtTarget(target);
-        }
-        this.dispatchNpcCommand(post, "aim", target, { force });
+        this.dispatchNpcCommand(post, "warn", target, { force });
     }
 
     applyAttackBehavior(post, target, force = false) {
@@ -592,9 +602,7 @@ class CheckpointGuardController {
         if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
         post.lastAppliedBehaviorKey = behaviorKey;
 
-        post.leader.fireAtTarget(target);
-        for (const guard of post.guards) guard.fireAtTarget(target);
-        this.dispatchNpcCommand(post, "fire", target, { force });
+        this.dispatchNpcCommand(post, "attack", target, { force });
     }
 
     applyReturnBehavior(post, force = false) {
@@ -602,12 +610,6 @@ class CheckpointGuardController {
         if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
         post.lastAppliedBehaviorKey = behaviorKey;
 
-        post.leader.stopCombat();
-        post.leader.returnToPost();
-        for (const guard of post.guards) {
-            guard.stopCombat();
-            guard.returnToPost();
-        }
         this.dispatchNpcCommand(post, "return", null, { force });
     }
 
@@ -676,6 +678,7 @@ class CheckpointGuardController {
             post.checkingGraceUntil = now + 1100;
             const target = getPlayerById(post.targetPlayerId);
             this.sendStatusText(post, "Идет досмотр, оставайтесь в зоне проверки (5 секунд)", 5000, target);
+            if (target) this.dispatchNpcCommand(post, "check", target, { force: true });
         }
 
         if (nextState === POST_STATE.ATTACK) {
@@ -776,22 +779,6 @@ class CheckpointGuardController {
         });
     }
 
-    publishAuthoritativePose(post, now) {
-        if (now - (post.lastPoseSyncAt || 0) < 150) return;
-        post.lastPoseSyncAt = now;
-        const units = [post.leader, ...post.guards];
-        for (const unit of units) {
-            if (!unit || !unit.exists()) continue;
-            const ped = unit.ped;
-            const pos = ped.position;
-            try { ped.setVariable("guardPoseX", Number(pos.x) || 0); } catch {}
-            try { ped.setVariable("guardPoseY", Number(pos.y) || 0); } catch {}
-            try { ped.setVariable("guardPoseZ", Number(pos.z) || 0); } catch {}
-            try { ped.setVariable("guardPoseHeading", Number(ped.getHeading ? ped.getHeading() : unit.spawnHeading) || 0); } catch {}
-            try { ped.setVariable("guardPoseUpdatedAt", now); } catch {}
-        }
-    }
-
     updateStreamOwner(post, now) {
         const inside = [];
         this.forEachPlayersInPost(post, (player) => {
@@ -823,6 +810,7 @@ class CheckpointGuardController {
         post.lastClientCommandAt = 0;
         post.ctrlVer = (Number(post.ctrlVer) || 0) + 1;
         post.controllerAckVer = 0;
+        post.lastControllerHeartbeatAt = 0;
         this.applyStreamOwner(post, nextOwner);
         const owner = getPlayerById(nextOwner);
         if (isValidPlayer(owner)) {
@@ -837,6 +825,7 @@ class CheckpointGuardController {
         [post.leader, ...post.guards].forEach((unit) => {
             if (!unit.exists()) return;
             try { unit.ped.setVariable("streamOwnerId", ownerId == null ? -1 : ownerId); } catch {}
+            try { unit.ped.setVariable("controllerRid", ownerId == null ? -1 : ownerId); } catch {}
             try { unit.ped.setVariable("ctrlVer", Number(post.ctrlVer) || 0); } catch {}
             if (!owner) return;
             try { unit.ped.controller = owner; } catch {}
@@ -854,13 +843,15 @@ class CheckpointGuardController {
 
         const target = this.getCurrentTarget(post);
         let command = "idle";
-        if (post.state === POST_STATE.ATTACK) command = target ? "fire" : "return";
-        else if (post.state === POST_STATE.WARNING || post.state === POST_STATE.CHECKING) command = target ? "aim" : "return";
+        if (post.state === POST_STATE.ATTACK) command = target ? "attack" : "return";
+        else if (post.state === POST_STATE.WARNING) command = target ? "warn" : "return";
+        else if (post.state === POST_STATE.CHECKING) command = target ? "check" : "return";
         else if (post.state === POST_STATE.RETURN) command = "return";
 
-        if (command === "aim") this.applyWarningBehavior(post, target, true);
-        else if (command === "fire") this.applyAttackBehavior(post, target, true);
-        else if (command === "return") this.applyReturnBehavior(post, true);
+        if (command === "warn") this.dispatchNpcCommand(post, "warn", target, { force: true, owner });
+        else if (command === "check") this.dispatchNpcCommand(post, "check", target, { force: true, owner });
+        else if (command === "attack") this.dispatchNpcCommand(post, "attack", target, { force: true, owner });
+        else if (command === "return") this.dispatchNpcCommand(post, "return", null, { force: true, owner });
         else this.dispatchNpcCommand(post, "idle", null, { force: true, owner });
         this.log(`post=${post.id} owner-resync cmd=${command} target=${target ? target.id : -1} reason=${reason}`);
     }
@@ -874,33 +865,28 @@ class CheckpointGuardController {
         post.lastClientCommandKey = key;
         post.lastClientCommandAt = now;
 
-        const units = [post.leader, ...post.guards]
-            .filter((unit) => unit && unit.exists())
-            .map((unit) => ({
-                pedId: unit.ped.id,
-                role: unit.role,
-                x: unit.spawnPos.x,
-                y: unit.spawnPos.y,
-                z: unit.spawnPos.z,
-                heading: unit.spawnHeading,
-                weaponHash: unit.weaponHash || 0,
-            }));
+        const units = [post.leader, ...post.guards].filter((unit) => unit && unit.exists());
         const owner = getPlayerById(post.streamOwnerId);
-        if (command === "return") {
-            if (!isValidPlayer(owner)) {
-                post.pendingMovementCommand = { command, targetId, at: Date.now() };
-                return;
-            }
-            if (Number(post.controllerAckVer) !== Number(post.ctrlVer)) {
-                post.pendingMovementCommand = { command, targetId, at: Date.now() };
-                return;
-            }
-            owner.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
+        if (!isValidPlayer(owner) || Number(post.controllerAckVer) !== Number(post.ctrlVer)) {
+            post.pendingMovementCommand = { command, targetId, at: Date.now() };
             return;
         }
-        this.forEachPlayersInPost(post, (rec) => {
-            rec.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
-        });
+
+        for (const unit of units) {
+            const ped = unit.ped;
+            try { ped.setVariable("guardState", command); } catch {}
+            try { ped.setVariable("guardTarget", Number(targetId)); } catch {}
+            try { ped.setVariable("guardTargetId", Number(targetId)); } catch {}
+            try { ped.setVariable("guardStartedAt", now); } catch {}
+            try { ped.setVariable("guardWeaponHash", Number(unit.weaponHash) || 0); } catch {}
+            try { ped.setVariable("guardReturnX", Number(unit.spawnPos.x) || 0); } catch {}
+            try { ped.setVariable("guardReturnY", Number(unit.spawnPos.y) || 0); } catch {}
+            try { ped.setVariable("guardReturnZ", Number(unit.spawnPos.z) || 0); } catch {}
+            try { ped.setVariable("guardReturnHeading", Number(unit.spawnHeading) || 0); } catch {}
+            try { ped.setVariable("guardCmdVer", now); } catch {}
+        }
+
+        owner.call("guardCheckpoint:executeCommand", [post.id, command, targetId, now]);
     }
 
     getPost(postId) {

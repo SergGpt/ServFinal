@@ -7,6 +7,8 @@ const GUARD_CHECKPOINT_CONFIG = {
     tickMs: 300,
     movementThreshold: 0.08,
     transitionCooldownMs: 900,
+    controllerHeartbeatMs: 1000,
+    controllerHeartbeatTimeoutMs: 5000,
     warningTimeoutMs: 8000,
     aggressiveMemoryMs: 12000,
     defaultRespawnMs: 15000,
