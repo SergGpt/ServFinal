@@ -337,10 +337,9 @@ class CheckpointGuardController {
         if (!isValidPlayer(player)) return;
         const post = this.getPost(postId);
         if (!post) return;
-        if (Number(player.id) !== Number(post.streamOwnerId)) return;
 
         const allUnits = [post.leader, ...post.guards];
-        const found = allUnits.find((unit) => unit && unit.exists() && Number(unit.ped.id) === Number(pedId));
+        const found = allUnits.find((unit) => unit && unit.ped && Number(unit.ped.id) === Number(pedId));
         if (!found) return;
         found.markDead(Date.now(), `client-signal owner=${player.id}`);
         this.log(`post=${post.id} npc-dead-signal ped=${pedId} by owner=${player.id}`);
@@ -561,11 +560,10 @@ class CheckpointGuardController {
         const intervalMs = Math.max(180, Number(post.cfg.attackDamageIntervalMs || this.config.attackDamageIntervalMs || 450));
         if (now - (post.lastAttackDamageAt || 0) < intervalMs) return;
 
-        const range = Math.max(4, Number(post.cfg.attackDamageRange || this.config.attackDamageRange || 38));
         const aliveUnits = [post.leader, ...post.guards].filter((unit) => unit && unit.exists());
         if (!aliveUnits.length) return;
 
-        const attackers = aliveUnits.filter((unit) => dist3(unit.ped.position, target.position) <= range);
+        const attackers = aliveUnits;
         if (!attackers.length) return;
 
         let damagePerAttacker = Number(post.cfg.attackDamagePerAttacker || this.config.attackDamagePerAttacker || 7);
