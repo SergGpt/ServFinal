@@ -39,6 +39,11 @@ const GUARD_CHECKPOINT_CONFIG = {
                 center: { x: -2260.53, y: 3184.4, z: 32.81 },
                 radius: 75,
             },
+            behaviorZone: {
+                type: "sphere",
+                center: { x: -2260.53, y: 3184.4, z: 32.81 },
+                radius: 90,
+            },
             pursuitZone: {
                 type: "sphere",
                 center: { x: -2260.53, y: 3184.4, z: 32.81 },

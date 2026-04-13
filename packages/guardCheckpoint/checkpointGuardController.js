@@ -245,6 +245,7 @@ class CheckpointGuardController {
             targetOutsidePursuitSince: 0,
             streamOwnerId: null,
             playerSeenAt: new Map(),
+            behaviorViewers: new Set(),
             checkingGraceUntil: 0,
             lastClientCommandKey: "",
             lastClientCommandAt: 0,
@@ -745,7 +746,7 @@ class CheckpointGuardController {
             player.call("guardCheckpoint:status:text", [post.id, text, durationMs]);
             return;
         }
-        this.forEachPlayersInPost(post, (rec) => {
+        this.forEachPlayersInBehaviorZone(post, (rec) => {
             rec.call("guardCheckpoint:status:text", [post.id, text, durationMs]);
         });
     }
@@ -755,7 +756,7 @@ class CheckpointGuardController {
             player.call("guardCheckpoint:phase", [post.id, phase, Number(durationMs) || 0, Date.now()]);
             return;
         }
-        this.forEachPlayersInPost(post, (rec) => {
+        this.forEachPlayersInBehaviorZone(post, (rec) => {
             rec.call("guardCheckpoint:phase", [post.id, phase, Number(durationMs) || 0, Date.now()]);
         });
     }
@@ -783,16 +784,43 @@ class CheckpointGuardController {
         });
     }
 
-    updateStreamOwner(post, now) {
-        const inside = [];
-        this.forEachPlayersInPost(post, (player) => {
+
+    getBehaviorZone(post) {
+        return post.cfg.behaviorZone || post.cfg.postZone || post.cfg.guardZone;
+    }
+
+    forEachPlayersInBehaviorZone(post, callback) {
+        const zone = this.getBehaviorZone(post);
+        mp.players.forEach((player) => {
+            if (!isValidPlayer(player)) return;
+            if (Number(player.dimension) !== Number(post.cfg.dimension || 0)) return;
+            if (!isInsideZone(player.position, zone)) return;
+            callback(player);
+        });
+    }
+
+    updateBehaviorViewers(post, now) {
+        const next = new Set();
+        this.forEachPlayersInBehaviorZone(post, (player) => {
+            next.add(player.id);
             if (!post.playerSeenAt.has(player.id)) post.playerSeenAt.set(player.id, now);
-            inside.push(player);
         });
 
         for (const pid of Array.from(post.playerSeenAt.keys())) {
-            if (!inside.some((p) => p.id === pid)) post.playerSeenAt.delete(pid);
+            if (!next.has(pid)) post.playerSeenAt.delete(pid);
         }
+
+        post.behaviorViewers = next;
+    }
+
+    updateStreamOwner(post, now) {
+        this.updateBehaviorViewers(post, now);
+
+        const inside = [];
+        post.behaviorViewers.forEach((pid) => {
+            const player = getPlayerById(pid);
+            if (isValidPlayer(player)) inside.push(player);
+        });
 
         let nextOwner = post.streamOwnerId;
         const currentInside = inside.some((p) => p.id === post.streamOwnerId);
@@ -923,7 +951,7 @@ class CheckpointGuardController {
             });
         }
 
-        this.forEachPlayersInPost(post, (rec) => {
+        this.forEachPlayersInBehaviorZone(post, (rec) => {
             const role = Number(rec.id) === Number(post.streamOwnerId) ? "owner" : "observer";
             rec.call("guardCheckpoint:executeCommand", [{
                 postId: post.id,
