@@ -6,7 +6,7 @@ module.exports = {
     WAIT_RADIUS: 2.8,
     REACH_POINT_MS: 5000,
     HOLD_STILL_MS: 5000,
-    DEAD_RESPAWN_MS: 60000,
+    DEAD_RESPAWN_MS: 1000,
     CONTROLLER_MAX_DISTANCE: 220,
     HEARTBEAT_TIMEOUT_MS: 5000,
     COMMAND_RESEND_MS: 900,
@@ -14,6 +14,7 @@ module.exports = {
         {
             id: 101,
             model: 's_m_y_marine_01',
+            weaponHash: 'weapon_carbinerifle',
             post: { x: 739.40, y: -2532.35, z: 19.60 },
             heading: 155.0,
             hp: 250,
@@ -21,6 +22,7 @@ module.exports = {
         {
             id: 102,
             model: 's_m_y_marine_01',
+            weaponHash: 'weapon_carbinerifle',
             post: { x: 737.85, y: -2529.80, z: 19.60 },
             heading: 165.0,
             hp: 250,

@@ -129,6 +129,7 @@ function spawnGuard(guardCfg) {
     ped.setVariable('deadFlag', false);
     ped.setVariable('cpiCommand', COMMAND.IDLE);
     ped.setVariable('cpiCommandExtra', null);
+    ped.setVariable('cpiWeaponHash', mp.joaat(String(guardCfg.weaponHash || 'weapon_carbinerifle')));
 
     try {
         ped.health = guardCfg.hp;
@@ -191,7 +192,7 @@ function markGuardDead(guard, reason = 'unknown') {
         guards.delete(guard.id);
         const cfg = CFG.GUARDS.find((g) => g.id === guard.id);
         if (cfg) spawnGuard(cfg);
-    }, CFG.DEAD_RESPAWN_MS);
+    }, Math.max(2200, Number(CFG.DEAD_RESPAWN_MS) || 0));
 }
 
 function startInspection(player) {
@@ -279,6 +280,17 @@ function processInspections() {
     });
 }
 
+function ensureEntryZoneReactions() {
+    mp.players.forEach((player) => {
+        if (!player || !mp.players.exists(player)) return;
+        if ((Number(player.dimension) || 0) !== CFG.DIMENSION) return;
+        if (inspections.has(player.id) || hostiles.has(player.id)) return;
+
+        const d = dist(player.position, CFG.ENTRY_POS);
+        if (d <= CFG.ENTRY_RADIUS) startInspection(player);
+    });
+}
+
 function getNearestRidFromSet(sourceSet) {
     let bestRid = null;
     let bestDist = Infinity;
@@ -338,6 +350,7 @@ function getTrackedPlayersSet() {
 }
 
 function tickBehavior() {
+    ensureEntryZoneReactions();
     processInspections();
 
     const hostileRid = getNearestRidFromSet(hostiles);

@@ -7,6 +7,14 @@ const CFG = {
     COMMAND_REFRESH_MS: 1200,
 };
 
+function getGuardWeaponHash(ped) {
+    try {
+        const fromVar = Number(ped.getVariable('cpiWeaponHash')) || 0;
+        if (fromVar > 0) return fromVar;
+    } catch {}
+    return CFG.RIFLE_HASH;
+}
+
 const me = mp.players.local;
 const guards = new Map();
 const pendingAssign = new Map();
@@ -61,7 +69,7 @@ function prepGuardPed(ped) {
     try { mp.game.ped.setPedCombatMovement(ped.handle, 2); } catch {}
     try { mp.game.ped.setPedCombatRange(ped.handle, 2); } catch {}
     try { mp.game.ped.setPedAlertness(ped.handle, 3); } catch {}
-    try { mp.game.weapon.giveWeaponToPed(ped.handle, CFG.RIFLE_HASH, 9999, false, true); } catch {}
+    try { mp.game.weapon.giveWeaponToPed(ped.handle, getGuardWeaponHash(ped), 9999, false, true); } catch {}
 }
 
 function attachIfGuard(ped) {
@@ -118,6 +126,7 @@ function applyAim(ped, rid, forceReset = false) {
     const target = findPlayerById(rid);
     if (!target || !target.handle) return;
 
+    try { mp.game.weapon.giveWeaponToPed(ped.handle, getGuardWeaponHash(ped), 9999, false, true); } catch {}
     if (forceReset) {
         try { ped.clearTasks(); } catch {}
     }
@@ -129,6 +138,7 @@ function applyFollow(ped, rid, stopDist = 2.0, forceReset = false) {
     const target = findPlayerById(rid);
     if (!target || !target.handle) return;
 
+    try { mp.game.weapon.giveWeaponToPed(ped.handle, getGuardWeaponHash(ped), 9999, false, true); } catch {}
     if (forceReset) {
         try { ped.clearTasks(); } catch {}
     }
@@ -139,7 +149,7 @@ function applyShoot(ped, rid, forceReset = false) {
     const target = findPlayerById(rid);
     if (!target || !target.handle) return;
 
-    try { mp.game.weapon.giveWeaponToPed(ped.handle, CFG.RIFLE_HASH, 9999, false, true); } catch {}
+    try { mp.game.weapon.giveWeaponToPed(ped.handle, getGuardWeaponHash(ped), 9999, false, true); } catch {}
     if (forceReset) {
         try { ped.clearTasks(); } catch {}
     }
