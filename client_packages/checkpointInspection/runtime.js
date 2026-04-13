@@ -1,4 +1,11 @@
-const CFG = require('checkpointInspection/config.js');
+const CFG = {
+    STEP_SPEED: 1.1,
+    HEARTBEAT_MS: 1000,
+    DEAD_REPORT_CD: 1000,
+    RIFLE_HASH: mp.game.joaat('weapon_carbinerifle'),
+    WAIT_MARKER_COLOR: [80, 220, 255, 220],
+    COMMAND_REFRESH_MS: 1200,
+};
 
 const me = mp.players.local;
 const guards = new Map();
@@ -69,6 +76,8 @@ function attachIfGuard(ped) {
             command: 'idle',
             extra: {},
             targetRid: null,
+            lastCommandSig: '',
+            lastRefreshAt: 0,
         });
     } else {
         guards.get(guardId).ped = ped;
@@ -96,29 +105,35 @@ function applyIdle(ped) {
     try { ped.taskStandStill(900); } catch {}
 }
 
-function applyAim(ped, rid) {
+function applyAim(ped, rid, forceReset = false) {
     const target = findPlayerById(rid);
     if (!target || !target.handle) return;
 
-    try { ped.clearTasks(); } catch {}
+    if (forceReset) {
+        try { ped.clearTasks(); } catch {}
+    }
     try { ped.taskAimGunAtEntity(target.handle, 900, false); } catch {}
     try { ped.taskLookAt(target.handle, 500, 2048, 3); } catch {}
 }
 
-function applyShoot(ped, rid) {
+function applyShoot(ped, rid, forceReset = false) {
     const target = findPlayerById(rid);
     if (!target || !target.handle) return;
 
     try { mp.game.weapon.giveWeaponToPed(ped.handle, CFG.RIFLE_HASH, 9999, false, true); } catch {}
-    try { ped.clearTasks(); } catch {}
+    if (forceReset) {
+        try { ped.clearTasks(); } catch {}
+    }
     try { ped.taskCombatPed(target.handle, 0, 16); } catch {}
     try { mp.game.ped.setPedShootRate(ped.handle, 900); } catch {}
 }
 
-function applyReturn(ped, post) {
+function applyReturn(ped, post, forceReset = false) {
     if (!post) return;
 
-    try { ped.clearTasks(); } catch {}
+    if (forceReset) {
+        try { ped.clearTasks(); } catch {}
+    }
     try { ped.taskGoStraightToCoord(post.x, post.y, post.z, CFG.STEP_SPEED, -1, Number(post.heading) || 0, 0.0); } catch {}
 }
 
@@ -129,11 +144,15 @@ function executeGuardCommand(state, command, extra) {
     state.command = command;
     state.extra = extra || {};
     state.targetRid = typeof state.extra.rid === 'number' ? state.extra.rid : null;
+    const nextSig = `${state.command}:${state.targetRid}:${JSON.stringify(state.extra || {})}`;
+    const changed = state.lastCommandSig !== nextSig;
+    state.lastCommandSig = nextSig;
+    state.lastRefreshAt = Date.now();
 
     if (command === 'idle') applyIdle(ped);
-    if (command === 'aimTarget') applyAim(ped, state.targetRid);
-    if (command === 'shootTarget') applyShoot(ped, state.targetRid);
-    if (command === 'returnToPost') applyReturn(ped, state.extra);
+    if (command === 'aimTarget') applyAim(ped, state.targetRid, changed);
+    if (command === 'shootTarget') applyShoot(ped, state.targetRid, changed);
+    if (command === 'returnToPost') applyReturn(ped, state.extra, changed);
     if (command === 'dead') {
         try { ped.clearTasksImmediately(); } catch {}
         try { ped.setHealth(0); } catch {}
@@ -314,10 +333,12 @@ setInterval(() => {
     guards.forEach((state) => {
         const ped = state.ped;
         if (!ped || !mp.peds.exists(ped) || !isController(ped)) return;
+        if (Date.now() - (state.lastRefreshAt || 0) < CFG.COMMAND_REFRESH_MS) return;
 
-        if (state.command === 'aimTarget') applyAim(ped, state.targetRid);
-        if (state.command === 'shootTarget') applyShoot(ped, state.targetRid);
-        if (state.command === 'returnToPost') applyReturn(ped, state.extra);
+        if (state.command === 'aimTarget') applyAim(ped, state.targetRid, false);
+        if (state.command === 'shootTarget') applyShoot(ped, state.targetRid, false);
+        if (state.command === 'returnToPost') applyReturn(ped, state.extra, false);
+        state.lastRefreshAt = Date.now();
     });
 }, 450);
 
