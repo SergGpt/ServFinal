@@ -1,0 +1,29 @@
+module.exports = {
+    DIMENSION: 0,
+    ENTRY_POS: { x: 740.25244140625, y: -2528.21923828125, z: 19.55854606628418 },
+    WAIT_POS: { x: 734.9447021484375, y: -2549.41455078125, z: 19.37537384033203 },
+    ENTRY_RADIUS: 10.0,
+    WAIT_RADIUS: 2.8,
+    REACH_POINT_MS: 5000,
+    HOLD_STILL_MS: 5000,
+    DEAD_RESPAWN_MS: 60000,
+    CONTROLLER_MAX_DISTANCE: 220,
+    HEARTBEAT_TIMEOUT_MS: 5000,
+    COMMAND_RESEND_MS: 900,
+    GUARDS: [
+        {
+            id: 101,
+            model: 's_m_y_marine_01',
+            post: { x: 739.40, y: -2532.35, z: 19.60 },
+            heading: 155.0,
+            hp: 250,
+        },
+        {
+            id: 102,
+            model: 's_m_y_marine_01',
+            post: { x: 737.85, y: -2529.80, z: 19.60 },
+            heading: 165.0,
+            hp: 250,
+        },
+    ],
+};
