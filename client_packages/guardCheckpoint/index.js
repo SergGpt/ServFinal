@@ -107,6 +107,13 @@ function ensurePedWeapon(ped, weaponHash) {
     try { ped.setInfiniteAmmoClip(true); } catch {}
 }
 
+function resolveCombatWeapon(rt) {
+    const fromState = Number(rt && rt.weaponHash) || 0;
+    if (fromState > 0) return fromState;
+    try { return mp.game.joaat("WEAPON_CARBINERIFLE"); } catch {}
+    return 0;
+}
+
 function getPedHandle(ped) {
     try { return ped && ped.handle; } catch {}
     return 0;
@@ -199,9 +206,12 @@ function applyStateEntry(ped, rt) {
         try { ped.freezePosition(false); } catch {}
         clearTasksImmediate(ped);
         setBlockingNonTemporaryEvents(ped, false);
-        ensurePedWeapon(ped, rt.weaponHash);
-        setCurrentPedWeapon(ped, rt.weaponHash);
+        const combatWeapon = resolveCombatWeapon(rt);
+        ensurePedWeapon(ped, combatWeapon);
+        setCurrentPedWeapon(ped, combatWeapon);
         faceTarget(ped, target);
+        try { ped.setCombatMovement(2); } catch {}
+        try { ped.setCombatRange(2); } catch {}
         try { mp.game.ai.taskCombatPed(ped.handle, target.handle, 0, 16); } catch {}
         try { ped.setKeepTask(true); } catch {}
         markStateApplied(rt);
@@ -250,22 +260,12 @@ function runOwnerExecution(ped, rt, t) {
             logGuard(`attack replay skipped ped=${getPedRemoteId(ped)} target=${rt.targetId} reason=no-target`);
             return;
         }
-        ensurePedWeapon(ped, rt.weaponHash);
-        setCurrentPedWeapon(ped, rt.weaponHash);
-        faceTarget(ped, target);
+        const combatWeapon = resolveCombatWeapon(rt);
+        ensurePedWeapon(ped, combatWeapon);
+        setCurrentPedWeapon(ped, combatWeapon);
         if (t - rt.lastCombatAt >= COMBAT_REPLAY_MS) {
             try { mp.game.ai.taskCombatPed(ped.handle, target.handle, 0, 16); } catch {}
             rt.lastCombatAt = t;
-        }
-        if (t - rt.lastAimAt >= AIM_REPLAY_MS) {
-            // keep as a soft nudge only; taskCombatPed remains the primary attack task
-            try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, 350, false); } catch {}
-            rt.lastAimAt = t;
-        }
-        if (t - rt.lastShootAt >= SHOOT_REPLAY_MS) {
-            // avoid long shoot tasks that fight with taskCombatPed and cause sliding
-            try { mp.game.ai.taskShootAtEntity(ped.handle, target.handle, 250, mp.game.joaat("FIRING_PATTERN_FULL_AUTO")); } catch {}
-            rt.lastShootAt = t;
         }
         return;
     }
