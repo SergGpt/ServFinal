@@ -9,6 +9,7 @@ let statusUntil = 0;
 const AI_LOOP_MS = 200;
 const AIM_REPLAY_MS = 300;
 const SHOOT_REPLAY_MS = 360;
+const COMBAT_REPLAY_MS = 1200;
 const RETURN_REPLAY_MS = 900;
 const CLEAR_REPLAY_MS = 900;
 const POSE_SMOOTH_FACTOR = 0.12;
@@ -52,10 +53,15 @@ function getOrCreateRuntime(ped) {
             stateVersion: -1,
             state: "idle",
             targetId: -1,
+            appliedState: "",
+            appliedStateVersion: -1,
+            appliedCtrlVer: -1,
+            entryAppliedAt: 0,
             returnPos: null,
             weaponHash: 0,
             lastAimAt: 0,
             lastShootAt: 0,
+            lastCombatAt: 0,
             lastMoveAt: 0,
             lastClearAt: 0,
         });
@@ -101,6 +107,45 @@ function ensurePedWeapon(ped, weaponHash) {
     try { ped.setInfiniteAmmoClip(true); } catch {}
 }
 
+function getPedHandle(ped) {
+    try { return ped && ped.handle; } catch {}
+    return 0;
+}
+
+function setBlockingNonTemporaryEvents(ped, enabled) {
+    const handle = getPedHandle(ped);
+    if (!handle) return;
+    try { mp.game.invoke("0x9F8AA94D6D97DBF4", handle, !!enabled); } catch {}
+}
+
+function setCurrentPedWeapon(ped, weaponHash) {
+    const handle = getPedHandle(ped);
+    if (!handle || !weaponHash) return;
+    try { mp.game.weapon.setCurrentPedWeapon(handle, weaponHash, true); } catch {}
+}
+
+function clearTasksImmediate(ped) {
+    const handle = getPedHandle(ped);
+    if (handle) {
+        try { mp.game.ai.clearPedTasksImmediately(handle); return; } catch {}
+    }
+    try { ped.clearTasksImmediately(); } catch {
+        try { ped.clearTasks(); } catch {}
+    }
+}
+
+function faceTarget(ped, target) {
+    if (!ped || !target) return;
+    const dx = Number(target.position.x) - Number(ped.position.x);
+    const dy = Number(target.position.y) - Number(ped.position.y);
+    const heading = (Math.atan2(dy, dx) * 180) / Math.PI;
+    try { ped.setHeading(heading - 90.0); } catch {}
+}
+
+function logGuard(text) {
+    try { console.log(`[GUARD-CHECKPOINT][CLIENT] ${text}`); } catch {}
+}
+
 function readStateFromPed(ped, rt) {
     const ctrlVer = Number(ped.getVariable("ctrlVer"));
     const stateVersion = Number(ped.getVariable("guardStateVersion"));
@@ -128,12 +173,90 @@ function readStateFromPed(ped, rt) {
     return true;
 }
 
+function hasStateEntryChange(rt) {
+    return rt.appliedState !== rt.state
+        || rt.appliedStateVersion !== rt.stateVersion
+        || rt.appliedCtrlVer !== rt.ctrlVer;
+}
+
+function markStateApplied(rt) {
+    rt.appliedState = rt.state;
+    rt.appliedStateVersion = rt.stateVersion;
+    rt.appliedCtrlVer = rt.ctrlVer;
+    rt.entryAppliedAt = nowMs();
+}
+
+function applyStateEntry(ped, rt) {
+    if (!hasStateEntryChange(rt)) return;
+
+    const target = getPlayerByServerId(rt.targetId);
+    if ((rt.state === "attack" || rt.state === "warning" || rt.state === "checking") && !target) {
+        logGuard(`state-entry skipped state=${rt.state} ped=${getPedRemoteId(ped)} target=${rt.targetId} reason=no-target`);
+        return;
+    }
+
+    if (rt.state === "attack") {
+        try { ped.freezePosition(false); } catch {}
+        clearTasksImmediate(ped);
+        setBlockingNonTemporaryEvents(ped, false);
+        ensurePedWeapon(ped, rt.weaponHash);
+        setCurrentPedWeapon(ped, rt.weaponHash);
+        faceTarget(ped, target);
+        try { mp.game.ai.taskCombatPed(ped.handle, target.handle, 0, 16); } catch {}
+        try { ped.setKeepTask(true); } catch {}
+        markStateApplied(rt);
+        return;
+    }
+
+    if (rt.state === "warning" || rt.state === "checking") {
+        try { ped.freezePosition(false); } catch {}
+        clearTasksImmediate(ped);
+        setBlockingNonTemporaryEvents(ped, false);
+        ensurePedWeapon(ped, rt.weaponHash);
+        setCurrentPedWeapon(ped, rt.weaponHash);
+        faceTarget(ped, target);
+        try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, AIM_REPLAY_MS + 200, false); } catch {}
+        try { ped.setKeepTask(true); } catch {}
+        markStateApplied(rt);
+        return;
+    }
+
+    if (rt.state === "return") {
+        try { ped.freezePosition(false); } catch {}
+        clearTasksImmediate(ped);
+        const rp = rt.returnPos;
+        if (rp) {
+            try { ped.taskGoStraightToCoord(rp.x, rp.y, rp.z, 2.2, -1, rp.heading || 0, 0.05); } catch {}
+        }
+        markStateApplied(rt);
+        return;
+    }
+
+    // idle + fallback
+    clearTasksImmediate(ped);
+    try { ped.freezePosition(true); } catch {}
+    try { ped.setKeepTask(false); } catch {}
+    markStateApplied(rt);
+}
+
 function runOwnerExecution(ped, rt, t) {
+    applyStateEntry(ped, rt);
+    if (hasStateEntryChange(rt)) return; // entry not applied (e.g. missing target), skip replay
+
     const target = getPlayerByServerId(rt.targetId);
 
     if (rt.state === "attack") {
-        if (!target) return;
+        if (!target) {
+            logGuard(`attack replay skipped ped=${getPedRemoteId(ped)} target=${rt.targetId} reason=no-target`);
+            return;
+        }
         ensurePedWeapon(ped, rt.weaponHash);
+        setCurrentPedWeapon(ped, rt.weaponHash);
+        faceTarget(ped, target);
+        if (t - rt.lastCombatAt >= COMBAT_REPLAY_MS) {
+            try { mp.game.ai.taskCombatPed(ped.handle, target.handle, 0, 16); } catch {}
+            rt.lastCombatAt = t;
+        }
         if (t - rt.lastAimAt >= AIM_REPLAY_MS) {
             try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, AIM_REPLAY_MS + 200, false); } catch {}
             rt.lastAimAt = t;
@@ -146,8 +269,13 @@ function runOwnerExecution(ped, rt, t) {
     }
 
     if (rt.state === "warning" || rt.state === "checking") {
-        if (!target) return;
+        if (!target) {
+            logGuard(`${rt.state} replay skipped ped=${getPedRemoteId(ped)} target=${rt.targetId} reason=no-target`);
+            return;
+        }
         ensurePedWeapon(ped, rt.weaponHash);
+        setCurrentPedWeapon(ped, rt.weaponHash);
+        faceTarget(ped, target);
         if (t - rt.lastAimAt >= AIM_REPLAY_MS) {
             try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, AIM_REPLAY_MS + 200, false); } catch {}
             rt.lastAimAt = t;
@@ -165,10 +293,7 @@ function runOwnerExecution(ped, rt, t) {
         return;
     }
 
-    if (t - rt.lastClearAt >= CLEAR_REPLAY_MS) {
-        try { ped.clearTasks(); } catch {}
-        rt.lastClearAt = t;
-    }
+    if (t - rt.lastClearAt >= CLEAR_REPLAY_MS) { clearTasksImmediate(ped); rt.lastClearAt = t; }
 }
 
 function runGuardAiLoop() {
