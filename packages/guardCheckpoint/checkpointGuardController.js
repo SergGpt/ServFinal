@@ -73,6 +73,13 @@ function isValidPlayer(player) {
     return !!(player && mp.players.exists(player) && player.character);
 }
 
+function isPlayerAlive(player) {
+    if (!isValidPlayer(player)) return false;
+    const hp = Number(player.health);
+    if (Number.isFinite(hp) && hp <= 0) return false;
+    return true;
+}
+
 function getPlayerById(playerId) {
     let found = null;
     mp.players.forEach((player) => {
@@ -204,7 +211,7 @@ class CheckpointGuardController {
 
     resolveLockedTarget(post, insidePlayers, now) {
         const current = getPlayerById(post.targetPlayerId);
-        const currentValid = current && insidePlayers.some((p) => p.id === current.id) && !current.isDead();
+        const currentValid = current && insidePlayers.some((p) => p.id === current.id) && isPlayerAlive(current);
         if (currentValid && now < Number(post.targetLockUntil || 0)) return current;
         if (currentValid && (post.state === POST_STATE.CHECKING || post.state === POST_STATE.WARNING || post.state === POST_STATE.ATTACK)) return current;
 
