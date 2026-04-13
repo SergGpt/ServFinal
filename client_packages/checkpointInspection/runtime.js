@@ -86,6 +86,15 @@ function attachIfGuard(ped) {
     prepGuardPed(ped);
 }
 
+function ensureGuardStateFromPed(ped) {
+    if (!ped || ped.type !== 'ped') return null;
+    const guardId = ped.getVariable('cpiGuardId');
+    if (typeof guardId !== 'number') return null;
+
+    attachIfGuard(ped);
+    return guards.get(guardId) || null;
+}
+
 function detachIfGuard(ped) {
     if (!ped || ped.type !== 'ped') return;
     const guardId = ped.getVariable('cpiGuardId');
@@ -193,6 +202,25 @@ mp.events.add('entityStreamOut', (entity) => {
     try { if (entity && entity.type === 'ped') detachIfGuard(entity); } catch {}
 });
 
+mp.events.addDataHandler('cpiCommand', (entity, value) => {
+    try {
+        if (!entity || entity.type !== 'ped') return;
+        const state = ensureGuardStateFromPed(entity);
+        if (!state) return;
+
+        const command = typeof value === 'string' ? value : 'idle';
+        const extra = entity.getVariable('cpiCommandExtra') || {};
+        if (!isController(entity)) {
+            state.command = command;
+            state.extra = extra;
+            state.targetRid = typeof extra.rid === 'number' ? extra.rid : null;
+            return;
+        }
+
+        executeGuardCommand(state, command, extra);
+    } catch {}
+});
+
 mp.events.add('cpi:assignController', (guardIdRaw, verRaw) => {
     const guardId = parseInt(guardIdRaw, 10);
     const ver = parseInt(verRaw, 10);
@@ -217,6 +245,13 @@ mp.events.add('cpi:executeCommand', (guardIdRaw, command, extraJson) => {
 
     let extra = {};
     try { extra = extraJson ? JSON.parse(extraJson) : {}; } catch {}
+
+    if (!isController(state.ped)) {
+        state.command = command;
+        state.extra = extra || {};
+        state.targetRid = typeof state.extra.rid === 'number' ? state.extra.rid : null;
+        return;
+    }
 
     executeGuardCommand(state, command, extra);
 });
