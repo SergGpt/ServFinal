@@ -90,26 +90,32 @@ function executeNpcRuntime(rt, force = false) {
     }
 
     switch (command) {
-        case "followTarget": {
-            if (!target) break;
-            const targetPos = target.position;
-            try { ped.taskFollowToOffsetOfEntity(target.handle, 0, 0, 0, Number(rt.speed) || 1.7, 2000, Number(rt.stopDistance) || 1.6, true); } catch {}
-            try { ped.taskGoToCoordAnyMeans(targetPos.x, targetPos.y, targetPos.z, Number(rt.speed) || 1.7, 0, false, 0, 0.0); } catch {}
+        case "moveToPoint":
+        case "returnToPost": {
+            const rp = rt.moveToPoint || rt.returnToPost || {};
+            try { ped.taskGoStraightToCoord(Number(rp.x) || ped.position.x, Number(rp.y) || ped.position.y, Number(rp.z) || ped.position.z, Number(rt.speed) || 1.7, -1, Number(rp.heading) || 0, 0.05); } catch {}
             try { ped.setKeepTask(true); } catch {}
             break;
         }
-        case "attackTarget": {
+        case "lookAtTarget": {
             if (!target) break;
             try { ped.clearTasks(); } catch {}
-            try { mp.game.ai.taskCombatPed(ped.handle, target.handle, 0, 16); } catch {
-                try { ped.taskCombat(target.handle, 0, 16); } catch {}
+            try { ped.taskTurnToFace(target.handle, 700); } catch {
+                try { mp.game.ai.taskTurnPedToFaceEntity(ped.handle, target.handle, 700); } catch {}
             }
+            try { ped.taskLookAt(target.handle, 700, 2048, 2); } catch {}
             try { ped.setKeepTask(true); } catch {}
             break;
         }
-        case "returnPost": {
-            const rp = rt.returnPost || {};
-            try { ped.taskGoStraightToCoord(Number(rp.x) || ped.position.x, Number(rp.y) || ped.position.y, Number(rp.z) || ped.position.z, 2.2, -1, Number(rp.heading) || 0, 0.05); } catch {}
+        case "shootTarget": {
+            if (!target) break;
+            try { ped.clearTasks(); } catch {}
+            try { ped.taskTurnToFace(target.handle, 450); } catch {
+                try { mp.game.ai.taskTurnPedToFaceEntity(ped.handle, target.handle, 450); } catch {}
+            }
+            try { mp.game.ai.taskShootAtEntity(ped.handle, target.handle, 450, mp.game.joaat("FIRING_PATTERN_SINGLE_SHOT")); } catch {
+                try { ped.taskShootAt(target.handle, 450, mp.game.joaat("FIRING_PATTERN_SINGLE_SHOT")); } catch {}
+            }
             try { ped.setKeepTask(true); } catch {}
             break;
         }
@@ -208,11 +214,12 @@ mp.events.add({
             rt.command = String(u.command || p.command || "idle");
             rt.targetId = Number(u.targetId);
             rt.weaponHash = Number(u.weaponHash) || 0;
-            rt.returnPost = u.returnPost || null;
+            rt.moveToPoint = u.moveToPoint || u.returnToPost || null;
+            rt.returnToPost = u.returnToPost || u.moveToPoint || null;
             rt.alive = !!u.alive;
             rt.dead = !!u.dead;
             rt.deathTs = Number(u.deathTs) || 0;
-            rt.speed = Number(u.speed) || 1.7;
+            rt.speed = Number(u.speed) || 1.6;
             rt.stopDistance = Number(u.stopDistance) || 1.6;
             runtimeByNpc.set(npcId, rt);
             executeNpcRuntime(rt, true);

@@ -593,7 +593,7 @@ class CheckpointGuardController {
         if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
         post.lastAppliedBehaviorKey = behaviorKey;
 
-        this.dispatchNpcCommand(post, "followTarget", target, { force });
+        this.dispatchNpcCommand(post, "lookAtTarget", target, { force });
     }
 
     applyAttackBehavior(post, target, force = false) {
@@ -602,7 +602,7 @@ class CheckpointGuardController {
         if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
         post.lastAppliedBehaviorKey = behaviorKey;
 
-        this.dispatchNpcCommand(post, "attackTarget", target, { force });
+        this.dispatchNpcCommand(post, "shootTarget", target, { force });
     }
 
     applyReturnBehavior(post, force = false) {
@@ -610,7 +610,7 @@ class CheckpointGuardController {
         if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
         post.lastAppliedBehaviorKey = behaviorKey;
 
-        this.dispatchNpcCommand(post, "returnPost", null, { force });
+        this.dispatchNpcCommand(post, "moveToPoint", null, { force });
     }
 
     resolveTargetPlayer(post) {
@@ -678,7 +678,7 @@ class CheckpointGuardController {
             post.checkingGraceUntil = now + 1100;
             const target = getPlayerById(post.targetPlayerId);
             this.sendStatusText(post, "Идет досмотр, оставайтесь в зоне проверки (5 секунд)", 5000, target);
-            if (target) this.dispatchNpcCommand(post, "followTarget", target, { force: true });
+            if (target) this.dispatchNpcCommand(post, "lookAtTarget", target, { force: true });
         }
 
         if (nextState === POST_STATE.ATTACK) {
@@ -847,13 +847,13 @@ class CheckpointGuardController {
 
         const target = this.getCurrentTarget(post);
         let command = "idle";
-        if (post.state === POST_STATE.ATTACK) command = target ? "attackTarget" : "returnPost";
-        else if (post.state === POST_STATE.WARNING || post.state === POST_STATE.CHECKING) command = target ? "followTarget" : "returnPost";
-        else if (post.state === POST_STATE.RETURN) command = "returnPost";
+        if (post.state === POST_STATE.ATTACK) command = target ? "shootTarget" : "moveToPoint";
+        else if (post.state === POST_STATE.WARNING || post.state === POST_STATE.CHECKING) command = target ? "lookAtTarget" : "moveToPoint";
+        else if (post.state === POST_STATE.RETURN) command = "moveToPoint";
 
-        if (command === "followTarget") this.dispatchNpcCommand(post, "followTarget", target, { force: true, owner });
-        else if (command === "attackTarget") this.dispatchNpcCommand(post, "attackTarget", target, { force: true, owner });
-        else if (command === "returnPost") this.dispatchNpcCommand(post, "returnPost", null, { force: true, owner });
+        if (command === "lookAtTarget") this.dispatchNpcCommand(post, "lookAtTarget", target, { force: true, owner });
+        else if (command === "shootTarget") this.dispatchNpcCommand(post, "shootTarget", target, { force: true, owner });
+        else if (command === "moveToPoint") this.dispatchNpcCommand(post, "moveToPoint", null, { force: true, owner });
         else this.dispatchNpcCommand(post, "idle", null, { force: true, owner });
         this.log(`post=${post.id} owner-resync cmd=${command} target=${target ? target.id : -1} reason=${reason}`);
     }
@@ -898,12 +898,18 @@ class CheckpointGuardController {
             unitPayload.push({
                 pedId: Number.isFinite(pedId) ? pedId : -1,
                 npcId: String(unit.id),
-                command: unitCommand,
+                command: unitCommand === 'moveToPoint' ? 'moveToPoint' : unitCommand,
                 targetId: Number(targetId),
                 controllerRid: Number(post.streamOwnerId) || -1,
                 ctrlVer: Number(post.ctrlVer) || 0,
                 weaponHash: Number(unit.weaponHash) || 0,
-                returnPost: {
+                moveToPoint: {
+                    x: Number(unit.spawnPos.x) || 0,
+                    y: Number(unit.spawnPos.y) || 0,
+                    z: Number(unit.spawnPos.z) || 0,
+                    heading: Number(unit.spawnHeading) || 0,
+                },
+                returnToPost: {
                     x: Number(unit.spawnPos.x) || 0,
                     y: Number(unit.spawnPos.y) || 0,
                     z: Number(unit.spawnPos.z) || 0,
@@ -912,7 +918,7 @@ class CheckpointGuardController {
                 alive,
                 dead: !alive,
                 deathTs,
-                speed: 2.2,
+                speed: 1.6,
                 stopDistance: 1.6,
             });
         }
