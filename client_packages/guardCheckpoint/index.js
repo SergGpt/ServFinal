@@ -5,132 +5,50 @@ let activeStopZone = null;
 let lastSoundAt = 0;
 let statusText = null;
 let statusUntil = 0;
-let lastRenderDebugAt = 0;
 
-const DEBUG_AIM_LINES = false;
-const AI_LOOP_MS = 200;
-const AIM_REPLAY_MS = 320;
-const SHOOT_REPLAY_MS = 360;
-const CLEAR_REPLAY_MS = 900;
-const TARGET_SWITCH_DEBOUNCE_MS = 180;
-const RETURN_REPLAY_MS = 900;
-const RETURN_DEVIATION_DIST = 2.8;
-const POSE_SMOOTH_FACTOR = 0.12;
-const POSE_SNAP_DIST = 7.5;
-const PENDING_RETRY_MS = 200;
-const PENDING_TTL_MS = 2500;
+const REFRESH_MS = 500;
+let lastRefreshAt = 0;
 
-let lastAiLoopAt = 0;
+const runtimeByNpc = new Map(); // npcId -> runtime
 
-const pedAiCache = new Map(); // pedRemoteId -> runtime cache
-const pendingByPed = new Map(); // pedRemoteId -> { targetId, expiresAt, lastTryAt }
-
-function clog(text) {
-    try {
-        console.log(`[GUARD-CHECKPOINT][CLIENT] ${text}`);
-    } catch {}
-}
+function nowMs() { return Date.now(); }
 
 function playSound(soundName, soundSet) {
-    try {
-        mp.game.audio.playSoundFrontend(-1, soundName, soundSet, true);
-    } catch {}
-}
-
-function nowMs() {
-    return Date.now();
-}
-
-
-function sendControllerAck(postId, ver) {
-    try { mp.events.callRemote("guardCheckpoint:controller.ack", postId, ver); } catch {}
+    try { mp.game.audio.playSoundFrontend(-1, soundName, soundSet, true); } catch {}
 }
 
 function getPedRemoteId(ped) {
     return Number(ped && (ped.remoteId != null ? ped.remoteId : ped.id));
 }
 
+function isControllerPedByRid(controllerRid) {
+    if (!mp.players.local) return false;
+    return Number(controllerRid) === Number(mp.players.local.remoteId);
+}
+
+function findPedByNpcId(npcId) {
+    let found = null;
+    mp.peds.forEach((ped) => {
+        if (found) return;
+        try {
+            if (!ped || !ped.getVariable) return;
+            if (String(ped.getVariable("guardNpcId") || "") === String(npcId)) found = ped;
+        } catch {}
+    });
+    return found;
+}
+
 function getPlayerByServerId(serverId) {
     if (serverId == null || Number(serverId) < 0) return null;
     const id = Number(serverId);
-
     const byRemoteId = mp.players.atRemoteId(id);
     if (byRemoteId) return byRemoteId;
-
     let found = null;
     mp.players.forEach((p) => {
         if (found) return;
         if (Number(p.remoteId) === id || Number(p.id) === id) found = p;
     });
     return found;
-}
-
-
-function isLocalStreamOwnerForPed(ped) {
-    if (!ped || !ped.getVariable || !mp.players.local) return false;
-    const ownerId = Number(ped.getVariable("streamOwnerId"));
-    const localId = Number(mp.players.local.remoteId);
-    return Number.isFinite(ownerId) && Number.isFinite(localId) && ownerId === localId;
-}
-
-function smoothPedToAuthoritativePose(ped) {
-    if (!ped || !ped.getVariable) return;
-    const x = Number(ped.getVariable("guardPoseX"));
-    const y = Number(ped.getVariable("guardPoseY"));
-    const z = Number(ped.getVariable("guardPoseZ"));
-    const h = Number(ped.getVariable("guardPoseHeading"));
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return;
-
-    const px = ped.position.x;
-    const py = ped.position.y;
-    const pz = ped.position.z;
-    const dx = x - px;
-    const dy = y - py;
-    const dz = z - pz;
-    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-    if (dist > POSE_SNAP_DIST) {
-        try { ped.setCoordsNoOffset(x, y, z, false, false, false); } catch {}
-    } else if (dist > 0.05) {
-        try { ped.setCoordsNoOffset(px + dx * POSE_SMOOTH_FACTOR, py + dy * POSE_SMOOTH_FACTOR, pz + dz * POSE_SMOOTH_FACTOR, false, false, false); } catch {}
-    }
-
-    if (Number.isFinite(h)) {
-        try {
-            const cur = Number(ped.getHeading ? ped.getHeading() : 0) || 0;
-            let delta = ((h - cur + 540) % 360) - 180;
-            const next = cur + delta * 0.14;
-            ped.setHeading(next);
-        } catch {}
-    }
-}
-
-
-function smoothObserverPedsEachFrame() {
-    mp.peds.forEach((ped) => {
-        try {
-            if (!ped || !ped.getVariable) return;
-            if (!ped.getVariable("guardPostId")) return;
-            if (isLocalStreamOwnerForPed(ped)) return;
-            smoothPedToAuthoritativePose(ped);
-        } catch {}
-    });
-}
-
-function getGuardTargetId(ped) {
-    if (!ped || !ped.getVariable) return -1;
-    const raw = ped.getVariable("guardTarget");
-    if (Number.isFinite(Number(raw))) return Number(raw);
-    const rawLegacy = ped.getVariable("guardTargetId");
-    if (Number.isFinite(Number(rawLegacy))) return Number(rawLegacy);
-    return -1;
-}
-
-function getGuardWeaponHash(ped, hint = null) {
-    if (hint && Number(hint) > 0) return Number(hint);
-    if (!ped || !ped.getVariable) return 0;
-    const raw = Number(ped.getVariable("guardWeaponHash"));
-    return Number.isFinite(raw) ? raw : 0;
 }
 
 function ensurePedWeapon(ped, weaponHash) {
@@ -143,223 +61,100 @@ function ensurePedWeapon(ped, weaponHash) {
     try { ped.setInfiniteAmmoClip(true); } catch {}
 }
 
-function getOrCreateCache(pedId) {
-    if (!pedAiCache.has(pedId)) {
-        pedAiCache.set(pedId, {
-            lastState: "",
-            lastTargetId: -1,
-            lastAimAt: 0,
-            lastShootAt: 0,
-            lastClearAt: 0,
-            lastMoveAt: 0,
-            targetChangedAt: 0,
-            returnPos: null,
-            weaponHashHint: 0,
-        });
-    }
-    return pedAiCache.get(pedId);
-}
-
-
-function restorePedBehaviorFromState(ped) {
+function executeNpcRuntime(rt, force = false) {
+    if (!rt) return;
+    const ped = (Number(rt.pedId) >= 0 ? mp.peds.atRemoteId(Number(rt.pedId)) : null) || findPedByNpcId(rt.npcId);
     if (!ped || !ped.getVariable) return;
-    const postId = ped.getVariable("guardPostId");
-    if (!postId) return;
 
-    const pedId = getPedRemoteId(ped);
-    if (Number.isFinite(pedId)) {
-        pedAiCache.delete(pedId);
-        pendingByPed.delete(pedId);
+    const isOwnerRole = String(rt.role) === "owner";
+    const isController = isControllerPedByRid(rt.controllerRid);
+    const authoritative = isOwnerRole && isController;
+    const observer = !isOwnerRole && !isController;
+    if (!authoritative && !observer) return;
+
+    const t = nowMs();
+    if (!force && t - (Number(rt.lastExecAt) || 0) < REFRESH_MS) return;
+
+    const command = String(rt.command || "idle");
+    const target = getPlayerByServerId(rt.targetId);
+
+    if (Number(rt.weaponHash) > 0) ensurePedWeapon(ped, Number(rt.weaponHash));
+
+    if (command === "dead" || rt.dead || rt.alive === false) {
+        try { ped.clearTasksImmediately(); } catch {}
+        try { ped.setKeepTask(false); } catch {}
+        try { ped.setHealth(0); } catch {}
+        try { mp.game.ped.setPedToRagdoll(ped.handle, 5000, 5000, 0, false, false, false); } catch {}
+        rt.lastExecAt = t;
+        return;
     }
 
-    // force immediate replay after stream-in
-    lastAiLoopAt = 0;
-    runGuardAiLoop();
-}
-
-function queuePendingTarget(pedId, targetId) {
-    pendingByPed.set(pedId, {
-        targetId,
-        expiresAt: nowMs() + PENDING_TTL_MS,
-        lastTryAt: 0,
-    });
-}
-
-function processPendingTargets() {
-    const t = nowMs();
-    for (const [pedId, item] of pendingByPed.entries()) {
-        if (!item || t > item.expiresAt) {
-            pendingByPed.delete(pedId);
-            continue;
+    switch (command) {
+        case "moveToPoint":
+        case "returnToPost": {
+            const rp = rt.moveToPoint || rt.returnToPost || {};
+            try { ped.taskGoStraightToCoord(Number(rp.x) || ped.position.x, Number(rp.y) || ped.position.y, Number(rp.z) || ped.position.z, Number(rt.speed) || 1.7, -1, Number(rp.heading) || 0, 0.05); } catch {}
+            try { ped.setKeepTask(true); } catch {}
+            break;
         }
-        if (t - item.lastTryAt < PENDING_RETRY_MS) continue;
-        item.lastTryAt = t;
-
-        const ped = mp.peds.atRemoteId(pedId);
-        if (!ped || !ped.getVariable) continue;
-
-        const state = String(ped.getVariable("guardState") || "idle");
-        if (state !== "attack" && state !== "warning_aim") {
-            pendingByPed.delete(pedId);
-            continue;
+        case "lookAtTarget": {
+            if (!target) break;
+            try { ped.clearTasks(); } catch {}
+            try { ped.taskTurnToFace(target.handle, 700); } catch {
+                try { mp.game.ai.taskTurnPedToFaceEntity(ped.handle, target.handle, 700); } catch {}
+            }
+            try { ped.taskLookAt(target.handle, 700, 2048, 2); } catch {}
+            try { ped.setKeepTask(true); } catch {}
+            break;
         }
-
-        const target = getPlayerByServerId(item.targetId);
-        if (!target) continue;
-
-        // target появился — цикл AI подхватит выполнение
-        pendingByPed.delete(pedId);
+        case "shootTarget": {
+            if (!target) break;
+            try { ped.clearTasks(); } catch {}
+            try { ped.taskTurnToFace(target.handle, 450); } catch {
+                try { mp.game.ai.taskTurnPedToFaceEntity(ped.handle, target.handle, 450); } catch {}
+            }
+            try { mp.game.ai.taskShootAtEntity(ped.handle, target.handle, 450, mp.game.joaat("FIRING_PATTERN_SINGLE_SHOT")); } catch {
+                try { ped.taskShootAt(target.handle, 450, mp.game.joaat("FIRING_PATTERN_SINGLE_SHOT")); } catch {}
+            }
+            try { ped.setKeepTask(true); } catch {}
+            break;
+        }
+        default:
+            try { ped.clearTasks(); } catch {}
+            try { ped.taskStandStill(1000); } catch {}
+            try { ped.setKeepTask(false); } catch {}
+            break;
     }
+
+    rt.lastExecAt = t;
+    rt.pedId = getPedRemoteId(ped);
 }
 
-function runGuardAiLoop() {
+function sendControllerAck(postId, ver) {
+    try { mp.events.callRemote("guardCheckpoint:controller.ack", postId, ver); } catch {}
+}
+
+function sendOwnerHeartbeats() {
+    const posts = new Map();
+    runtimeByNpc.forEach((rt) => {
+        if (!rt) return;
+        if (String(rt.role) !== "owner") return;
+        if (!isControllerPedByRid(rt.controllerRid)) return;
+        posts.set(String(rt.postId), Number(rt.ctrlVer) || 0);
+    });
+
+    posts.forEach((ver, postId) => {
+        try { mp.events.callRemote("guardCheckpoint:controller.heartbeat", postId, ver); } catch {}
+    });
+}
+
+function runRuntimeRefresh() {
     const t = nowMs();
-    if (t - lastAiLoopAt < AI_LOOP_MS) return;
-    lastAiLoopAt = t;
+    if (t - lastRefreshAt < REFRESH_MS) return;
+    lastRefreshAt = t;
 
-    processPendingTargets();
-
-    mp.peds.forEach((ped) => {
-        try {
-            if (!ped || !ped.getVariable) return;
-            const postId = ped.getVariable("guardPostId");
-            if (!postId) return;
-
-            const pedId = getPedRemoteId(ped);
-            if (!Number.isFinite(pedId)) return;
-
-            const cache = getOrCreateCache(pedId);
-            const state = String(ped.getVariable("guardState") || "idle");
-            const targetId = getGuardTargetId(ped);
-            const isOwner = isLocalStreamOwnerForPed(ped);
-            const weaponHash = getGuardWeaponHash(ped, cache.weaponHashHint);
-            if (weaponHash > 0) cache.weaponHashHint = weaponHash;
-
-            const prevState = cache.lastState;
-            const prevTargetId = cache.lastTargetId;
-            const stateChanged = prevState !== state || prevTargetId !== targetId;
-            if (prevTargetId !== targetId) cache.targetChangedAt = t;
-            cache.lastState = state;
-            cache.lastTargetId = targetId;
-
-            const targetStable = targetId < 0 || (t - cache.targetChangedAt) >= TARGET_SWITCH_DEBOUNCE_MS;
-
-            if (state === "attack") {
-                if (!isOwner) {
-                    smoothPedToAuthoritativePose(ped);
-                    return;
-                }
-
-                const target = getPlayerByServerId(targetId);
-                if (!target || !targetStable) {
-                    queuePendingTarget(pedId, targetId);
-                    return;
-                }
-
-                ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
-
-                if (stateChanged || t - cache.lastAimAt >= AIM_REPLAY_MS) {
-                    try {
-                        mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, AIM_REPLAY_MS + 200, false);
-                    } catch {
-                        try { ped.taskAimGunAt(target.handle, AIM_REPLAY_MS + 200, false); } catch {}
-                    }
-                    cache.lastAimAt = t;
-                }
-
-                if (stateChanged || t - cache.lastShootAt >= SHOOT_REPLAY_MS) {
-                    try {
-                        mp.game.ai.taskShootAtEntity(ped.handle, target.handle, SHOOT_REPLAY_MS + 250, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
-                    } catch {
-                        if (isOwner) {
-                            try { ped.taskCombat(target.handle, 0, 16); } catch {}
-                        }
-                    }
-                    try { ped.setKeepTask(true); } catch {}
-                    cache.lastShootAt = t;
-                }
-                return;
-            }
-
-            if (state === "warning_aim") {
-                if (!isOwner) {
-                    smoothPedToAuthoritativePose(ped);
-                    return;
-                }
-                const target = getPlayerByServerId(targetId);
-                if (!target || !targetStable) {
-                    queuePendingTarget(pedId, targetId);
-                    return;
-                }
-
-                ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
-
-                if (stateChanged || t - cache.lastAimAt >= AIM_REPLAY_MS) {
-                    try {
-                        mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, AIM_REPLAY_MS + 200, false);
-                    } catch {
-                        try { ped.taskAimGunAt(target.handle, AIM_REPLAY_MS + 200, false); } catch {}
-                    }
-                    cache.lastAimAt = t;
-                }
-                return;
-            }
-
-            if (state === "return") {
-                const rp = cache.returnPos || {
-                    x: Number(ped.getVariable("guardReturnX")) || ped.position.x,
-                    y: Number(ped.getVariable("guardReturnY")) || ped.position.y,
-                    z: Number(ped.getVariable("guardReturnZ")) || ped.position.z,
-                    heading: Number(ped.getVariable("guardReturnHeading")) || 0,
-                };
-                cache.returnPos = rp;
-                if (!isOwner) {
-                    smoothPedToAuthoritativePose(ped);
-                    return;
-                }
-                const dx = ped.position.x - rp.x;
-                const dy = ped.position.y - rp.y;
-                const dz = ped.position.z - rp.z;
-                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (stateChanged || dist > RETURN_DEVIATION_DIST || t - cache.lastMoveAt >= RETURN_REPLAY_MS) {
-                    try { ped.taskGoStraightToCoord(rp.x, rp.y, rp.z, 2.2, -1, rp.heading || 0, 0.05); } catch {}
-                    cache.lastMoveAt = t;
-                }
-                return;
-            }
-
-            if (!isOwner) {
-                smoothPedToAuthoritativePose(ped);
-                return;
-            }
-            if (stateChanged || t - cache.lastClearAt >= CLEAR_REPLAY_MS) {
-                try { ped.clearTasks(); } catch {}
-                try { ped.setKeepTask(false); } catch {}
-                cache.lastClearAt = t;
-            }
-        } catch {}
-    });
-}
-
-function applyNpcCommandHints(command, targetId, units) {
-    (units || []).forEach((u) => {
-        const pedId = Number(u.pedId);
-        if (!Number.isFinite(pedId)) return;
-        const cache = getOrCreateCache(pedId);
-        if (Number(u.weaponHash) > 0) cache.weaponHashHint = Number(u.weaponHash);
-        if (command === "return") {
-            cache.returnPos = {
-                x: Number(u.x) || 0,
-                y: Number(u.y) || 0,
-                z: Number(u.z) || 0,
-                heading: Number(u.heading) || 0,
-            };
-        }
-
-        if (command === "aim" || command === "fire") {
-            queuePendingTarget(pedId, Number(targetId));
-        }
-    });
+    runtimeByNpc.forEach((rt) => executeNpcRuntime(rt, false));
+    sendOwnerHeartbeats();
 }
 
 mp.events.add({
@@ -389,13 +184,6 @@ mp.events.add({
     "guardCheckpoint:status:text": (postId, text, durationMs) => {
         statusText = String(text || "");
         statusUntil = nowMs() + Math.max(1000, Number(durationMs) || 3000);
-        clog(`status post=${postId} text="${statusText}"`);
-    },
-
-    "guardCheckpoint:npcCommand": (postId, command, targetId, units) => {
-        // npcCommand используется как hint/ускоритель. Основной визуал — AI loop по guardState.
-        clog(`npcCommand post=${postId} cmd=${command} target=${targetId} units=${(units || []).length}`);
-        applyNpcCommandHints(command, targetId, units);
     },
 
     "guardCheckpoint:controller:switch": (postId, ver) => {
@@ -403,32 +191,52 @@ mp.events.add({
         setTimeout(() => sendControllerAck(postId, ver), 300);
     },
 
-    "guardCheckpoint:debug": (text) => {
-        clog(`server-debug: ${text}`);
-    },
-});
+    "guardCheckpoint:executeCommand": (payload) => {
+        const p = payload && typeof payload === "object" ? payload : {};
+        const postId = String(p.postId || "");
+        const role = String(p.role || "observer");
+        const controllerRid = Number(p.controllerRid) || -1;
+        const ctrlVer = Number(p.ctrlVer) || 0;
+        const cmdVer = Number(p.cmdVer) || nowMs();
+        const units = Array.isArray(p.units) ? p.units : [];
 
-mp.events.add("entityStreamIn", (entity) => {
-    if (!entity || entity.type !== "ped") return;
-    const postId = entity.getVariable ? entity.getVariable("guardPostId") : null;
-    if (!postId) return;
-    restorePedBehaviorFromState(entity);
+        units.forEach((u) => {
+            const npcId = String(u && u.npcId || "");
+            if (!npcId) return;
+            const rt = runtimeByNpc.get(npcId) || {};
+            rt.postId = postId;
+            rt.role = role;
+            rt.controllerRid = controllerRid;
+            rt.ctrlVer = ctrlVer;
+            rt.cmdVer = cmdVer;
+            rt.pedId = Number(u.pedId);
+            rt.npcId = npcId;
+            rt.command = String(u.command || p.command || "idle");
+            rt.targetId = Number(u.targetId);
+            rt.weaponHash = Number(u.weaponHash) || 0;
+            rt.moveToPoint = u.moveToPoint || u.returnToPost || null;
+            rt.returnToPost = u.returnToPost || u.moveToPoint || null;
+            rt.alive = !!u.alive;
+            rt.dead = !!u.dead;
+            rt.deathTs = Number(u.deathTs) || 0;
+            rt.speed = Number(u.speed) || 1.6;
+            rt.stopDistance = Number(u.stopDistance) || 1.6;
+            runtimeByNpc.set(npcId, rt);
+            executeNpcRuntime(rt, true);
+        });
+    },
 });
 
 mp.events.add("entityStreamOut", (entity) => {
     if (!entity || entity.type !== "ped") return;
-    const postId = entity.getVariable ? entity.getVariable("guardPostId") : null;
-    if (!postId) return;
-    const pedId = getPedRemoteId(entity);
-    if (Number.isFinite(pedId)) {
-        pendingByPed.delete(pedId);
-        pedAiCache.delete(pedId);
-    }
+    const rid = getPedRemoteId(entity);
+    runtimeByNpc.forEach((rt, npcId) => {
+        if (Number(rt.pedId) === Number(rid)) rt.pedId = -1;
+    });
 });
 
 mp.events.add("render", () => {
-    runGuardAiLoop();
-    smoothObserverPedsEachFrame();
+    runRuntimeRefresh();
 
     if (statusText && nowMs() < statusUntil) {
         mp.game.graphics.drawText(statusText, [0.5, 0.84], {
@@ -442,37 +250,7 @@ mp.events.add("render", () => {
         statusText = null;
     }
 
-    if (DEBUG_AIM_LINES) {
-        mp.peds.forEach((ped) => {
-            try {
-                if (!ped || !ped.getVariable) return;
-                const postId = ped.getVariable("guardPostId");
-                if (!postId) return;
-                const state = String(ped.getVariable("guardState") || "");
-                if (state !== "warning_aim" && state !== "attack") return;
-                const p = ped.position;
-                const me = mp.players.local.position;
-                mp.game.graphics.drawLine(
-                    p.x,
-                    p.y,
-                    p.z + 1.0,
-                    me.x,
-                    me.y,
-                    me.z + 0.7,
-                    state === "attack" ? 255 : 255,
-                    state === "attack" ? 80 : 220,
-                    state === "attack" ? 80 : 80,
-                    220
-                );
-            } catch {}
-        });
-    }
-
     if (!activeWarning) return;
-    if (nowMs() - lastRenderDebugAt > 2000) {
-        lastRenderDebugAt = nowMs();
-        clog(`render warning post=${activeWarning.postId} text="${activeWarning.text}"`);
-    }
 
     mp.game.graphics.drawText(activeWarning.text, [0.5, 0.88], {
         font: 4,

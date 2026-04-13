@@ -7,6 +7,8 @@ const GUARD_CHECKPOINT_CONFIG = {
     tickMs: 300,
     movementThreshold: 0.08,
     transitionCooldownMs: 900,
+    controllerHeartbeatMs: 1000,
+    controllerHeartbeatTimeoutMs: 5000,
     warningTimeoutMs: 8000,
     aggressiveMemoryMs: 12000,
     defaultRespawnMs: 15000,
@@ -36,6 +38,11 @@ const GUARD_CHECKPOINT_CONFIG = {
                 type: "sphere",
                 center: { x: -2260.53, y: 3184.4, z: 32.81 },
                 radius: 75,
+            },
+            behaviorZone: {
+                type: "sphere",
+                center: { x: -2260.53, y: 3184.4, z: 32.81 },
+                radius: 90,
             },
             pursuitZone: {
                 type: "sphere",
