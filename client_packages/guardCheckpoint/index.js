@@ -257,13 +257,39 @@ function runGuardAiLoop() {
             const targetStable = targetId < 0 || (t - cache.targetChangedAt) >= TARGET_SWITCH_DEBOUNCE_MS;
 
             if (state === "attack") {
-                // Атакой управляет сервер (server-driven AI), клиенты только сглаживают позу.
-                smoothPedToAuthoritativePose(ped);
+                ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
+                if (!isOwner) {
+                    smoothPedToAuthoritativePose(ped);
+                    return;
+                }
+                const target = getPlayerByServerId(targetId);
+                if (!target || !targetStable) {
+                    queuePendingTarget(pedId, targetId);
+                    return;
+                }
+                if (stateChanged || t - cache.lastShootAt >= SHOOT_REPLAY_MS) {
+                    try { ped.taskCombat(target.handle, 0, 16); } catch {}
+                    try { ped.setKeepTask(true); } catch {}
+                    cache.lastShootAt = t;
+                }
                 return;
             }
 
             if (state === "warning_aim") {
-                smoothPedToAuthoritativePose(ped);
+                ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
+                if (!isOwner) {
+                    smoothPedToAuthoritativePose(ped);
+                    return;
+                }
+                const target = getPlayerByServerId(targetId);
+                if (!target || !targetStable) {
+                    queuePendingTarget(pedId, targetId);
+                    return;
+                }
+                if (stateChanged || t - cache.lastAimAt >= AIM_REPLAY_MS) {
+                    try { ped.taskAimGunAt(target.handle, AIM_REPLAY_MS + 200, false); } catch {}
+                    cache.lastAimAt = t;
+                }
                 return;
             }
 
