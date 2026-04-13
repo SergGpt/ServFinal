@@ -259,7 +259,6 @@ function runGuardAiLoop() {
             if (state === "attack") {
                 ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
                 if (!isOwner) {
-                    smoothPedToAuthoritativePose(ped);
                     return;
                 }
                 const target = getPlayerByServerId(targetId);
@@ -278,7 +277,6 @@ function runGuardAiLoop() {
             if (state === "warning_aim") {
                 ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
                 if (!isOwner) {
-                    smoothPedToAuthoritativePose(ped);
                     return;
                 }
                 const target = getPlayerByServerId(targetId);

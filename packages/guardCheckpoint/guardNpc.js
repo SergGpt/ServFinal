@@ -180,6 +180,8 @@ class GuardNpc {
         safeCall(method(this.ped, "setCanBeDamaged"), true);
         safeCall(method(this.ped, "setCanRagdoll"), true);
         safeCall(method(this.ped, "setFleeAttributes"), 0, false);
+        // Не прятаться по укрытиям во время боя.
+        safeCall(method(this.ped, "setCombatAttributes"), 0, false);
         safeCall(method(this.ped, "setCombatAttributes"), 46, true);
         safeCall(method(this.ped, "setCombatAttributes"), 5, true);
         safeCall(method(this.ped, "setCombatAbility"), 2);
