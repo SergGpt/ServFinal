@@ -113,6 +113,10 @@ class CheckpointGuardController {
             if (!this.config.debug) return;
             console.log(`[GUARD-CHECKPOINT] ${msg}`);
         };
+        this.plog = (msg) => {
+            if (!this.config.debugProtocol) return;
+            console.log(`[GUARD-CHECKPOINT][SYNC] ${msg}`);
+        };
 
     }
 
@@ -340,6 +344,7 @@ class CheckpointGuardController {
         }
         if (post.lastBroadcastCommand) {
             player.call("guardCheckpoint:npcCommand", [post.lastBroadcastCommand]);
+            this.plog(`ack-replay post=${post.id} owner=${player.id} seq=${post.lastBroadcastCommand.commandSeq} bs=${post.lastBroadcastCommand.behaviorSessionId} as=${post.lastBroadcastCommand.attackSessionId} cmd=${post.lastBroadcastCommand.command}`);
         }
     }
 
@@ -354,6 +359,7 @@ class CheckpointGuardController {
         if (!found) return;
         found.markDead(Date.now(), `client-signal owner=${player.id}`);
         this.log(`post=${post.id} npc-dead-signal ped=${pedId} by owner=${player.id}`);
+        this.plog(`dead-signal post=${post.id} owner=${player.id} ped=${pedId} streamOwner=${post.streamOwnerId}`);
     }
 
     markAggressive(playerId) {
@@ -905,6 +911,7 @@ class CheckpointGuardController {
         if (isValidPlayer(owner)) {
             owner.call("guardCheckpoint:controller:switch", [post.id, post.ctrlVer, post.state]);
         }
+        this.plog(`owner-switch post=${post.id} owner=${nextOwner} ctrlVer=${post.ctrlVer} state=${post.state} seq=${post.commandSeq}`);
         this.log(`post=${post.id} stream owner -> ${nextOwner} ver=${post.ctrlVer}`);
         this.resyncPostStateForOwner(post, nextOwner, "owner-changed");
     }
@@ -929,6 +936,7 @@ class CheckpointGuardController {
         const owner = getPlayerById(ownerId);
         if (!isValidPlayer(owner)) return;
         owner.call("guardCheckpoint:stateSnapshot", [this.buildStateSnapshot(post)]);
+        this.plog(`snapshot post=${post.id} owner=${owner.id} ctrlVer=${post.ctrlVer} seq=${post.commandSeq} bs=${post.behaviorSessionId} as=${post.attackSessionId} state=${post.state}`);
 
         const target = this.getCurrentTarget(post);
         let command = "idle";
@@ -960,6 +968,7 @@ class CheckpointGuardController {
         this.forEachPlayersInPost(post, (rec) => {
             rec.call("guardCheckpoint:npcCommand", [packet]);
         });
+        this.plog(`dispatch post=${post.id} seq=${packet.commandSeq} bs=${packet.behaviorSessionId} as=${packet.attackSessionId} owner=${packet.streamOwnerId} cmd=${packet.command} target=${packet.targetId} units=${packet.units.length}`);
     }
 
     buildCommandPacket(post, command, targetId = -1) {
@@ -1059,6 +1068,7 @@ class CheckpointGuardController {
             at: now,
         };
         this.forEachPlayersInPost(post, (rec) => rec.call("guardCheckpoint:attackBurst", [payload]));
+        this.plog(`burst post=${post.id} seq=${payload.commandSeq} as=${payload.attackSessionId} owner=${post.streamOwnerId} target=${payload.targetId} peds=${payload.pedIds.length}`);
     }
 
     getPost(postId) {

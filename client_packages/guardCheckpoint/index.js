@@ -8,6 +8,7 @@ let statusUntil = 0;
 let lastRenderDebugAt = 0;
 
 const DEBUG_AIM_LINES = false;
+const DEBUG_PROTOCOL = false;
 const AI_LOOP_MS = 200;
 const AIM_REPLAY_MS = 320;
 const SHOOT_REPLAY_MS = 360;
@@ -429,9 +430,18 @@ mp.events.add({
         const seq = Number(packet.commandSeq) || 0;
         const behaviorSessionId = Number(packet.behaviorSessionId) || 0;
         const attackSessionId = Number(packet.attackSessionId) || 0;
-        if (seq && seq <= (rt.lastAppliedSeq || 0)) return;
-        if (attackSessionId && attackSessionId < (rt.attackSessionId || 0)) return;
-        if (behaviorSessionId && behaviorSessionId < (rt.behaviorSessionId || 0)) return;
+        if (seq && seq <= (rt.lastAppliedSeq || 0)) {
+            if (DEBUG_PROTOCOL) clog(`drop packet post=${postId} reason=seq-old seq=${seq} last=${rt.lastAppliedSeq}`);
+            return;
+        }
+        if (attackSessionId && attackSessionId < (rt.attackSessionId || 0)) {
+            if (DEBUG_PROTOCOL) clog(`drop packet post=${postId} reason=attack-session-old as=${attackSessionId} last=${rt.attackSessionId}`);
+            return;
+        }
+        if (behaviorSessionId && behaviorSessionId < (rt.behaviorSessionId || 0)) {
+            if (DEBUG_PROTOCOL) clog(`drop packet post=${postId} reason=behavior-session-old bs=${behaviorSessionId} last=${rt.behaviorSessionId}`);
+            return;
+        }
 
         rt.lastAppliedSeq = Math.max(rt.lastAppliedSeq || 0, seq);
         rt.behaviorSessionId = Math.max(rt.behaviorSessionId || 0, behaviorSessionId);
@@ -441,6 +451,7 @@ mp.events.add({
         rt.state = String(packet.state || rt.state || "idle");
 
         clog(`npcCommand post=${postId} seq=${seq} cmd=${packet.command} target=${packet.targetId} units=${(packet.units || []).length}`);
+        if (DEBUG_PROTOCOL) clog(`apply packet post=${postId} seq=${seq} bs=${behaviorSessionId} as=${attackSessionId} owner=${rt.streamOwnerId} ctrlVer=${rt.ctrlVer}`);
         applyNpcCommandHints(packet);
     },
 
