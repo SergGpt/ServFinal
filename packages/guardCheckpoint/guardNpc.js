@@ -184,8 +184,7 @@ class GuardNpc {
         safeCall(method(this.ped, "setCombatAttributes"), 5, true);
         safeCall(method(this.ped, "setCombatAbility"), 2);
         safeCall(method(this.ped, "setCombatRange"), 2);
-        // Держим НПС в позиции и убираем "беготню/укрытия" при атаке.
-        safeCall(method(this.ped, "setCombatMovement"), 0);
+        safeCall(method(this.ped, "setCombatMovement"), 2);
         safeCall(method(this.ped, "setConfigFlag"), 17, true);
         safeCall(method(this.ped, "setConfigFlag"), 281, true);
         safeCall(method(this.ped, "setBlockingOfNonTemporaryEvents"), true);
@@ -293,9 +292,8 @@ class GuardNpc {
         safeCall(method(this.ped, "setVariable"), "guardTarget", Number(targetPlayer.id));
         safeCall(method(this.ped, "setVariable"), "guardTargetId", Number(targetPlayer.id));
         safeCall(method(this.ped, "setVariable"), "guardStartedAt", Date.now());
-        // Выполнение огня отдаём клиентскому stream-owner (форумный подход через контроллер).
-        safeCall(method(this.ped, "clearTasks"));
-        safeCall(method(this.ped, "setKeepTask"), false);
+        safeCall(method(this.ped, "taskCombat"), targetPlayer.handle, 0, 16);
+        safeCall(method(this.ped, "setKeepTask"), true);
         this.log(`npc=${this.id} fire target=${targetPlayer.id}`);
     }
 

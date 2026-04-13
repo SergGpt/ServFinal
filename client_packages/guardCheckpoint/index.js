@@ -259,85 +259,18 @@ function runGuardAiLoop() {
             const targetStable = targetId < 0 || (t - cache.targetChangedAt) >= TARGET_SWITCH_DEBOUNCE_MS;
 
             if (state === "attack") {
-                if (!isOwner) {
-                    smoothPedToAuthoritativePose(ped);
-                    return;
-                }
-
-                const target = getPlayerByServerId(targetId);
-                if (!target || !targetStable) {
-                    queuePendingTarget(pedId, targetId);
-                    return;
-                }
-
-                ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
-
-                if (stateChanged || t - cache.lastAimAt >= AIM_REPLAY_MS) {
-                    try {
-                        mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, AIM_REPLAY_MS + 200, false);
-                    } catch {
-                        try { ped.taskAimGunAt(target.handle, AIM_REPLAY_MS + 200, false); } catch {}
-                    }
-                    cache.lastAimAt = t;
-                }
-
-                if (stateChanged || t - cache.lastShootAt >= SHOOT_REPLAY_MS) {
-                    try {
-                        mp.game.ai.taskShootAtEntity(ped.handle, target.handle, SHOOT_REPLAY_MS + 250, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
-                    } catch {
-                        // На некоторых билдах taskShootAtEntity нестабилен для synced ped — держим безопасный fallback.
-                        try { ped.taskCombat(target.handle, 0, 16); } catch {}
-                    }
-                    try { ped.setKeepTask(true); } catch {}
-                    cache.lastShootAt = t;
-                }
+                // Атакой управляет сервер (server-driven AI), клиенты только сглаживают позу.
+                smoothPedToAuthoritativePose(ped);
                 return;
             }
 
             if (state === "warning_aim") {
-                if (!isOwner) {
-                    smoothPedToAuthoritativePose(ped);
-                    return;
-                }
-                const target = getPlayerByServerId(targetId);
-                if (!target || !targetStable) {
-                    queuePendingTarget(pedId, targetId);
-                    return;
-                }
-
-                ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
-
-                if (stateChanged || t - cache.lastAimAt >= AIM_REPLAY_MS) {
-                    try {
-                        mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, AIM_REPLAY_MS + 200, false);
-                    } catch {
-                        try { ped.taskAimGunAt(target.handle, AIM_REPLAY_MS + 200, false); } catch {}
-                    }
-                    cache.lastAimAt = t;
-                }
+                smoothPedToAuthoritativePose(ped);
                 return;
             }
 
             if (state === "return") {
-                const rp = cache.returnPos || {
-                    x: Number(ped.getVariable("guardReturnX")) || ped.position.x,
-                    y: Number(ped.getVariable("guardReturnY")) || ped.position.y,
-                    z: Number(ped.getVariable("guardReturnZ")) || ped.position.z,
-                    heading: Number(ped.getVariable("guardReturnHeading")) || 0,
-                };
-                cache.returnPos = rp;
-                if (!isOwner) {
-                    smoothPedToAuthoritativePose(ped);
-                    return;
-                }
-                const dx = ped.position.x - rp.x;
-                const dy = ped.position.y - rp.y;
-                const dz = ped.position.z - rp.z;
-                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (stateChanged || dist > RETURN_DEVIATION_DIST || t - cache.lastMoveAt >= RETURN_REPLAY_MS) {
-                    try { ped.taskGoStraightToCoord(rp.x, rp.y, rp.z, 2.2, -1, rp.heading || 0, 0.05); } catch {}
-                    cache.lastMoveAt = t;
-                }
+                smoothPedToAuthoritativePose(ped);
                 return;
             }
 

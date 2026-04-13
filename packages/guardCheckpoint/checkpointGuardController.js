@@ -521,6 +521,10 @@ class CheckpointGuardController {
             this.transition(post, POST_STATE.RETURN, "no-target-attack", now);
             return;
         }
+        if ((Number(target.health) || 0) <= 0) {
+            this.transition(post, POST_STATE.RETURN, "target-dead", now);
+            return;
+        }
 
         if (!isInsideZone(target.position, this.getPostZone(post))) {
             this.transition(post, POST_STATE.RETURN, "target-escaped-post-zone", now);
