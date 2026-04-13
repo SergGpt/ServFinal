@@ -292,7 +292,25 @@ function runGuardAiLoop() {
             }
 
             if (state === "return") {
-                smoothPedToAuthoritativePose(ped);
+                const rp = cache.returnPos || {
+                    x: Number(ped.getVariable("guardReturnX")) || ped.position.x,
+                    y: Number(ped.getVariable("guardReturnY")) || ped.position.y,
+                    z: Number(ped.getVariable("guardReturnZ")) || ped.position.z,
+                    heading: Number(ped.getVariable("guardReturnHeading")) || 0,
+                };
+                cache.returnPos = rp;
+                if (!isOwner) {
+                    smoothPedToAuthoritativePose(ped);
+                    return;
+                }
+                const dx = ped.position.x - rp.x;
+                const dy = ped.position.y - rp.y;
+                const dz = ped.position.z - rp.z;
+                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (stateChanged || dist > RETURN_DEVIATION_DIST || t - cache.lastMoveAt >= RETURN_REPLAY_MS) {
+                    try { ped.taskGoStraightToCoord(rp.x, rp.y, rp.z, 2.2, -1, rp.heading || 0, 0.05); } catch {}
+                    cache.lastMoveAt = t;
+                }
                 return;
             }
 
