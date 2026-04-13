@@ -355,17 +355,30 @@ class CheckpointGuardController {
     }
 
     publishAuthoritativePose(post, now) {
-        if (now - (post.lastPoseSyncAt || 0) < 150) return;
+        let poseInterval = 150;
+        if (post.state === POST_STATE.ATTACK || post.state === POST_STATE.WARNING || post.state === POST_STATE.CHECKING) poseInterval = 95;
+        else if (post.state === POST_STATE.RETURN) poseInterval = 180;
+        else if (post.state === POST_STATE.IDLE) poseInterval = 520;
+        if (now - (post.lastPoseSyncAt || 0) < poseInterval) return;
         post.lastPoseSyncAt = now;
         for (const unit of [post.leader, ...post.guards]) {
             if (!unit || !unit.exists()) continue;
             const ped = unit.ped;
             const pos = ped.position;
+            const prev = unit.lastPose || { x: Number(pos.x) || 0, y: Number(pos.y) || 0, z: Number(pos.z) || 0, at: now };
+            const dtSec = Math.max(0.01, (now - Number(prev.at || now)) / 1000);
+            const velX = (Number(pos.x) - Number(prev.x)) / dtSec;
+            const velY = (Number(pos.y) - Number(prev.y)) / dtSec;
+            const velZ = (Number(pos.z) - Number(prev.z)) / dtSec;
             try { ped.setVariable("guardPoseX", Number(pos.x) || 0); } catch {}
             try { ped.setVariable("guardPoseY", Number(pos.y) || 0); } catch {}
             try { ped.setVariable("guardPoseZ", Number(pos.z) || 0); } catch {}
             try { ped.setVariable("guardPoseHeading", Number(ped.getHeading ? ped.getHeading() : unit.spawnHeading) || 0); } catch {}
+            try { ped.setVariable("guardPoseVelX", Number(velX) || 0); } catch {}
+            try { ped.setVariable("guardPoseVelY", Number(velY) || 0); } catch {}
+            try { ped.setVariable("guardPoseVelZ", Number(velZ) || 0); } catch {}
             try { ped.setVariable("guardPoseUpdatedAt", now); } catch {}
+            unit.lastPose = { x: Number(pos.x) || 0, y: Number(pos.y) || 0, z: Number(pos.z) || 0, at: now };
         }
     }
 

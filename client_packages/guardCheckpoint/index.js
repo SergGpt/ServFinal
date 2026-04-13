@@ -12,8 +12,10 @@ const SHOOT_REPLAY_MS = 1400;
 const COMBAT_REPLAY_MS = 1500;
 const RETURN_REPLAY_MS = 900;
 const CLEAR_REPLAY_MS = 900;
-const POSE_SMOOTH_FACTOR = 0.12;
-const POSE_SNAP_DIST = 7.5;
+const POSE_HARD_SNAP_DIST = 5.0;
+const POSE_SOFT_SNAP_DIST = 2.5;
+const POSE_DEADZONE_DIST = 0.25;
+const OBSERVER_INTERP_DELAY_MS = 130;
 
 let lastAiLoopAt = 0;
 const pedRuntime = new Map(); // pedId -> { ctrlVer, stateVersion, state, targetId, returnPos, weaponHash }
@@ -64,37 +66,106 @@ function getOrCreateRuntime(ped) {
             lastCombatAt: 0,
             lastMoveAt: 0,
             lastClearAt: 0,
+            poseBuffer: null,
         });
     }
     return pedRuntime.get(pedId);
 }
 
-function smoothPedToAuthoritativePose(ped) {
-    if (!ped || !ped.getVariable) return;
+function lerp(a, b, alpha) {
+    return a + (b - a) * alpha;
+}
+
+function angleLerpDeg(a, b, alpha) {
+    const delta = ((b - a + 540) % 360) - 180;
+    return a + delta * alpha;
+}
+
+function getPoseInterpDelayByState(state) {
+    if (state === "attack" || state === "warning" || state === "checking") return 95;
+    if (state === "return") return 170;
+    if (state === "idle") return 520;
+    return OBSERVER_INTERP_DELAY_MS;
+}
+
+function updateObserverPoseBuffer(ped, rt, now) {
+    if (!ped || !ped.getVariable || !rt) return;
     const x = Number(ped.getVariable("guardPoseX"));
     const y = Number(ped.getVariable("guardPoseY"));
     const z = Number(ped.getVariable("guardPoseZ"));
     const h = Number(ped.getVariable("guardPoseHeading"));
+    const updatedAt = Number(ped.getVariable("guardPoseUpdatedAt"));
+    const velX = Number(ped.getVariable("guardPoseVelX"));
+    const velY = Number(ped.getVariable("guardPoseVelY"));
+    const velZ = Number(ped.getVariable("guardPoseVelZ"));
     if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return;
+    if (rt.poseBuffer && Number.isFinite(updatedAt) && updatedAt <= Number(rt.poseBuffer.snapshotUpdatedAt || 0)) return;
 
-    const p = ped.position;
-    const dx = x - p.x;
-    const dy = y - p.y;
-    const dz = z - p.z;
+    const curPos = ped.position;
+    const curHeading = Number(ped.getHeading ? ped.getHeading() : 0) || 0;
+    const currentPose = {
+        x: Number(curPos.x) || 0,
+        y: Number(curPos.y) || 0,
+        z: Number(curPos.z) || 0,
+        h: curHeading,
+    };
+
+    const targetPose = {
+        x,
+        y,
+        z,
+        h: Number.isFinite(h) ? h : curHeading,
+        velX: Number.isFinite(velX) ? velX : 0,
+        velY: Number.isFinite(velY) ? velY : 0,
+        velZ: Number.isFinite(velZ) ? velZ : 0,
+    };
+
+    const prev = rt.poseBuffer && rt.poseBuffer.nextPose ? rt.poseBuffer.nextPose : currentPose;
+    rt.poseBuffer = {
+        prevPose: prev,
+        nextPose: targetPose,
+        receivedAt: now,
+        renderDelay: getPoseInterpDelayByState(rt.state),
+        snapshotUpdatedAt: Number.isFinite(updatedAt) ? updatedAt : now,
+    };
+}
+
+function applyObserverInterpolatedPose(ped, rt, now) {
+    if (!rt || !rt.poseBuffer) return;
+    const buffer = rt.poseBuffer;
+    const delay = Math.max(50, Number(buffer.renderDelay) || OBSERVER_INTERP_DELAY_MS);
+    const elapsed = now - Number(buffer.receivedAt || now);
+    const alpha = Math.max(0, Math.min(1, elapsed / delay));
+
+    const prev = buffer.prevPose;
+    const next = buffer.nextPose;
+    if (!prev || !next) return;
+
+    const predictAlpha = Math.min(1.0, alpha + 0.15);
+    const predictedX = next.x + (next.velX || 0) * (delay / 1000) * predictAlpha;
+    const predictedY = next.y + (next.velY || 0) * (delay / 1000) * predictAlpha;
+    const predictedZ = next.z + (next.velZ || 0) * (delay / 1000) * predictAlpha;
+
+    const ix = lerp(prev.x, predictedX, alpha);
+    const iy = lerp(prev.y, predictedY, alpha);
+    const iz = lerp(prev.z, predictedZ, alpha);
+    const ih = angleLerpDeg(prev.h, next.h, alpha);
+
+    const cur = ped.position;
+    const dx = ix - cur.x;
+    const dy = iy - cur.y;
+    const dz = iz - cur.z;
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-    if (dist > POSE_SNAP_DIST) {
-        try { ped.setCoordsNoOffset(x, y, z, false, false, false); } catch {}
-    } else if (dist > 0.05) {
-        try { ped.setCoordsNoOffset(p.x + dx * POSE_SMOOTH_FACTOR, p.y + dy * POSE_SMOOTH_FACTOR, p.z + dz * POSE_SMOOTH_FACTOR, false, false, false); } catch {}
+    if (dist < POSE_DEADZONE_DIST) return;
+    if (dist > POSE_HARD_SNAP_DIST) {
+        try { ped.position = new mp.Vector3(ix, iy, iz); } catch {}
+    } else if (dist > POSE_SOFT_SNAP_DIST) {
+        try { ped.position = new mp.Vector3(lerp(cur.x, ix, 0.45), lerp(cur.y, iy, 0.45), lerp(cur.z, iz, 0.45)); } catch {}
+    } else {
+        try { ped.position = new mp.Vector3(lerp(cur.x, ix, 0.18), lerp(cur.y, iy, 0.18), lerp(cur.z, iz, 0.18)); } catch {}
     }
-    if (Number.isFinite(h)) {
-        try {
-            const cur = Number(ped.getHeading ? ped.getHeading() : 0) || 0;
-            const delta = ((h - cur + 540) % 360) - 180;
-            ped.setHeading(cur + delta * 0.14);
-        } catch {}
-    }
+    try { ped.setHeading(angleLerpDeg(Number(ped.getHeading ? ped.getHeading() : ih) || ih, ih, 0.22)); } catch {}
 }
 
 function ensurePedWeapon(ped, weaponHash) {
@@ -317,7 +388,8 @@ function runGuardAiLoop() {
             if (!readStateFromPed(ped, rt)) return;
 
             if (!isLocalStreamOwnerForPed(ped)) {
-                smoothPedToAuthoritativePose(ped);
+                updateObserverPoseBuffer(ped, rt, t);
+                applyObserverInterpolatedPose(ped, rt, t);
                 return;
             }
             runOwnerExecution(ped, rt, t);
