@@ -342,6 +342,53 @@ class CheckpointGuardController {
         post.lastControllerHeartbeatAt = Date.now();
     }
 
+    onPoseUpdate(player, postId, ver, payload) {
+        if (!isValidPlayer(player)) return;
+        const post = this.getPost(postId);
+        if (!post) return;
+        if (Number(player.id) !== Number(post.streamOwnerId)) return;
+        if (Number(ver) !== Number(post.ctrlVer || 0)) return;
+
+        const poses = Array.isArray(payload) ? payload : [];
+        if (!poses.length) return;
+
+        const unitIds = new Set();
+        [post.leader, ...post.guards].forEach((u) => {
+            if (!u || !u.exists()) return;
+            const pid = Number(u.ped && (u.ped.id != null ? u.ped.id : u.ped.remoteId));
+            if (Number.isFinite(pid)) unitIds.add(pid);
+        });
+
+        const sanitized = [];
+        for (const item of poses) {
+            const pedId = Number(item && item.pedId);
+            if (!Number.isFinite(pedId) || !unitIds.has(pedId)) continue;
+            const x = Number(item.x);
+            const y = Number(item.y);
+            const z = Number(item.z);
+            if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+            sanitized.push({
+                pedId,
+                x,
+                y,
+                z,
+                heading: Number(item.heading) || 0,
+                timestamp: Number(item.timestamp) || Date.now(),
+                velX: Number(item.velX) || 0,
+                velY: Number(item.velY) || 0,
+                velZ: Number(item.velZ) || 0,
+                speed: Number(item.speed) || 0,
+            });
+        }
+
+        if (!sanitized.length) return;
+
+        this.forEachPlayersInPost(post, (rec) => {
+            if (Number(rec.id) === Number(post.streamOwnerId)) return;
+            rec.call("guardCheckpoint:pose:snapshot", [post.id, Number(post.ctrlVer) || 0, sanitized]);
+        });
+    }
+
     markAggressive(playerId) {
         this.playerAggressiveUntil.set(playerId, Date.now() + (this.config.aggressiveMemoryMs || 12000));
     }
