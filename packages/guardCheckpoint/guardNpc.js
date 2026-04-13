@@ -211,7 +211,13 @@ class GuardNpc {
     }
 
     syncDeathIfNeeded(now) {
+        const hasHandle = !!this.ped;
         const existsNow = this.exists();
+        if (hasHandle && !existsNow) {
+            this.ped = null;
+            this.markDead(now, "ped-missing");
+            return;
+        }
         if (!existsNow) return;
 
         const sinceSpawnMs = now - (this.spawnedAt || now);

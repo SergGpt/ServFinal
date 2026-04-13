@@ -34,6 +34,10 @@ module.exports = {
         controller.onControllerAck(player, postId, ver);
     },
 
+    "guardCheckpoint:npc.dead": (player, postId, pedId) => {
+        controller.onNpcDeadSignal(player, postId, pedId);
+    },
+
     "guardCheckpoint.reload": async (player) => {
         if (!player || !player.character || player.character.admin < 5) return;
         await controller.reloadFromDb();

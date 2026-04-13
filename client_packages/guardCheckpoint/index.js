@@ -46,6 +46,10 @@ function sendControllerAck(postId, ver) {
     try { mp.events.callRemote("guardCheckpoint:controller.ack", postId, ver); } catch {}
 }
 
+function sendNpcDeadSignal(postId, pedId) {
+    try { mp.events.callRemote("guardCheckpoint:npc.dead", postId, pedId); } catch {}
+}
+
 function getPedRemoteId(ped) {
     return Number(ped && (ped.remoteId != null ? ped.remoteId : ped.id));
 }
@@ -155,6 +159,7 @@ function getOrCreateCache(pedId) {
             targetChangedAt: 0,
             returnPos: null,
             weaponHashHint: 0,
+            lastDeadSignalAt: 0,
         });
     }
     return pedAiCache.get(pedId);
@@ -234,6 +239,15 @@ function runGuardAiLoop() {
             const isOwner = isLocalStreamOwnerForPed(ped);
             const weaponHash = getGuardWeaponHash(ped, cache.weaponHashHint);
             if (weaponHash > 0) cache.weaponHashHint = weaponHash;
+
+            if (isOwner) {
+                const hp = Number(ped.getHealth ? ped.getHealth() : ped.health) || 0;
+                const dead = !!(ped.isDead && ped.isDead()) || hp <= 0;
+                if (dead && t - (cache.lastDeadSignalAt || 0) > 1200) {
+                    sendNpcDeadSignal(postId, pedId);
+                    cache.lastDeadSignalAt = t;
+                }
+            }
 
             const prevState = cache.lastState;
             const prevTargetId = cache.lastTargetId;

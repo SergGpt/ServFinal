@@ -107,6 +107,7 @@ class CheckpointGuardController {
         this.isInitialized = false;
 
         this.notifs = call("notifications");
+        this.damageSystem = call("damageSystem");
 
         this.log = (msg) => {
             if (!this.config.debug) return;
@@ -253,6 +254,7 @@ class CheckpointGuardController {
             ctrlVer: 0,
             controllerAckVer: 0,
             pendingMovementCommand: null,
+            lastAttackDamageAt: 0,
         };
     }
 
@@ -329,6 +331,19 @@ class CheckpointGuardController {
         const target = pending.targetId >= 0 ? getPlayerById(pending.targetId) : null;
         this.dispatchNpcCommand(post, pending.command, target, { force: true, owner: player });
         this.log(`post=${post.id} controller ack ver=${ver} replay cmd=${pending.command}`);
+    }
+
+    onNpcDeadSignal(player, postId, pedId) {
+        if (!isValidPlayer(player)) return;
+        const post = this.getPost(postId);
+        if (!post) return;
+        if (Number(player.id) !== Number(post.streamOwnerId)) return;
+
+        const allUnits = [post.leader, ...post.guards];
+        const found = allUnits.find((unit) => unit && unit.exists() && Number(unit.ped.id) === Number(pedId));
+        if (!found) return;
+        found.markDead(Date.now(), `client-signal owner=${player.id}`);
+        this.log(`post=${post.id} npc-dead-signal ped=${pedId} by owner=${player.id}`);
     }
 
     markAggressive(playerId) {
@@ -513,6 +528,7 @@ class CheckpointGuardController {
         }
 
         this.applyAttackBehavior(post, target);
+        this.applyAttackDamage(post, target, now);
 
         const maxChaseDistance = Number(post.cfg.maxChaseDistance || this.config.defaultMaxChaseDistance);
         const pursuitZone = this.getPursuitZone(post);
@@ -533,6 +549,48 @@ class CheckpointGuardController {
         } else {
             post.targetOutsidePursuitSince = 0;
         }
+    }
+
+    applyAttackDamage(post, target, now) {
+        if (!isValidPlayer(target)) return;
+
+        const intervalMs = Math.max(180, Number(post.cfg.attackDamageIntervalMs || this.config.attackDamageIntervalMs || 450));
+        if (now - (post.lastAttackDamageAt || 0) < intervalMs) return;
+
+        const range = Math.max(4, Number(post.cfg.attackDamageRange || this.config.attackDamageRange || 38));
+        const aliveUnits = [post.leader, ...post.guards].filter((unit) => unit && unit.exists());
+        if (!aliveUnits.length) return;
+
+        const attackers = aliveUnits.filter((unit) => dist3(unit.ped.position, target.position) <= range);
+        if (!attackers.length) return;
+
+        let damagePerAttacker = Number(post.cfg.attackDamagePerAttacker || this.config.attackDamagePerAttacker || 7);
+        const weaponHash = Number(attackers[0].weaponHash) || 0;
+        if (this.damageSystem && typeof this.damageSystem.findDamageValue === "function") {
+            const byWeapon = Number(this.damageSystem.findDamageValue(weaponHash));
+            if (byWeapon > 0) damagePerAttacker = byWeapon;
+        }
+
+        const totalDamage = Math.max(1, Math.round(damagePerAttacker * attackers.length));
+        const damaged = {
+            armour: Number(target.armour) || 0,
+            health: Number(target.health) || 0,
+        };
+
+        if (this.damageSystem && typeof this.damageSystem.damagePlayer === "function") {
+            this.damageSystem.damagePlayer(damaged, totalDamage);
+        } else {
+            damaged.health = Math.max(0, damaged.health - totalDamage);
+        }
+
+        if (damaged.health <= 0 && !target.isCustomDeath) {
+            target.isCustomDeath = true;
+            mp.events.call("customDeath", target, weaponHash, null);
+        }
+
+        target.armour = Math.clamp(damaged.armour, 0, 100);
+        target.health = Math.clamp(damaged.health, 0, 100);
+        post.lastAttackDamageAt = now;
     }
 
     handleReturn(post, now) {

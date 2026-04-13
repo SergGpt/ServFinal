@@ -21,6 +21,9 @@ const GUARD_CHECKPOINT_CONFIG = {
     warningMoveTolerance: 0.09,
     stopZoneProgressEpsilon: 0.03,
     warningAdvanceTolerance: 0.6,
+    attackDamageIntervalMs: 450,
+    attackDamageRange: 38,
+    attackDamagePerAttacker: 7,
 
     // Независимые посты охраны
     posts: [
