@@ -9,7 +9,7 @@ const GUARD_CHECKPOINT_CONFIG = {
     transitionCooldownMs: 900,
     warningTimeoutMs: 8000,
     aggressiveMemoryMs: 12000,
-    defaultRespawnMs: 15000,
+    defaultRespawnMs: 5000,
     defaultCheckDurationMs: 5000,
     defaultWarnDistance: 18,
     defaultMaxChaseDistance: 25,
@@ -29,27 +29,27 @@ const GUARD_CHECKPOINT_CONFIG = {
             name: "Army North Gate",
             dimension: 0,
             guardZone: {
-                center: { x: -2260.53, y: 3184.4, z: 32.81 },
+                center: { x: 740.25, y: -2528.21, z: 19.55 },
                 radius: 75,
             },
             postZone: {
                 type: "sphere",
-                center: { x: -2260.53, y: 3184.4, z: 32.81 },
+                center: { x: 740.25, y: -2528.21, z: 19.55 },
                 radius: 75,
             },
             pursuitZone: {
                 type: "sphere",
-                center: { x: -2260.53, y: 3184.4, z: 32.81 },
+                center: { x: 740.25, y: -2528.21, z: 19.55 },
                 radius: 95,
             },
             stopZone: {
                 type: "sphere",
-                center: { x: -2248.36, y: 3174.1, z: 32.81 },
+                center: { x: 752.42, y: -2538.51, z: 19.55 },
                 radius: 5.0,
             },
             violationZone: {
                 type: "sphere",
-                center: { x: -2250.44, y: 3176.15, z: 32.81 },
+                center: { x: 750.34, y: -2536.46, z: 19.55 },
                 radius: 3.5,
             },
             warnDistance: 24,
@@ -62,7 +62,7 @@ const GUARD_CHECKPOINT_CONFIG = {
                 model: "s_m_y_marine_01",
                 heading: 56.0,
                 weaponHash: "WEAPON_CARBINERIFLE",
-                spawn: { x: -2252.53, y: 3178.34, z: 32.81 },
+                spawn: { x: 748.25, y: -2534.27, z: 19.55 },
             },
             guards: [
                 {
@@ -70,14 +70,14 @@ const GUARD_CHECKPOINT_CONFIG = {
                     model: "s_m_y_marine_01",
                     heading: 25.0,
                     weaponHash: "WEAPON_CARBINERIFLE",
-                    spawn: { x: -2256.11, y: 3173.18, z: 32.81 },
+                    spawn: { x: 744.67, y: -2539.43, z: 19.55 },
                 },
                 {
                     id: "guard_2",
                     model: "s_m_y_marine_01",
                     heading: 78.0,
                     weaponHash: "WEAPON_CARBINERIFLE",
-                    spawn: { x: -2247.02, y: 3180.03, z: 32.81 },
+                    spawn: { x: 753.76, y: -2532.58, z: 19.55 },
                 },
             ],
             warningUi: {
