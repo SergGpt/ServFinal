@@ -125,6 +125,16 @@ function applyAim(ped, rid, forceReset = false) {
     try { ped.taskLookAt(target.handle, 500, 2048, 3); } catch {}
 }
 
+function applyFollow(ped, rid, stopDist = 2.0, forceReset = false) {
+    const target = findPlayerById(rid);
+    if (!target || !target.handle) return;
+
+    if (forceReset) {
+        try { ped.clearTasks(); } catch {}
+    }
+    try { ped.taskFollowToOffsetOfEntity(target.handle, 0, 0, 0, CFG.STEP_SPEED, -1, stopDist, true); } catch {}
+}
+
 function applyShoot(ped, rid, forceReset = false) {
     const target = findPlayerById(rid);
     if (!target || !target.handle) return;
@@ -159,6 +169,7 @@ function executeGuardCommand(state, command, extra) {
     state.lastRefreshAt = Date.now();
 
     if (command === 'idle') applyIdle(ped);
+    if (command === 'followTarget') applyFollow(ped, state.targetRid, Number(state.extra.stopDist) || 2.0, changed);
     if (command === 'aimTarget') applyAim(ped, state.targetRid, changed);
     if (command === 'shootTarget') applyShoot(ped, state.targetRid, changed);
     if (command === 'returnToPost') applyReturn(ped, state.extra, changed);
@@ -332,6 +343,11 @@ mp.events.add('cpi:inspection:stop', () => {
     clearInspectionVisuals();
 });
 
+mp.events.add('cpi:inspection:approved', (textRaw) => {
+    const text = String(textRaw || 'Проверка завершена. Можете ехать дальше.');
+    try { mp.gui.chat.push(`!{#66ff66}${text}`); } catch {}
+});
+
 mp.events.add('render', () => {
     if (!inspectionUi.active) return;
 
@@ -370,6 +386,7 @@ setInterval(() => {
         if (!ped || !mp.peds.exists(ped) || !isController(ped)) return;
         if (Date.now() - (state.lastRefreshAt || 0) < CFG.COMMAND_REFRESH_MS) return;
 
+        if (state.command === 'followTarget') applyFollow(ped, state.targetRid, Number(state.extra && state.extra.stopDist) || 2.0, false);
         if (state.command === 'aimTarget') applyAim(ped, state.targetRid, false);
         if (state.command === 'shootTarget') applyShoot(ped, state.targetRid, false);
         if (state.command === 'returnToPost') applyReturn(ped, state.extra, false);

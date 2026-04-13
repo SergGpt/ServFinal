@@ -2,6 +2,7 @@ const CFG = require('./config');
 
 const COMMAND = {
     IDLE: 'idle',
+    FOLLOW: 'followTarget',
     AIM: 'aimTarget',
     SHOOT: 'shootTarget',
     RETURN: 'returnToPost',
@@ -198,10 +199,13 @@ function startInspection(player) {
     const rid = player.id;
     const now = Date.now();
 
+    const nearestGuard = getNearestAliveGuardToPos(player.position);
+
     inspections.set(rid, {
         enteredAt: now,
         reachUntil: now + CFG.REACH_POINT_MS,
         standingSince: 0,
+        guardId: nearestGuard ? nearestGuard.id : null,
     });
     hostiles.delete(rid);
 
@@ -226,6 +230,10 @@ function stopInspection(rid, reason = 'done') {
 
 function completeInspection(rid) {
     hostiles.delete(rid);
+    const player = getPlayerById(rid);
+    if (player && mp.players.exists(player)) {
+        try { player.call('cpi:inspection:approved', ['Проверка завершена. Можете ехать дальше.']); } catch {}
+    }
     stopInspection(rid, 'completed');
 }
 
@@ -292,6 +300,36 @@ function getNearestRidFromSet(sourceSet) {
     return bestRid;
 }
 
+function getNearestAliveGuardToPos(pos) {
+    let best = null;
+    let bestDist = Infinity;
+
+    guards.forEach((guard) => {
+        if (!guard || guard.dead || !guard.ped || !mp.peds.exists(guard.ped)) return;
+        const d = dist(guard.ped.position, pos);
+        if (d < bestDist) {
+            bestDist = d;
+            best = guard;
+        }
+    });
+
+    return best;
+}
+
+function getOldestInspection() {
+    let bestRid = null;
+    let bestSession = null;
+
+    inspections.forEach((session, rid) => {
+        if (!bestSession || session.enteredAt < bestSession.enteredAt) {
+            bestSession = session;
+            bestRid = rid;
+        }
+    });
+
+    return { rid: bestRid, session: bestSession };
+}
+
 function getTrackedPlayersSet() {
     const tracked = new Set();
     inspections.forEach((_, rid) => tracked.add(rid));
@@ -314,9 +352,24 @@ function tickBehavior() {
     const trackedSet = getTrackedPlayersSet();
     const trackedRid = getNearestRidFromSet(trackedSet);
     if (trackedRid !== null) {
+        const activeInspection = getOldestInspection();
+        const inspectedRid = activeInspection.rid;
+        const inspectedSession = activeInspection.session;
+        const inspectedPlayer = getPlayerById(inspectedRid);
+
         guards.forEach((guard) => {
             if (guard.dead) return;
-            sendGuardCommand(guard, COMMAND.AIM, { rid: trackedRid }, 'entry-aim');
+            if (
+                inspectedSession &&
+                guard.id === inspectedSession.guardId &&
+                inspectedPlayer &&
+                mp.players.exists(inspectedPlayer)
+            ) {
+                sendGuardCommand(guard, COMMAND.FOLLOW, { rid: inspectedRid, stopDist: 2.0 }, 'inspection-follow');
+                return;
+            }
+
+            sendGuardCommand(guard, COMMAND.AIM, { rid: trackedRid }, 'cover-aim');
         });
         return;
     }
