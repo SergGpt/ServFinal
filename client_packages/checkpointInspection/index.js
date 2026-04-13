@@ -11,6 +11,27 @@ const HEARTBEAT_MS = 1000;
 const DEAD_REPORT_CD = 1000;
 const RIFLE_HASH = mp.game.joaat('weapon_carbinerifle');
 
+const inspectionUi = {
+    active: false,
+    waitPoint: null,
+    waitRadius: 2.3,
+    reachTextUntil: 0,
+    holdUntil: 0,
+    message: '',
+};
+
+function drawText2D(text, x, y, scale = 0.45) {
+    try {
+        mp.game.graphics.drawText(String(text), [x, y], {
+            font: 4,
+            color: [255, 255, 255, 210],
+            scale: [scale, scale],
+            outline: true,
+            centre: true,
+        });
+    } catch {}
+}
+
 function findPlayerById(id) {
     let target = null;
     mp.players.forEach((p) => {
@@ -210,6 +231,68 @@ mp.events.add('cpi:forceRemove', (guardIdRaw) => {
     guards.delete(guardId);
     pendingAssign.delete(guardId);
     deadReportedAt.delete(guardId);
+});
+
+mp.events.add('cpi:inspection:start', (payload) => {
+    if (!payload || typeof payload !== 'object') return;
+    const now = Date.now();
+
+    inspectionUi.active = true;
+    inspectionUi.waitPoint = payload.waitPoint || null;
+    inspectionUi.waitRadius = Number(payload.waitRadius) || 2.3;
+    inspectionUi.reachTextUntil = now + (Number(payload.reachDurationMs) || 5000);
+    inspectionUi.holdUntil = 0;
+    inspectionUi.message = String(payload.text || 'Двигайтесь на указанную точку');
+});
+
+mp.events.add('cpi:inspection:hold', (holdDurationMsRaw) => {
+    const holdDurationMs = Number(holdDurationMsRaw) || 5000;
+    inspectionUi.holdUntil = Date.now() + holdDurationMs;
+});
+
+mp.events.add('cpi:inspection:stop', () => {
+    inspectionUi.active = false;
+    inspectionUi.waitPoint = null;
+    inspectionUi.reachTextUntil = 0;
+    inspectionUi.holdUntil = 0;
+    inspectionUi.message = '';
+});
+
+mp.events.add('render', () => {
+    if (!inspectionUi.active || !inspectionUi.waitPoint) return;
+
+    const now = Date.now();
+    const p = inspectionUi.waitPoint;
+
+    try {
+        mp.game.graphics.drawMarker(
+            1,
+            p.x, p.y, p.z - 1.0,
+            0, 0, 0,
+            0, 0, 0,
+            inspectionUi.waitRadius * 2.0,
+            inspectionUi.waitRadius * 2.0,
+            1.0,
+            80, 220, 255, 140,
+            false,
+            false,
+            2,
+            false,
+            0,
+            0,
+            false,
+        );
+    } catch {}
+
+    if (now < inspectionUi.reachTextUntil) {
+        const left = Math.max(0, Math.ceil((inspectionUi.reachTextUntil - now) / 1000));
+        drawText2D(`${inspectionUi.message} (${left})`, 0.5, 0.82, 0.42);
+    } else if (inspectionUi.holdUntil > now) {
+        const holdLeft = Math.max(0, Math.ceil((inspectionUi.holdUntil - now) / 1000));
+        drawText2D(`Стойте на метке: ${holdLeft}`, 0.5, 0.82, 0.42);
+    } else {
+        drawText2D('Встаньте на метку и стойте 5 секунд', 0.5, 0.82, 0.42);
+    }
 });
 
 setInterval(() => {

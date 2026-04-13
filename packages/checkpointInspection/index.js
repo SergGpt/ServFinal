@@ -1,16 +1,20 @@
 const POST_POS = new mp.Vector3(732.9288940429688, -2550.538818359375, 19.97984504699707);
+const ENTRY_POS = new mp.Vector3(740.25244140625, -2528.21923828125, 19.55854606628418);
+const WAIT_POS = new mp.Vector3(734.9447021484375, -2549.41455078125, 19.37537384033203);
+
 const CONFIG = {
     guardId: 1,
-    zoneRadius: 32,
-    interactionRadius: 18,
     controllerMaxDistance: 200,
     commandResendMs: 900,
     heartbeatTimeoutMs: 5000,
-    suspectGraceMs: 8000,
     returnDistance: 3,
     deadRespawnMs: 60000,
     dimension: 0,
     heading: 0,
+    entryRadius: 9.0,
+    waitRadius: 2.3,
+    reachPointMs: 5000,
+    holdStillMs: 5000,
 };
 
 const COMMAND = {
@@ -33,12 +37,13 @@ const guardState = {
     lastCommandAt: 0,
     currentCommand: COMMAND.IDLE,
     currentExtra: null,
-    suspectRid: null,
-    suspectEnteredAt: 0,
-    suspectCompliant: false,
     lastDeadSignalAt: 0,
     deadAt: 0,
+    entryShape: null,
 };
+
+const inspections = new Map(); // rid -> { enteredAt, reachUntil, standingSince, completed, violated }
+const hostiles = new Set();
 
 function dist(a, b) {
     if (!a || !b) return Number.MAX_SAFE_INTEGER;
@@ -46,12 +51,6 @@ function dist(a, b) {
     const dy = Number(a.y) - Number(b.y);
     const dz = Number(a.z) - Number(b.z);
     return Math.sqrt(dx * dx + dy * dy + dz * dz);
-}
-
-function broadcast(eventName, args = []) {
-    mp.players.forEach((p) => {
-        try { p.call(eventName, args); } catch {}
-    });
 }
 
 function getPlayerById(id) {
@@ -175,11 +174,61 @@ function spawnGuard() {
     guardState.switching = false;
     guardState.currentCommand = COMMAND.IDLE;
     guardState.currentExtra = null;
-    guardState.suspectRid = null;
-    guardState.suspectEnteredAt = 0;
-    guardState.suspectCompliant = false;
 
     beginControllerSwitch('spawn');
+}
+
+function stopInspectionFor(playerId, reason = 'stopped') {
+    inspections.delete(playerId);
+    const player = getPlayerById(playerId);
+    if (player && mp.players.exists(player)) {
+        try { player.call('cpi:inspection:stop', [reason]); } catch {}
+    }
+}
+
+function setViolation(playerId, reason = 'rule-break') {
+    const session = inspections.get(playerId);
+    if (!session || session.completed) return;
+    session.violated = true;
+    hostiles.add(playerId);
+    stopInspectionFor(playerId, reason);
+}
+
+function setCompleted(playerId) {
+    const session = inspections.get(playerId);
+    if (!session || session.violated) return;
+    session.completed = true;
+    hostiles.delete(playerId);
+    stopInspectionFor(playerId, 'completed');
+}
+
+function startInspection(player) {
+    if (!player || !mp.players.exists(player)) return;
+    const rid = player.id;
+    const now = Date.now();
+
+    inspections.set(rid, {
+        enteredAt: now,
+        reachUntil: now + CONFIG.reachPointMs,
+        standingSince: 0,
+        completed: false,
+        violated: false,
+    });
+
+    hostiles.delete(rid);
+
+    try {
+        player.call('cpi:inspection:start', [
+            {
+                entry: { x: ENTRY_POS.x, y: ENTRY_POS.y, z: ENTRY_POS.z },
+                waitPoint: { x: WAIT_POS.x, y: WAIT_POS.y, z: WAIT_POS.z },
+                reachDurationMs: CONFIG.reachPointMs,
+                holdDurationMs: CONFIG.holdStillMs,
+                waitRadius: CONFIG.waitRadius,
+                text: 'Двигайтесь на указанную точку',
+            },
+        ]);
+    } catch {}
 }
 
 function markDead(reason = 'unknown') {
@@ -195,13 +244,19 @@ function markDead(reason = 'unknown') {
     } catch {}
 
     sendCommand(COMMAND.DEAD, { reason }, reason);
-    broadcast('cpi:dead', [CONFIG.guardId, reason]);
+
+    mp.players.forEach((p) => {
+        try { p.call('cpi:dead', [CONFIG.guardId, reason]); } catch {}
+    });
 
     setTimeout(() => {
         if (guardState.ped && mp.peds.exists(guardState.ped)) {
             try { guardState.ped.destroy(); } catch {}
         }
-        broadcast('cpi:forceRemove', [CONFIG.guardId]);
+
+        mp.players.forEach((p) => {
+            try { p.call('cpi:forceRemove', [CONFIG.guardId]); } catch {}
+        });
     }, 2000);
 
     setTimeout(() => {
@@ -209,75 +264,89 @@ function markDead(reason = 'unknown') {
     }, CONFIG.deadRespawnMs);
 }
 
-function evaluateSuspectBehavior(player) {
-    if (!player || !mp.players.exists(player)) return { bad: false, reason: 'none' };
+function processInspections() {
+    const now = Date.now();
 
-    const weapon = Number(player.weapon) || 0;
-    if (weapon !== 0) return { bad: true, reason: 'weapon-drawn' };
+    inspections.forEach((session, rid) => {
+        const player = getPlayerById(rid);
+        if (!player || !mp.players.exists(player)) {
+            inspections.delete(rid);
+            hostiles.delete(rid);
+            return;
+        }
 
-    const speed = Number(player.getSpeed ? player.getSpeed() : 0) || 0;
-    if (speed > 3.2) return { bad: true, reason: 'running' };
+        if ((Number(player.dimension) || 0) !== CONFIG.dimension) {
+            setViolation(rid, 'wrong-dimension');
+            return;
+        }
 
-    return { bad: false, reason: 'ok' };
+        const dToWait = dist(player.position, WAIT_POS);
+        const insideWait = dToWait <= CONFIG.waitRadius;
+
+        if (now > session.reachUntil && !insideWait) {
+            setViolation(rid, 'timeout-to-point');
+            return;
+        }
+
+        if (insideWait) {
+            if (!session.standingSince) {
+                session.standingSince = now;
+                try { player.call('cpi:inspection:hold', [CONFIG.holdStillMs]); } catch {}
+            }
+
+            if (now - session.standingSince >= CONFIG.holdStillMs) {
+                setCompleted(rid);
+            }
+            return;
+        }
+
+        session.standingSince = 0;
+    });
 }
 
-function pickNearestPlayerInZone() {
-    let best = null;
+function getNextHostileRid() {
+    let bestRid = null;
     let bestDist = Infinity;
-    mp.players.forEach((player) => {
-        if (!player || !mp.players.exists(player)) return;
-        if ((Number(player.dimension) || 0) !== CONFIG.dimension) return;
-        const d = dist(player.position, POST_POS);
-        if (d > CONFIG.zoneRadius) return;
+
+    hostiles.forEach((rid) => {
+        const player = getPlayerById(rid);
+        if (!player || !mp.players.exists(player)) {
+            hostiles.delete(rid);
+            return;
+        }
+
+        const d = dist(player.position, guardState.ped ? guardState.ped.position : POST_POS);
         if (d < bestDist) {
-            best = player;
             bestDist = d;
+            bestRid = rid;
         }
     });
-    return best;
+
+    return bestRid;
 }
 
 function tickBehavior() {
     if (!guardState.ped || !mp.peds.exists(guardState.ped) || guardState.dead) return;
 
-    const suspect = pickNearestPlayerInZone();
-    if (!suspect) {
-        guardState.suspectRid = null;
-        guardState.suspectEnteredAt = 0;
-        guardState.suspectCompliant = false;
+    processInspections();
 
-        const guardDist = dist(guardState.ped.position, POST_POS);
-        if (guardDist > CONFIG.returnDistance) {
-            if (guardState.currentCommand !== COMMAND.RETURN) {
-                sendCommand(COMMAND.RETURN, {
-                    x: POST_POS.x,
-                    y: POST_POS.y,
-                    z: POST_POS.z,
-                }, 'no-suspect-return');
-            }
-        } else if (guardState.currentCommand !== COMMAND.IDLE) {
-            sendCommand(COMMAND.IDLE, { reason: 'post-clear' }, 'post-clear');
-        }
+    const hostileRid = getNextHostileRid();
+    if (hostileRid !== null) {
+        sendCommand(COMMAND.SHOOT, { rid: hostileRid, reason: 'inspection-failed' }, 'inspection-failed');
         return;
     }
 
-    if (guardState.suspectRid !== suspect.id) {
-        guardState.suspectRid = suspect.id;
-        guardState.suspectEnteredAt = Date.now();
-        guardState.suspectCompliant = false;
-    }
-
-    const bad = evaluateSuspectBehavior(suspect);
-    const insideInteraction = dist(suspect.position, POST_POS) <= CONFIG.interactionRadius;
-    const overGrace = Date.now() - guardState.suspectEnteredAt > CONFIG.suspectGraceMs;
-
-    if (bad.bad || !insideInteraction || overGrace) {
-        sendCommand(COMMAND.SHOOT, { rid: suspect.id, reason: bad.reason, post: POST_POS }, 'suspect-violation');
+    if (inspections.size > 0) {
+        sendCommand(COMMAND.RETURN, { x: WAIT_POS.x, y: WAIT_POS.y, z: WAIT_POS.z, reason: 'inspection-active' }, 'inspection-active');
         return;
     }
 
-    guardState.suspectCompliant = true;
-    sendCommand(COMMAND.FOLLOW, { rid: suspect.id, post: POST_POS, stopDist: 4.2 }, 'inspect-follow');
+    const guardDist = dist(guardState.ped.position, POST_POS);
+    if (guardDist > CONFIG.returnDistance) {
+        sendCommand(COMMAND.RETURN, { x: POST_POS.x, y: POST_POS.y, z: POST_POS.z, reason: 'return-post' }, 'return-post');
+    } else if (guardState.currentCommand !== COMMAND.IDLE) {
+        sendCommand(COMMAND.IDLE, { reason: 'post-clear' }, 'post-clear');
+    }
 }
 
 function tickControllerHealth() {
@@ -286,6 +355,7 @@ function tickControllerHealth() {
     const now = Date.now();
     const controllerAlive = guardState.controllerRid && (now - guardState.lastHeartbeatAt) <= CONFIG.heartbeatTimeoutMs;
     const ctrlObj = getPlayerById(guardState.controllerRid);
+
     if (!controllerAlive || !ctrlObj || !mp.players.exists(ctrlObj)) {
         beginControllerSwitch('heartbeat-timeout');
     }
@@ -296,6 +366,15 @@ function tickControllerHealth() {
 }
 
 function registerEvents() {
+    mp.events.add('playerEnterColshape', (player, shape) => {
+        if (!player || !mp.players.exists(player)) return;
+        if (shape !== guardState.entryShape) return;
+        if ((Number(player.dimension) || 0) !== CONFIG.dimension) return;
+        if (guardState.dead) return;
+
+        startInspection(player);
+    });
+
     mp.events.add('cpi:ctrlAck', (player, guardIdRaw, verRaw) => {
         const guardId = parseInt(guardIdRaw, 10);
         const ver = parseInt(verRaw, 10);
@@ -339,24 +418,25 @@ function registerEvents() {
 
     mp.events.add('playerQuit', (player) => {
         if (!player) return;
+
         if (guardState.controllerRid === player.id) {
             beginControllerSwitch('controller-quit');
         }
-        if (guardState.suspectRid === player.id) {
-            guardState.suspectRid = null;
-            guardState.suspectEnteredAt = 0;
-        }
+
+        inspections.delete(player.id);
+        hostiles.delete(player.id);
     });
-}
+};
 
 function initCheckpointInspection() {
     spawnGuard();
-    registerEvents();
+    guardState.entryShape = mp.colshapes.newSphere(ENTRY_POS.x, ENTRY_POS.y, ENTRY_POS.z, CONFIG.entryRadius);
 
-    setInterval(tickBehavior, 500);
+    registerEvents();
+    setInterval(tickBehavior, 400);
     setInterval(tickControllerHealth, 1000);
 
-    console.log('[CPI] checkpointInspection initialized (new independent module)');
+    console.log('[CPI] checkpointInspection initialized with entry colshape + wait marker flow');
 }
 
 initCheckpointInspection();
