@@ -34,6 +34,10 @@ module.exports = {
         controller.onControllerAck(player, postId, ver);
     },
 
+    "guardCheckpoint:controller.pose": (player, postId, ver, unitsJson) => {
+        controller.onControllerPose(player, postId, ver, unitsJson);
+    },
+
     "guardCheckpoint.reload": async (player) => {
         if (!player || !player.character || player.character.admin < 5) return;
         await controller.reloadFromDb();

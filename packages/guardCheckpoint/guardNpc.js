@@ -184,7 +184,7 @@ class GuardNpc {
         safeCall(method(this.ped, "setCombatAttributes"), 5, true);
         safeCall(method(this.ped, "setCombatAbility"), 2);
         safeCall(method(this.ped, "setCombatRange"), 2);
-        safeCall(method(this.ped, "setCombatMovement"), 2);
+        safeCall(method(this.ped, "setCombatMovement"), 0);
         safeCall(method(this.ped, "setConfigFlag"), 17, true);
         safeCall(method(this.ped, "setConfigFlag"), 281, true);
         safeCall(method(this.ped, "setBlockingOfNonTemporaryEvents"), true);
