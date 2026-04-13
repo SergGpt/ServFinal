@@ -1,6 +1,8 @@
 "use strict";
 
 const { GuardNpc } = require("./guardNpc");
+const { GuardControllerManager } = require("./guardControllerManager");
+const { GuardTaskMemory } = require("./guardTaskMemory");
 
 const POST_STATE = {
     IDLE: "idle",
@@ -28,7 +30,6 @@ function isPointInsidePolygon2D(point, polygon) {
         const yi = Number(polygon[i].y) || 0;
         const xj = Number(polygon[j].x) || 0;
         const yj = Number(polygon[j].y) || 0;
-
         const intersect = ((yi > point.y) !== (yj > point.y))
             && (point.x < ((xj - xi) * (point.y - yi)) / ((yj - yi) || 0.000001) + xi);
         if (intersect) inside = !inside;
@@ -39,7 +40,6 @@ function isPointInsidePolygon2D(point, polygon) {
 function isInsideZone(pos, zone) {
     if (!zone) return false;
     const zoneType = String(zone.type || "sphere");
-
     if (zoneType === "polygon") {
         const points = Array.isArray(zone.points) ? zone.points : [];
         if (points.length < 3) return false;
@@ -48,18 +48,13 @@ function isInsideZone(pos, zone) {
         if (pos.z < minZ || pos.z > maxZ) return false;
         return isPointInsidePolygon2D({ x: pos.x, y: pos.y }, points);
     }
-
     return inSphere(pos, zone);
 }
 
 function isInsideZoneWithTolerance(pos, zone, tolerance = 0.6) {
     if (!zone) return false;
     if (String(zone.type || "sphere") === "sphere") {
-        const extended = {
-            ...zone,
-            radius: Number(zone.radius || 0) + Number(tolerance || 0),
-        };
-        return isInsideZone(pos, extended);
+        return isInsideZone(pos, { ...zone, radius: Number(zone.radius || 0) + Number(tolerance || 0) });
     }
     return isInsideZone(pos, zone);
 }
@@ -70,28 +65,25 @@ function zoneCenter(zone) {
     if (zoneType !== "polygon") return zone.center;
     const points = Array.isArray(zone.points) ? zone.points : [];
     if (!points.length) return { x: 0, y: 0, z: 0 };
-    const sum = points.reduce((acc, p) => {
-        acc.x += Number(p.x) || 0;
-        acc.y += Number(p.y) || 0;
-        acc.z += Number(p.z) || 0;
-        return acc;
-    }, { x: 0, y: 0, z: 0 });
-    return {
-        x: sum.x / points.length,
-        y: sum.y / points.length,
-        z: sum.z / points.length,
-    };
+    const sum = points.reduce((acc, p) => ({ x: acc.x + (Number(p.x) || 0), y: acc.y + (Number(p.y) || 0), z: acc.z + (Number(p.z) || 0) }), { x: 0, y: 0, z: 0 });
+    return { x: sum.x / points.length, y: sum.y / points.length, z: sum.z / points.length };
 }
 
 function isValidPlayer(player) {
     return !!(player && mp.players.exists(player) && player.character);
 }
 
+function isPlayerAlive(player) {
+    if (!isValidPlayer(player)) return false;
+    const hp = Number(player.health);
+    if (Number.isFinite(hp) && hp <= 0) return false;
+    return true;
+}
+
 function getPlayerById(playerId) {
     let found = null;
     mp.players.forEach((player) => {
-        if (found) return;
-        if (!isValidPlayer(player)) return;
+        if (found || !isValidPlayer(player)) return;
         if (player.id === playerId) found = player;
     });
     return found;
@@ -105,111 +97,23 @@ class CheckpointGuardController {
         this.playerClearUntil = new Map();
         this.tickTimer = null;
         this.isInitialized = false;
-
         this.notifs = call("notifications");
+        this.taskMemory = new GuardTaskMemory();
+        this.controllerManager = new GuardControllerManager(config, {
+            getPlayerById,
+            getPostCenter: (post) => zoneCenter(this.getPostZone(post)),
+        });
 
         this.log = (msg) => {
             if (!this.config.debug) return;
             console.log(`[GUARD-CHECKPOINT] ${msg}`);
         };
-
     }
 
-    async initialize() {
-        if (this.isInitialized) return;
-        await this.ensureDbSchema();
-        const loaded = await this.loadPostsFromDb();
-        if (!loaded) {
-            this.initPosts();
-            for (const post of this.posts.values()) {
-                await this.savePostToDb(post.id);
-            }
-        }
-        this.isInitialized = true;
-    }
-
+    async initialize() { if (this.isInitialized) return; this.initPosts(); this.isInitialized = true; }
     initPosts() {
         this.posts.clear();
-        for (const rawPost of this.config.posts || []) {
-            const post = this.createPostRuntime(rawPost);
-            this.posts.set(post.id, post);
-            this.log(`post initialized id=${post.id}`);
-        }
-    }
-
-    getDb() {
-        try {
-            if (typeof global !== "undefined" && global.db && global.db.sequelize) return global.db.sequelize;
-        } catch {}
-        return null;
-    }
-
-    async ensureDbSchema() {
-        const sequelize = this.getDb();
-        if (!sequelize) return;
-        await sequelize.query(`
-            CREATE TABLE IF NOT EXISTS guard_checkpoint_posts (
-                id VARCHAR(64) PRIMARY KEY,
-                name VARCHAR(128) NULL,
-                dimension INT NOT NULL DEFAULT 0,
-                data LONGTEXT NOT NULL,
-                updatedAt BIGINT NULL
-            )
-        `);
-    }
-
-    async loadPostsFromDb() {
-        const sequelize = this.getDb();
-        if (!sequelize) return false;
-        const [rows] = await sequelize.query("SELECT id, data FROM guard_checkpoint_posts");
-        if (!rows || !rows.length) return false;
-
-        for (const existing of this.posts.values()) {
-            if (existing.leader) existing.leader.shutdown();
-            for (const guard of existing.guards || []) guard.shutdown();
-        }
-        this.posts.clear();
-        for (const row of rows) {
-            try {
-                const rawPost = JSON.parse(String(row.data || "{}"));
-                if (!rawPost || !rawPost.id) continue;
-                const post = this.createPostRuntime(rawPost);
-                this.posts.set(post.id, post);
-            } catch (e) {
-                this.log(`db parse failed post=${row.id}: ${e.message}`);
-            }
-        }
-
-        this.log(`loaded posts from DB count=${this.posts.size}`);
-        return this.posts.size > 0;
-    }
-
-    async savePostToDb(postId) {
-        const post = this.posts.get(postId);
-        if (!post) return false;
-        const sequelize = this.getDb();
-        if (!sequelize) return false;
-
-        const data = JSON.stringify(post.cfg);
-        await sequelize.query(
-            `INSERT INTO guard_checkpoint_posts (id, name, dimension, data, updatedAt)
-             VALUES (:id, :name, :dimension, :data, :updatedAt)
-             ON DUPLICATE KEY UPDATE
-                name = VALUES(name),
-                dimension = VALUES(dimension),
-                data = VALUES(data),
-                updatedAt = VALUES(updatedAt)`,
-            {
-                replacements: {
-                    id: post.cfg.id,
-                    name: post.cfg.name || post.cfg.id,
-                    dimension: Number(post.cfg.dimension) || 0,
-                    data,
-                    updatedAt: Date.now(),
-                },
-            }
-        );
-        return true;
+        for (const rawPost of this.config.posts || []) this.posts.set(rawPost.id, this.createPostRuntime(rawPost));
     }
 
     createPostRuntime(rawPost) {
@@ -231,710 +135,324 @@ class CheckpointGuardController {
             guards,
             state: POST_STATE.IDLE,
             stateSince: Date.now(),
-            stateCooldownUntil: 0,
             warningIssuedAt: 0,
-            checkStartedAt: 0,
+            checkingGraceUntil: 0,
             targetPlayerId: null,
-            targetPlayerLastPos: null,
+            targetLockUntil: 0,
             targetStopStaySince: 0,
-            lastTargetDebugAt: 0,
-            warningStartDistToLeader: 0,
-            warningStartClosestGuardDist: 0,
-            warningPrevDistToStopZone: Number.MAX_SAFE_INTEGER,
-            attackStartedAt: 0,
             targetOutsidePursuitSince: 0,
             streamOwnerId: null,
             playerSeenAt: new Map(),
-            checkingGraceUntil: 0,
-            lastClientCommandKey: "",
-            lastClientCommandAt: 0,
-            lastAppliedBehaviorKey: "",
+            ctrlVer: 1,
+            stateVersion: 1,
+            lastControllerSwitchAt: 0,
+            lastStateSyncAt: 0,
             lastPoseSyncAt: 0,
-            ctrlVer: 0,
-            controllerAckVer: 0,
-            pendingMovementCommand: null,
         };
     }
 
-    start() {
-        if (this.tickTimer) return;
-        this.log(`controller start, posts=${this.posts.size}`);
-        this.tickTimer = setInterval(() => this.tick(), this.config.tickMs || 300);
-    }
+    start() { if (!this.tickTimer) this.tickTimer = setInterval(() => this.tick(), this.config.tickMs || 300); }
+    stop() { if (this.tickTimer) clearInterval(this.tickTimer); this.tickTimer = null; }
+    shutdown() { this.stop(); for (const post of this.posts.values()) { post.leader.shutdown(); for (const g of post.guards) g.shutdown(); } this.posts.clear(); }
+    onPlayerQuit(player) { if (!player) return; this.clearPlayerAggression(player.id); this.resetPostsByPlayer(player.id); }
+    onPlayerDeath(player) { if (!player) return; this.clearPlayerAggression(player.id); this.resetPostsByPlayer(player.id); }
+    onPlayerWeaponChange() {}
+    onPlayerDamage(player, attacker) { if (isValidPlayer(player) && attacker && mp.players.exists(attacker)) this.markAggressive(attacker.id); }
+    onControllerAck() {}
 
-    stop() {
-        if (this.tickTimer) {
-            clearInterval(this.tickTimer);
-            this.tickTimer = null;
-        }
-    }
-
-    shutdown() {
-        this.log("controller shutdown start");
-        this.stop();
-
-        for (const post of this.posts.values()) {
-            if (post.leader && typeof post.leader.shutdown === "function") {
-                post.leader.shutdown();
-            }
-            for (const guard of post.guards || []) {
-                if (guard && typeof guard.shutdown === "function") {
-                    guard.shutdown();
-                }
-            }
-        }
-
-        this.posts.clear();
-        this.playerAggressiveUntil.clear();
-        this.log("controller shutdown complete");
-    }
-
-    onPlayerQuit(player) {
-        if (!player) return;
-        this.clearPlayerAggression(player.id);
-        this.resetPostsByPlayer(player.id, "player-quit");
-    }
-
-    onPlayerDeath(player) {
-        if (!player) return;
-        this.clearPlayerAggression(player.id);
-        this.resetPostsByPlayer(player.id, "player-death");
-    }
-
-    onPlayerWeaponChange(player, oldWeapon, newWeapon) {
-        if (!isValidPlayer(player)) return;
-        const weaponHash = Number(newWeapon) || 0;
-        if (!weaponHash) return;
-    }
-
-    onPlayerDamage(player, attacker) {
-        if (!isValidPlayer(player)) return;
-        if (!attacker || !mp.players.exists(attacker)) return;
-        this.markAggressive(attacker.id);
-        this.log(`aggressive by damage attacker=${attacker.name}[${attacker.id}] target=${player.name}[${player.id}]`);
-    }
-
-    onControllerAck(player, postId, ver) {
-        if (!isValidPlayer(player)) return;
-        const post = this.getPost(postId);
-        if (!post) return;
-        const expectedVer = Number(post.ctrlVer) || 0;
-        if (Number(player.id) !== Number(post.streamOwnerId)) return;
-        if (Number(ver) !== expectedVer) return;
-
-        post.controllerAckVer = expectedVer;
-        const pending = post.pendingMovementCommand;
-        if (!pending) return;
-        post.pendingMovementCommand = null;
-        const target = pending.targetId >= 0 ? getPlayerById(pending.targetId) : null;
-        this.dispatchNpcCommand(post, pending.command, target, { force: true, owner: player });
-        this.log(`post=${post.id} controller ack ver=${ver} replay cmd=${pending.command}`);
-    }
-
-    markAggressive(playerId) {
-        this.playerAggressiveUntil.set(playerId, Date.now() + (this.config.aggressiveMemoryMs || 12000));
-    }
-
-    clearPlayerAggression(playerId) {
-        this.playerAggressiveUntil.delete(playerId);
-    }
-
+    markAggressive(playerId) { this.playerAggressiveUntil.set(playerId, Date.now() + (this.config.aggressiveMemoryMs || 12000)); }
+    clearPlayerAggression(playerId) { this.playerAggressiveUntil.delete(playerId); }
     isPlayerAggressive(playerId) {
         const until = Number(this.playerAggressiveUntil.get(playerId)) || 0;
-        if (!until) return false;
-        if (Date.now() > until) {
-            this.playerAggressiveUntil.delete(playerId);
-            return false;
-        }
+        if (!until || Date.now() > until) { this.playerAggressiveUntil.delete(playerId); return false; }
         return true;
     }
-
-    markPlayerCleared(playerId, durationMs = 20000) {
-        this.playerClearUntil.set(playerId, Date.now() + durationMs);
-    }
-
+    markPlayerCleared(playerId, durationMs = 20000) { this.playerClearUntil.set(playerId, Date.now() + durationMs); }
     isPlayerCleared(playerId) {
         const until = Number(this.playerClearUntil.get(playerId)) || 0;
-        if (!until) return false;
-        if (Date.now() > until) {
-            this.playerClearUntil.delete(playerId);
-            return false;
-        }
+        if (!until || Date.now() > until) { this.playerClearUntil.delete(playerId); return false; }
         return true;
     }
 
     tick() {
         const now = Date.now();
-        for (const post of this.posts.values()) {
-            if (this.config.debugTick) this.log(`tick post=${post.id} state=${post.state}`);
-            this.tickPost(post, now);
-        }
+        for (const post of this.posts.values()) this.tickPost(post, now);
     }
 
     tickPost(post, now) {
         post.leader.syncDeathIfNeeded(now);
         for (const guard of post.guards) guard.syncDeathIfNeeded(now);
-        this.updateStreamOwner(post, now);
+
+        const inside = this.collectPlayersInPost(post, now);
+        this.updateStreamOwner(post, inside, now);
+
+        const target = this.resolveLockedTarget(post, inside, now);
+        this.processState(post, target, now);
+
+        this.applyStateToNpcs(post);
+        this.publishState(post, now);
         this.publishAuthoritativePose(post, now);
-
-        const target = this.resolveTargetPlayer(post);
-        const prevTargetPos = post.targetPlayerLastPos ? { ...post.targetPlayerLastPos } : null;
-        if (target && now - (post.lastTargetDebugAt || 0) > 2000) {
-            this.log(`post=${post.id} target=${target.name}[${target.id}] state=${post.state}`);
-            post.lastTargetDebugAt = now;
-        }
-
-        if (!target && post.state !== POST_STATE.IDLE) {
-            this.transition(post, POST_STATE.RETURN, "target-lost", now);
-        }
-
-        switch (post.state) {
-            case POST_STATE.IDLE:
-                this.handleIdle(post, target, now);
-                break;
-            case POST_STATE.WARNING:
-                this.handleWarning(post, target, prevTargetPos, now);
-                break;
-            case POST_STATE.CHECKING:
-                this.handleChecking(post, target, prevTargetPos, now);
-                break;
-            case POST_STATE.ATTACK:
-                this.handleAttack(post, target, now);
-                break;
-            case POST_STATE.RETURN:
-                this.handleReturn(post, now);
-                break;
-            default:
-                this.transition(post, POST_STATE.IDLE, "unknown-state", now);
-                break;
-        }
-
-        if (target) {
-            post.targetPlayerLastPos = {
-                x: target.position.x,
-                y: target.position.y,
-                z: target.position.z,
-            };
-        }
     }
 
-    handleIdle(post, target, now) {
-        if (!target) return;
-        if (this.isPlayerCleared(target.id)) return;
-        const dist = dist3(target.position, zoneCenter(this.getPostZone(post)));
-        const warnDistance = Number(post.cfg.warnDistance || this.config.defaultWarnDistance);
-        if (dist <= warnDistance) {
-            post.targetPlayerId = target.id;
-            this.log(`post=${post.id} warning trigger target=${target.name}[${target.id}] dist=${dist.toFixed(2)}`);
-            this.transition(post, POST_STATE.WARNING, "player-in-warn-distance", now);
-        }
-    }
-
-    handleWarning(post, target, prevTargetPos, now) {
-        if (!target) {
-            this.transition(post, POST_STATE.RETURN, "no-target-warning", now);
-            return;
-        }
-
-        if (!isInsideZone(target.position, this.getPostZone(post))) {
-            this.transition(post, POST_STATE.RETURN, "left-post-zone-warning", now);
-            return;
-        }
-
-        this.applyWarningBehavior(post, target);
-
-        if (this.shouldTriggerAttack(post, target, now, { ignoreViolation: true })) {
-            this.transition(post, POST_STATE.ATTACK, "warning-violation", now);
-            return;
-        }
-
-        const warningResponseMs = Number(post.cfg.warningResponseMs || this.config.warningResponseMs || 5000);
-        const elapsed = now - (post.warningIssuedAt || now);
-        const distToStop = dist3(target.position, zoneCenter(post.cfg.stopZone));
-        const prevDistToStop = Number(post.warningPrevDistToStopZone || distToStop);
-        if (isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9)) {
-            post.targetStopStaySince = now;
-            this.log(`post=${post.id} target=${target.id} entered stopZone`);
-            this.transition(post, POST_STATE.CHECKING, "entered-stop-zone", now);
-            return;
-        }
-
-        if (elapsed > warningResponseMs) {
-            this.transition(post, POST_STATE.ATTACK, "did-not-enter-stop-zone-in-time", now);
-            return;
-        }
-
-        post.warningPrevDistToStopZone = distToStop;
-    }
-
-    handleChecking(post, target, prevTargetPos, now) {
-        if (!target) {
-            this.transition(post, POST_STATE.RETURN, "no-target-checking", now);
-            return;
-        }
-
-        if (!isInsideZone(target.position, this.getPostZone(post))) {
-            this.transition(post, POST_STATE.RETURN, "left-post-zone-checking", now);
-            return;
-        }
-
-        if (this.shouldTriggerAttack(post, target, now, { ignoreViolation: true })) {
-            this.transition(post, POST_STATE.ATTACK, "checking-violation", now);
-            return;
-        }
-
-        if (!isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9)) {
-            this.transition(post, POST_STATE.ATTACK, "left-stop-zone", now);
-            return;
-        }
-
-        if (now < (post.checkingGraceUntil || 0)) return;
-
-        const checkDurationMs = Number(post.cfg.checkDurationMs || this.config.defaultCheckDurationMs);
-        const stayedMs = now - (post.targetStopStaySince || now);
-        if (stayedMs >= checkDurationMs) {
-            this.log(`post=${post.id} checking completed target=${target.id}`);
-            this.markPlayerCleared(target.id, 20000);
-            this.sendStatusText(post, "Все отлично, можете проезжать", 3000, target);
-            this.sendWarningStop(target, post.id);
-            this.transition(post, POST_STATE.RETURN, "check-success", now);
-        }
-    }
-
-    handleAttack(post, target, now) {
-        if (!target) {
-            this.transition(post, POST_STATE.RETURN, "no-target-attack", now);
-            return;
-        }
-
-        if (!isInsideZone(target.position, this.getPostZone(post))) {
-            this.transition(post, POST_STATE.RETURN, "target-escaped-post-zone", now);
-            return;
-        }
-
-        this.applyAttackBehavior(post, target);
-
-        const maxChaseDistance = Number(post.cfg.maxChaseDistance || this.config.defaultMaxChaseDistance);
-        const pursuitZone = this.getPursuitZone(post);
-        const allUnits = [post.leader, ...post.guards];
-        for (const unit of allUnits) {
-            if (unit.isOutsideLimits(pursuitZone, maxChaseDistance)) {
-                this.log(`post=${post.id} unit=${unit.id} outside limits -> force return`);
-                unit.stopCombat();
-                unit.returnToPost();
-            }
-        }
-
-        if (!isInsideZone(target.position, pursuitZone)) {
-            if (!post.targetOutsidePursuitSince) post.targetOutsidePursuitSince = now;
-            if (now - post.targetOutsidePursuitSince > 2000) {
-                this.transition(post, POST_STATE.RETURN, "target-left-guard-zone", now);
-            }
-        } else {
-            post.targetOutsidePursuitSince = 0;
-        }
-    }
-
-    handleReturn(post, now) {
-        this.applyReturnBehavior(post);
-
-        const arrived = [post.leader, ...post.guards].every((unit) => {
-            if (!unit.exists()) return false;
-            return dist3(unit.ped.position, unit.spawnPos) <= 2.0;
-        });
-
-        if (arrived || now - post.stateSince > 6000) {
-            this.transition(post, POST_STATE.IDLE, "returned", now);
-            post.targetPlayerId = null;
-            post.targetPlayerLastPos = null;
-            post.targetStopStaySince = 0;
-            post.attackStartedAt = 0;
-            post.targetOutsidePursuitSince = 0;
-        }
-    }
-
-    shouldTriggerAttack(post, target, now, options = {}) {
-        if (!target || !mp.players.exists(target)) return false;
-        if (this.isPlayerAggressive(target.id)) {
-            this.log(`post=${post.id} attack reason=aggressive target=${target.name}[${target.id}]`);
-            return true;
-        }
-        if (this.isPlayerCleared(target.id)) return false;
-
-        if (!options.ignoreViolation && post.cfg.violationZone && isInsideZone(target.position, post.cfg.violationZone)) {
-            this.log(`post=${post.id} attack reason=violation-zone target=${target.name}[${target.id}]`);
-            return true;
-        }
-
-        return false;
-    }
-
-    applyWarningBehavior(post, target, force = false) {
-        if (!post.leader || !target) return;
-        const behaviorKey = `warning:${target.id}`;
-        if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
-        post.lastAppliedBehaviorKey = behaviorKey;
-
-        post.leader.setFacing(target.position);
-        post.leader.playStopAnim();
-        post.leader.readyWeapon();
-        post.leader.aimAtTarget(target);
-        for (const guard of post.guards) {
-            guard.readyWeapon();
-            guard.aimAtTarget(target);
-        }
-        this.dispatchNpcCommand(post, "aim", target, { force });
-    }
-
-    applyAttackBehavior(post, target, force = false) {
-        if (!target) return;
-        const behaviorKey = `attack:${target.id}`;
-        if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
-        post.lastAppliedBehaviorKey = behaviorKey;
-
-        post.leader.fireAtTarget(target);
-        for (const guard of post.guards) guard.fireAtTarget(target);
-        this.dispatchNpcCommand(post, "fire", target, { force });
-    }
-
-    applyReturnBehavior(post, force = false) {
-        const behaviorKey = "return";
-        if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
-        post.lastAppliedBehaviorKey = behaviorKey;
-
-        post.leader.stopCombat();
-        post.leader.returnToPost();
-        for (const guard of post.guards) {
-            guard.stopCombat();
-            guard.returnToPost();
-        }
-        this.dispatchNpcCommand(post, "return", null, { force });
-    }
-
-    resolveTargetPlayer(post) {
-        if (post.targetPlayerId != null) {
-            const player = getPlayerById(post.targetPlayerId);
-            if (isValidPlayer(player) && Number(player.dimension) === Number(post.cfg.dimension || 0)) {
-                return player;
-            }
-        }
-
-        let nearest = null;
-        let nearestDist = Number.MAX_SAFE_INTEGER;
-
+    collectPlayersInPost(post, now) {
+        const inside = [];
         mp.players.forEach((player) => {
             if (!isValidPlayer(player)) return;
             if (Number(player.dimension) !== Number(post.cfg.dimension || 0)) return;
             if (!isInsideZone(player.position, this.getPostZone(post))) return;
-
-            const d = dist3(player.position, zoneCenter(this.getPostZone(post)));
-            if (d < nearestDist) {
-                nearestDist = d;
-                nearest = player;
-            }
+            if (!post.playerSeenAt.has(player.id)) post.playerSeenAt.set(player.id, now);
+            inside.push(player);
         });
+        for (const pid of Array.from(post.playerSeenAt.keys())) {
+            if (!inside.some((p) => p.id === pid)) post.playerSeenAt.delete(pid);
+        }
+        return inside;
+    }
 
-        return nearest;
+    resolveLockedTarget(post, insidePlayers, now) {
+        const current = getPlayerById(post.targetPlayerId);
+        const currentValid = current && insidePlayers.some((p) => p.id === current.id) && isPlayerAlive(current);
+        if (currentValid && now < Number(post.targetLockUntil || 0)) return current;
+        if (currentValid && (post.state === POST_STATE.CHECKING || post.state === POST_STATE.WARNING || post.state === POST_STATE.ATTACK)) return current;
+
+        const center = zoneCenter(this.getPostZone(post));
+        let candidate = null;
+        let bestScore = -Infinity;
+        for (const p of insidePlayers) {
+            const score = 100 - dist3(p.position, center) + (this.isPlayerAggressive(p.id) ? 15 : 0);
+            if (score > bestScore) { bestScore = score; candidate = p; }
+        }
+
+        if ((currentValid && candidate && candidate.id !== current.id) || (!currentValid && candidate)) {
+            post.targetPlayerId = candidate.id;
+            post.targetLockUntil = now + 3000;
+            post.stateVersion += 1;
+        } else if (!candidate) {
+            post.targetPlayerId = null;
+        }
+        return candidate;
+    }
+
+    processState(post, target, now) {
+        if (!target) {
+            if (post.state !== POST_STATE.IDLE && post.state !== POST_STATE.RETURN) this.transition(post, POST_STATE.RETURN, "no-target", now);
+            return;
+        }
+
+        if (post.state === POST_STATE.IDLE) {
+            const dist = dist3(target.position, zoneCenter(this.getPostZone(post)));
+            if (!this.isPlayerCleared(target.id) && dist <= Number(post.cfg.warnDistance || this.config.defaultWarnDistance)) {
+                this.transition(post, POST_STATE.WARNING, "warn-distance", now);
+            }
+            return;
+        }
+
+        if (post.state === POST_STATE.WARNING) {
+            if (this.shouldTriggerAttack(post, target)) return this.transition(post, POST_STATE.ATTACK, "warning-violation", now);
+            if (isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9)) {
+                post.targetStopStaySince = now;
+                return this.transition(post, POST_STATE.CHECKING, "entered-stop-zone", now);
+            }
+            const warningResponseMs = Number(post.cfg.warningResponseMs || this.config.warningResponseMs || 5000);
+            if (now - post.warningIssuedAt > warningResponseMs) return this.transition(post, POST_STATE.ATTACK, "warning-timeout", now);
+            return;
+        }
+
+        if (post.state === POST_STATE.CHECKING) {
+            if (this.shouldTriggerAttack(post, target)) return this.transition(post, POST_STATE.ATTACK, "checking-violation", now);
+            if (!isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9)) return this.transition(post, POST_STATE.ATTACK, "left-stop-zone", now);
+            if (now < post.checkingGraceUntil) return;
+            const checkDurationMs = Number(post.cfg.checkDurationMs || this.config.defaultCheckDurationMs || 5000);
+            if (now - post.targetStopStaySince >= checkDurationMs) {
+                this.markPlayerCleared(target.id, 20000);
+                this.sendStatusText(post, "Все отлично, можете проезжать", 3000, target);
+                this.sendWarningStop(target, post.id);
+                return this.transition(post, POST_STATE.RETURN, "check-success", now);
+            }
+            return;
+        }
+
+        if (post.state === POST_STATE.ATTACK) {
+            const pursuitZone = this.getPursuitZone(post);
+            if (!isInsideZone(target.position, pursuitZone)) {
+                if (!post.targetOutsidePursuitSince) post.targetOutsidePursuitSince = now;
+                if (now - post.targetOutsidePursuitSince > 2000) return this.transition(post, POST_STATE.RETURN, "left-pursuit", now);
+            } else post.targetOutsidePursuitSince = 0;
+            return;
+        }
+
+        if (post.state === POST_STATE.RETURN) {
+            const arrived = [post.leader, ...post.guards].every((u) => u.exists() && dist3(u.ped.position, u.spawnPos) <= 2.0);
+            if (arrived || now - post.stateSince > 6000) {
+                post.targetPlayerId = null;
+                post.targetLockUntil = 0;
+                return this.transition(post, POST_STATE.IDLE, "returned", now);
+            }
+        }
+    }
+
+    shouldTriggerAttack(post, target) {
+        if (!target) return false;
+        if (this.isPlayerAggressive(target.id)) return true;
+        if (this.isPlayerCleared(target.id)) return false;
+        return !!(post.cfg.violationZone && isInsideZone(target.position, post.cfg.violationZone));
     }
 
     transition(post, nextState, reason, now) {
         if (post.state === nextState) return;
-        const bypassCooldown = post.state === POST_STATE.WARNING
-            && nextState === POST_STATE.CHECKING
-            && reason === "entered-stop-zone";
-        if (!bypassCooldown && now < (post.stateCooldownUntil || 0)) {
-            this.log(`post=${post.id} transition blocked cooldown ${post.state} -> ${nextState} (${reason})`);
-            return;
-        }
-
         const prev = post.state;
         post.state = nextState;
         post.stateSince = now;
-        post.stateCooldownUntil = now + (this.config.transitionCooldownMs || 900);
-        post.lastAppliedBehaviorKey = "";
+        post.stateVersion += 1;
 
         if (nextState === POST_STATE.WARNING) {
             post.warningIssuedAt = now;
-            post.checkStartedAt = 0;
-            post.targetStopStaySince = 0;
-            const target = this.resolveTargetPlayer(post);
-            if (target) {
-                this.sendWarningStart(target, post);
-                post.warningPrevDistToStopZone = dist3(target.position, zoneCenter(post.cfg.stopZone));
-                post.warningStartDistToLeader = post.leader && post.leader.exists()
-                    ? dist3(target.position, post.leader.ped.position)
-                    : Number.MAX_SAFE_INTEGER;
-                post.warningStartClosestGuardDist = post.guards.reduce((min, guard) => {
-                    if (!guard.exists()) return min;
-                    return Math.min(min, dist3(target.position, guard.ped.position));
-                }, Number.MAX_SAFE_INTEGER);
-            }
+            this.sendWarningStart(getPlayerById(post.targetPlayerId), post);
         }
-
         if (nextState === POST_STATE.CHECKING) {
-            post.checkStartedAt = now;
             post.checkingGraceUntil = now + 1100;
-            const target = getPlayerById(post.targetPlayerId);
-            this.sendStatusText(post, "Идет досмотр, оставайтесь в зоне проверки (5 секунд)", 5000, target);
+            this.sendStatusText(post, "Идет досмотр, оставайтесь в зоне проверки (5 секунд)", 5000, getPlayerById(post.targetPlayerId));
         }
-
         if (nextState === POST_STATE.ATTACK) {
-            post.attackStartedAt = now;
-            post.targetOutsidePursuitSince = 0;
-            const target = getPlayerById(post.targetPlayerId);
-            this.sendStatusText(post, "Нарушение! Охрана открывает огонь", 2500, target);
+            this.sendStatusText(post, "Нарушение! Охрана открывает огонь", 2500, getPlayerById(post.targetPlayerId));
         }
-
-        if (nextState === POST_STATE.IDLE || nextState === POST_STATE.RETURN) {
-            const target = getPlayerById(post.targetPlayerId);
-            this.sendWarningStop(target, post.id);
-        }
+        if (nextState === POST_STATE.IDLE || nextState === POST_STATE.RETURN) this.sendWarningStop(getPlayerById(post.targetPlayerId), post.id);
 
         this.log(`post=${post.id} ${prev} -> ${nextState} (${reason})`);
-        this.emitDebugToNearby(post, `${prev} -> ${nextState} (${reason})`);
+    }
+
+    applyStateToNpcs(post) {
+        const target = getPlayerById(post.targetPlayerId);
+        const all = [post.leader, ...post.guards];
+        for (const unit of all) {
+            if (!unit.exists()) continue;
+            const ped = unit.ped;
+            try { ped.setVariable("guardState", post.state); } catch {}
+            try { ped.setVariable("guardTarget", target ? target.id : -1); } catch {}
+            try { ped.setVariable("guardTargetId", target ? target.id : -1); } catch {}
+            try { ped.setVariable("guardStateVersion", Number(post.stateVersion) || 0); } catch {}
+            try { ped.setVariable("ctrlVer", Number(post.ctrlVer) || 0); } catch {}
+            try { ped.setVariable("guardReturnX", Number(unit.spawnPos.x) || 0); } catch {}
+            try { ped.setVariable("guardReturnY", Number(unit.spawnPos.y) || 0); } catch {}
+            try { ped.setVariable("guardReturnZ", Number(unit.spawnPos.z) || 0); } catch {}
+            try { ped.setVariable("guardReturnHeading", Number(unit.spawnHeading) || 0); } catch {}
+            try { ped.setVariable("guardWeaponHash", Number(unit.weaponHash) || 0); } catch {}
+        }
+
+        this.taskMemory.write(post.id, {
+            state: post.state,
+            targetPlayerId: post.targetPlayerId,
+            stateVersion: post.stateVersion,
+            ctrlVer: post.ctrlVer,
+        });
+    }
+
+    publishState(post, now) {
+        if (now - (post.lastStateSyncAt || 0) < 120) return;
+        post.lastStateSyncAt = now;
+        const payload = [post.id, post.state, Number(post.targetPlayerId ?? -1), Number(post.stateVersion || 0), Number(post.ctrlVer || 0), Number(post.streamOwnerId ?? -1)];
+        this.forEachPlayersInPost(post, (player) => player.call("guardCheckpoint:stateSync", payload));
+    }
+
+    publishAuthoritativePose(post, now) {
+        let poseInterval = 150;
+        if (post.state === POST_STATE.ATTACK || post.state === POST_STATE.WARNING || post.state === POST_STATE.CHECKING) poseInterval = 95;
+        else if (post.state === POST_STATE.RETURN) poseInterval = 180;
+        else if (post.state === POST_STATE.IDLE) poseInterval = 520;
+        if (now - (post.lastPoseSyncAt || 0) < poseInterval) return;
+        post.lastPoseSyncAt = now;
+        for (const unit of [post.leader, ...post.guards]) {
+            if (!unit || !unit.exists()) continue;
+            const ped = unit.ped;
+            const pos = ped.position;
+            const prev = unit.lastPose || { x: Number(pos.x) || 0, y: Number(pos.y) || 0, z: Number(pos.z) || 0, at: now };
+            const dtSec = Math.max(0.01, (now - Number(prev.at || now)) / 1000);
+            const velX = (Number(pos.x) - Number(prev.x)) / dtSec;
+            const velY = (Number(pos.y) - Number(prev.y)) / dtSec;
+            const velZ = (Number(pos.z) - Number(prev.z)) / dtSec;
+            try { ped.setVariable("guardPoseX", Number(pos.x) || 0); } catch {}
+            try { ped.setVariable("guardPoseY", Number(pos.y) || 0); } catch {}
+            try { ped.setVariable("guardPoseZ", Number(pos.z) || 0); } catch {}
+            try { ped.setVariable("guardPoseHeading", Number(ped.getHeading ? ped.getHeading() : unit.spawnHeading) || 0); } catch {}
+            try { ped.setVariable("guardPoseVelX", Number(velX) || 0); } catch {}
+            try { ped.setVariable("guardPoseVelY", Number(velY) || 0); } catch {}
+            try { ped.setVariable("guardPoseVelZ", Number(velZ) || 0); } catch {}
+            try { ped.setVariable("guardPoseUpdatedAt", now); } catch {}
+            unit.lastPose = { x: Number(pos.x) || 0, y: Number(pos.y) || 0, z: Number(pos.z) || 0, at: now };
+        }
+    }
+
+    updateStreamOwner(post, insidePlayers, now) {
+        const nextOwner = this.controllerManager.pickController(post, insidePlayers, now);
+        if (post.streamOwnerId === nextOwner) return;
+
+        post.streamOwnerId = nextOwner;
+        post.lastControllerSwitchAt = now;
+        post.ctrlVer += 1;
+        post.stateVersion += 1;
+
+        const owner = getPlayerById(nextOwner);
+        [post.leader, ...post.guards].forEach((unit) => {
+            if (!unit.exists()) return;
+            try { unit.ped.setVariable("streamOwnerId", nextOwner == null ? -1 : nextOwner); } catch {}
+            try { unit.ped.setVariable("ctrlVer", Number(post.ctrlVer) || 0); } catch {}
+            if (owner) {
+                try { unit.ped.controller = owner; } catch {}
+            }
+        });
+
+        if (owner) owner.call("guardCheckpoint:controller:switch", [post.id, post.ctrlVer, post.stateVersion, post.state]);
     }
 
     sendWarningStart(player, post) {
         if (!isValidPlayer(player)) return;
         const ui = post.cfg.warningUi || {};
-        player.call("guardCheckpoint:warning:start", [{
-            postId: post.id,
-            text: ui.text || "Охрана требует остановиться",
-            soundName: ui.soundName || "5s",
-            soundSet: ui.soundSet || "MP_MISSION_COUNTDOWN_SOUNDSET",
-            stopZone: post.cfg.stopZone || null,
-            ownerId: post.streamOwnerId,
-            targetId: player.id,
-        }]);
-        if (this.notifs && !this.notifs.isEmpty) {
-            this.notifs.warning(player, "Остановитесь и зайдите в зону досмотра", "Пост охраны");
-        }
-        this.log(`warning start target-only post=${post.id} target=${player.name}[${player.id}] owner=${post.streamOwnerId}`);
-        const warningResponseMs = Number(post.cfg.warningResponseMs || this.config.warningResponseMs || 5000);
-        const warningSeconds = Math.max(1, Math.round(warningResponseMs / 1000));
-        this.sendStatusText(post, `Стой! Встаньте в зону досмотра за ${warningSeconds} секунд`, warningResponseMs, player);
-        this.sendPhase(post, "warning", warningResponseMs, player);
+        player.call("guardCheckpoint:warning:start", [{ postId: post.id, text: ui.text || "Охрана требует остановиться", soundName: ui.soundName || "5s", soundSet: ui.soundSet || "MP_MISSION_COUNTDOWN_SOUNDSET", stopZone: post.cfg.stopZone || null }]);
+        this.sendStatusText(post, `Стой! Встаньте в зону досмотра за ${Math.max(1, Math.round((Number(post.cfg.warningResponseMs || this.config.warningResponseMs || 5000)) / 1000))} секунд`, Number(post.cfg.warningResponseMs || this.config.warningResponseMs || 5000), player);
+    }
+    sendWarningStop(player, postId) { if (isValidPlayer(player)) player.call("guardCheckpoint:warning:stop", [postId]); }
+    sendStatusText(post, text, durationMs = 3000, player = null) {
+        if (isValidPlayer(player)) return player.call("guardCheckpoint:status:text", [post.id, text, durationMs]);
+        this.forEachPlayersInPost(post, (rec) => rec.call("guardCheckpoint:status:text", [post.id, text, durationMs]));
     }
 
-    sendWarningStop(player, postId) {
-        if (!isValidPlayer(player)) return;
-        player.call("guardCheckpoint:warning:stop", [postId]);
-    }
-
-    resetPostsByPlayer(playerId, reason) {
+    resetPostsByPlayer(playerId) {
         const now = Date.now();
         for (const post of this.posts.values()) {
             if (post.targetPlayerId !== playerId) continue;
-            this.transition(post, POST_STATE.RETURN, reason, now);
             post.targetPlayerId = null;
-            post.targetPlayerLastPos = null;
-            post.targetStopStaySince = 0;
-            post.warningPrevDistToStopZone = Number.MAX_SAFE_INTEGER;
+            post.targetLockUntil = 0;
+            this.transition(post, POST_STATE.RETURN, "target-disconnected", now);
         }
     }
 
-    sendStatusText(post, text, durationMs = 3000, player = null) {
-        if (isValidPlayer(player)) {
-            player.call("guardCheckpoint:status:text", [post.id, text, durationMs]);
-            return;
-        }
-        this.forEachPlayersInPost(post, (rec) => {
-            rec.call("guardCheckpoint:status:text", [post.id, text, durationMs]);
-        });
-    }
-
-    sendPhase(post, phase, durationMs, player = null) {
-        if (isValidPlayer(player)) {
-            player.call("guardCheckpoint:phase", [post.id, phase, Number(durationMs) || 0, Date.now()]);
-            return;
-        }
-        this.forEachPlayersInPost(post, (rec) => {
-            rec.call("guardCheckpoint:phase", [post.id, phase, Number(durationMs) || 0, Date.now()]);
-        });
-    }
-
-    emitDebugToNearby(post, text) {
-        if (!this.config.debug) return;
-        const payload = `[${post.id}] ${text}`;
-        this.forEachPlayersInPost(post, (player) => player.call("guardCheckpoint:debug", [payload]));
-    }
-
-    getPostZone(post) {
-        return post.cfg.postZone || post.cfg.guardZone;
-    }
-
-    getPursuitZone(post) {
-        return post.cfg.pursuitZone || post.cfg.guardZone;
-    }
-
-    forEachPlayersInPost(post, callback) {
-        mp.players.forEach((player) => {
-            if (!isValidPlayer(player)) return;
-            if (Number(player.dimension) !== Number(post.cfg.dimension || 0)) return;
-            if (!isInsideZone(player.position, this.getPostZone(post))) return;
-            callback(player);
-        });
-    }
-
-    publishAuthoritativePose(post, now) {
-        if (now - (post.lastPoseSyncAt || 0) < 150) return;
-        post.lastPoseSyncAt = now;
-        const units = [post.leader, ...post.guards];
-        for (const unit of units) {
-            if (!unit || !unit.exists()) continue;
-            const ped = unit.ped;
-            const pos = ped.position;
-            try { ped.setVariable("guardPoseX", Number(pos.x) || 0); } catch {}
-            try { ped.setVariable("guardPoseY", Number(pos.y) || 0); } catch {}
-            try { ped.setVariable("guardPoseZ", Number(pos.z) || 0); } catch {}
-            try { ped.setVariable("guardPoseHeading", Number(ped.getHeading ? ped.getHeading() : unit.spawnHeading) || 0); } catch {}
-            try { ped.setVariable("guardPoseUpdatedAt", now); } catch {}
-        }
-    }
-
-    updateStreamOwner(post, now) {
-        const inside = [];
-        this.forEachPlayersInPost(post, (player) => {
-            if (!post.playerSeenAt.has(player.id)) post.playerSeenAt.set(player.id, now);
-            inside.push(player);
-        });
-
-        for (const pid of Array.from(post.playerSeenAt.keys())) {
-            if (!inside.some((p) => p.id === pid)) post.playerSeenAt.delete(pid);
-        }
-
-        let nextOwner = post.streamOwnerId;
-        const currentInside = inside.some((p) => p.id === post.streamOwnerId);
-        if (!currentInside) {
-            nextOwner = null;
-            let earliest = Number.MAX_SAFE_INTEGER;
-            inside.forEach((p) => {
-                const seenAt = post.playerSeenAt.get(p.id) || now;
-                if (seenAt < earliest) {
-                    earliest = seenAt;
-                    nextOwner = p.id;
-                }
-            });
-        }
-
-        if (post.streamOwnerId === nextOwner) return;
-        post.streamOwnerId = nextOwner;
-        post.lastClientCommandKey = null;
-        post.lastClientCommandAt = 0;
-        post.ctrlVer = (Number(post.ctrlVer) || 0) + 1;
-        post.controllerAckVer = 0;
-        this.applyStreamOwner(post, nextOwner);
-        const owner = getPlayerById(nextOwner);
-        if (isValidPlayer(owner)) {
-            owner.call("guardCheckpoint:controller:switch", [post.id, post.ctrlVer, post.state]);
-        }
-        this.log(`post=${post.id} stream owner -> ${nextOwner} ver=${post.ctrlVer}`);
-        this.resyncPostStateForOwner(post, nextOwner, "owner-changed");
-    }
-
-    applyStreamOwner(post, ownerId) {
-        const owner = ownerId == null ? null : getPlayerById(ownerId);
-        [post.leader, ...post.guards].forEach((unit) => {
-            if (!unit.exists()) return;
-            try { unit.ped.setVariable("streamOwnerId", ownerId == null ? -1 : ownerId); } catch {}
-            try { unit.ped.setVariable("ctrlVer", Number(post.ctrlVer) || 0); } catch {}
-            if (!owner) return;
-            try { unit.ped.controller = owner; } catch {}
-        });
-    }
-
-    getCurrentTarget(post) {
-        const target = getPlayerById(post.targetPlayerId);
-        return isValidPlayer(target) ? target : null;
-    }
-
-    resyncPostStateForOwner(post, ownerId, reason = "resync") {
-        const owner = getPlayerById(ownerId);
-        if (!isValidPlayer(owner)) return;
-
-        const target = this.getCurrentTarget(post);
-        let command = "idle";
-        if (post.state === POST_STATE.ATTACK) command = target ? "fire" : "return";
-        else if (post.state === POST_STATE.WARNING || post.state === POST_STATE.CHECKING) command = target ? "aim" : "return";
-        else if (post.state === POST_STATE.RETURN) command = "return";
-
-        if (command === "aim") this.applyWarningBehavior(post, target, true);
-        else if (command === "fire") this.applyAttackBehavior(post, target, true);
-        else if (command === "return") this.applyReturnBehavior(post, true);
-        else this.dispatchNpcCommand(post, "idle", null, { force: true, owner });
-        this.log(`post=${post.id} owner-resync cmd=${command} target=${target ? target.id : -1} reason=${reason}`);
-    }
-
-    dispatchNpcCommand(post, command, targetPlayer, options = {}) {
-        const targetId = targetPlayer ? targetPlayer.id : -1;
-        const now = Date.now();
-        const force = !!options.force;
-        const key = `${command}:${targetId}`;
-        if (!force && post.lastClientCommandKey === key && now - (post.lastClientCommandAt || 0) < 900) return;
-        post.lastClientCommandKey = key;
-        post.lastClientCommandAt = now;
-
-        const units = [post.leader, ...post.guards]
-            .filter((unit) => unit && unit.exists())
-            .map((unit) => ({
-                pedId: unit.ped.id,
-                role: unit.role,
-                x: unit.spawnPos.x,
-                y: unit.spawnPos.y,
-                z: unit.spawnPos.z,
-                heading: unit.spawnHeading,
-                weaponHash: unit.weaponHash || 0,
-            }));
-        const owner = getPlayerById(post.streamOwnerId);
-        if (command === "return") {
-            if (!isValidPlayer(owner)) {
-                post.pendingMovementCommand = { command, targetId, at: Date.now() };
-                return;
-            }
-            if (Number(post.controllerAckVer) !== Number(post.ctrlVer)) {
-                post.pendingMovementCommand = { command, targetId, at: Date.now() };
-                return;
-            }
-            owner.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
-            return;
-        }
-        this.forEachPlayersInPost(post, (rec) => {
-            rec.call("guardCheckpoint:npcCommand", [post.id, command, targetId, units, post.streamOwnerId]);
-        });
-    }
-
-    getPost(postId) {
-        return this.posts.get(String(postId));
-    }
-
+    getPostZone(post) { return post.cfg.postZone || post.cfg.guardZone; }
+    getPursuitZone(post) { return post.cfg.pursuitZone || post.cfg.guardZone; }
+    forEachPlayersInPost(post, cb) { this.collectPlayersInPost(post, Date.now()).forEach(cb); }
+    getPost(postId) { return this.posts.get(String(postId)); }
     async createOrReplacePost(rawPost) {
         if (!rawPost || !rawPost.id) return null;
         const current = this.posts.get(rawPost.id);
         if (current) {
-            if (current.leader) current.leader.shutdown();
-            for (const guard of current.guards || []) guard.shutdown();
+            current.leader.shutdown();
+            for (const g of current.guards || []) g.shutdown();
         }
         const post = this.createPostRuntime(rawPost);
         this.posts.set(post.id, post);
-        await this.savePostToDb(post.id);
         return post;
     }
-
     async updateZone(postId, zoneKey, zoneData) {
         const post = this.getPost(postId);
         if (!post) return false;
         post.cfg[zoneKey] = zoneData;
-        await this.savePostToDb(postId);
         return true;
     }
-
     async updateLeader(postId, npcData) {
         const post = this.getPost(postId);
         if (!post) return false;
         post.cfg.leader = npcData;
         return !!(await this.createOrReplacePost(post.cfg));
     }
-
     async addGuard(postId, npcData) {
         const post = this.getPost(postId);
         if (!post) return false;
@@ -942,15 +460,7 @@ class CheckpointGuardController {
         post.cfg.guards.push(npcData);
         return !!(await this.createOrReplacePost(post.cfg));
     }
-
-    async reloadFromDb() {
-        const loaded = await this.loadPostsFromDb();
-        if (!loaded) return false;
-        return true;
-    }
+    async reloadFromDb() { return true; }
 }
 
-module.exports = {
-    CheckpointGuardController,
-    POST_STATE,
-};
+module.exports = { CheckpointGuardController, POST_STATE };
