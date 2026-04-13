@@ -270,7 +270,10 @@ function runGuardAiLoop() {
                 if (stateChanged || t - cache.lastShootAt >= SHOOT_REPLAY_MS) {
                     try {
                         mp.game.ai.taskShootAtEntity(ped.handle, target.handle, SHOOT_REPLAY_MS + 250, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
-                    } catch {}
+                    } catch {
+                        // На некоторых билдах taskShootAtEntity нестабилен для synced ped — держим безопасный fallback.
+                        try { ped.taskCombat(target.handle, 0, 16); } catch {}
+                    }
                     try { ped.setKeepTask(true); } catch {}
                     cache.lastShootAt = t;
                 }
