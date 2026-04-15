@@ -200,6 +200,8 @@ function getOrCreateCache(pedId) {
             lastDeadSignalAt: 0,
             lastBurstAt: 0,
             hasSeenAliveHealth: false,
+            attackUntil: 0,
+            hasReachedReturn: false,
         });
     }
     return pedAiCache.get(pedId);
@@ -322,8 +324,20 @@ function runGuardAiLoop() {
                     queuePendingTarget(pedId, targetId);
                     return;
                 }
+                const attackUntil = Number(cache.attackUntil) || 0;
+                if (attackUntil > 0 && nowMs() > attackUntil) {
+                    try { ped.clearTasks(); } catch {}
+                    try { ped.setKeepTask(false); } catch {}
+                    return;
+                }
                 if (stateChanged || t - cache.lastShootAt >= SHOOT_REPLAY_MS) {
-                    try { ped.taskCombat(target.handle, 0, 16); } catch {}
+                    const burstMs = Math.max(150, Math.min(700, attackUntil > 0 ? attackUntil - nowMs() : SHOOT_REPLAY_MS + 160));
+                    try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, burstMs, false); } catch {}
+                    try {
+                        mp.game.ai.taskShootAtEntity(ped.handle, target.handle, burstMs, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
+                    } catch {
+                        try { ped.taskShootAt(target.handle, burstMs, mp.game.joaat("FIRING_PATTERN_FULL_AUTO")); } catch {}
+                    }
                     try { ped.setKeepTask(true); } catch {}
                     cache.lastShootAt = t;
                 }
@@ -355,14 +369,16 @@ function runGuardAiLoop() {
                     heading: Number(ped.getVariable("guardReturnHeading")) || 0,
                 };
                 cache.returnPos = rp;
-                if (!isOwner) {
-                    smoothPedToAuthoritativePose(ped);
-                    return;
-                }
                 const dx = ped.position.x - rp.x;
                 const dy = ped.position.y - rp.y;
                 const dz = ped.position.z - rp.z;
                 const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (cache.hasReachedReturn || dist <= 1.5) {
+                    try { ped.clearTasks(); } catch {}
+                    try { ped.setHeading(rp.heading || 0); } catch {}
+                    cache.hasReachedReturn = true;
+                    return;
+                }
                 if (stateChanged || dist > RETURN_DEVIATION_DIST || t - cache.lastMoveAt >= RETURN_REPLAY_MS) {
                     try { ped.taskGoStraightToCoord(rp.x, rp.y, rp.z, 2.2, -1, rp.heading || 0, 0.05); } catch {}
                     cache.lastMoveAt = t;
@@ -395,9 +411,18 @@ function applyNpcCommandHints(packet) {
         if (Number(u.weaponHash) > 0) cache.weaponHashHint = Number(u.weaponHash);
         if (command === "dead") {
             cache.lastState = "dead";
+            cache.hasReachedReturn = false;
         }
         if (command === "respawn") {
             cache.lastState = "idle";
+            cache.hasReachedReturn = false;
+        }
+        if (command === "idle" || command === "return" || command === "dead") {
+            const ped = mp.peds.atRemoteId(pedId);
+            if (ped) {
+                try { ped.clearTasks(); } catch {}
+                try { ped.setKeepTask(false); } catch {}
+            }
         }
         if (command === "return") {
             cache.returnPos = {
@@ -406,6 +431,11 @@ function applyNpcCommandHints(packet) {
                 z: Number(u.returnZ != null ? u.returnZ : u.z) || 0,
                 heading: Number(u.returnHeading != null ? u.returnHeading : u.heading) || 0,
             };
+            cache.hasReachedReturn = !!u.hasReachedReturn;
+        }
+        if (command === "fire" || command === "aim") {
+            cache.attackUntil = Number(packet.attackUntil) || 0;
+            cache.hasReachedReturn = false;
         }
 
         if (command === "aim" || command === "fire") {

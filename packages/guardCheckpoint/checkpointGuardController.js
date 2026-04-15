@@ -266,6 +266,8 @@ class CheckpointGuardController {
             lastAttackBurstAt: 0,
             unitAlive: new Map(),
             lastDamageClaims: new Map(),
+            attackTargetLostSince: 0,
+            attackServerUntil: 0,
         };
     }
 
@@ -580,13 +582,21 @@ class CheckpointGuardController {
 
     handleAttack(post, target, now) {
         if (!target) {
-            this.transition(post, POST_STATE.RETURN, "no-target-attack", now);
+            if (!post.attackTargetLostSince) post.attackTargetLostSince = now;
+            const delay = Math.max(500, Number(post.cfg.attackReturnDelayMs || this.config.attackReturnDelayMs || 3000));
+            if (now - post.attackTargetLostSince < delay) return;
+            this.transition(post, POST_STATE.RETURN, "no-target-attack-timeout", now);
             return;
         }
         if ((Number(target.health) || 0) <= 0) {
-            this.transition(post, POST_STATE.RETURN, "target-dead", now);
+            if (!post.attackTargetLostSince) post.attackTargetLostSince = now;
+            const delay = Math.max(500, Number(post.cfg.attackReturnDelayMs || this.config.attackReturnDelayMs || 3000));
+            if (now - post.attackTargetLostSince < delay) return;
+            this.transition(post, POST_STATE.RETURN, "target-dead-timeout", now);
             return;
         }
+        post.attackTargetLostSince = 0;
+        post.attackServerUntil = now + Math.max(600, Number(post.cfg.attackCommandWindowMs || this.config.attackCommandWindowMs || 1200));
 
         if (!isInsideZone(target.position, this.getPostZone(post))) {
             this.transition(post, POST_STATE.RETURN, "target-escaped-post-zone", now);
@@ -674,6 +684,8 @@ class CheckpointGuardController {
             post.targetStopStaySince = 0;
             post.attackStartedAt = 0;
             post.targetOutsidePursuitSince = 0;
+            post.attackTargetLostSince = 0;
+            post.attackServerUntil = 0;
         }
     }
 
@@ -809,6 +821,8 @@ class CheckpointGuardController {
         if (nextState === POST_STATE.ATTACK) {
             post.attackStartedAt = now;
             post.targetOutsidePursuitSince = 0;
+            post.attackTargetLostSince = 0;
+            post.attackServerUntil = now + Math.max(600, Number(post.cfg.attackCommandWindowMs || this.config.attackCommandWindowMs || 1200));
             const target = getPlayerById(post.targetPlayerId);
             this.sendStatusText(post, "Нарушение! Охрана открывает огонь", 2500, target);
         }
@@ -1033,6 +1047,7 @@ class CheckpointGuardController {
             returnY: unit.spawnPos.y,
             returnZ: unit.spawnPos.z,
             returnHeading: unit.spawnHeading,
+            hasReachedReturn: unit.exists() ? dist3(unit.ped.position, unit.spawnPos) <= 1.5 : false,
         }));
         return {
             postId: post.id,
@@ -1044,6 +1059,7 @@ class CheckpointGuardController {
             ctrlVer: Number(post.ctrlVer) || 0,
             behaviorSessionId: Number(post.behaviorSessionId) || 0,
             attackSessionId: Number(post.attackSessionId) || 0,
+            attackUntil: Number(post.attackServerUntil) || 0,
             state: post.state,
             units,
         };
@@ -1073,6 +1089,7 @@ class CheckpointGuardController {
                 returnY: unit.spawnPos.y,
                 returnZ: unit.spawnPos.z,
                 returnHeading: unit.spawnHeading,
+                hasReachedReturn: unit.exists() ? dist3(unit.ped.position, unit.spawnPos) <= 1.5 : false,
                 guardState: unit.exists() ? String(unit.ped.getVariable("guardState") || "idle") : "dead",
                 guardTarget: unit.exists() ? Number(unit.ped.getVariable("guardTarget") || -1) : -1,
             })),
