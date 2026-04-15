@@ -5,6 +5,7 @@ const { GuardNpc } = require("./guardNpc");
 const POST_STATE = {
     IDLE: "idle",
     WARNING: "warning",
+    APPROACHING: "approaching",
     CHECKING: "checking",
     ATTACK: "attack",
     RETURN: "return",
@@ -269,6 +270,7 @@ class CheckpointGuardController {
             lastDamageClaims: new Map(),
             attackTargetLostSince: 0,
             attackServerUntil: 0,
+            approachUnitId: null,
         };
     }
 
@@ -492,6 +494,9 @@ class CheckpointGuardController {
             case POST_STATE.WARNING:
                 this.handleWarning(post, target, prevTargetPos, now);
                 break;
+            case POST_STATE.APPROACHING:
+                this.handleApproaching(post, target, now);
+                break;
             case POST_STATE.CHECKING:
                 this.handleChecking(post, target, prevTargetPos, now);
                 break;
@@ -552,7 +557,7 @@ class CheckpointGuardController {
         if (isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9)) {
             post.targetStopStaySince = now;
             this.log(`post=${post.id} target=${target.id} entered stopZone`);
-            this.transition(post, POST_STATE.CHECKING, "entered-stop-zone", now);
+            this.transition(post, POST_STATE.APPROACHING, "entered-stop-zone", now);
             return;
         }
 
@@ -562,6 +567,46 @@ class CheckpointGuardController {
         }
 
         post.warningPrevDistToStopZone = distToStop;
+    }
+
+    handleApproaching(post, target, now) {
+        if (!target) {
+            this.transition(post, POST_STATE.RETURN, "no-target-approaching", now);
+            return;
+        }
+        if (!isInsideZone(target.position, this.getPostZone(post))) {
+            this.transition(post, POST_STATE.RETURN, "left-post-zone-approaching", now);
+            return;
+        }
+        if (this.shouldTriggerAttack(post, target, now, { ignoreViolation: true })) {
+            this.transition(post, POST_STATE.ATTACK, "approaching-violation", now);
+            return;
+        }
+        if (!isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9)) {
+            this.transition(post, POST_STATE.ATTACK, "left-stop-zone-approaching", now);
+            return;
+        }
+
+        const approachUnit = this.selectApproachUnit(post, target);
+        if (!approachUnit || !approachUnit.exists()) {
+            this.transition(post, POST_STATE.ATTACK, "approach-unit-missing", now);
+            return;
+        }
+        post.approachUnitId = approachUnit.id;
+
+        this.applyApproachBehavior(post, target, approachUnit);
+
+        const approachRange = Number(post.cfg.checkApproachRange || this.config.checkApproachRange || 2.0);
+        const distanceToTarget = dist3(approachUnit.ped.position, target.position);
+        if (distanceToTarget <= approachRange) {
+            this.transition(post, POST_STATE.CHECKING, "approach-complete", now);
+            return;
+        }
+
+        const timeoutMs = Number(post.cfg.checkApproachTimeoutMs || this.config.checkApproachTimeoutMs || 5000);
+        if (now - post.stateSince >= timeoutMs) {
+            this.transition(post, POST_STATE.ATTACK, "approach-timeout", now);
+        }
     }
 
     handleChecking(post, target, prevTargetPos, now) {
@@ -584,6 +629,8 @@ class CheckpointGuardController {
             this.transition(post, POST_STATE.ATTACK, "left-stop-zone", now);
             return;
         }
+
+        this.applySearchBehavior(post, target);
 
         if (now < (post.checkingGraceUntil || 0)) return;
 
@@ -741,6 +788,60 @@ class CheckpointGuardController {
         this.dispatchNpcCommand(post, "aim", target, { force });
     }
 
+    selectApproachUnit(post, target) {
+        const units = [post.leader, ...post.guards].filter((unit) => unit && unit.exists());
+        if (!units.length || !target) return null;
+
+        let best = units[0];
+        let bestDist = dist3(best.ped.position, target.position);
+        for (const unit of units) {
+            const d = dist3(unit.ped.position, target.position);
+            if (d < bestDist) {
+                best = unit;
+                bestDist = d;
+            }
+        }
+        return best;
+    }
+
+    applyApproachBehavior(post, target, approachUnit, force = false) {
+        if (!target || !approachUnit || !approachUnit.exists()) return;
+        const behaviorKey = `approach:${target.id}:${approachUnit.id}`;
+        if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
+        post.lastAppliedBehaviorKey = behaviorKey;
+
+        post.leader.stopCombat();
+        for (const guard of post.guards) guard.stopCombat();
+
+        const range = Number(post.cfg.checkApproachRange || this.config.checkApproachRange || 2.0);
+        this.dispatchNpcCommand(post, "goto", target, {
+            force,
+            keySuffix: `${approachUnit.id}:${Math.round(target.position.x * 10)}:${Math.round(target.position.y * 10)}:${Math.round(target.position.z * 10)}`,
+            payload: {
+                gotoPedId: Number(approachUnit.ped.id) || -1,
+                gotoX: Number(target.position.x) || 0,
+                gotoY: Number(target.position.y) || 0,
+                gotoZ: Number(target.position.z) || 0,
+                gotoRange: range,
+            },
+        });
+    }
+
+    applySearchBehavior(post, target, force = false) {
+        if (!target) return;
+        const behaviorKey = `search:${target.id}`;
+        if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
+        post.lastAppliedBehaviorKey = behaviorKey;
+
+        const durationMs = Number(post.cfg.searchAnimDurationMs || this.config.searchAnimDurationMs || 5000);
+        this.dispatchNpcCommand(post, "search", target, {
+            force,
+            payload: {
+                searchDurationMs: durationMs,
+            },
+        });
+    }
+
     applyAttackBehavior(post, target, force = false) {
         if (!target) return;
         const behaviorKey = `attack:${target.id}`;
@@ -795,7 +896,7 @@ class CheckpointGuardController {
     transition(post, nextState, reason, now) {
         if (post.state === nextState) return;
         const bypassCooldown = post.state === POST_STATE.WARNING
-            && nextState === POST_STATE.CHECKING
+            && nextState === POST_STATE.APPROACHING
             && reason === "entered-stop-zone";
         if (!bypassCooldown && now < (post.stateCooldownUntil || 0)) {
             this.log(`post=${post.id} transition blocked cooldown ${post.state} -> ${nextState} (${reason})`);
@@ -835,6 +936,15 @@ class CheckpointGuardController {
             post.checkingGraceUntil = now + 1100;
             const target = getPlayerById(post.targetPlayerId);
             this.sendStatusText(post, "Идет досмотр, оставайтесь в зоне проверки (5 секунд)", 5000, target);
+            this.sendPhase(post, "checking", Number(post.cfg.searchAnimDurationMs || this.config.searchAnimDurationMs || 5000), target);
+            this.applySearchBehavior(post, target, true);
+        }
+
+        if (nextState === POST_STATE.APPROACHING) {
+            post.checkStartedAt = 0;
+            const target = getPlayerById(post.targetPlayerId);
+            this.sendStatusText(post, "Ожидайте: сотрудник подходит для досмотра", 3000, target);
+            this.sendPhase(post, "approaching", Number(post.cfg.checkApproachTimeoutMs || this.config.checkApproachTimeoutMs || 5000), target);
         }
 
         if (nextState === POST_STATE.ATTACK) {
@@ -849,6 +959,7 @@ class CheckpointGuardController {
         if (nextState === POST_STATE.IDLE || nextState === POST_STATE.RETURN) {
             const target = getPlayerById(post.targetPlayerId);
             this.sendWarningStop(target, post.id);
+            post.approachUnitId = null;
         }
 
         this.log(`post=${post.id} ${prev} -> ${nextState} (${reason})`);
@@ -1019,10 +1130,17 @@ class CheckpointGuardController {
         const target = this.getCurrentTarget(post);
         let command = "idle";
         if (post.state === POST_STATE.ATTACK) command = target ? "fire" : "return";
-        else if (post.state === POST_STATE.WARNING || post.state === POST_STATE.CHECKING) command = target ? "aim" : "return";
+        else if (post.state === POST_STATE.WARNING) command = target ? "aim" : "return";
+        else if (post.state === POST_STATE.APPROACHING) command = target ? "goto" : "return";
+        else if (post.state === POST_STATE.CHECKING) command = target ? "search" : "return";
         else if (post.state === POST_STATE.RETURN) command = "return";
 
         if (command === "aim") this.applyWarningBehavior(post, target, true);
+        else if (command === "goto") {
+            const approachUnit = this.selectApproachUnit(post, target);
+            this.applyApproachBehavior(post, target, approachUnit, true);
+        }
+        else if (command === "search") this.applySearchBehavior(post, target, true);
         else if (command === "fire") this.applyAttackBehavior(post, target, true);
         else if (command === "return") this.applyReturnBehavior(post, true);
         else this.dispatchNpcCommand(post, "idle", null, { force: true, owner });
@@ -1033,11 +1151,11 @@ class CheckpointGuardController {
         const targetId = targetPlayer ? targetPlayer.id : -1;
         const now = Date.now();
         const force = !!options.force;
-        const key = `${command}:${targetId}:${post.behaviorSessionId}:${post.attackSessionId}`;
+        const key = `${command}:${targetId}:${post.behaviorSessionId}:${post.attackSessionId}:${String(options.keySuffix || "")}`;
         if (!force && post.lastClientCommandKey === key && now - (post.lastClientCommandAt || 0) < 900) return;
         post.lastClientCommandKey = key;
         post.lastClientCommandAt = now;
-        const packet = this.buildCommandPacket(post, command, targetId);
+        const packet = this.buildCommandPacket(post, command, targetId, options.payload || null);
         post.lastBroadcastCommand = packet;
         const owner = getPlayerById(post.streamOwnerId);
         if (!isValidPlayer(owner) || Number(post.controllerAckVer) !== Number(post.ctrlVer)) {
@@ -1049,7 +1167,7 @@ class CheckpointGuardController {
         this.plog(`dispatch post=${post.id} seq=${packet.commandSeq} bs=${packet.behaviorSessionId} as=${packet.attackSessionId} owner=${packet.streamOwnerId} cmd=${packet.command} target=${packet.targetId} units=${packet.units.length}`);
     }
 
-    buildCommandPacket(post, command, targetId = -1) {
+    buildCommandPacket(post, command, targetId = -1, payload = null) {
         post.commandSeq = (Number(post.commandSeq) || 0) + 1;
         const units = [post.leader, ...post.guards].map((unit) => ({
             unitId: unit.id,
@@ -1081,6 +1199,7 @@ class CheckpointGuardController {
             attackUntil: Number(post.attackServerUntil) || 0,
             state: post.state,
             units,
+            ...(payload && typeof payload === "object" ? payload : {}),
         };
     }
 

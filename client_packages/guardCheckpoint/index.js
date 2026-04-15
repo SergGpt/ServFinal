@@ -155,7 +155,7 @@ function smoothObserverPedsEachFrame() {
             if (!ped.getVariable("guardPostId")) return;
             if (isLocalStreamOwnerForPed(ped)) return;
             const state = String(ped.getVariable("guardState") || "idle");
-            if (state === "attack" || state === "return") return;
+            if (state === "attack" || state === "return" || state === "approaching") return;
             smoothPedToAuthoritativePose(ped);
         } catch {}
     });
@@ -400,6 +400,13 @@ function runGuardAiLoop() {
                 return;
             }
 
+            if (state === "approaching") {
+                if (isOwner) {
+                    try { ped.setKeepTask(true); } catch {}
+                }
+                return;
+            }
+
             if (!isOwner) {
                 smoothPedToAuthoritativePose(ped);
                 return;
@@ -451,6 +458,31 @@ function applyNpcCommandHints(packet) {
                 try { ped.taskGoStraightToCoord(cache.returnPos.x, cache.returnPos.y, cache.returnPos.z, 2.2, -1, cache.returnPos.heading || 0, 0.05); } catch {}
             }
         }
+        if (command === "goto") {
+            cache.hasReachedReturn = false;
+            const ped = mp.peds.atRemoteId(pedId);
+            const gotoPedId = Number(packet.gotoPedId);
+            if (ped && (!Number.isFinite(gotoPedId) || gotoPedId < 0 || gotoPedId === pedId)) {
+                const gotoX = Number(packet.gotoX);
+                const gotoY = Number(packet.gotoY);
+                const gotoZ = Number(packet.gotoZ);
+                const gotoRange = Math.max(0.5, Number(packet.gotoRange) || 2.0);
+                if (Number.isFinite(gotoX) && Number.isFinite(gotoY) && Number.isFinite(gotoZ)) {
+                    try { ped.taskGoToCoordAnyMeans(gotoX, gotoY, gotoZ, 1.2, 0, gotoRange, 1, 0.5); } catch {}
+                }
+            }
+        }
+        if (command === "search") {
+            const ped = mp.peds.atRemoteId(pedId);
+            if (ped) {
+                const duration = Math.max(1000, Number(packet.searchDurationMs) || 5000);
+                try { ped.clearTasks(); } catch {}
+                try {
+                    mp.game.streaming.requestAnimDict("amb@world_human_guard_patrol@male@idle_a");
+                    ped.taskPlayAnim("amb@world_human_guard_patrol@male@idle_a", "idle_b", 8.0, -8.0, duration, 1, 0, false, false, false);
+                } catch {}
+            }
+        }
         if (command === "fire" || command === "aim") {
             cache.attackUntil = Number(packet.attackUntil) || 0;
             cache.hasReachedReturn = false;
@@ -465,8 +497,11 @@ function applyNpcCommandHints(packet) {
         }
 
         const ped = mp.peds.atRemoteId(pedId);
-        if (ped && (command === "return" || command === "idle" || command === "fire" || command === "attack")) {
-            try { ped.setVariable("guardState", command === "fire" ? "attack" : command); } catch {}
+        if (ped && (command === "return" || command === "idle" || command === "fire" || command === "attack" || command === "goto" || command === "search")) {
+            let nextState = command;
+            if (command === "fire") nextState = "attack";
+            if (command === "goto") nextState = "approaching";
+            try { ped.setVariable("guardState", nextState); } catch {}
         }
 
         if (command === "aim" || command === "fire") {

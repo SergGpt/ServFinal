@@ -28,6 +28,9 @@ const GUARD_CHECKPOINT_CONFIG = {
     attackBurstIntervalMs: 280,
     attackReturnDelayMs: 3000,
     attackCommandWindowMs: 2500,
+    checkApproachRange: 2.0,
+    checkApproachTimeoutMs: 5000,
+    searchAnimDurationMs: 5000,
 
     // Независимые посты охраны
     posts: [
