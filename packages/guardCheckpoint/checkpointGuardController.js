@@ -593,12 +593,13 @@ class CheckpointGuardController {
             return;
         }
         post.approachUnitId = approachUnit.id;
+        const distToPlayer = dist3(approachUnit.ped.position, target.position);
+        this.log(`approach: selected npc=${approachUnit.id} dist=${distToPlayer.toFixed(2)}`);
 
         this.applyApproachBehavior(post, target, approachUnit);
+        this.log(`approach: dispatched goto for ${approachUnit.id}`);
 
-        const approachRange = Number(post.cfg.checkApproachRange || this.config.checkApproachRange || 2.0);
-        const distanceToTarget = dist3(approachUnit.ped.position, target.position);
-        if (distanceToTarget <= approachRange) {
+        if (this.checkApproachCondition(post, approachUnit, target)) {
             this.transition(post, POST_STATE.CHECKING, "approach-complete", now);
             return;
         }
@@ -607,6 +608,14 @@ class CheckpointGuardController {
         if (now - post.stateSince >= timeoutMs) {
             this.transition(post, POST_STATE.ATTACK, "approach-timeout", now);
         }
+    }
+
+    checkApproachCondition(post, npc, target) {
+        if (!npc || !npc.exists() || !target) return false;
+        const checkApproachRange = Number(post.cfg.checkApproachRange || this.config.checkApproachRange || 2.0);
+        const currentDist = dist3(npc.ped.position, target.position);
+        this.log(`approach: distance check npc=${npc.id} dist=${currentDist.toFixed(2)} need=${checkApproachRange}`);
+        return currentDist <= checkApproachRange;
     }
 
     handleChecking(post, target, prevTargetPos, now) {

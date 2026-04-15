@@ -467,8 +467,14 @@ function applyNpcCommandHints(packet) {
                 const gotoY = Number(packet.gotoY);
                 const gotoZ = Number(packet.gotoZ);
                 const gotoRange = Math.max(0.5, Number(packet.gotoRange) || 2.0);
+                clog(`client: goto received for ped=${pedId} target=${gotoX},${gotoY},${gotoZ}`);
                 if (Number.isFinite(gotoX) && Number.isFinite(gotoY) && Number.isFinite(gotoZ)) {
-                    try { ped.taskGoToCoordAnyMeans(gotoX, gotoY, gotoZ, 1.2, 0, gotoRange, 1, 0.5); } catch {}
+                    let success = false;
+                    try {
+                        ped.taskGoToCoordAnyMeans(gotoX, gotoY, gotoZ, 1.2, 0, gotoRange, 1, 0.5);
+                        success = true;
+                    } catch {}
+                    clog(`client: taskGoToCoordAnyMeans called success=${success}`);
                 }
             }
         }
