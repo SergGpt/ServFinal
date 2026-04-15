@@ -322,33 +322,40 @@ function runGuardAiLoop() {
                     try { ped.clearTasks(); } catch {}
                     try { ped.setKeepTask(false); } catch {}
                     return;
-                } else {
-                    ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
-                    const target = getPlayerByServerId(targetId);
-                    if (target && targetStable && (stateChanged || t - cache.lastAimAt >= AIM_REPLAY_MS)) {
-                        try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, AIM_REPLAY_MS + 220, false); } catch {}
-                        try { ped.taskAimGunAt(target.handle, AIM_REPLAY_MS + 220, false); } catch {}
-                        cache.lastAimAt = t;
+                }
+
+                ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
+                const target = getPlayerByServerId(targetId);
+
+                // Визуал (aim/shoot) нужен для всех клиентов, не только streamOwner.
+                if (target && targetStable && (stateChanged || t - cache.lastAimAt >= AIM_REPLAY_MS)) {
+                    try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, AIM_REPLAY_MS + 220, false); } catch {}
+                    try { ped.taskAimGunAt(target.handle, AIM_REPLAY_MS + 220, false); } catch {}
+                    cache.lastAimAt = t;
+                }
+                if (target && targetStable && (stateChanged || t - cache.lastShootAt >= SHOOT_REPLAY_MS)) {
+                    const visualBurstMs = 80 + Math.floor(Math.random() * 41); // 80..120
+                    try {
+                        mp.game.ai.taskShootAtEntity(
+                            ped.handle,
+                            target.handle,
+                            visualBurstMs,
+                            mp.game.joaat("FIRING_PATTERN_FULL_AUTO")
+                        );
+                    } catch {
+                        try { ped.taskShootAt(target.handle, visualBurstMs, mp.game.joaat("FIRING_PATTERN_FULL_AUTO")); } catch {}
                     }
-                    if (target && targetStable && (stateChanged || t - cache.lastShootAt >= SHOOT_REPLAY_MS)) {
-                        const visualBurstMs = 80 + Math.floor(Math.random() * 41); // 80..120
-                        try {
-                            mp.game.ai.taskShootAtEntity(
-                                ped.handle,
-                                target.handle,
-                                visualBurstMs,
-                                mp.game.joaat("FIRING_PATTERN_FULL_AUTO")
-                            );
-                        } catch {
-                            try { ped.taskShootAt(target.handle, visualBurstMs, mp.game.joaat("FIRING_PATTERN_FULL_AUTO")); } catch {}
-                        }
-                        cache.lastShootAt = t;
-                    }
-                    if (isOwner) {
-                        try { ped.setKeepTask(true); } catch {}
-                    }
+                    cache.lastShootAt = t;
+                }
+
+                // Управляющая логика нужна только у владельца стрима.
+                if (!isOwner) return;
+                if (!target || !targetStable) {
+                    queuePendingTarget(pedId, targetId);
                     return;
                 }
+                try { ped.setKeepTask(true); } catch {}
+                return;
             }
 
             if (state === "warning_aim") {
