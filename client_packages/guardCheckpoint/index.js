@@ -154,6 +154,8 @@ function smoothObserverPedsEachFrame() {
             if (!ped || !ped.getVariable) return;
             if (!ped.getVariable("guardPostId")) return;
             if (isLocalStreamOwnerForPed(ped)) return;
+            const state = String(ped.getVariable("guardState") || "idle");
+            if (state === "attack" || state === "return") return;
             smoothPedToAuthoritativePose(ped);
         } catch {}
     });
@@ -315,33 +317,24 @@ function runGuardAiLoop() {
             const targetStable = targetId < 0 || (t - cache.targetChangedAt) >= TARGET_SWITCH_DEBOUNCE_MS;
 
             if (state === "attack") {
-                ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
-                if (!isOwner) {
-                    return;
-                }
-                const target = getPlayerByServerId(targetId);
-                if (!target || !targetStable) {
-                    queuePendingTarget(pedId, targetId);
-                    return;
-                }
                 const attackUntil = Number(cache.attackUntil) || 0;
                 if (attackUntil > 0 && nowMs() > attackUntil) {
                     try { ped.clearTasks(); } catch {}
                     try { ped.setKeepTask(false); } catch {}
                     return;
-                }
-                if (stateChanged || t - cache.lastShootAt >= SHOOT_REPLAY_MS) {
-                    const burstMs = Math.max(150, Math.min(700, attackUntil > 0 ? attackUntil - nowMs() : SHOOT_REPLAY_MS + 160));
-                    try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, burstMs, false); } catch {}
-                    try {
-                        mp.game.ai.taskShootAtEntity(ped.handle, target.handle, burstMs, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
-                    } catch {
-                        try { ped.taskShootAt(target.handle, burstMs, mp.game.joaat("FIRING_PATTERN_FULL_AUTO")); } catch {}
+                } else {
+                    ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
+                    const target = getPlayerByServerId(targetId);
+                    if (target && targetStable && (stateChanged || t - cache.lastAimAt >= AIM_REPLAY_MS)) {
+                        try { mp.game.ai.taskAimGunAtEntity(ped.handle, target.handle, AIM_REPLAY_MS + 220, false); } catch {}
+                        try { ped.taskAimGunAt(target.handle, AIM_REPLAY_MS + 220, false); } catch {}
+                        cache.lastAimAt = t;
                     }
-                    try { ped.setKeepTask(true); } catch {}
-                    cache.lastShootAt = t;
+                    if (isOwner) {
+                        try { ped.setKeepTask(true); } catch {}
+                    }
+                    return;
                 }
-                return;
             }
 
             if (state === "warning_aim") {
@@ -431,11 +424,28 @@ function applyNpcCommandHints(packet) {
                 z: Number(u.returnZ != null ? u.returnZ : u.z) || 0,
                 heading: Number(u.returnHeading != null ? u.returnHeading : u.heading) || 0,
             };
-            cache.hasReachedReturn = !!u.hasReachedReturn;
+            cache.hasReachedReturn = false;
+            const ped = mp.peds.atRemoteId(pedId);
+            if (ped) {
+                try { ped.taskGoStraightToCoord(cache.returnPos.x, cache.returnPos.y, cache.returnPos.z, 2.2, -1, cache.returnPos.heading || 0, 0.05); } catch {}
+            }
         }
         if (command === "fire" || command === "aim") {
             cache.attackUntil = Number(packet.attackUntil) || 0;
             cache.hasReachedReturn = false;
+        }
+        if (u.hasReachedReturn === true) {
+            cache.hasReachedReturn = true;
+            const ped = mp.peds.atRemoteId(pedId);
+            if (ped) {
+                try { ped.clearTasks(); } catch {}
+                try { ped.setKeepTask(false); } catch {}
+            }
+        }
+
+        const ped = mp.peds.atRemoteId(pedId);
+        if (ped && (command === "return" || command === "idle" || command === "fire" || command === "attack")) {
+            try { ped.setVariable("guardState", command === "fire" ? "attack" : command); } catch {}
         }
 
         if (command === "aim" || command === "fire") {
