@@ -330,6 +330,20 @@ function runGuardAiLoop() {
                         try { ped.taskAimGunAt(target.handle, AIM_REPLAY_MS + 220, false); } catch {}
                         cache.lastAimAt = t;
                     }
+                    if (target && targetStable && (stateChanged || t - cache.lastShootAt >= SHOOT_REPLAY_MS)) {
+                        const visualBurstMs = 80 + Math.floor(Math.random() * 41); // 80..120
+                        try {
+                            mp.game.ai.taskShootAtEntity(
+                                ped.handle,
+                                target.handle,
+                                visualBurstMs,
+                                mp.game.joaat("FIRING_PATTERN_FULL_AUTO")
+                            );
+                        } catch {
+                            try { ped.taskShootAt(target.handle, visualBurstMs, mp.game.joaat("FIRING_PATTERN_FULL_AUTO")); } catch {}
+                        }
+                        cache.lastShootAt = t;
+                    }
                     if (isOwner) {
                         try { ped.setKeepTask(true); } catch {}
                     }
