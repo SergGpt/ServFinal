@@ -6,6 +6,8 @@ let lastSoundAt = 0;
 let statusText = null;
 let statusUntil = 0;
 let lastRenderDebugAt = 0;
+let activeCheckpoint = null;
+let activeBlip = null;
 
 const DEBUG_AIM_LINES = false;
 const DEBUG_PROTOCOL = false;
@@ -36,6 +38,40 @@ function clog(text) {
 function playSound(soundName, soundSet) {
     try {
         mp.game.audio.playSoundFrontend(-1, soundName, soundSet, true);
+    } catch {}
+}
+
+function clearStopPointVisuals() {
+    try { if (activeCheckpoint && activeCheckpoint.destroy) activeCheckpoint.destroy(); } catch {}
+    try { if (activeBlip && activeBlip.destroy) activeBlip.destroy(); } catch {}
+    activeCheckpoint = null;
+    activeBlip = null;
+}
+
+function showStopPointVisuals(stopZone) {
+    clearStopPointVisuals();
+    if (!stopZone || !stopZone.center) return;
+    const c = stopZone.center;
+    try {
+        activeCheckpoint = mp.checkpoints.new(
+            1,
+            new mp.Vector3(c.x, c.y, c.z - 0.9),
+            Number(stopZone.radius || 4.0),
+            {
+                color: [50, 180, 255, 170],
+                visible: true,
+                dimension: mp.players.local.dimension,
+            }
+        );
+    } catch {}
+    try {
+        activeBlip = mp.blips.new(1, new mp.Vector3(c.x, c.y, c.z), {
+            color: 3,
+            shortRange: true,
+            scale: 0.8,
+            name: "Точка остановки",
+            dimension: mp.players.local.dimension,
+        });
     } catch {}
 }
 
@@ -387,6 +423,7 @@ mp.events.add({
             soundSet: data.soundSet || "MP_MISSION_COUNTDOWN_SOUNDSET",
         };
         activeStopZone = data.stopZone || null;
+        showStopPointVisuals(activeStopZone);
 
         const t = nowMs();
         if (!lastSoundAt || t - lastSoundAt > 1000) {
@@ -400,6 +437,7 @@ mp.events.add({
         if (postId && activeWarning.postId && postId !== activeWarning.postId) return;
         activeWarning = null;
         activeStopZone = null;
+        clearStopPointVisuals();
     },
 
     "guardCheckpoint:status:text": (postId, text, durationMs) => {
@@ -495,6 +533,37 @@ mp.events.add({
     "guardCheckpoint:debug": (text) => {
         clog(`server-debug: ${text}`);
     },
+});
+
+mp.events.add("outgoingDamage", (sourceEntity, targetEntity, sourcePlayer, weapon, boneIndex, damage) => {
+    try {
+        const src = sourceEntity;
+        if (!src || !src.getVariable) return;
+        const postId = src.getVariable("guardPostId");
+        if (!postId) return;
+        const targetRid = Number(targetEntity && (targetEntity.remoteId != null ? targetEntity.remoteId : targetEntity.id));
+        const sourcePedRid = Number(src && (src.remoteId != null ? src.remoteId : src.id));
+        if (!Number.isFinite(targetRid) || !Number.isFinite(sourcePedRid)) return true;
+        mp.events.callRemote(
+            "guardCheckpoint:syncDamage",
+            postId,
+            sourcePedRid,
+            targetRid,
+            Number(weapon) || 0,
+            Number(boneIndex) || 0,
+            Number(damage) || 0
+        );
+    } catch {}
+    return true;
+});
+
+mp.events.add("incomingDamage", (sourceEntity) => {
+    try {
+        if (sourceEntity && sourceEntity.getVariable && sourceEntity.getVariable("guardPostId")) {
+            return true;
+        }
+    } catch {}
+    return undefined;
 });
 
 mp.events.add("entityStreamIn", (entity) => {

@@ -265,6 +265,7 @@ class CheckpointGuardController {
             attackSessionId: 0,
             lastAttackBurstAt: 0,
             unitAlive: new Map(),
+            lastDamageClaims: new Map(),
         };
     }
 
@@ -360,6 +361,50 @@ class CheckpointGuardController {
         found.markDead(Date.now(), `client-signal owner=${player.id}`);
         this.log(`post=${post.id} npc-dead-signal ped=${pedId} by owner=${player.id}`);
         this.plog(`dead-signal post=${post.id} owner=${player.id} ped=${pedId} streamOwner=${post.streamOwnerId}`);
+    }
+
+    onSyncDamage(player, postId, sourcePedId, targetPlayerId, weaponHash, boneIndex, claimedDamage) {
+        if (!isValidPlayer(player)) return;
+        const post = this.getPost(postId);
+        if (!post) return;
+        if (post.state !== POST_STATE.ATTACK) return;
+        if (Number(player.id) !== Number(targetPlayerId)) return;
+        if (Number(post.targetPlayerId) !== Number(player.id)) return;
+
+        const units = [post.leader, ...post.guards];
+        const sourceUnit = units.find((u) => u && u.exists() && Number(u.ped.id) === Number(sourcePedId));
+        if (!sourceUnit) return;
+        if (!isInsideZone(player.position, this.getPostZone(post))) return;
+
+        const dist = dist3(sourceUnit.ped.position, player.position);
+        if (dist > Number(post.cfg.attackDamageRange || this.config.attackDamageRange || 38) + 6) return;
+
+        const claimKey = `${player.id}:${sourcePedId}`;
+        const now = Date.now();
+        const lastAt = Number(post.lastDamageClaims.get(claimKey)) || 0;
+        if (now - lastAt < 120) return;
+        post.lastDamageClaims.set(claimKey, now);
+
+        let damageValue = Number(claimedDamage) || Number(post.cfg.attackDamagePerAttacker || this.config.attackDamagePerAttacker || 7);
+        if (this.damageSystem && typeof this.damageSystem.findDamageValue === "function") {
+            const byWeapon = Number(this.damageSystem.findDamageValue(Number(weaponHash) || sourceUnit.weaponHash || 0));
+            if (byWeapon > 0) damageValue = byWeapon;
+        }
+        const damaged = {
+            armour: Number(player.armour) || 0,
+            health: Number(player.health) || 0,
+        };
+        if (this.damageSystem && typeof this.damageSystem.damagePlayer === "function") {
+            this.damageSystem.damagePlayer(damaged, Math.max(1, Math.round(damageValue)));
+        } else {
+            damaged.health = Math.max(0, damaged.health - Math.max(1, Math.round(damageValue)));
+        }
+        if (damaged.health <= 0 && !player.isCustomDeath) {
+            player.isCustomDeath = true;
+            mp.events.call("customDeath", player, Number(weaponHash) || 0, null);
+        }
+        player.armour = Math.clamp(damaged.armour, 0, 100);
+        player.health = Math.clamp(damaged.health, 0, 100);
     }
 
     markAggressive(playerId) {

@@ -38,6 +38,10 @@ module.exports = {
         controller.onNpcDeadSignal(player, postId, pedId);
     },
 
+    "guardCheckpoint:syncDamage": (player, postId, sourcePedId, targetPlayerId, weaponHash, boneIndex, damage) => {
+        controller.onSyncDamage(player, postId, sourcePedId, targetPlayerId, weaponHash, boneIndex, damage);
+    },
+
     "guardCheckpoint.reload": async (player) => {
         if (!player || !player.character || player.character.admin < 5) return;
         await controller.reloadFromDb();
