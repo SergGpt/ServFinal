@@ -105,6 +105,7 @@ class CheckpointGuardController {
         this.playerClearUntil = new Map();
         this.tickTimer = null;
         this.isInitialized = false;
+        this.pendingDeathResetTimers = new Map();
 
         this.notifs = call("notifications");
         this.damageSystem = call("damageSystem");
@@ -301,19 +302,35 @@ class CheckpointGuardController {
 
         this.posts.clear();
         this.playerAggressiveUntil.clear();
+        for (const timer of this.pendingDeathResetTimers.values()) clearTimeout(timer);
+        this.pendingDeathResetTimers.clear();
         this.log("controller shutdown complete");
     }
 
     onPlayerQuit(player) {
         if (!player) return;
+        const pendingTimer = this.pendingDeathResetTimers.get(player.id);
+        if (pendingTimer) {
+            clearTimeout(pendingTimer);
+            this.pendingDeathResetTimers.delete(player.id);
+        }
         this.clearPlayerAggression(player.id);
         this.resetPostsByPlayer(player.id, "player-quit");
     }
 
     onPlayerDeath(player) {
         if (!player) return;
-        this.clearPlayerAggression(player.id);
-        this.resetPostsByPlayer(player.id, "player-death");
+        const existing = this.pendingDeathResetTimers.get(player.id);
+        if (existing) clearTimeout(existing);
+
+        const timer = setTimeout(() => {
+            this.pendingDeathResetTimers.delete(player.id);
+            if (!isValidPlayer(player)) return;
+            if ((Number(player.health) || 0) > 0) return;
+            this.clearPlayerAggression(player.id);
+            this.resetPostsByPlayer(player.id, "player-death-confirmed-1s");
+        }, 1000);
+        this.pendingDeathResetTimers.set(player.id, timer);
     }
 
     onPlayerWeaponChange(player, oldWeapon, newWeapon) {
@@ -370,6 +387,7 @@ class CheckpointGuardController {
         const post = this.getPost(postId);
         if (!post) return;
         if (post.state !== POST_STATE.ATTACK) return;
+        if ((Number(player.health) || 0) <= 0) return;
         if (Number(player.id) !== Number(targetPlayerId)) return;
         if (Number(post.targetPlayerId) !== Number(player.id)) return;
 
@@ -590,13 +608,13 @@ class CheckpointGuardController {
         }
         if ((Number(target.health) || 0) <= 0) {
             if (!post.attackTargetLostSince) post.attackTargetLostSince = now;
-            const delay = Math.max(500, Number(post.cfg.attackReturnDelayMs || this.config.attackReturnDelayMs || 3000));
-            if (now - post.attackTargetLostSince < delay) return;
+            const deadTimeoutMs = 1500;
+            if (now - post.attackTargetLostSince < deadTimeoutMs) return;
             this.transition(post, POST_STATE.RETURN, "target-dead-timeout", now);
             return;
         }
         post.attackTargetLostSince = 0;
-        post.attackServerUntil = now + Math.max(600, Number(post.cfg.attackCommandWindowMs || this.config.attackCommandWindowMs || 1200));
+        post.attackServerUntil = now + Math.max(600, Number(post.cfg.attackCommandWindowMs || this.config.attackCommandWindowMs || 2500));
 
         if (!isInsideZone(target.position, this.getPostZone(post))) {
             this.transition(post, POST_STATE.RETURN, "target-escaped-post-zone", now);
@@ -630,6 +648,7 @@ class CheckpointGuardController {
 
     applyAttackDamage(post, target, now) {
         if (!isValidPlayer(target)) return;
+        if ((Number(target.health) || 0) <= 0) return;
 
         const intervalMs = Math.max(180, Number(post.cfg.attackDamageIntervalMs || this.config.attackDamageIntervalMs || 450));
         if (now - (post.lastAttackDamageAt || 0) < intervalMs) return;
@@ -822,7 +841,7 @@ class CheckpointGuardController {
             post.attackStartedAt = now;
             post.targetOutsidePursuitSince = 0;
             post.attackTargetLostSince = 0;
-            post.attackServerUntil = now + Math.max(600, Number(post.cfg.attackCommandWindowMs || this.config.attackCommandWindowMs || 1200));
+            post.attackServerUntil = now + Math.max(600, Number(post.cfg.attackCommandWindowMs || this.config.attackCommandWindowMs || 2500));
             const target = getPlayerById(post.targetPlayerId);
             this.sendStatusText(post, "Нарушение! Охрана открывает огонь", 2500, target);
         }
