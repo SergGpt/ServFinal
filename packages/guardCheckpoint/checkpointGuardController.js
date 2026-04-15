@@ -1165,6 +1165,9 @@ class CheckpointGuardController {
         post.lastClientCommandKey = key;
         post.lastClientCommandAt = now;
         const packet = this.buildCommandPacket(post, command, targetId, options.payload || null);
+        if (command === "goto") {
+            this.log(`dispatch: post=${post.id} cmd=goto target=${targetId}`);
+        }
         post.lastBroadcastCommand = packet;
         const owner = getPlayerById(post.streamOwnerId);
         if (!isValidPlayer(owner) || Number(post.controllerAckVer) !== Number(post.ctrlVer)) {
@@ -1178,6 +1181,11 @@ class CheckpointGuardController {
 
     buildCommandPacket(post, command, targetId = -1, payload = null) {
         post.commandSeq = (Number(post.commandSeq) || 0) + 1;
+        const gotoPedId = payload && payload.gotoPedId != null ? Number(payload.gotoPedId) : -1;
+        const gotoX = payload ? Number(payload.gotoX) : NaN;
+        const gotoY = payload ? Number(payload.gotoY) : NaN;
+        const gotoZ = payload ? Number(payload.gotoZ) : NaN;
+        const gotoRange = payload ? Number(payload.gotoRange) : NaN;
         const units = [post.leader, ...post.guards].map((unit) => ({
             unitId: unit.id,
             pedId: unit.exists() ? unit.ped.id : -1,
@@ -1194,6 +1202,10 @@ class CheckpointGuardController {
             returnZ: unit.spawnPos.z,
             returnHeading: unit.spawnHeading,
             hasReachedReturn: unit.exists() ? dist3(unit.ped.position, unit.spawnPos) <= 1.5 : false,
+            gotoX: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoX) ? gotoX : null,
+            gotoY: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoY) ? gotoY : null,
+            gotoZ: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoZ) ? gotoZ : null,
+            gotoRange: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoRange) ? gotoRange : null,
         }));
         return {
             postId: post.id,

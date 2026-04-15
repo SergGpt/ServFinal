@@ -18,6 +18,7 @@ const CLEAR_REPLAY_MS = 900;
 const TARGET_SWITCH_DEBOUNCE_MS = 180;
 const RETURN_REPLAY_MS = 900;
 const RETURN_DEVIATION_DIST = 2.8;
+const disableClearForApproaching = true;
 const POSE_SMOOTH_FACTOR = 0.12;
 const POSE_SNAP_DIST = 7.5;
 const PENDING_RETRY_MS = 200;
@@ -411,6 +412,10 @@ function runGuardAiLoop() {
                 smoothPedToAuthoritativePose(ped);
                 return;
             }
+            if (state !== "attack" && state !== "return") {
+                if (disableClearForApproaching && state === "approaching") return;
+                return;
+            }
             if (stateChanged || t - cache.lastClearAt >= CLEAR_REPLAY_MS) {
                 try { ped.clearTasks(); } catch {}
                 try { ped.setKeepTask(false); } catch {}
@@ -445,6 +450,27 @@ function applyNpcCommandHints(packet) {
                 try { ped.setKeepTask(false); } catch {}
             }
         }
+        if (command === "goto") {
+            clog(`client: goto processing for ped=${pedId}`);
+            cache.hasReachedReturn = false;
+            const ped = mp.peds.atRemoteId(pedId);
+            const gotoPedId = Number(packet.gotoPedId != null ? packet.gotoPedId : u.pedId);
+            if (ped && (!Number.isFinite(gotoPedId) || gotoPedId < 0 || gotoPedId === pedId)) {
+                const gotoX = Number(u.gotoX != null ? u.gotoX : packet.gotoX);
+                const gotoY = Number(u.gotoY != null ? u.gotoY : packet.gotoY);
+                const gotoZ = Number(u.gotoZ != null ? u.gotoZ : packet.gotoZ);
+                const gotoRange = Math.max(0.5, Number(u.gotoRange != null ? u.gotoRange : packet.gotoRange) || 2.0);
+                clog(`client: goto received for ped=${pedId} target=${gotoX},${gotoY},${gotoZ}`);
+                if (Number.isFinite(gotoX) && Number.isFinite(gotoY) && Number.isFinite(gotoZ)) {
+                    let success = false;
+                    try {
+                        ped.taskGoToCoordAnyMeans(gotoX, gotoY, gotoZ, 1.2, 0, gotoRange, 1, 0.5);
+                        success = true;
+                    } catch {}
+                    clog(`client: taskGoToCoordAnyMeans called success=${success}`);
+                }
+            }
+        }
         if (command === "return") {
             cache.returnPos = {
                 x: Number(u.returnX != null ? u.returnX : u.x) || 0,
@@ -456,26 +482,6 @@ function applyNpcCommandHints(packet) {
             const ped = mp.peds.atRemoteId(pedId);
             if (ped) {
                 try { ped.taskGoStraightToCoord(cache.returnPos.x, cache.returnPos.y, cache.returnPos.z, 2.2, -1, cache.returnPos.heading || 0, 0.05); } catch {}
-            }
-        }
-        if (command === "goto") {
-            cache.hasReachedReturn = false;
-            const ped = mp.peds.atRemoteId(pedId);
-            const gotoPedId = Number(packet.gotoPedId);
-            if (ped && (!Number.isFinite(gotoPedId) || gotoPedId < 0 || gotoPedId === pedId)) {
-                const gotoX = Number(packet.gotoX);
-                const gotoY = Number(packet.gotoY);
-                const gotoZ = Number(packet.gotoZ);
-                const gotoRange = Math.max(0.5, Number(packet.gotoRange) || 2.0);
-                clog(`client: goto received for ped=${pedId} target=${gotoX},${gotoY},${gotoZ}`);
-                if (Number.isFinite(gotoX) && Number.isFinite(gotoY) && Number.isFinite(gotoZ)) {
-                    let success = false;
-                    try {
-                        ped.taskGoToCoordAnyMeans(gotoX, gotoY, gotoZ, 1.2, 0, gotoRange, 1, 0.5);
-                        success = true;
-                    } catch {}
-                    clog(`client: taskGoToCoordAnyMeans called success=${success}`);
-                }
             }
         }
         if (command === "search") {
@@ -565,6 +571,7 @@ mp.events.add({
                 ctrlVer: 0,
             };
         }
+        clog(`client: npcCommand received cmd=${packet && packet.command} post=${packet && packet.postId}`);
         const postId = String(packet.postId || "");
         const rt = getPostRuntime(postId);
         const seq = Number(packet.commandSeq) || 0;
