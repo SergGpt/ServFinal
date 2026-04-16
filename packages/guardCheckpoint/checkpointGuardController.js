@@ -53,9 +53,14 @@ function isInsideZone(pos, zone) {
     return inSphere(pos, zone);
 }
 
-function isInsideZoneWithTolerance(pos, zone, tolerance = 0.6) {
+function isInsideZoneWithTolerance(pos, zone, tolerance = 2.5) {
     if (!zone) return false;
     if (String(zone.type || "sphere") === "sphere") {
+        const zLimit = Math.max(2.5, Number(tolerance || 0) + 1.0);
+        const centerZ = Number(zone.center && zone.center.z);
+        if (Number.isFinite(centerZ) && Number.isFinite(Number(pos.z)) && Math.abs(Number(pos.z) - centerZ) > zLimit) {
+            return false;
+        }
         const extended = {
             ...zone,
             radius: Number(zone.radius || 0) + Number(tolerance || 0),
@@ -271,6 +276,7 @@ class CheckpointGuardController {
             attackTargetLostSince: 0,
             attackServerUntil: 0,
             approachUnitId: null,
+            stopZoneExitSince: 0,
         };
     }
 
@@ -554,8 +560,12 @@ class CheckpointGuardController {
         const elapsed = now - (post.warningIssuedAt || now);
         const distToStop = dist3(target.position, zoneCenter(post.cfg.stopZone));
         const prevDistToStop = Number(post.warningPrevDistToStopZone || distToStop);
-        if (isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9)) {
+        const stopZoneTolerance = Number(post.cfg.stopZoneTolerance || this.config.stopZoneTolerance || 2.5);
+        const stopZoneRadius = Number(post.cfg.stopZone && post.cfg.stopZone.radius) || 0;
+        const insideStopByDist = distToStop <= (stopZoneRadius + stopZoneTolerance);
+        if (isInsideZoneWithTolerance(target.position, post.cfg.stopZone, stopZoneTolerance) || insideStopByDist) {
             post.targetStopStaySince = now;
+            post.stopZoneExitSince = 0;
             this.log(`post=${post.id} target=${target.id} entered stopZone`);
             this.transition(post, POST_STATE.APPROACHING, "entered-stop-zone", now);
             return;
@@ -588,10 +598,18 @@ class CheckpointGuardController {
             return;
         }
         const distToPlayer = dist3(approachUnit.ped.position, target.position);
-        const allowOutsideStopZoneNearNpc = !isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9) && distToPlayer < 3;
-        if (!isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9) && !allowOutsideStopZoneNearNpc) {
-            this.transition(post, POST_STATE.ATTACK, "left-stop-zone-approaching", now);
-            return;
+        const stopZoneTolerance = Number(post.cfg.stopZoneTolerance || this.config.stopZoneTolerance || 2.5);
+        const insideStopZone = isInsideZoneWithTolerance(target.position, post.cfg.stopZone, stopZoneTolerance);
+        const allowOutsideStopZoneNearNpc = !insideStopZone && distToPlayer < 3;
+        const exitDelayMs = Number(post.cfg.stopZoneExitDelayMs || this.config.stopZoneExitDelayMs || 2000);
+        if (!insideStopZone && !allowOutsideStopZoneNearNpc) {
+            if (!post.stopZoneExitSince) post.stopZoneExitSince = now;
+            if (now - post.stopZoneExitSince >= exitDelayMs) {
+                this.transition(post, POST_STATE.ATTACK, "left-stop-zone-approaching-delay", now);
+                return;
+            }
+        } else {
+            post.stopZoneExitSince = 0;
         }
         post.approachUnitId = approachUnit.id;
         this.log(`approach: selected npc=${approachUnit.id} dist=${distToPlayer.toFixed(2)}`);
@@ -634,9 +652,17 @@ class CheckpointGuardController {
             return;
         }
 
-        if (!isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9)) {
-            this.transition(post, POST_STATE.ATTACK, "left-stop-zone", now);
-            return;
+        const stopZoneTolerance = Number(post.cfg.stopZoneTolerance || this.config.stopZoneTolerance || 2.5);
+        const insideStopZone = isInsideZoneWithTolerance(target.position, post.cfg.stopZone, stopZoneTolerance);
+        const exitDelayMs = Number(post.cfg.stopZoneExitDelayMs || this.config.stopZoneExitDelayMs || 2000);
+        if (!insideStopZone) {
+            if (!post.stopZoneExitSince) post.stopZoneExitSince = now;
+            if (now - post.stopZoneExitSince >= exitDelayMs) {
+                this.transition(post, POST_STATE.ATTACK, "left-stop-zone-checking-delay", now);
+                return;
+            }
+        } else {
+            post.stopZoneExitSince = 0;
         }
 
         this.applySearchBehavior(post, target);
@@ -926,6 +952,7 @@ class CheckpointGuardController {
             post.warningIssuedAt = now;
             post.checkStartedAt = 0;
             post.targetStopStaySince = 0;
+            post.stopZoneExitSince = 0;
             const target = this.resolveTargetPlayer(post);
             if (target) {
                 this.sendWarningStart(target, post);
@@ -943,6 +970,7 @@ class CheckpointGuardController {
         if (nextState === POST_STATE.CHECKING) {
             post.checkStartedAt = now;
             post.checkingGraceUntil = now + 1100;
+            post.stopZoneExitSince = 0;
             const target = getPlayerById(post.targetPlayerId);
             this.sendStatusText(post, "Идет досмотр, оставайтесь в зоне проверки (5 секунд)", 5000, target);
             this.sendPhase(post, "checking", Number(post.cfg.searchAnimDurationMs || this.config.searchAnimDurationMs || 5000), target);
@@ -951,6 +979,7 @@ class CheckpointGuardController {
 
         if (nextState === POST_STATE.APPROACHING) {
             post.checkStartedAt = 0;
+            post.stopZoneExitSince = 0;
             const target = getPlayerById(post.targetPlayerId);
             this.sendStatusText(post, "Ожидайте: сотрудник подходит для досмотра", 3000, target);
             this.sendPhase(post, "approaching", Number(post.cfg.checkApproachTimeoutMs || this.config.checkApproachTimeoutMs || 5000), target);
@@ -969,6 +998,7 @@ class CheckpointGuardController {
             const target = getPlayerById(post.targetPlayerId);
             this.sendWarningStop(target, post.id);
             post.approachUnitId = null;
+            post.stopZoneExitSince = 0;
         }
 
         this.log(`post=${post.id} ${prev} -> ${nextState} (${reason})`);

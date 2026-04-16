@@ -21,6 +21,8 @@ const GUARD_CHECKPOINT_CONFIG = {
     warningResponseMs: 10000,
     warningMoveTolerance: 0.09,
     stopZoneProgressEpsilon: 0.03,
+    stopZoneTolerance: 2.5,
+    stopZoneExitDelayMs: 2000,
     warningAdvanceTolerance: 0.6,
     attackDamageIntervalMs: 450,
     attackDamageRange: 38,
@@ -28,8 +30,8 @@ const GUARD_CHECKPOINT_CONFIG = {
     attackBurstIntervalMs: 280,
     attackReturnDelayMs: 3000,
     attackCommandWindowMs: 5000,
-    checkApproachRange: 2.0,
-    checkApproachTimeoutMs: 15000,
+    checkApproachRange: 5.0,
+    checkApproachTimeoutMs: 25000,
     searchAnimDurationMs: 5000,
 
     // Независимые посты охраны
@@ -55,7 +57,7 @@ const GUARD_CHECKPOINT_CONFIG = {
             stopZone: {
                 type: "sphere",
                 center: { x: 745.2170581054688, y: -2559.97333984375, z: 19.984865188598633 },
-                radius: 7.0,
+                radius: 10.0,
             },
             violationZone: {
                 type: "sphere",

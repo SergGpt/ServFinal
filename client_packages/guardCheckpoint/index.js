@@ -80,7 +80,7 @@ function showStopPointVisuals(stopZone) {
             new mp.Vector3(c.x, c.y, c.z - 0.9),
             Number(stopZone.radius || 4.0),
             {
-                color: [50, 180, 255, 170],
+                color: [0, 210, 255, 220],
                 visible: true,
                 dimension: mp.players.local.dimension,
             }
@@ -548,7 +548,7 @@ mp.events.add({
     "guardCheckpoint:warning:start": (data) => {
         activeWarning = {
             postId: data.postId,
-            text: data.text || "Остановитесь",
+            text: `${data.text || "Остановитесь"} | Зона остановки (широкая)`,
             soundName: data.soundName || "5s",
             soundSet: data.soundSet || "MP_MISSION_COUNTDOWN_SOUNDSET",
         };
