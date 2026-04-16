@@ -551,11 +551,6 @@ class CheckpointGuardController {
 
         this.applyWarningBehavior(post, target);
 
-        if (this.shouldTriggerAttack(post, target, now, { ignoreViolation: true })) {
-            this.transition(post, POST_STATE.ATTACK, "warning-violation", now);
-            return;
-        }
-
         const warningResponseMs = Number(post.cfg.warningResponseMs || this.config.warningResponseMs || 5000);
         const elapsed = now - (post.warningIssuedAt || now);
         const distToStop = dist3(target.position, zoneCenter(post.cfg.stopZone));
@@ -568,6 +563,11 @@ class CheckpointGuardController {
             post.stopZoneExitSince = 0;
             this.log(`post=${post.id} target=${target.id} entered stopZone`);
             this.transition(post, POST_STATE.APPROACHING, "entered-stop-zone", now);
+            return;
+        }
+
+        if (this.shouldTriggerAttack(post, target, now, { ignoreViolation: true })) {
+            this.transition(post, POST_STATE.ATTACK, "warning-violation", now);
             return;
         }
 
