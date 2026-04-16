@@ -22,6 +22,51 @@ function getPlayerByRemoteId(id) {
     return null;
 }
 
+
+function safeFollowPedToPlayer(ped, target) {
+    if (!ped || !ped.handle || !target || !target.handle) return;
+
+    // Разные сборки RAGE MP имеют разный набор mp.game.ai.* методов.
+    if (typeof mp.game.ai.taskFollowToOffsetOfEntity === 'function') {
+        mp.game.ai.taskFollowToOffsetOfEntity(ped.handle, target.handle, 0.0, 0.0, 0.0, 1.35, -1, 5.0, true);
+        return;
+    }
+
+    if (typeof mp.game.ai.taskGoToEntity === 'function') {
+        mp.game.ai.taskGoToEntity(ped.handle, target.handle, -1, 2.0, 1.35, 0.0, 0);
+        return;
+    }
+
+    if (typeof mp.game.ai.taskGoToCoordAnyMeans === 'function') {
+        const pos = target.position;
+        mp.game.ai.taskGoToCoordAnyMeans(ped.handle, pos.x, pos.y, pos.z, 1.35, 0, false, 0, 0.0);
+    }
+}
+
+function safeClearPedTasks(ped) {
+    if (!ped || !ped.handle) return;
+    if (typeof mp.game.ai.clearPedTasks === 'function') {
+        mp.game.ai.clearPedTasks(ped.handle);
+        return;
+    }
+    if (typeof mp.game.ai.clearPedTasksImmediately === 'function') {
+        mp.game.ai.clearPedTasksImmediately(ped.handle);
+    }
+}
+
+function safeShootAtTarget(ped, target) {
+    if (!ped || !ped.handle || !target || !target.handle) return;
+
+    if (typeof mp.game.ai.taskShootAtEntity === 'function') {
+        mp.game.ai.taskShootAtEntity(ped.handle, target.handle, 100, FIRING_PATTERN_BURST_FIRE);
+        return;
+    }
+
+    if (typeof mp.game.ai.taskCombatPed === 'function') {
+        mp.game.ai.taskCombatPed(ped.handle, target.handle, 0, 16);
+    }
+}
+
 function drawBuilderPolygon() {
     const b = state.builder;
     if (!b || !Array.isArray(b.points) || b.points.length === 0) return;
@@ -121,23 +166,18 @@ mp.events.add('z:executeCommand', (command, pedId, targetRid) => {
 
     if (command === 'follow') {
         const target = getPlayerByRemoteId(targetRid);
-        if (target && target.handle) {
-            // На ряде клиентских сборок ped.taskFollowToOffsetOfEntity отсутствует, используем native AI.
-            mp.game.ai.taskFollowToOffsetOfEntity(ped.handle, target.handle, 0.0, 0.0, 0.0, 1.35, -1, 5.0, true);
-        }
+        safeFollowPedToPlayer(ped, target);
         return;
     }
 
     if (command === 'idle') {
-        mp.game.ai.clearPedTasks(ped.handle);
+        safeClearPedTasks(ped);
         return;
     }
 
     if (command === 'fire') {
         const target = getPlayerByRemoteId(targetRid);
-        if (target && target.handle) {
-            mp.game.ai.taskShootAtEntity(ped.handle, target.handle, 100, FIRING_PATTERN_BURST_FIRE);
-        }
+        safeShootAtTarget(ped, target);
     }
 });
 
