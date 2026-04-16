@@ -55,7 +55,7 @@ const GUARD_CHECKPOINT_CONFIG = {
             stopZone: {
                 type: "sphere",
                 center: { x: 745.2170581054688, y: -2559.97333984375, z: 19.984865188598633 },
-                radius: 5.0,
+                radius: 7.0,
             },
             violationZone: {
                 type: "sphere",

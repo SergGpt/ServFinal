@@ -582,18 +582,18 @@ class CheckpointGuardController {
             this.transition(post, POST_STATE.ATTACK, "approaching-violation", now);
             return;
         }
-        if (!isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9)) {
-            this.transition(post, POST_STATE.ATTACK, "left-stop-zone-approaching", now);
-            return;
-        }
-
         const approachUnit = this.selectApproachUnit(post, target);
         if (!approachUnit || !approachUnit.exists()) {
             this.transition(post, POST_STATE.ATTACK, "approach-unit-missing", now);
             return;
         }
-        post.approachUnitId = approachUnit.id;
         const distToPlayer = dist3(approachUnit.ped.position, target.position);
+        const allowOutsideStopZoneNearNpc = !isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9) && distToPlayer < 3;
+        if (!isInsideZoneWithTolerance(target.position, post.cfg.stopZone, 0.9) && !allowOutsideStopZoneNearNpc) {
+            this.transition(post, POST_STATE.ATTACK, "left-stop-zone-approaching", now);
+            return;
+        }
+        post.approachUnitId = approachUnit.id;
         this.log(`approach: selected npc=${approachUnit.id} dist=${distToPlayer.toFixed(2)}`);
 
         this.applyApproachBehavior(post, target, approachUnit);
@@ -1186,27 +1186,32 @@ class CheckpointGuardController {
         const gotoY = payload ? Number(payload.gotoY) : NaN;
         const gotoZ = payload ? Number(payload.gotoZ) : NaN;
         const gotoRange = payload ? Number(payload.gotoRange) : NaN;
-        const units = [post.leader, ...post.guards].map((unit) => ({
-            unitId: unit.id,
-            pedId: unit.exists() ? unit.ped.id : -1,
-            role: unit.role,
-            alive: !!unit.exists(),
-            state: unit.exists() ? String(unit.ped.getVariable("guardState") || post.state || "idle") : "dead",
-            x: unit.spawnPos.x,
-            y: unit.spawnPos.y,
-            z: unit.spawnPos.z,
-            heading: unit.spawnHeading,
-            weaponHash: unit.weaponHash || 0,
-            returnX: unit.spawnPos.x,
-            returnY: unit.spawnPos.y,
-            returnZ: unit.spawnPos.z,
-            returnHeading: unit.spawnHeading,
-            hasReachedReturn: unit.exists() ? dist3(unit.ped.position, unit.spawnPos) <= 1.5 : false,
-            gotoX: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoX) ? gotoX : null,
-            gotoY: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoY) ? gotoY : null,
-            gotoZ: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoZ) ? gotoZ : null,
-            gotoRange: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoRange) ? gotoRange : null,
-        }));
+        const units = [post.leader, ...post.guards].map((unit) => {
+            if (command === "goto") {
+                this.log(`build: command=goto for unit ${unit.id}`);
+            }
+            return {
+                unitId: unit.id,
+                pedId: unit.exists() ? unit.ped.id : -1,
+                role: unit.role,
+                alive: !!unit.exists(),
+                state: unit.exists() ? String(unit.ped.getVariable("guardState") || post.state || "idle") : "dead",
+                x: unit.spawnPos.x,
+                y: unit.spawnPos.y,
+                z: unit.spawnPos.z,
+                heading: unit.spawnHeading,
+                weaponHash: unit.weaponHash || 0,
+                returnX: unit.spawnPos.x,
+                returnY: unit.spawnPos.y,
+                returnZ: unit.spawnPos.z,
+                returnHeading: unit.spawnHeading,
+                hasReachedReturn: unit.exists() ? dist3(unit.ped.position, unit.spawnPos) <= 1.5 : false,
+                gotoX: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoX) ? gotoX : null,
+                gotoY: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoY) ? gotoY : null,
+                gotoZ: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoZ) ? gotoZ : null,
+                gotoRange: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoRange) ? gotoRange : null,
+            };
+        });
         return {
             postId: post.id,
             commandSeq: post.commandSeq,

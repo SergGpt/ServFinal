@@ -556,6 +556,13 @@ mp.events.add({
     },
 
     "guardCheckpoint:npcCommand": (packetOrPostId, legacyCommand, legacyTargetId, legacyUnits, legacyOwnerId) => {
+        try {
+            console.log("[CLIENT] RAW NPC COMMAND:", JSON.stringify({
+                cmd: packetOrPostId && packetOrPostId.command,
+                seq: packetOrPostId && packetOrPostId.commandSeq,
+                postId: packetOrPostId && packetOrPostId.postId,
+            }));
+        } catch {}
         const preCmd = typeof packetOrPostId === "object" && packetOrPostId
             ? packetOrPostId.command
             : legacyCommand;
@@ -587,17 +594,18 @@ mp.events.add({
         clog(`client: npcCommand seq=${seq} last=${lastAppliedSeq}`);
         const behaviorSessionId = Number(packet.behaviorSessionId) || 0;
         const attackSessionId = Number(packet.attackSessionId) || 0;
-        if (String(packet.command || "") === "goto" && seq && seq <= lastAppliedSeq) {
+        const isGoto = String(packet.command || "") === "goto";
+        if (isGoto) {
             clog(`client: goto bypass stale-check (seq=${seq} last=${lastAppliedSeq})`);
         } else if (seq && seq <= lastAppliedSeq) {
             if (DEBUG_PROTOCOL) clog(`drop packet post=${postId} reason=seq-old seq=${seq} last=${rt.lastAppliedSeq}`);
             return;
         }
-        if (attackSessionId && attackSessionId < (rt.attackSessionId || 0)) {
+        if (!isGoto && attackSessionId && attackSessionId < (rt.attackSessionId || 0)) {
             if (DEBUG_PROTOCOL) clog(`drop packet post=${postId} reason=attack-session-old as=${attackSessionId} last=${rt.attackSessionId}`);
             return;
         }
-        if (behaviorSessionId && behaviorSessionId < (rt.behaviorSessionId || 0)) {
+        if (!isGoto && behaviorSessionId && behaviorSessionId < (rt.behaviorSessionId || 0)) {
             if (DEBUG_PROTOCOL) clog(`drop packet post=${postId} reason=behavior-session-old bs=${behaviorSessionId} last=${rt.behaviorSessionId}`);
             return;
         }
