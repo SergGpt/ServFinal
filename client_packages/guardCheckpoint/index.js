@@ -33,7 +33,15 @@ const postRuntime = new Map(); // postId -> { lastAppliedSeq, behaviorSessionId,
 function chatLog(text) {
     try {
         console.log(text);
-        mp.gui.chat.push(text);
+        // Используем глобальный чат, если он доступен
+        if (mp.events.call("chat.message.push")) {
+            mp.events.call("chat.message.push", [text]);
+        } else if (mp.gui && mp.gui.chat && mp.gui.chat.push) {
+            mp.gui.chat.push(text);
+        } else {
+            // fallback: вывод в консоль игры
+            mp.console.logInfo(text);
+        }
     } catch (e) {}
 }
 
