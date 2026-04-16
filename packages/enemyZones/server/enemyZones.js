@@ -1,489 +1,245 @@
 "use strict";
 
-const {
-    dist3,
-    normalizeZonePoints,
-    randomPointInPolygon,
-    isPointInPolygon2d,
-} = require('../../banditsS/zombie.utils');
+const { dist3 } = require('../../banditsS/zombie.utils');
 
 const WEAPON_ASSAULTRIFLE = 0xBFEFFF6D;
 const MODEL_ARMY = 's_m_y_army_01';
 
 class EnemyZonesSystem {
     constructor() {
-        this.db = null;
-        this.sequelize = null;
-
-        this.zones = new Map(); // zoneId -> zone state
-        this.npcs = new Map(); // ped.id -> npc state
-
-        this.buildSessions = new Map(); // player.id -> draft
-        this.controllerHeartbeat = new Map(); // pedId -> timestamp
+        this.npcs = new Map(); // pedId -> state
+        this.controllerHeartbeat = new Map();
 
         this.tickTimer = null;
-        this.heartbeatTimer = null;
+        this.hbTimer = null;
+
+        this.staticZone = {
+            id: 1,
+            name: 'Static Enemy Zone',
+            center: { x: -2288.1455078125, y: 3019.822998046875, z: 32.810028076171875 },
+            radius: 150,
+            dimension: 0,
+            npcCount: 12,
+            respawnSec: 30,
+            npcs: new Set(),
+        };
 
         this.cfg = {
             attackRange: 5.0,
-            followSpeed: 1.35,
             damageEveryMs: 400,
             damagePerTick: 12,
-            zoneIdleDespawnMs: 30_000,
-            heartbeatTimeoutMs: 3_500,
+            heartbeatTimeoutMs: 4000,
             aiTickMs: 250,
             modelHash: mp.joaat(MODEL_ARMY),
             weaponHash: WEAPON_ASSAULTRIFLE,
-            maxNpcCount: 40,
-            maxRespawnSec: 600,
         };
     }
 
-    async init(dbRef) {
-        this.db = dbRef || global.db;
-        this.sequelize = this.db && this.db.sequelize ? this.db.sequelize : null;
+    async init() {
+        this.ensureSpawnCount();
 
-        await this.ensureSchema();
-        await this.loadZonesFromDb();
-
-        this.startLoops();
-        console.log(`[EnemyZones] init done. zones=${this.zones.size}`);
-    }
-
-    async ensureSchema() {
-        if (!this.sequelize) return;
-
-        await this.sequelize.query(`
-            CREATE TABLE IF NOT EXISTS enemy_npc_zones (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(64) NOT NULL,
-                dimension INT NOT NULL DEFAULT 0,
-                npcCount INT NOT NULL DEFAULT 3,
-                respawnSec INT NOT NULL DEFAULT 60,
-                points LONGTEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-        `);
-
-        try {
-            await this.sequelize.query('CREATE INDEX idx_dimension ON enemy_npc_zones(dimension)');
-        } catch {}
-    }
-
-    async loadZonesFromDb() {
-        this.clearAllZonesRuntime();
-        if (!this.sequelize) return;
-
-        const [rows] = await this.sequelize.query('SELECT * FROM enemy_npc_zones ORDER BY id ASC');
-        (rows || []).forEach((row) => {
-            let points = [];
-            try { points = normalizeZonePoints(JSON.parse(row.points || '[]')); } catch {}
-            if (points.length < 3) return;
-
-            const zone = this.makeZoneRuntime({
-                id: Number(row.id),
-                name: String(row.name || `EnemyZone#${row.id}`),
-                dimension: Number(row.dimension) || 0,
-                npcCount: Math.max(1, Math.min(this.cfg.maxNpcCount, Number(row.npcCount) || 3)),
-                respawnSec: Math.max(5, Math.min(this.cfg.maxRespawnSec, Number(row.respawnSec) || 60)),
-                points,
-            });
-
-            this.zones.set(zone.id, zone);
-        });
-    }
-
-    makeZoneRuntime(data) {
-        const center = data.points.reduce((acc, p) => {
-            acc.x += p.x; acc.y += p.y; acc.z += p.z;
-            return acc;
-        }, { x: 0, y: 0, z: 0 });
-
-        center.x /= data.points.length;
-        center.y /= data.points.length;
-        center.z /= data.points.length;
-
-        return {
-            id: data.id,
-            name: data.name,
-            dimension: data.dimension,
-            npcCount: data.npcCount,
-            respawnSec: data.respawnSec,
-            points: data.points,
-            center,
-            npcs: new Set(),
-            players: new Set(),
-            emptySince: 0,
-            enabled: true,
-        };
-    }
-
-    startLoops() {
         if (!this.tickTimer) this.tickTimer = setInterval(() => this.tick(), this.cfg.aiTickMs);
-        if (!this.heartbeatTimer) this.heartbeatTimer = setInterval(() => this.checkHeartbeatTimeouts(), 1000);
+        if (!this.hbTimer) this.hbTimer = setInterval(() => this.checkHeartbeat(), 1000);
+
+        console.log(`[EnemyZones] Static zone enabled at ${this.staticZone.center.x}, ${this.staticZone.center.y}, ${this.staticZone.center.z}, radius=${this.staticZone.radius}`);
     }
 
-    stopLoops() {
-        if (this.tickTimer) clearInterval(this.tickTimer);
-        if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
-        this.tickTimer = null;
-        this.heartbeatTimer = null;
+    // Совместимость со старым events/commands API
+    startCreate() {}
+    addPoint() { return { ok: false, msg: 'Отключено: используется статическая зона.' }; }
+    setCount() { return { ok: false, msg: 'Отключено: используется статическая зона.' }; }
+    setRespawn() { return { ok: false, msg: 'Отключено: используется статическая зона.' }; }
+    async saveDraft() { return { ok: false, msg: 'Отключено: используется статическая зона.' }; }
+    async reload() { this.ensureSpawnCount(); }
+
+    listZones() {
+        return [{
+            id: this.staticZone.id,
+            name: this.staticZone.name,
+            dimension: this.staticZone.dimension,
+            npcCount: this.staticZone.npcCount,
+            respawnSec: this.staticZone.respawnSec,
+            pointsCount: 0,
+            players: this.getPlayersInZone().length,
+            npcs: this.staticZone.npcs.size,
+        }];
     }
 
-    tick() {
-        const now = Date.now();
+    async gotoZone(player) {
+        player.position = new mp.Vector3(this.staticZone.center.x, this.staticZone.center.y, this.staticZone.center.z + 1.0);
+        player.dimension = this.staticZone.dimension;
+        return { ok: true, msg: 'Телепорт в статическую зону NPC' };
+    }
 
-        this.refreshPlayersInsideZones();
+    ensureSpawnCount() {
+        const alive = [...this.staticZone.npcs].filter((id) => {
+            const npc = this.npcs.get(id);
+            return npc && npc.isAlive;
+        }).length;
 
-        this.zones.forEach((zone) => {
-            if (!zone.enabled) return;
+        for (let i = alive; i < this.staticZone.npcCount; i++) {
+            this.spawnNpc();
+        }
+    }
 
-            if (zone.players.size > 0) {
-                zone.emptySince = 0;
-                this.ensureZoneNpcCount(zone);
-            } else {
-                if (!zone.emptySince) zone.emptySince = now;
-                if (now - zone.emptySince >= this.cfg.zoneIdleDespawnMs) this.clearZoneNpcs(zone.id);
-            }
+    randomPointInCircle() {
+        const t = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(Math.random()) * this.staticZone.radius;
+        return {
+            x: this.staticZone.center.x + Math.cos(t) * r,
+            y: this.staticZone.center.y + Math.sin(t) * r,
+            z: this.staticZone.center.z,
+        };
+    }
 
-            zone.npcs.forEach((pedId) => {
-                const npc = this.npcs.get(pedId);
-                if (!npc || !npc.isAlive) return;
-                this.updateNpcController(zone, npc);
-                this.updateNpcCombat(npc, now);
-            });
+    spawnNpc() {
+        const p = this.randomPointInCircle();
+
+        const ped = mp.peds.new(this.cfg.modelHash, new mp.Vector3(p.x, p.y, p.z), {
+            dynamic: true,
+            dimension: this.staticZone.dimension,
+            heading: Math.random() * 360,
         });
-    }
-
-    refreshPlayersInsideZones() {
-        this.zones.forEach((z) => z.players.clear());
-
-        mp.players.forEach((player) => {
-            if (!player || !player.character || (Number(player.health) || 0) <= 0) return;
-
-            this.zones.forEach((zone) => {
-                if (player.dimension !== zone.dimension) return;
-                if (isPointInPolygon2d(player.position.x, player.position.y, zone.points)) {
-                    zone.players.add(player.id);
-                }
-            });
-        });
-    }
-
-    ensureZoneNpcCount(zone) {
-        const aliveNpcCount = [...zone.npcs].reduce((sum, pedId) => {
-            const npc = this.npcs.get(pedId);
-            return sum + (npc && npc.isAlive ? 1 : 0);
-        }, 0);
-
-        if (aliveNpcCount >= zone.npcCount) return;
-
-        const toSpawn = zone.npcCount - aliveNpcCount;
-        for (let i = 0; i < toSpawn; i++) this.spawnNpc(zone.id);
-    }
-
-    spawnNpc(zoneId) {
-        const zone = this.zones.get(zoneId);
-        if (!zone) return null;
-
-        const p = randomPointInPolygon(zone.points, {
-            x: zone.center.x,
-            y: zone.center.y,
-            z: zone.center.z,
-            radius: 8,
-        });
-
-        const ped = mp.peds.new(
-            this.cfg.modelHash,
-            new mp.Vector3(p.x, p.y, p.z),
-            {
-                dynamic: true,
-                dimension: zone.dimension,
-                heading: Math.random() * 360,
-            }
-        );
 
         ped.setVariable('enemyZoneNpc', true);
-        ped.setVariable('enemyZoneId', zone.id);
-        ped.setVariable('enemyCanFire', false);
+        ped.setVariable('enemyZoneId', this.staticZone.id);
 
         try { ped.giveWeapon(this.cfg.weaponHash, 9999); } catch {}
 
-        const npc = {
+        const state = {
             ped,
             pedId: ped.id,
-            zoneId,
-            controllerId: null,
-            targetPlayerId: null,
             isAlive: true,
+            controllerId: null,
+            targetId: null,
             lastDamageAt: 0,
             respawnAt: 0,
         };
 
-        zone.npcs.add(ped.id);
-        this.npcs.set(ped.id, npc);
-
-        return npc;
-    }
-
-    clearZoneNpcs(zoneId) {
-        const zone = this.zones.get(zoneId);
-        if (!zone) return;
-
-        [...zone.npcs].forEach((pedId) => {
-            const npc = this.npcs.get(pedId);
-            if (npc && npc.ped && mp.peds.exists(npc.ped)) {
-                mp.players.forEach((pl) => pl.call('z:forceRemove', [npc.ped.id]));
-                npc.ped.destroy();
-            }
-            this.npcs.delete(pedId);
-            this.controllerHeartbeat.delete(pedId);
-        });
-
-        zone.npcs.clear();
-    }
-
-    clearAllZonesRuntime() {
-        this.zones.forEach((zone) => this.clearZoneNpcs(zone.id));
-        this.zones.clear();
-        this.npcs.clear();
-    }
-
-    updateNpcController(zone, npc) {
-        const now = Date.now();
-
-        let currentController = this.getPlayerById(npc.controllerId);
-        const target = this.pickNearestZonePlayer(zone, npc.ped.position);
-
-        if (!target) {
-            if (currentController) currentController.call('z:executeCommand', ['idle', npc.ped.id, -1]);
-            npc.controllerId = null;
-            npc.targetPlayerId = null;
-            npc.ped.setVariable('enemyCanFire', false);
-            return;
-        }
-
-        if (!currentController || currentController.id !== target.id) {
-            npc.controllerId = target.id;
-            currentController = target;
-            currentController.call('z:assignController', [npc.ped.id]);
-        }
-
-        npc.targetPlayerId = target.id;
-        this.controllerHeartbeat.set(npc.pedId, now);
-    }
-
-    updateNpcCombat(npc, now) {
-        const controller = this.getPlayerById(npc.controllerId);
-        const target = this.getPlayerById(npc.targetPlayerId);
-
-        if (!controller || !target || !npc.ped || !mp.peds.exists(npc.ped)) return;
-
-        const distance = dist3(npc.ped.position, target.position);
-        if (!Number.isFinite(distance)) return;
-
-        if (distance <= this.cfg.attackRange) {
-            npc.ped.setVariable('enemyCanFire', true);
-            controller.call('z:executeCommand', ['fire', npc.ped.id, target.id]);
-
-            if (now - npc.lastDamageAt >= this.cfg.damageEveryMs) {
-                npc.lastDamageAt = now;
-                const hp = Math.max(0, (Number(target.health) || 0) - this.cfg.damagePerTick);
-                target.health = hp;
-            }
-            return;
-        }
-
-        npc.ped.setVariable('enemyCanFire', false);
-        controller.call('z:executeCommand', ['follow', npc.ped.id, target.id]);
-    }
-
-    checkHeartbeatTimeouts() {
-        const now = Date.now();
-
-        this.npcs.forEach((npc) => {
-            if (!npc.isAlive) return;
-            const lastHb = this.controllerHeartbeat.get(npc.pedId) || 0;
-            if (!lastHb) return;
-            if (now - lastHb <= this.cfg.heartbeatTimeoutMs) return;
-
-            npc.controllerId = null;
-            this.controllerHeartbeat.delete(npc.pedId);
-        });
-
-        this.npcs.forEach((npc) => {
-            if (!npc.isAlive) {
-                if (npc.respawnAt && now >= npc.respawnAt) {
-                    const oldZoneId = npc.zoneId;
-                    this.removeNpcRuntime(npc.pedId);
-                    this.spawnNpc(oldZoneId);
-                }
-            }
-        });
-    }
-
-    removeNpcRuntime(pedId) {
-        const npc = this.npcs.get(pedId);
-        if (!npc) return;
-
-        const zone = this.zones.get(npc.zoneId);
-        if (zone) zone.npcs.delete(pedId);
-
-        if (npc.ped && mp.peds.exists(npc.ped)) {
-            mp.players.forEach((pl) => pl.call('z:forceRemove', [npc.ped.id]));
-            npc.ped.destroy();
-        }
-
-        this.npcs.delete(pedId);
-        this.controllerHeartbeat.delete(pedId);
+        this.npcs.set(ped.id, state);
+        this.staticZone.npcs.add(ped.id);
+        return state;
     }
 
     getPlayerById(id) {
         if (typeof id !== 'number') return null;
         let found = null;
-        mp.players.forEach((p) => { if (!found && p.id === id) found = p; });
+        mp.players.forEach((p) => {
+            if (!found && p.id === id) found = p;
+        });
         return found;
     }
 
-    pickNearestZonePlayer(zone, fromPos) {
-        let best = null;
-        let bestDist = Number.MAX_SAFE_INTEGER;
+    getPlayersInZone() {
+        const list = [];
+        mp.players.forEach((p) => {
+            if (!p || !p.character || (Number(p.health) || 0) <= 0) return;
+            if (p.dimension !== this.staticZone.dimension) return;
+            if (dist3(p.position, this.staticZone.center) <= this.staticZone.radius) list.push(p);
+        });
+        return list;
+    }
 
-        zone.players.forEach((pid) => {
-            const p = this.getPlayerById(pid);
-            if (!p || (Number(p.health) || 0) <= 0) return;
+    pickNearestPlayer(fromPos) {
+        const players = this.getPlayersInZone();
+        let best = null;
+        let bestD = Infinity;
+
+        players.forEach((p) => {
             const d = dist3(fromPos, p.position);
-            if (d < bestDist) {
+            if (d < bestD) {
+                bestD = d;
                 best = p;
-                bestDist = d;
             }
         });
 
         return best;
     }
 
-    // ---- Admin editor API ----
-    startCreate(player, name = 'Enemy Zone') {
-        const safeName = String(name || 'Enemy Zone').trim().slice(0, 64);
-        this.buildSessions.set(player.id, {
-            name: safeName || 'Enemy Zone',
-            dimension: Number(player.dimension) || 0,
-            npcCount: 3,
-            respawnSec: 60,
-            points: [],
+    tick() {
+        this.ensureSpawnCount();
+
+        const now = Date.now();
+
+        this.staticZone.npcs.forEach((pedId) => {
+            const npc = this.npcs.get(pedId);
+            if (!npc || !npc.isAlive || !npc.ped || !mp.peds.exists(npc.ped)) return;
+
+            const target = this.pickNearestPlayer(npc.ped.position);
+            if (!target) {
+                if (npc.controllerId) {
+                    const ctrl = this.getPlayerById(npc.controllerId);
+                    if (ctrl) ctrl.call('z:executeCommand', ['idle', npc.ped.id, -1]);
+                }
+                npc.controllerId = null;
+                npc.targetId = null;
+                return;
+            }
+
+            if (npc.controllerId !== target.id) {
+                npc.controllerId = target.id;
+                target.call('z:assignController', [npc.ped.id]);
+            }
+            npc.targetId = target.id;
+
+            const d = dist3(npc.ped.position, target.position);
+            if (d <= this.cfg.attackRange) {
+                target.call('z:executeCommand', ['fire', npc.ped.id, target.id]);
+                if (now - npc.lastDamageAt >= this.cfg.damageEveryMs) {
+                    npc.lastDamageAt = now;
+                    target.health = Math.max(0, (Number(target.health) || 0) - this.cfg.damagePerTick);
+                }
+            } else {
+                target.call('z:executeCommand', ['follow', npc.ped.id, target.id]);
+            }
         });
-
-        this.pushBuilderPreview(player);
     }
 
-    addPoint(player) {
-        const draft = this.buildSessions.get(player.id);
-        if (!draft) return { ok: false, msg: 'Сначала создайте черновик зоны.' };
+    checkHeartbeat() {
+        const now = Date.now();
 
-        draft.points.push({
-            x: Number(player.position.x),
-            y: Number(player.position.y),
-            z: Number(player.position.z),
+        this.npcs.forEach((npc) => {
+            if (!npc.isAlive) {
+                if (npc.respawnAt && now >= npc.respawnAt) {
+                    this.removeNpc(npc.pedId);
+                    this.spawnNpc();
+                }
+                return;
+            }
+
+            if (!npc.controllerId) return;
+            const hb = this.controllerHeartbeat.get(npc.pedId) || 0;
+            if (hb && now - hb > this.cfg.heartbeatTimeoutMs) {
+                npc.controllerId = null;
+                npc.targetId = null;
+            }
         });
-
-        draft.points = normalizeZonePoints(draft.points);
-        this.pushBuilderPreview(player);
-
-        return { ok: true, msg: `Точка добавлена (${draft.points.length})` };
     }
 
-    setCount(player, count) {
-        const draft = this.buildSessions.get(player.id);
-        if (!draft) return { ok: false, msg: 'Нет активного черновика.' };
-        const val = Math.max(1, Math.min(this.cfg.maxNpcCount, Number(count) || 1));
-        draft.npcCount = val;
-        return { ok: true, msg: `NPC count = ${val}` };
-    }
+    removeNpc(pedId) {
+        const npc = this.npcs.get(pedId);
+        if (!npc) return;
 
-    setRespawn(player, sec) {
-        const draft = this.buildSessions.get(player.id);
-        if (!draft) return { ok: false, msg: 'Нет активного черновика.' };
-        const val = Math.max(5, Math.min(this.cfg.maxRespawnSec, Number(sec) || 60));
-        draft.respawnSec = val;
-        return { ok: true, msg: `Respawn = ${val}s` };
-    }
-
-    async saveDraft(player) {
-        const draft = this.buildSessions.get(player.id);
-        if (!draft) return { ok: false, msg: 'Нет активного черновика.' };
-
-        if (draft.points.length < 3) {
-            return { ok: false, msg: 'Нужно минимум 3 точки полигона.' };
+        if (npc.ped && mp.peds.exists(npc.ped)) {
+            mp.players.forEach((p) => p.call('z:forceRemove', [npc.ped.id]));
+            npc.ped.destroy();
         }
 
-        if (!this.sequelize) return { ok: false, msg: 'DB недоступна.' };
-
-        const [res] = await this.sequelize.query(
-            'INSERT INTO enemy_npc_zones (name, dimension, npcCount, respawnSec, points) VALUES (?, ?, ?, ?, ?)',
-            { replacements: [draft.name, draft.dimension, draft.npcCount, draft.respawnSec, JSON.stringify(draft.points)] }
-        );
-
-        const zoneId = Number(res && (res.insertId || (res[0] && res[0].insertId)));
-        await this.loadZonesFromDb();
-
-        this.buildSessions.delete(player.id);
-        player.call('enemyzone:builder:clear', []);
-
-        return { ok: true, msg: `Зона сохранена (ID ${zoneId || 'new'})` };
-    }
-
-    listZones() {
-        return [...this.zones.values()].map((z) => ({
-            id: z.id,
-            name: z.name,
-            dimension: z.dimension,
-            npcCount: z.npcCount,
-            respawnSec: z.respawnSec,
-            pointsCount: z.points.length,
-            players: z.players.size,
-            npcs: z.npcs.size,
-        }));
-    }
-
-    async gotoZone(player, zoneId) {
-        const zone = this.zones.get(Number(zoneId));
-        if (!zone) return { ok: false, msg: 'Зона не найдена.' };
-        player.position = new mp.Vector3(zone.center.x, zone.center.y, zone.center.z + 1.0);
-        player.dimension = zone.dimension;
-        return { ok: true, msg: `Телепорт в ${zone.name}` };
-    }
-
-    async reload() {
-        await this.loadZonesFromDb();
-    }
-
-    pushBuilderPreview(player) {
-        const draft = this.buildSessions.get(player.id);
-        if (!draft) {
-            player.call('enemyzone:builder:clear', []);
-            return;
-        }
-
-        player.call('enemyzone:builder:update', [JSON.stringify({
-            points: draft.points,
-            dimension: draft.dimension,
-            npcCount: draft.npcCount,
-            respawnSec: draft.respawnSec,
-            name: draft.name,
-        })]);
+        this.npcs.delete(pedId);
+        this.staticZone.npcs.delete(pedId);
+        this.controllerHeartbeat.delete(pedId);
     }
 
     onCtrlAck(player, pedId) {
         const npc = this.npcs.get(Number(pedId));
-        if (!npc) return;
-        if (npc.controllerId === player.id) this.controllerHeartbeat.set(npc.pedId, Date.now());
+        if (!npc || npc.controllerId !== player.id) return;
+        this.controllerHeartbeat.set(npc.pedId, Date.now());
     }
 
     onCtrlHeartbeat(player, pedId) {
         const npc = this.npcs.get(Number(pedId));
-        if (!npc) return;
-        if (npc.controllerId === player.id) this.controllerHeartbeat.set(npc.pedId, Date.now());
+        if (!npc || npc.controllerId !== player.id) return;
+        this.controllerHeartbeat.set(npc.pedId, Date.now());
     }
 
     onNpcDeadSignal(_player, pedId) {
@@ -491,19 +247,23 @@ class EnemyZonesSystem {
         if (!npc || !npc.isAlive) return;
 
         npc.isAlive = false;
-        npc.respawnAt = Date.now() + ((this.zones.get(npc.zoneId)?.respawnSec || 60) * 1000);
         npc.controllerId = null;
-        npc.targetPlayerId = null;
+        npc.targetId = null;
+        npc.respawnAt = Date.now() + this.staticZone.respawnSec * 1000;
 
         if (npc.ped && mp.peds.exists(npc.ped)) {
-            mp.players.forEach((pl) => pl.call('z:forceRemove', [npc.ped.id]));
+            mp.players.forEach((p) => p.call('z:forceRemove', [npc.ped.id]));
             npc.ped.destroy();
         }
     }
 
     destroy() {
-        this.stopLoops();
-        this.clearAllZonesRuntime();
+        if (this.tickTimer) clearInterval(this.tickTimer);
+        if (this.hbTimer) clearInterval(this.hbTimer);
+        this.tickTimer = null;
+        this.hbTimer = null;
+
+        [...this.npcs.keys()].forEach((id) => this.removeNpc(id));
     }
 }
 
