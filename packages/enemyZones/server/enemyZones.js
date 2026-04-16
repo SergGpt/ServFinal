@@ -83,8 +83,31 @@ class EnemyZonesService {
         }
     }
 
+    calcPolygonArea2d(points) {
+        if (!Array.isArray(points) || points.length < 3) return 0;
+        let sum = 0;
+        for (let i = 0; i < points.length; i++) {
+            const j = (i + 1) % points.length;
+            sum += (points[i].x * points[j].y) - (points[j].x * points[i].y);
+        }
+        return Math.abs(sum) * 0.5;
+    }
+
+    normalizeDistinctPoints(pointsRaw) {
+        const norm = normalizeZonePoints(pointsRaw);
+        const seen = new Set();
+        const out = [];
+        norm.forEach((p) => {
+            const key = `${p.x.toFixed(3)}:${p.y.toFixed(3)}:${p.z.toFixed(3)}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            out.push(p);
+        });
+        return out;
+    }
+
     buildZoneRuntime(data) {
-        const points = normalizeZonePoints(data.points);
+        const points = this.normalizeDistinctPoints(data.points);
         const center = points.reduce((acc, p) => {
             acc.x += p.x;
             acc.y += p.y;
@@ -390,10 +413,17 @@ class EnemyZonesService {
     addEditorPoint(player) {
         const zone = this.editor.get(player.id);
         if (!zone) return null;
-        zone.points.push({
+        const point = {
             x: Number(player.position.x),
             y: Number(player.position.y),
             z: Number(player.position.z),
+        };
+        const last = zone.points[zone.points.length - 1];
+        if (last && dist3(last, point) < 1.0) return false;
+        zone.points.push({
+            x: point.x,
+            y: point.y,
+            z: point.z,
         });
         return zone;
     }
@@ -414,7 +444,11 @@ class EnemyZonesService {
 
     async saveEditorZone(player) {
         const zone = this.editor.get(player.id);
-        if (!zone || zone.points.length < 3) return { ok: false, error: 'Need >=3 points' };
+        if (!zone) return { ok: false, error: 'No draft zone' };
+
+        zone.points = this.normalizeDistinctPoints(zone.points);
+        if (zone.points.length < 3) return { ok: false, error: 'Need >=3 unique points' };
+        if (this.calcPolygonArea2d(zone.points) < 5.0) return { ok: false, error: 'Polygon area too small' };
 
         const runtime = this.buildZoneRuntime(zone);
 

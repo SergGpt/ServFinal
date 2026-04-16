@@ -21,9 +21,13 @@ module.exports = {
             player.outputChatBox(`!{#66ff66}[ENEMY] Черновик зоны создан: ${zone.name}.`);
         } else if (action === 'addpoint') {
             const zone = enemyZones.addEditorPoint(player);
-            player.outputChatBox(zone
-                ? `!{#66ff66}[ENEMY] Добавлена точка. Всего точек: ${zone.points.length}.`
-                : '!{#ff6666}[ENEMY] Сначала создайте черновик зоны.');
+            if (zone === false) {
+                player.outputChatBox('!{#ffcc66}[ENEMY] Сдвиньтесь минимум на 1 метр от предыдущей точки.');
+            } else {
+                player.outputChatBox(zone
+                    ? `!{#66ff66}[ENEMY] Добавлена точка. Всего точек: ${zone.points.length}.`
+                    : '!{#ff6666}[ENEMY] Сначала создайте черновик зоны.');
+            }
         } else if (action === 'setcount') {
             const zone = enemyZones.setEditorCount(player, value);
             player.outputChatBox(zone
