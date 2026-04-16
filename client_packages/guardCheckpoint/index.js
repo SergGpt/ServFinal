@@ -373,7 +373,7 @@ function runGuardAiLoop() {
                     cache.lastAimAt = t;
                 }
                 if (target && targetStable && (stateChanged || t - cache.lastShootAt >= SHOOT_REPLAY_MS)) {
-                    const visualBurstMs = 80 + Math.floor(Math.random() * 41); // 80..120
+                    const visualBurstMs = 100;
                     try {
                         mp.game.ai.taskShootAtEntity(
                             ped.handle,
@@ -399,12 +399,11 @@ function runGuardAiLoop() {
 
             if (state === "warning_aim") {
                 ensurePedWeapon(ped, cache.weaponHashHint || weaponHash);
-                if (!isOwner) {
-                    return;
-                }
                 const target = getPlayerByServerId(targetId);
                 if (!target || !targetStable) {
-                    queuePendingTarget(pedId, targetId);
+                    if (isOwner) {
+                        queuePendingTarget(pedId, targetId);
+                    }
                     return;
                 }
                 if (stateChanged || t - cache.lastAimAt >= AIM_REPLAY_MS) {

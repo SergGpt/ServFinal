@@ -1211,7 +1211,7 @@ class CheckpointGuardController {
             post.pendingMovementCommand = { command, targetId, at: Date.now() };
         }
         let sentCount = 0;
-        if (command === "goto") {
+        if (command === "goto" || command === "return") {
             const ownerOnly = getPlayerById(post.streamOwnerId);
             if (isValidPlayer(ownerOnly) && Number(ownerOnly.dimension) === Number(post.cfg.dimension || 0) && isInsideZone(ownerOnly.position, this.getPostZone(post))) {
                 ownerOnly.call("guardCheckpoint:npcCommand", [packet]);

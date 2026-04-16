@@ -288,6 +288,12 @@ class GuardNpc {
         if (!this.exists() || !targetPlayer || !mp.players.exists(targetPlayer)) return;
         if (!this.shouldSendOrder(`attack:${targetPlayer.id}`, 2400)) return;
         this.readyWeapon();
+        const burstMs = 80 + Math.floor(Math.random() * 41);
+        try {
+            const tHandle = targetPlayer.handle != null ? targetPlayer.handle : targetPlayer;
+            safeCall(method(this.ped, "taskShootAtEntity"), tHandle, burstMs, mp.joaat("FIRING_PATTERN_FULL_AUTO"));
+            safeCall(method(this.ped, "taskShootAt"), tHandle, burstMs, mp.joaat("FIRING_PATTERN_FULL_AUTO"));
+        } catch {}
         safeCall(method(this.ped, "setVariable"), "guardState", "attack");
         safeCall(method(this.ped, "setVariable"), "guardTarget", Number(targetPlayer.id));
         safeCall(method(this.ped, "setVariable"), "guardTargetId", Number(targetPlayer.id));
@@ -303,6 +309,10 @@ class GuardNpc {
         if (!this.exists() || !targetPlayer || !mp.players.exists(targetPlayer)) return;
         if (!this.shouldSendOrder(`aim:${targetPlayer.id}`, 1000)) return;
         this.readyWeapon();
+        try {
+            const tHandle = targetPlayer.handle != null ? targetPlayer.handle : targetPlayer;
+            safeCall(method(this.ped, "taskAimGunAt"), tHandle, 1200, false);
+        } catch {}
         safeCall(method(this.ped, "setVariable"), "guardState", "warning_aim");
         safeCall(method(this.ped, "setVariable"), "guardTarget", Number(targetPlayer.id));
         safeCall(method(this.ped, "setVariable"), "guardTargetId", Number(targetPlayer.id));
