@@ -2,6 +2,7 @@
 
 const GUARD_CHECKPOINT_CONFIG = {
     debug: true,
+    debugProtocol: true,
     debugTick: false,
     debugSync: false,
     tickMs: 300,
@@ -9,7 +10,7 @@ const GUARD_CHECKPOINT_CONFIG = {
     transitionCooldownMs: 900,
     warningTimeoutMs: 8000,
     aggressiveMemoryMs: 12000,
-    defaultRespawnMs: 15000,
+    defaultRespawnMs: 5000,
     defaultCheckDurationMs: 5000,
     defaultWarnDistance: 18,
     defaultMaxChaseDistance: 25,
@@ -20,7 +21,18 @@ const GUARD_CHECKPOINT_CONFIG = {
     warningResponseMs: 10000,
     warningMoveTolerance: 0.09,
     stopZoneProgressEpsilon: 0.03,
+    stopZoneTolerance: 2.5,
+    stopZoneExitDelayMs: 2000,
     warningAdvanceTolerance: 0.6,
+    attackDamageIntervalMs: 450,
+    attackDamageRange: 38,
+    attackDamagePerAttacker: 7,
+    attackBurstIntervalMs: 280,
+    attackReturnDelayMs: 3000,
+    attackCommandWindowMs: 5000,
+    checkApproachRange: 5.0,
+    checkApproachTimeoutMs: 25000,
+    searchAnimDurationMs: 5000,
 
     // Независимые посты охраны
     posts: [
@@ -29,27 +41,27 @@ const GUARD_CHECKPOINT_CONFIG = {
             name: "Army North Gate",
             dimension: 0,
             guardZone: {
-                center: { x: -2260.53, y: 3184.4, z: 32.81 },
+                center: { x: 733.0470581054688, y: -2549.67333984375, z: 19.984865188598633 },
                 radius: 75,
             },
             postZone: {
                 type: "sphere",
-                center: { x: -2260.53, y: 3184.4, z: 32.81 },
+                center: { x: 733.0470581054688, y: -2549.67333984375, z: 19.984865188598633 },
                 radius: 75,
             },
             pursuitZone: {
                 type: "sphere",
-                center: { x: -2260.53, y: 3184.4, z: 32.81 },
+                center: { x: 733.0470581054688, y: -2549.67333984375, z: 19.984865188598633 },
                 radius: 95,
             },
             stopZone: {
                 type: "sphere",
-                center: { x: -2248.36, y: 3174.1, z: 32.81 },
-                radius: 5.0,
+                center: { x: 745.2170581054688, y: -2559.97333984375, z: 19.984865188598633 },
+                radius: 10.0,
             },
             violationZone: {
                 type: "sphere",
-                center: { x: -2250.44, y: 3176.15, z: 32.81 },
+                center: { x: 743.1370581054687, y: -2557.92333984375, z: 19.984865188598633 },
                 radius: 3.5,
             },
             warnDistance: 24,
@@ -62,7 +74,7 @@ const GUARD_CHECKPOINT_CONFIG = {
                 model: "s_m_y_marine_01",
                 heading: 56.0,
                 weaponHash: "WEAPON_CARBINERIFLE",
-                spawn: { x: -2252.53, y: 3178.34, z: 32.81 },
+                spawn: { x: 741.0470581054688, y: -2555.73333984375, z: 19.984865188598633 },
             },
             guards: [
                 {
@@ -70,14 +82,14 @@ const GUARD_CHECKPOINT_CONFIG = {
                     model: "s_m_y_marine_01",
                     heading: 25.0,
                     weaponHash: "WEAPON_CARBINERIFLE",
-                    spawn: { x: -2256.11, y: 3173.18, z: 32.81 },
+                    spawn: { x: 737.4670581054688, y: -2560.89333984375, z: 19.984865188598633 },
                 },
                 {
                     id: "guard_2",
                     model: "s_m_y_marine_01",
                     heading: 78.0,
                     weaponHash: "WEAPON_CARBINERIFLE",
-                    spawn: { x: -2247.02, y: 3180.03, z: 32.81 },
+                    spawn: { x: 746.5570581054688, y: -2554.04333984375, z: 19.984865188598633 },
                 },
             ],
             warningUi: {
