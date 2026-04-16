@@ -29,6 +29,7 @@ let lastAiLoopAt = 0;
 const pedAiCache = new Map(); // pedRemoteId -> runtime cache
 const pendingByPed = new Map(); // pedRemoteId -> { targetId, expiresAt, lastTryAt }
 const postRuntime = new Map(); // postId -> { lastAppliedSeq, behaviorSessionId, attackSessionId, ctrlVer, streamOwnerId, state }
+const visualDebugLines = [];
 
 function chatLog(text) {
     try {
@@ -46,6 +47,13 @@ function chatLog(text) {
 }
 
 chatLog("[CLIENT] guardCheckpoint client script loaded");
+
+function pushVisualLog(text) {
+    const msg = String(text || "");
+    visualDebugLines.push({ at: Date.now(), msg });
+    if (visualDebugLines.length > 40) visualDebugLines.shift();
+    chatLog(`[GC-DBG] ${msg}`);
+}
 
 function clog(text) {
     try {
@@ -498,6 +506,7 @@ function runGuardAiLoop() {
 function applyNpcCommandHints(packet) {
     if (!packet) return;
     clog(`client: applyNpcCommandHints start cmd=${packet.command} post=${packet.postId}`);
+    pushVisualLog(`applyHints cmd=${packet.command} post=${packet.postId}`);
     const command = String(packet.command || "idle");
     const targetId = Number(packet.targetId);
     const units = packet.units || [];
@@ -544,6 +553,7 @@ function applyNpcCommandHints(packet) {
                         dbg.__lastGotoTime = Date.now();
                     } catch {}
                     clog(`client: taskGoToCoordAnyMeans called success=${success}`);
+                    pushVisualLog(`goto ped=${pedId} success=${success} range=${gotoRange}`);
                 }
             }
         }
@@ -578,6 +588,7 @@ function applyNpcCommandHints(packet) {
                     const burstMs = 100;
                     try { ped.taskShootAt(target.handle, burstMs, mp.game.joaat("FIRING_PATTERN_FULL_AUTO")); } catch {}
                     chatLog(`[CLIENT] force fire burst ped=${pedId} burst=${burstMs}`);
+                    pushVisualLog(`fire ped=${pedId} target=${targetId} burst=${burstMs}`);
                 }
             }
         }
@@ -647,6 +658,7 @@ mp.events.add({
             ? packetOrPostId.postId
             : packetOrPostId;
         clog(`client: npcCommand received cmd=${preCmd} post=${prePost}`);
+        pushVisualLog(`npcCommand cmd=${preCmd} post=${prePost}`);
         try {
             const dbg = getDebugStateStore();
             dbg.__lastNpcCommand = String(preCmd || "unknown");
@@ -956,6 +968,19 @@ mp.events.add("render", () => {
                 font: 4,
                 color: [255, 255, 255, 255],
                 scale: [0.4, 0.4],
+                outline: true,
+            });
+        });
+    }
+
+    // Доп. постоянный debug-лог последних событий скрипта (видно прямо на экране)
+    const recentDebug = visualDebugLines.filter((x) => now - x.at < 10000).slice(-8);
+    if (recentDebug.length > 0) {
+        recentDebug.forEach((entry, idx) => {
+            mp.game.graphics.drawText(`~w~[GC] ${entry.msg}`, [0.02, 0.42 + (idx * 0.022)], {
+                font: 4,
+                color: [255, 255, 255, 210],
+                scale: [0.33, 0.33],
                 outline: true,
             });
         });
