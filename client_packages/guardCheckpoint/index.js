@@ -30,6 +30,13 @@ const pedAiCache = new Map(); // pedRemoteId -> runtime cache
 const pendingByPed = new Map(); // pedRemoteId -> { targetId, expiresAt, lastTryAt }
 const postRuntime = new Map(); // postId -> { lastAppliedSeq, behaviorSessionId, attackSessionId, ctrlVer, streamOwnerId, state }
 
+function chatLog(text) {
+    try {
+        console.log(text);
+        mp.gui.chat.push(text);
+    } catch (e) {}
+}
+
 function clog(text) {
     try {
         console.log(`[GUARD-CHECKPOINT][CLIENT] ${text}`);
