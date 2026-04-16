@@ -36,6 +36,12 @@ function clog(text) {
     } catch {}
 }
 
+function clogChat(text) {
+    const line = `[GUARD-CLIENT] ${text}`;
+    try { console.log(line); } catch {}
+    try { mp.gui.chat.push(line); } catch {}
+}
+
 function playSound(soundName, soundSet) {
     try {
         mp.game.audio.playSoundFrontend(-1, soundName, soundSet, true);
@@ -556,13 +562,11 @@ mp.events.add({
     },
 
     "guardCheckpoint:npcCommand": (packetOrPostId, legacyCommand, legacyTargetId, legacyUnits, legacyOwnerId) => {
-        try {
-            console.log("[CLIENT] RAW NPC COMMAND:", JSON.stringify({
-                cmd: packetOrPostId && packetOrPostId.command,
-                seq: packetOrPostId && packetOrPostId.commandSeq,
-                postId: packetOrPostId && packetOrPostId.postId,
-            }));
-        } catch {}
+        clogChat("===== NPC COMMAND RECEIVED =====");
+        try { console.log("[CLIENT] packet:", packetOrPostId); } catch {}
+        try { console.log("[CLIENT] legacyCommand:", legacyCommand); } catch {}
+        try { clogChat(`packet=${JSON.stringify(packetOrPostId)}`); } catch {}
+        try { clogChat(`legacyCommand=${legacyCommand}`); } catch {}
         const preCmd = typeof packetOrPostId === "object" && packetOrPostId
             ? packetOrPostId.command
             : legacyCommand;
