@@ -1201,7 +1201,7 @@ class CheckpointGuardController {
         if (!force && post.lastClientCommandKey === key && now - (post.lastClientCommandAt || 0) < 900) return;
         post.lastClientCommandKey = key;
         post.lastClientCommandAt = now;
-        const packet = this.buildCommandPacket(post, command, targetId, options.payload || null);
+        const packet = this.buildCommandPacket(post, command, targetId, options.payload || null, options);
         if (command === "goto") {
             this.log(`dispatch: post=${post.id} cmd=goto target=${targetId}`);
         }
@@ -1222,16 +1222,31 @@ class CheckpointGuardController {
         this.plog(`dispatch post=${post.id} seq=${packet.commandSeq} bs=${packet.behaviorSessionId} as=${packet.attackSessionId} owner=${packet.streamOwnerId} cmd=${packet.command} target=${packet.targetId} units=${packet.units.length}`);
     }
 
-    buildCommandPacket(post, command, targetId = -1, payload = null) {
+    buildCommandPacket(post, command, targetId = -1, payload = null, options = {}) {
         post.commandSeq = (Number(post.commandSeq) || 0) + 1;
-        const gotoPedId = payload && payload.gotoPedId != null ? Number(payload.gotoPedId) : -1;
-        const gotoX = payload ? Number(payload.gotoX) : NaN;
-        const gotoY = payload ? Number(payload.gotoY) : NaN;
-        const gotoZ = payload ? Number(payload.gotoZ) : NaN;
-        const gotoRange = payload ? Number(payload.gotoRange) : NaN;
+        const gotoX = Number(
+            options.gotoPos && options.gotoPos.x != null
+                ? options.gotoPos.x
+                : (payload ? payload.gotoX : NaN)
+        );
+        const gotoY = Number(
+            options.gotoPos && options.gotoPos.y != null
+                ? options.gotoPos.y
+                : (payload ? payload.gotoY : NaN)
+        );
+        const gotoZ = Number(
+            options.gotoPos && options.gotoPos.z != null
+                ? options.gotoPos.z
+                : (payload ? payload.gotoZ : NaN)
+        );
+        const gotoRange = Number(
+            options.gotoRange != null
+                ? options.gotoRange
+                : (payload && payload.gotoRange != null ? payload.gotoRange : (post.cfg.checkApproachRange || this.config.checkApproachRange || 5.0))
+        );
         const units = [post.leader, ...post.guards].map((unit) => {
             if (command === "goto") {
-                this.log(`build: command=goto for unit ${unit.id}`);
+                console.log(`[SERVER] build: goto unit ${unit.id} target=${gotoX},${gotoY},${gotoZ} range=${gotoRange}`);
             }
             return {
                 unitId: unit.id,
@@ -1249,10 +1264,16 @@ class CheckpointGuardController {
                 returnZ: unit.spawnPos.z,
                 returnHeading: unit.spawnHeading,
                 hasReachedReturn: unit.exists() ? dist3(unit.ped.position, unit.spawnPos) <= 1.5 : false,
-                gotoX: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoX) ? gotoX : null,
-                gotoY: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoY) ? gotoY : null,
-                gotoZ: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoZ) ? gotoZ : null,
-                gotoRange: command === "goto" && Number(unit.exists() ? unit.ped.id : -1) === gotoPedId && Number.isFinite(gotoRange) ? gotoRange : null,
+                gotoX: command === "goto"
+                    ? (Number.isFinite(gotoX) ? gotoX : (payload && Number.isFinite(Number(payload.gotoX)) ? Number(payload.gotoX) : 0))
+                    : null,
+                gotoY: command === "goto"
+                    ? (Number.isFinite(gotoY) ? gotoY : (payload && Number.isFinite(Number(payload.gotoY)) ? Number(payload.gotoY) : 0))
+                    : null,
+                gotoZ: command === "goto"
+                    ? (Number.isFinite(gotoZ) ? gotoZ : (payload && Number.isFinite(Number(payload.gotoZ)) ? Number(payload.gotoZ) : 0))
+                    : null,
+                gotoRange: command === "goto" ? (Number.isFinite(gotoRange) ? gotoRange : (post.cfg.checkApproachRange || this.config.checkApproachRange || 5.0)) : null,
             };
         });
         return {
