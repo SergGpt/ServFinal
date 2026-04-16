@@ -4,6 +4,10 @@ const me = mp.players.local;
 const npcs = new Map(); // npcId -> ped
 const pendingAssign = new Map(); // npcId -> ver
 const deadReportAt = new Map();
+const menuState = {
+    npcCount: 3,
+    respawnSec: 60,
+};
 
 function findPlayerById(rid) {
     let found = null;
@@ -151,9 +155,9 @@ function ensureEnemyZoneMenu() {
             name: "enemyZoneAdmin",
             header: "Enemy NPC Zone",
             items: [
-                { text: "Создать зону (на позиции)" },
+                { text: "Новый черновик зоны" },
                 { text: "Добавить точку полигона" },
-                { text: "NPC count: 1" },
+                { text: "NPC count: 3" },
                 { text: "Respawn sec: 60" },
                 { text: "Сохранить зону" },
                 { text: "Список зон" },
@@ -170,8 +174,18 @@ function ensureEnemyZoneMenu() {
     })()`);
 }
 
+function refreshMenuLabels() {
+    mp.callCEFV(`(function() {
+        const m = selectMenu.menus["enemyZoneAdmin"];
+        if (!m || !m.items) return;
+        m.items[2].text = "NPC count: ${menuState.npcCount}";
+        m.items[3].text = "Respawn sec: ${menuState.respawnSec}";
+    })()`);
+}
+
 mp.events.add('enemyzone:menu:open', () => {
     ensureEnemyZoneMenu();
+    refreshMenuLabels();
     mp.events.call('selectMenu.show', 'enemyZoneAdmin');
 });
 
@@ -183,8 +197,18 @@ mp.events.add('selectMenu.handler', (menuName, eventName, eRaw) => {
     switch (e.itemIndex) {
         case 0: mp.events.callRemote('enemyzone:menu:action', 'create', `EnemyZone_${Date.now()}`); break;
         case 1: mp.events.callRemote('enemyzone:menu:action', 'addpoint'); break;
-        case 2: mp.events.callRemote('enemyzone:menu:action', 'setcount', 6); break;
-        case 3: mp.events.callRemote('enemyzone:menu:action', 'setrespawn', 60); break;
+        case 2:
+            menuState.npcCount += 1;
+            if (menuState.npcCount > 20) menuState.npcCount = 1;
+            refreshMenuLabels();
+            mp.events.callRemote('enemyzone:menu:action', 'setcount', menuState.npcCount);
+            break;
+        case 3:
+            menuState.respawnSec += 10;
+            if (menuState.respawnSec > 300) menuState.respawnSec = 10;
+            refreshMenuLabels();
+            mp.events.callRemote('enemyzone:menu:action', 'setrespawn', menuState.respawnSec);
+            break;
         case 4: mp.events.callRemote('enemyzone:menu:action', 'save'); break;
         case 5: mp.events.callRemote('enemyzone:menu:action', 'list'); break;
         default: mp.events.call('selectMenu.hide'); break;

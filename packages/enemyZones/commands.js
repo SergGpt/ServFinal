@@ -5,7 +5,7 @@ module.exports = {
         access: 2,
         description: 'Открыть select-menu редактора enemy NPC зон.',
         args: '',
-        handler: (player) => player.call('enemyzone:menu:open', []),
+        handler: (player) => mp.events.call('enemyzone:open', player),
     },
 
     '/enemyzone.create': {

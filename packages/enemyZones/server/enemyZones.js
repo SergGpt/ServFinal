@@ -494,6 +494,8 @@ class EnemyZonesService {
             player.outputChatBox('!{#ff6666}[ENEMY] Команда только для админов.');
             return;
         }
+        const draft = this.createEditorZone(player, `EnemyZone_${Date.now()}`);
+        player.outputChatBox(`!{#66ff66}[ENEMY] Создан черновик: ${draft.name}. Добавьте минимум 3 точки полигона.`);
         player.call('enemyzone:menu:open', []);
     }
 }
