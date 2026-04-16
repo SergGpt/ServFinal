@@ -427,6 +427,7 @@ function runGuardAiLoop() {
 
 function applyNpcCommandHints(packet) {
     if (!packet) return;
+    clog(`client: applyNpcCommandHints start cmd=${packet.command} post=${packet.postId}`);
     const command = String(packet.command || "idle");
     const targetId = Number(packet.targetId);
     const units = packet.units || [];
@@ -555,6 +556,14 @@ mp.events.add({
     },
 
     "guardCheckpoint:npcCommand": (packetOrPostId, legacyCommand, legacyTargetId, legacyUnits, legacyOwnerId) => {
+        const preCmd = typeof packetOrPostId === "object" && packetOrPostId
+            ? packetOrPostId.command
+            : legacyCommand;
+        const prePost = typeof packetOrPostId === "object" && packetOrPostId
+            ? packetOrPostId.postId
+            : packetOrPostId;
+        clog(`client: npcCommand received cmd=${preCmd} post=${prePost}`);
+
         let packet = null;
         if (typeof packetOrPostId === "object" && packetOrPostId) {
             packet = packetOrPostId;
@@ -571,13 +580,16 @@ mp.events.add({
                 ctrlVer: 0,
             };
         }
-        clog(`client: npcCommand received cmd=${packet && packet.command} post=${packet && packet.postId}`);
         const postId = String(packet.postId || "");
         const rt = getPostRuntime(postId);
         const seq = Number(packet.commandSeq) || 0;
+        const lastAppliedSeq = Number(rt.lastAppliedSeq) || 0;
+        clog(`client: npcCommand seq=${seq} last=${lastAppliedSeq}`);
         const behaviorSessionId = Number(packet.behaviorSessionId) || 0;
         const attackSessionId = Number(packet.attackSessionId) || 0;
-        if (seq && seq <= (rt.lastAppliedSeq || 0)) {
+        if (String(packet.command || "") === "goto" && seq && seq <= lastAppliedSeq) {
+            clog(`client: goto bypass stale-check (seq=${seq} last=${lastAppliedSeq})`);
+        } else if (seq && seq <= lastAppliedSeq) {
             if (DEBUG_PROTOCOL) clog(`drop packet post=${postId} reason=seq-old seq=${seq} last=${rt.lastAppliedSeq}`);
             return;
         }

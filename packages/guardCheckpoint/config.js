@@ -27,7 +27,7 @@ const GUARD_CHECKPOINT_CONFIG = {
     attackDamagePerAttacker: 7,
     attackBurstIntervalMs: 280,
     attackReturnDelayMs: 3000,
-    attackCommandWindowMs: 2500,
+    attackCommandWindowMs: 5000,
     checkApproachRange: 2.0,
     checkApproachTimeoutMs: 15000,
     searchAnimDurationMs: 5000,
