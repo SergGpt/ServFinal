@@ -495,6 +495,7 @@ function applyNpcCommandHints(packet) {
         const pedId = Number(u.pedId);
         if (!Number.isFinite(pedId)) return;
         const cache = getOrCreateCache(pedId);
+        const ped = mp.peds.atRemoteId(pedId);
         if (Number(u.weaponHash) > 0) cache.weaponHashHint = Number(u.weaponHash);
         if (command === "dead") {
             cache.lastState = "dead";
@@ -505,7 +506,6 @@ function applyNpcCommandHints(packet) {
             cache.hasReachedReturn = false;
         }
         if (command === "idle" || command === "return" || command === "dead") {
-            const ped = mp.peds.atRemoteId(pedId);
             if (ped) {
                 try { ped.clearTasks(); } catch {}
                 try { ped.setKeepTask(false); } catch {}
@@ -514,9 +514,7 @@ function applyNpcCommandHints(packet) {
         if (command === "goto") {
             clog(`client: goto processing for ped=${pedId}`);
             cache.hasReachedReturn = false;
-            const ped = mp.peds.atRemoteId(pedId);
-            const gotoPedId = Number(packet.gotoPedId != null ? packet.gotoPedId : u.pedId);
-            if (ped && (!Number.isFinite(gotoPedId) || gotoPedId < 0 || gotoPedId === pedId)) {
+            if (ped) {
                 const gotoX = Number(u.gotoX != null ? u.gotoX : packet.gotoX);
                 const gotoY = Number(u.gotoY != null ? u.gotoY : packet.gotoY);
                 const gotoZ = Number(u.gotoZ != null ? u.gotoZ : packet.gotoZ);
@@ -529,12 +527,6 @@ function applyNpcCommandHints(packet) {
                         ped.taskGoToCoordAnyMeans(gotoX, gotoY, gotoZ, 1.2, 0, gotoRange, 1, 0.5);
                         success = true;
                     } catch {}
-                    if (!success) {
-                        const target = getPlayerByServerId(targetId);
-                        if (target) {
-                            try { ped.taskGoToEntity(target.handle, -1, gotoRange, 1.2, 0, 0); success = true; } catch {}
-                        }
-                    }
                     clog(`client: taskGoToCoordAnyMeans called success=${success}`);
                 }
             }
@@ -547,13 +539,11 @@ function applyNpcCommandHints(packet) {
                 heading: Number(u.returnHeading != null ? u.returnHeading : u.heading) || 0,
             };
             cache.hasReachedReturn = false;
-            const ped = mp.peds.atRemoteId(pedId);
             if (ped) {
                 try { ped.taskGoStraightToCoord(cache.returnPos.x, cache.returnPos.y, cache.returnPos.z, 2.2, -1, cache.returnPos.heading || 0, 0.05); } catch {}
             }
         }
         if (command === "search") {
-            const ped = mp.peds.atRemoteId(pedId);
             if (ped) {
                 const duration = Math.max(1000, Number(packet.searchDurationMs) || 5000);
                 try { ped.clearTasks(); } catch {}
@@ -567,10 +557,9 @@ function applyNpcCommandHints(packet) {
             cache.attackUntil = Number(packet.attackUntil) || 0;
             cache.hasReachedReturn = false;
             if (command === "fire") {
-                const ped = mp.peds.atRemoteId(pedId);
                 const target = getPlayerByServerId(targetId);
                 if (ped && target) {
-                    const burstMs = 80 + Math.floor(Math.random() * 41);
+                    const burstMs = 100;
                     try { ped.taskShootAt(target.handle, burstMs, mp.game.joaat("FIRING_PATTERN_FULL_AUTO")); } catch {}
                     chatLog(`[CLIENT] force fire burst ped=${pedId} burst=${burstMs}`);
                 }
@@ -578,14 +567,12 @@ function applyNpcCommandHints(packet) {
         }
         if (u.hasReachedReturn === true) {
             cache.hasReachedReturn = true;
-            const ped = mp.peds.atRemoteId(pedId);
             if (ped) {
                 try { ped.clearTasks(); } catch {}
                 try { ped.setKeepTask(false); } catch {}
             }
         }
 
-        const ped = mp.peds.atRemoteId(pedId);
         if (ped && (command === "return" || command === "idle" || command === "fire" || command === "attack" || command === "goto" || command === "search")) {
             let nextState = command;
             if (command === "fire") nextState = "attack";
