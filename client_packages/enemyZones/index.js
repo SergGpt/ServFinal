@@ -1,6 +1,6 @@
 "use strict";
 
-const ENEMY_MODEL = mp.joaat('s_m_y_army_01');
+const ENEMY_MODEL = (typeof mp.joaat === 'function' ? mp.joaat('s_m_y_army_01') : mp.game.joaat('s_m_y_army_01'));
 const FIRING_PATTERN_BURST_FIRE = 0xD6FF6D61;
 
 const state = {
