@@ -121,18 +121,23 @@ mp.events.add('z:executeCommand', (command, pedId, targetRid) => {
 
     if (command === 'follow') {
         const target = getPlayerByRemoteId(targetRid);
-        if (target) ped.taskFollowToOffsetOfEntity(target.handle, 0, 0, 0, 1.35, -1, 5.0, true);
+        if (target && target.handle) {
+            // На ряде клиентских сборок ped.taskFollowToOffsetOfEntity отсутствует, используем native AI.
+            mp.game.ai.taskFollowToOffsetOfEntity(ped.handle, target.handle, 0.0, 0.0, 0.0, 1.35, -1, 5.0, true);
+        }
         return;
     }
 
     if (command === 'idle') {
-        ped.clearTasks();
+        mp.game.ai.clearPedTasks(ped.handle);
         return;
     }
 
     if (command === 'fire') {
         const target = getPlayerByRemoteId(targetRid);
-        if (target) ped.taskShootAtEntity(target.handle, 100, FIRING_PATTERN_BURST_FIRE);
+        if (target && target.handle) {
+            mp.game.ai.taskShootAtEntity(ped.handle, target.handle, 100, FIRING_PATTERN_BURST_FIRE);
+        }
     }
 });
 
