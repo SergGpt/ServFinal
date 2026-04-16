@@ -18,7 +18,7 @@ class EnemyZonesSystem {
             name: 'Static Enemy Zone',
             center: { x: -2288.1455078125, y: 3019.822998046875, z: 32.810028076171875 },
             radius: 150,
-            dimension: 0,
+            dimension: null,
             npcCount: 12,
             respawnSec: 30,
             npcs: new Set(),
@@ -56,7 +56,7 @@ class EnemyZonesSystem {
         return [{
             id: this.staticZone.id,
             name: this.staticZone.name,
-            dimension: this.staticZone.dimension,
+            dimension: 0,
             npcCount: this.staticZone.npcCount,
             respawnSec: this.staticZone.respawnSec,
             pointsCount: 0,
@@ -67,7 +67,6 @@ class EnemyZonesSystem {
 
     async gotoZone(player) {
         player.position = new mp.Vector3(this.staticZone.center.x, this.staticZone.center.y, this.staticZone.center.z + 1.0);
-        player.dimension = this.staticZone.dimension;
         return { ok: true, msg: 'Телепорт в статическую зону NPC' };
     }
 
@@ -97,7 +96,7 @@ class EnemyZonesSystem {
 
         const ped = mp.peds.new(this.cfg.modelHash, new mp.Vector3(p.x, p.y, p.z), {
             dynamic: true,
-            dimension: this.staticZone.dimension,
+            dimension: 0,
             heading: Math.random() * 360,
         });
 
@@ -134,7 +133,6 @@ class EnemyZonesSystem {
         const list = [];
         mp.players.forEach((p) => {
             if (!p || !p.character || (Number(p.health) || 0) <= 0) return;
-            if (p.dimension !== this.staticZone.dimension) return;
             if (dist3(p.position, this.staticZone.center) <= this.staticZone.radius) list.push(p);
         });
         return list;
@@ -175,6 +173,8 @@ class EnemyZonesSystem {
                 npc.targetId = null;
                 return;
             }
+
+            if (npc.ped.dimension !== target.dimension) npc.ped.dimension = target.dimension;
 
             if (npc.controllerId !== target.id) {
                 npc.controllerId = target.id;
