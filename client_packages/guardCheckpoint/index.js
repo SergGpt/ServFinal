@@ -527,6 +527,11 @@ function applyNpcCommandHints(packet) {
                         ped.taskGoToCoordAnyMeans(gotoX, gotoY, gotoZ, 1.2, 0, gotoRange, 1, 0.5);
                         success = true;
                     } catch {}
+                    try {
+                        window.__lastGotoPed = pedId;
+                        window.__lastGotoSuccess = success;
+                        window.__lastGotoTime = Date.now();
+                    } catch {}
                     clog(`client: taskGoToCoordAnyMeans called success=${success}`);
                 }
             }
@@ -631,6 +636,10 @@ mp.events.add({
             ? packetOrPostId.postId
             : packetOrPostId;
         clog(`client: npcCommand received cmd=${preCmd} post=${prePost}`);
+        try {
+            window.__lastNpcCommand = String(preCmd || "unknown");
+            window.__lastNpcCommandTime = Date.now();
+        } catch {}
 
         let packet = null;
         if (typeof packetOrPostId === "object" && packetOrPostId) {
@@ -887,5 +896,55 @@ mp.events.add("render", () => {
             null,
             false
         );
+    }
+
+    // ВИЗУАЛЬНЫЕ ЛОГИ НА ЭКРАНЕ
+    const now = Date.now();
+    const logLines = [];
+
+    // Лог последней полученной команды
+    if (window.__lastNpcCommand) {
+        const age = now - window.__lastNpcCommandTime;
+        if (age < 3000) {
+            logLines.push(`~y~NPC CMD: ${window.__lastNpcCommand}`);
+        }
+    }
+
+    // Лог движения goto
+    if (window.__lastGotoPed && window.__lastGotoSuccess !== undefined) {
+        const age = now - window.__lastGotoTime;
+        if (age < 3000) {
+            const status = window.__lastGotoSuccess ? "~g~SUCCESS" : "~r~FAIL";
+            logLines.push(`~y~GOTO ped=${window.__lastGotoPed}: ${status}`);
+        }
+    }
+
+    // Лог состояния поста
+    mp.peds.forEach((ped) => {
+        try {
+            if (!ped || !ped.getVariable) return;
+            const postId = ped.getVariable("guardPostId");
+            if (!postId) return;
+            const state = ped.getVariable("guardState");
+            if (state && state !== "idle") {
+                const dist = mp.players.local.position.distanceTo(ped.position);
+                if (dist < 30) {
+                    logLines.push(`~b~${postId}: ${state} ~w~dist=${dist.toFixed(1)}m`);
+                }
+            }
+        } catch {}
+    });
+
+    // Отрисовка логов на экране
+    if (logLines.length > 0) {
+        let y = 0.05;
+        logLines.forEach((line, idx) => {
+            mp.game.graphics.drawText(line, [0.02, y + (idx * 0.035)], {
+                font: 4,
+                color: [255, 255, 255, 255],
+                scale: [0.4, 0.4],
+                outline: true,
+            });
+        });
     }
 });
