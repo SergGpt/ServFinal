@@ -614,7 +614,13 @@ class CheckpointGuardController {
         post.approachUnitId = approachUnit.id;
         this.log(`approach: selected npc=${approachUnit.id} dist=${distToPlayer.toFixed(2)}`);
 
-        this.applyApproachBehavior(post, target, approachUnit);
+        const gotoPos = {
+            x: Number(target.position.x) || 0,
+            y: Number(target.position.y) || 0,
+            z: Number(target.position.z) || 0,
+        };
+        const gotoRange = Number(post.cfg.checkApproachRange || this.config.checkApproachRange || 5.0);
+        this.applyApproachBehavior(post, target, approachUnit, gotoPos, gotoRange);
         this.log(`approach: dispatched goto for ${approachUnit.id}`);
 
         if (this.checkApproachCondition(post, approachUnit, target)) {
@@ -839,7 +845,7 @@ class CheckpointGuardController {
         return best;
     }
 
-    applyApproachBehavior(post, target, approachUnit, force = false) {
+    applyApproachBehavior(post, target, approachUnit, gotoPos = null, gotoRange = null, force = false) {
         if (!target || !approachUnit || !approachUnit.exists()) return;
         const behaviorKey = `approach:${target.id}:${approachUnit.id}`;
         if (!force && post.lastAppliedBehaviorKey === behaviorKey) return;
@@ -848,15 +854,16 @@ class CheckpointGuardController {
         post.leader.stopCombat();
         for (const guard of post.guards) guard.stopCombat();
 
-        const range = Number(post.cfg.checkApproachRange || this.config.checkApproachRange || 2.0);
+        const range = Number(gotoRange != null ? gotoRange : (post.cfg.checkApproachRange || this.config.checkApproachRange || 5.0));
+        const pos = gotoPos || target.position;
         this.dispatchNpcCommand(post, "goto", target, {
             force,
             keySuffix: `${approachUnit.id}:${Math.round(target.position.x * 10)}:${Math.round(target.position.y * 10)}:${Math.round(target.position.z * 10)}`,
             payload: {
                 gotoPedId: Number(approachUnit.ped.id) || -1,
-                gotoX: Number(target.position.x) || 0,
-                gotoY: Number(target.position.y) || 0,
-                gotoZ: Number(target.position.z) || 0,
+                gotoX: Number(pos.x) || 0,
+                gotoY: Number(pos.y) || 0,
+                gotoZ: Number(pos.z) || 0,
                 gotoRange: range,
             },
         });
@@ -1177,7 +1184,7 @@ class CheckpointGuardController {
         if (command === "aim") this.applyWarningBehavior(post, target, true);
         else if (command === "goto") {
             const approachUnit = this.selectApproachUnit(post, target);
-            this.applyApproachBehavior(post, target, approachUnit, true);
+            this.applyApproachBehavior(post, target, approachUnit, null, null, true);
         }
         else if (command === "search") this.applySearchBehavior(post, target, true);
         else if (command === "fire") this.applyAttackBehavior(post, target, true);
@@ -1203,9 +1210,15 @@ class CheckpointGuardController {
         if (!isValidPlayer(owner) || Number(post.controllerAckVer) !== Number(post.ctrlVer)) {
             post.pendingMovementCommand = { command, targetId, at: Date.now() };
         }
-        this.forEachPlayersInPost(post, (rec) => {
+        let sentCount = 0;
+        mp.players.forEach((rec) => {
+            if (!isValidPlayer(rec)) return;
+            if (Number(rec.dimension) !== Number(post.cfg.dimension || 0)) return;
+            if (!isInsideZone(rec.position, this.getPostZone(post))) return;
             rec.call("guardCheckpoint:npcCommand", [packet]);
+            sentCount += 1;
         });
+        this.log(`dispatch: post=${post.id} cmd=${command} sent=${sentCount}`);
         this.plog(`dispatch post=${post.id} seq=${packet.commandSeq} bs=${packet.behaviorSessionId} as=${packet.attackSessionId} owner=${packet.streamOwnerId} cmd=${packet.command} target=${packet.targetId} units=${packet.units.length}`);
     }
 

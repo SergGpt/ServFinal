@@ -45,6 +45,8 @@ function chatLog(text) {
     } catch (e) {}
 }
 
+chatLog("[CLIENT] guardCheckpoint client script loaded");
+
 function clog(text) {
     try {
         console.log(`[GUARD-CHECKPOINT][CLIENT] ${text}`);
@@ -100,6 +102,43 @@ function showStopPointVisuals(stopZone) {
 function nowMs() {
     return Date.now();
 }
+
+function installGuardEventInterceptor() {
+    if (!mp || !mp.events || typeof mp.events.add !== "function") return;
+    if (mp.events.__guardInterceptorInstalled) return;
+    const originalAdd = mp.events.add.bind(mp.events);
+    mp.events.add = (nameOrMap, cb) => {
+        if (typeof nameOrMap === "string" && typeof cb === "function") {
+            const wrapped = String(nameOrMap).startsWith("guardCheckpoint:")
+                ? (...args) => {
+                    chatLog(`[CLIENT][EVENT] ${nameOrMap}`);
+                    return cb(...args);
+                }
+                : cb;
+            return originalAdd(nameOrMap, wrapped);
+        }
+        if (nameOrMap && typeof nameOrMap === "object" && !Array.isArray(nameOrMap)) {
+            const wrappedMap = {};
+            Object.keys(nameOrMap).forEach((eventName) => {
+                const fn = nameOrMap[eventName];
+                if (typeof fn !== "function") {
+                    wrappedMap[eventName] = fn;
+                    return;
+                }
+                wrappedMap[eventName] = String(eventName).startsWith("guardCheckpoint:")
+                    ? (...args) => {
+                        chatLog(`[CLIENT][EVENT] ${eventName}`);
+                        return fn(...args);
+                    }
+                    : fn;
+            });
+            return originalAdd(wrappedMap);
+        }
+        return originalAdd(nameOrMap, cb);
+    };
+    mp.events.__guardInterceptorInstalled = true;
+}
+installGuardEventInterceptor();
 
 
 function sendControllerAck(postId, ver) {
@@ -486,9 +525,16 @@ function applyNpcCommandHints(packet) {
                 if (Number.isFinite(gotoX) && Number.isFinite(gotoY) && Number.isFinite(gotoZ)) {
                     let success = false;
                     try {
+                        ped.clearTasks();
                         ped.taskGoToCoordAnyMeans(gotoX, gotoY, gotoZ, 1.2, 0, gotoRange, 1, 0.5);
                         success = true;
                     } catch {}
+                    if (!success) {
+                        const target = getPlayerByServerId(targetId);
+                        if (target) {
+                            try { ped.taskGoToEntity(target.handle, -1, gotoRange, 1.2, 0, 0); success = true; } catch {}
+                        }
+                    }
                     clog(`client: taskGoToCoordAnyMeans called success=${success}`);
                 }
             }
@@ -520,6 +566,15 @@ function applyNpcCommandHints(packet) {
         if (command === "fire" || command === "aim") {
             cache.attackUntil = Number(packet.attackUntil) || 0;
             cache.hasReachedReturn = false;
+            if (command === "fire") {
+                const ped = mp.peds.atRemoteId(pedId);
+                const target = getPlayerByServerId(targetId);
+                if (ped && target) {
+                    const burstMs = 80 + Math.floor(Math.random() * 41);
+                    try { ped.taskShootAt(target.handle, burstMs, mp.game.joaat("FIRING_PATTERN_FULL_AUTO")); } catch {}
+                    chatLog(`[CLIENT] force fire burst ped=${pedId} burst=${burstMs}`);
+                }
+            }
         }
         if (u.hasReachedReturn === true) {
             cache.hasReachedReturn = true;
@@ -605,6 +660,12 @@ mp.events.add({
                 attackSessionId: 0,
                 ctrlVer: 0,
             };
+        }
+        chatLog(`[CLIENT] npcCommand received cmd=${packet.command} post=${packet.postId} seq=${packet.commandSeq}`);
+        if (packet.command === "goto" || packet.command === "fire") {
+            chatLog(`[CLIENT] immediate apply for cmd=${packet.command} (skip stale checks)`);
+            applyNpcCommandHints(packet);
+            return;
         }
         const postId = String(packet.postId || "");
         const rt = getPostRuntime(postId);

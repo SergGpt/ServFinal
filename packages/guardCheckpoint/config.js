@@ -2,7 +2,7 @@
 
 const GUARD_CHECKPOINT_CONFIG = {
     debug: true,
-    debugProtocol: false,
+    debugProtocol: true,
     debugTick: false,
     debugSync: false,
     tickMs: 300,
