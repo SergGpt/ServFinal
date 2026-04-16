@@ -491,30 +491,92 @@ function applyNpcCommandHints(packet) {
         }
         if (command === "goto") {
             clog(`client: goto processing for ped=${pedId}`);
-            cache.hasReachedReturn = false;
-            if (ped) {
-                const gotoX = Number(u.gotoX != null ? u.gotoX : packet.gotoX);
-                const gotoY = Number(u.gotoY != null ? u.gotoY : packet.gotoY);
-                const gotoZ = Number(u.gotoZ != null ? u.gotoZ : packet.gotoZ);
-                const gotoRange = Math.max(0.5, Number(u.gotoRange != null ? u.gotoRange : packet.gotoRange) || 2.0);
-                clog(`client: goto received for ped=${pedId} target=${gotoX},${gotoY},${gotoZ}`);
-                if (Number.isFinite(gotoX) && Number.isFinite(gotoY) && Number.isFinite(gotoZ)) {
-                    let success = false;
-                    try {
-                        ped.clearTasks();
-                        ped.taskGoToCoordAnyMeans(gotoX, gotoY, gotoZ, 1.2, 0, gotoRange, 1, 0.5);
-                        success = true;
-                    } catch {}
-                    try {
-                        const dbg = getDebugStateStore();
-                        dbg.__lastGotoPed = pedId;
-                        dbg.__lastGotoSuccess = success;
-                        dbg.__lastGotoTime = Date.now();
-                    } catch {}
-                    clog(`client: taskGoToCoordAnyMeans called success=${success}`);
-                    pushVisualLog(`goto ped=${pedId} success=${success} range=${gotoRange}`);
-                }
+            const ped = mp.peds.atRemoteId(pedId);
+
+            // ДИАГНОСТИКА
+            if (!ped) {
+                clog(`client: goto ERROR - ped not found for id=${pedId}`);
+                chatLog(`[ERROR] goto: ped ${pedId} not found`);
+                return;
             }
+
+            cache.hasReachedReturn = false;
+
+            // Получаем координаты
+            const gotoX = Number(u.gotoX != null ? u.gotoX : packet.gotoX);
+            const gotoY = Number(u.gotoY != null ? u.gotoY : packet.gotoY);
+            const gotoZ = Number(u.gotoZ != null ? u.gotoZ : packet.gotoZ);
+            const gotoRange = Math.max(0.5, Number(u.gotoRange != null ? u.gotoRange : packet.gotoRange) || 5.0);
+
+            // ДИАГНОСТИКА КООРДИНАТ
+            if (!Number.isFinite(gotoX) || !Number.isFinite(gotoY) || !Number.isFinite(gotoZ)) {
+                clog(`client: goto ERROR - invalid coordinates: ${gotoX},${gotoY},${gotoZ}`);
+                chatLog(`[ERROR] goto: invalid coords for ped ${pedId}`);
+                return;
+            }
+
+            // ДИАГНОСТИКА ПЕДА
+            const pedPos = ped.position;
+            const distToTarget = Math.sqrt(
+                Math.pow(pedPos.x - gotoX, 2) +
+                Math.pow(pedPos.y - gotoY, 2) +
+                Math.pow(pedPos.z - gotoZ, 2)
+            );
+
+            clog(`client: goto ped=${pedId} pos=${pedPos.x},${pedPos.y},${pedPos.z} target=${gotoX},${gotoY},${gotoZ} dist=${distToTarget.toFixed(2)} range=${gotoRange}`);
+            chatLog(`[GOTO] ped ${pedId} → target dist=${distToTarget.toFixed(1)}m need=${gotoRange}m`);
+
+            // ПРОВЕРКА: если уже рядом
+            if (distToTarget <= gotoRange) {
+                clog("client: goto - already in range, skip movement");
+                chatLog("[GOTO] already in range, skip");
+                try {
+                    const dbg = getDebugStateStore();
+                    dbg.__lastGotoPed = pedId;
+                    dbg.__lastGotoSuccess = true;
+                    dbg.__lastGotoTime = Date.now();
+                    if (typeof window !== "undefined") {
+                        window.__lastGotoSuccess = true;
+                    }
+                } catch {}
+                return;
+            }
+
+            // ВЫПОЛНЯЕМ ДВИЖЕНИЕ
+            let success = false;
+            try {
+                ped.clearTasks();
+                ped.setKeepTask(true);
+
+                // Пробуем taskGoToCoordAnyMeans
+                const result = ped.taskGoToCoordAnyMeans(gotoX, gotoY, gotoZ, 1.2, 0, gotoRange, 1, 0.5);
+                success = result !== false;
+
+                if (!success) {
+                    // Fallback: taskGoToCoord
+                    ped.taskGoToCoord(gotoX, gotoY, gotoZ, 1.2, -1);
+                    success = true;
+                }
+
+                clog(`client: goto movement started success=${success}`);
+                chatLog(`[GOTO] movement ${success ? "STARTED" : "FAILED"} for ped ${pedId}`);
+            } catch (e) {
+                clog(`client: goto exception: ${e.message}`);
+                chatLog(`[ERROR] goto exception: ${e.message}`);
+                success = false;
+            }
+
+            try {
+                const dbg = getDebugStateStore();
+                dbg.__lastGotoPed = pedId;
+                dbg.__lastGotoSuccess = success;
+                dbg.__lastGotoTime = Date.now();
+                if (typeof window !== "undefined") {
+                    window.__lastGotoSuccess = success;
+                }
+            } catch {}
+            pushVisualLog(`goto ped=${pedId} success=${success} range=${gotoRange}`);
+            return;
         }
         if (command === "return") {
             cache.returnPos = {
