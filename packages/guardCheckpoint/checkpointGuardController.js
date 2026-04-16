@@ -1211,13 +1211,21 @@ class CheckpointGuardController {
             post.pendingMovementCommand = { command, targetId, at: Date.now() };
         }
         let sentCount = 0;
-        mp.players.forEach((rec) => {
-            if (!isValidPlayer(rec)) return;
-            if (Number(rec.dimension) !== Number(post.cfg.dimension || 0)) return;
-            if (!isInsideZone(rec.position, this.getPostZone(post))) return;
-            rec.call("guardCheckpoint:npcCommand", [packet]);
-            sentCount += 1;
-        });
+        if (command === "goto") {
+            const ownerOnly = getPlayerById(post.streamOwnerId);
+            if (isValidPlayer(ownerOnly) && Number(ownerOnly.dimension) === Number(post.cfg.dimension || 0) && isInsideZone(ownerOnly.position, this.getPostZone(post))) {
+                ownerOnly.call("guardCheckpoint:npcCommand", [packet]);
+                sentCount = 1;
+            }
+        } else {
+            mp.players.forEach((rec) => {
+                if (!isValidPlayer(rec)) return;
+                if (Number(rec.dimension) !== Number(post.cfg.dimension || 0)) return;
+                if (!isInsideZone(rec.position, this.getPostZone(post))) return;
+                rec.call("guardCheckpoint:npcCommand", [packet]);
+                sentCount += 1;
+            });
+        }
         this.log(`dispatch: post=${post.id} cmd=${command} sent=${sentCount}`);
         this.plog(`dispatch post=${post.id} seq=${packet.commandSeq} bs=${packet.behaviorSessionId} as=${packet.attackSessionId} owner=${packet.streamOwnerId} cmd=${packet.command} target=${packet.targetId} units=${packet.units.length}`);
     }

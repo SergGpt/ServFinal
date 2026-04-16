@@ -16,7 +16,8 @@ const AIM_REPLAY_MS = 320;
 const SHOOT_REPLAY_MS = 360;
 const CLEAR_REPLAY_MS = 900;
 const TARGET_SWITCH_DEBOUNCE_MS = 180;
-const RETURN_REPLAY_MS = 900;
+const RETURN_REPLAY_MS = 260;
+const APPROACH_REPLAY_MS = 260;
 const RETURN_DEVIATION_DIST = 2.8;
 const disableClearForApproaching = true;
 const POSE_SMOOTH_FACTOR = 0.12;
@@ -431,6 +432,7 @@ function runGuardAiLoop() {
                     cache.hasReachedReturn = true;
                     return;
                 }
+                if (!isOwner) return;
                 if (stateChanged || dist > RETURN_DEVIATION_DIST || t - cache.lastMoveAt >= RETURN_REPLAY_MS) {
                     try { ped.taskGoStraightToCoord(rp.x, rp.y, rp.z, 2.2, -1, rp.heading || 0, 0.05); } catch {}
                     cache.lastMoveAt = t;
@@ -441,6 +443,11 @@ function runGuardAiLoop() {
             if (state === "approaching") {
                 if (isOwner) {
                     try { ped.setKeepTask(true); } catch {}
+                    const gp = cache.gotoPos;
+                    if (gp && Number.isFinite(gp.x) && Number.isFinite(gp.y) && Number.isFinite(gp.z) && (stateChanged || t - cache.lastMoveAt >= APPROACH_REPLAY_MS)) {
+                        try { ped.taskGoToCoordAnyMeans(gp.x, gp.y, gp.z, 1.2, 0, gp.range || 5.0, 1, 0.5); } catch {}
+                        cache.lastMoveAt = t;
+                    }
                 }
                 return;
             }
@@ -507,6 +514,12 @@ function applyNpcCommandHints(packet) {
             const gotoY = Number(u.gotoY != null ? u.gotoY : packet.gotoY);
             const gotoZ = Number(u.gotoZ != null ? u.gotoZ : packet.gotoZ);
             const gotoRange = Math.max(0.5, Number(u.gotoRange != null ? u.gotoRange : packet.gotoRange) || 5.0);
+            cache.gotoPos = { x: gotoX, y: gotoY, z: gotoZ, range: gotoRange };
+
+            if (!isLocalStreamOwnerForPed(ped)) {
+                clog(`client: goto skip non-owner ped=${pedId}`);
+                return;
+            }
 
             // ДИАГНОСТИКА КООРДИНАТ
             if (!Number.isFinite(gotoX) || !Number.isFinite(gotoY) || !Number.isFinite(gotoZ)) {
