@@ -103,6 +103,16 @@ function nowMs() {
     return Date.now();
 }
 
+function getDebugStateStore() {
+    try {
+        if (typeof globalThis !== "undefined") return globalThis;
+    } catch {}
+    try {
+        if (typeof global !== "undefined") return global;
+    } catch {}
+    return {};
+}
+
 function installGuardEventInterceptor() {
     if (!mp || !mp.events || typeof mp.events.add !== "function") return;
     if (mp.events.__guardInterceptorInstalled) return;
@@ -528,9 +538,10 @@ function applyNpcCommandHints(packet) {
                         success = true;
                     } catch {}
                     try {
-                        window.__lastGotoPed = pedId;
-                        window.__lastGotoSuccess = success;
-                        window.__lastGotoTime = Date.now();
+                        const dbg = getDebugStateStore();
+                        dbg.__lastGotoPed = pedId;
+                        dbg.__lastGotoSuccess = success;
+                        dbg.__lastGotoTime = Date.now();
                     } catch {}
                     clog(`client: taskGoToCoordAnyMeans called success=${success}`);
                 }
@@ -637,8 +648,9 @@ mp.events.add({
             : packetOrPostId;
         clog(`client: npcCommand received cmd=${preCmd} post=${prePost}`);
         try {
-            window.__lastNpcCommand = String(preCmd || "unknown");
-            window.__lastNpcCommandTime = Date.now();
+            const dbg = getDebugStateStore();
+            dbg.__lastNpcCommand = String(preCmd || "unknown");
+            dbg.__lastNpcCommandTime = Date.now();
         } catch {}
 
         let packet = null;
@@ -901,21 +913,22 @@ mp.events.add("render", () => {
     // ВИЗУАЛЬНЫЕ ЛОГИ НА ЭКРАНЕ
     const now = Date.now();
     const logLines = [];
+    const dbg = getDebugStateStore();
 
     // Лог последней полученной команды
-    if (window.__lastNpcCommand) {
-        const age = now - window.__lastNpcCommandTime;
+    if (dbg.__lastNpcCommand) {
+        const age = now - dbg.__lastNpcCommandTime;
         if (age < 3000) {
-            logLines.push(`~y~NPC CMD: ${window.__lastNpcCommand}`);
+            logLines.push(`~y~NPC CMD: ${dbg.__lastNpcCommand}`);
         }
     }
 
     // Лог движения goto
-    if (window.__lastGotoPed && window.__lastGotoSuccess !== undefined) {
-        const age = now - window.__lastGotoTime;
+    if (dbg.__lastGotoPed && dbg.__lastGotoSuccess !== undefined) {
+        const age = now - dbg.__lastGotoTime;
         if (age < 3000) {
-            const status = window.__lastGotoSuccess ? "~g~SUCCESS" : "~r~FAIL";
-            logLines.push(`~y~GOTO ped=${window.__lastGotoPed}: ${status}`);
+            const status = dbg.__lastGotoSuccess ? "~g~SUCCESS" : "~r~FAIL";
+            logLines.push(`~y~GOTO ped=${dbg.__lastGotoPed}: ${status}`);
         }
     }
 
