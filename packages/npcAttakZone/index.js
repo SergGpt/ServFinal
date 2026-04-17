@@ -248,6 +248,7 @@ module.exports = {
             ped.setVariable('npcazCtrlVer', 0);
             ped.setVariable('npcazCommand', 'idle');
             ped.setVariable('npcazCommandExtra', null);
+            ped.setVariable('npcazLivePos', { x: pos.x, y: pos.y, z: pos.z });
             ped.setVariable('npcazDead', false);
             ped.health = 250;
             ped.setHealth(250);
@@ -517,10 +518,26 @@ module.exports = {
         this.controllerManager.onControllerAck(st, player.id, parseInt(ver));
     },
 
-    onHeartbeat(player, nid) {
+    onHeartbeat(player, nid, posJson = null) {
         const st = this.npcs.get(parseInt(nid));
         if (!st) return;
         this.controllerManager.onHeartbeat(st, player.id);
+
+        if (posJson) {
+            let pos = null;
+            try { pos = typeof posJson === 'string' ? JSON.parse(posJson) : posJson; } catch (e) {}
+            if (pos && typeof pos === 'object') {
+                const livePos = {
+                    x: Number(pos.x) || 0,
+                    y: Number(pos.y) || 0,
+                    z: Number(pos.z) || 0,
+                };
+                st.livePos = livePos;
+                try {
+                    if (st.ped && mp.peds.exists(st.ped)) st.ped.setVariable('npcazLivePos', livePos);
+                } catch (e) {}
+            }
+        }
     },
 
     onPlayerQuit(player) {

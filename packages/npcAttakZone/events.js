@@ -54,7 +54,7 @@ module.exports = {
         moduleApi.onControllerAck(player, nid, ver);
     },
 
-    'npcattakzone:npc.heartbeat': (player, nid) => {
-        moduleApi.onHeartbeat(player, nid);
+    'npcattakzone:npc.heartbeat': (player, nid, posJson) => {
+        moduleApi.onHeartbeat(player, nid, posJson);
     },
 };

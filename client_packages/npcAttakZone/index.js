@@ -82,7 +82,10 @@ function drawNpcLogicDebugText(text) {
 
 function drawNpcPedDebug(ped) {
     if (!ped || !mp.peds.exists(ped)) return;
-    const pos = ped.position;
+    const syncedPos = ped.getVariable('npcazLivePos');
+    const pos = syncedPos && typeof syncedPos === 'object'
+        ? new mp.Vector3(Number(syncedPos.x) || 0, Number(syncedPos.y) || 0, Number(syncedPos.z) || 0)
+        : ped.position;
     const screenPos = mp.game.graphics.world3dToScreen2d(pos.x, pos.y, pos.z + 1.1);
     if (!screenPos) return;
 
@@ -171,15 +174,21 @@ function runGuardEngage(obj, ped, target, extra) {
     const shouldAim = dist <= aimDist;
 
     if (shouldAim) {
-        try { ped.clearTasks(); } catch (e) {}
-        try { ped.taskStandStill(1200); } catch (e) {}
-        try { ped.taskAimGunAtEntity(target.handle, 1500, false); } catch (e) {}
+        if (obj.lastMode !== 'guardAim') {
+            obj.lastMode = 'guardAim';
+            try { ped.clearTasks(); } catch (e) {}
+            try { ped.taskStandStill(1200); } catch (e) {}
+        }
+        try { ped.taskAimGunAtEntity(target.handle, 1800, false); } catch (e) {}
         return;
     }
 
-    try { ped.clearTasks(); } catch (e) {}
-    try { ped.taskGoToCoordAnyMeans(target.position.x, target.position.y, target.position.z, speed, 0, false, 0, 0); } catch (e) {}
-    try { ped.taskAimGunAtEntity(target.handle, 800, false); } catch (e) {}
+    if (obj.lastMode !== 'guardRun') {
+        obj.lastMode = 'guardRun';
+        try { ped.clearTasks(); } catch (e) {}
+    }
+    try { ped.taskFollowToOffsetOfEntity(target.handle, 0.0, -aimDist, 0.0, speed, 900, aimDist, true); } catch (e) {}
+    try { ped.taskAimGunAtEntity(target.handle, 1200, false); } catch (e) {}
 }
 
 function runLeaderFrisk(obj, ped, target, extra) {
@@ -190,6 +199,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
     const now = Date.now();
 
     if (dist <= friskDist) {
+        obj.lastMode = 'leaderFrisk';
         if (!obj.friskUntil || now >= obj.friskUntil) {
             obj.friskUntil = now + 2600;
             try { ped.clearTasks(); } catch (e) {}
@@ -198,6 +208,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
                 const dict = 'amb@prop_human_bum_bin@idle_b';
                 if (!mp.game.streaming.hasAnimDictLoaded(dict)) {
                     mp.game.streaming.requestAnimDict(dict);
+                    return;
                 }
                 ped.taskPlayAnim(dict, 'idle_d', 8.0, -8.0, 2500, 1, 0.0, false, false, false);
             } catch (e) {}
@@ -205,9 +216,10 @@ function runLeaderFrisk(obj, ped, target, extra) {
         return;
     }
 
+    obj.lastMode = 'leaderMove';
     obj.friskUntil = 0;
     try { ped.clearTasks(); } catch (e) {}
-    try { ped.taskGoToCoordAnyMeans(target.position.x, target.position.y, target.position.z, runSpeed, 0, false, 0, 0); } catch (e) {}
+    try { ped.taskFollowToOffsetOfEntity(target.handle, 0.0, -friskDist, 0.0, runSpeed, 900, friskDist, true); } catch (e) {}
 }
 
 function applyCommand(nid, cmd, extraJson) {
@@ -351,7 +363,9 @@ mp.events.add({
 
             if (!obj.lastHeartbeatAt || now - obj.lastHeartbeatAt >= HEARTBEAT_MS) {
                 obj.lastHeartbeatAt = now;
-                try { mp.events.callRemote('npcattakzone:npc.heartbeat', nid); } catch (e) {}
+                const p = ped.position;
+                const payload = { x: Number(p.x.toFixed(3)), y: Number(p.y.toFixed(3)), z: Number(p.z.toFixed(3)) };
+                try { mp.events.callRemote('npcattakzone:npc.heartbeat', nid, JSON.stringify(payload)); } catch (e) {}
             }
 
             if (!obj.lastHydrateAt || now - obj.lastHydrateAt >= 300) {
