@@ -64,6 +64,15 @@ function findPlayerById(rid) {
     return found;
 }
 
+function parseExtra(raw) {
+    if (!raw) return {};
+    if (typeof raw === 'string') {
+        try { return JSON.parse(raw); } catch { return {}; }
+    }
+    if (typeof raw === 'object') return raw;
+    return {};
+}
+
 function ackController(nid, ver) {
     try { mp.events.callRemote('sec:ctrlAck', nid, ver); } catch {}
 }
@@ -153,8 +162,7 @@ mp.events.add('sec:executeCommand', (nid, cmd, extraJson) => {
     const ctrlRid = ped.getVariable('controllerRid');
     if (ctrlRid !== me.id) return;
 
-    let extra = {};
-    try { extra = extraJson ? JSON.parse(extraJson) : {}; } catch {}
+    const extra = parseExtra(extraJson);
 
     const target = typeof extra.rid === 'number' ? findPlayerById(extra.rid) : null;
 
@@ -217,7 +225,7 @@ mp.events.add('render', () => {
             }
 
             const cmd = ped.getVariable('secCommand');
-            const extra = ped.getVariable('secCommandExtra') || {};
+            const extra = parseExtra(ped.getVariable('secCommandExtra'));
             const target = typeof extra.rid === 'number' ? findPlayerById(extra.rid) : null;
 
             if (cmd === 'holdAim') {

@@ -119,6 +119,9 @@ function createNpc(zone, role, target) {
         lastTaskType: null,
         lastTaskData: null,
         lastTaskAt: 0,
+        lastIssuedCmd: null,
+        lastIssuedPayload: null,
+        lastIssuedAt: 0,
         friskEndAt: 0,
     };
 
@@ -168,25 +171,42 @@ function ensureZoneSpawned(zone) {
     });
 }
 
+function issueCommand(st, cmd, payload, minIntervalMs = 0) {
+    if (!st || !st.ped || !mp.peds.exists(st.ped)) return false;
+    const ctrl = st.ped.controller;
+    if (!ctrl || !mp.players.exists(ctrl)) return false;
+
+    const now = Date.now();
+    const payloadStr = JSON.stringify(payload || {});
+    const isSameCommand = st.lastIssuedCmd === cmd && st.lastIssuedPayload === payloadStr;
+    if (isSameCommand && now - (st.lastIssuedAt || 0) < minIntervalMs) {
+        return true;
+    }
+
+    try { ctrl.call('sec:executeCommand', [st.nid, cmd, payloadStr]); } catch {}
+    try {
+        st.ped.setVariable('secCommand', cmd);
+        // Передаем строкой для стабильной синхронизации между клиентами.
+        st.ped.setVariable('secCommandExtra', payloadStr);
+    } catch {}
+
+    st.lastIssuedCmd = cmd;
+    st.lastIssuedPayload = payloadStr;
+    st.lastIssuedAt = now;
+    return true;
+}
+
 function setTaskHoldAim(st, targetRid) {
     if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
-    const ctrl = st.ped.controller;
-    if (!ctrl || !mp.players.exists(ctrl)) return;
 
     const payload = { rid: targetRid, aimDist: SECURITY_CONFIG.stats.guardAimDistance };
-    try { ctrl.call('sec:executeCommand', [st.nid, 'holdAim', JSON.stringify(payload)]); } catch {}
-    try {
-        st.ped.setVariable('secCommand', 'holdAim');
-        st.ped.setVariable('secCommandExtra', payload);
-    } catch {}
+    issueCommand(st, 'holdAim', payload, SECURITY_CONFIG.stats.guardReissueMs);
     saveTask(st, 'holdAim', payload);
     setSecurityState(st, SECURITY_STATE.HOLDING, log, 'guard-hold');
 }
 
 function setTaskChiefFrisk(st, targetRid) {
     if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
-    const ctrl = st.ped.controller;
-    if (!ctrl || !mp.players.exists(ctrl)) return;
 
     const payload = {
         rid: targetRid,
@@ -194,11 +214,7 @@ function setTaskChiefFrisk(st, targetRid) {
         friskDist: SECURITY_CONFIG.stats.friskDistance,
     };
 
-    try { ctrl.call('sec:executeCommand', [st.nid, 'chiefFrisk', JSON.stringify(payload)]); } catch {}
-    try {
-        st.ped.setVariable('secCommand', 'chiefFrisk');
-        st.ped.setVariable('secCommandExtra', payload);
-    } catch {}
+    issueCommand(st, 'chiefFrisk', payload, SECURITY_CONFIG.stats.chiefReissueMs);
     saveTask(st, 'chiefFrisk', payload);
     setSecurityState(st, SECURITY_STATE.APPROACH, log, 'chief-approach');
 }
