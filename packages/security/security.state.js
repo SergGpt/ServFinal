@@ -1,22 +1,14 @@
 const SECURITY_STATE = {
     IDLE: 'idle',
-    HOLDING: 'holding',
-    APPROACH: 'approach',
-    FRISK: 'frisk',
-    SWITCH_CONTROLLER: 'switch_controller',
 };
 
-function setSecurityState(st, nextState, logger, reason = '') {
-    if (!st || !nextState) return;
-    if (st.state === nextState) return;
-    const prev = st.state || 'unknown';
-    st.state = nextState;
-    if (typeof logger === 'function') {
-        logger(`state nid=${st.nid} ${prev} -> ${nextState}${reason ? ` (${reason})` : ''}`);
-    }
+function setSecurityState(npcState, nextState) {
+    if (!npcState || !nextState) return;
+    npcState.state = nextState;
+
     try {
-        if (st.ped && mp.peds.exists(st.ped)) {
-            st.ped.setVariable('secState', nextState);
+        if (npcState.ped && mp.peds.exists(npcState.ped)) {
+            npcState.ped.setVariable('secState', nextState);
         }
     } catch {}
 }

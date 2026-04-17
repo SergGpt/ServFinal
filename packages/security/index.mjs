@@ -1,1 +1,3 @@
-import './security.bootstrap.js';
+import security from './index.js';
+
+export default security;

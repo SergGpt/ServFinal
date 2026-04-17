@@ -1,5 +1,3 @@
-const { initSecurityController } = require('./security.controller');
+const security = require('./index');
 
-initSecurityController().catch((error) => {
-    console.error('[SECURITY] Failed to initialize security controller:', error);
-});
+module.exports = security;

@@ -1,29 +1,28 @@
 module.exports = {
-    "/s_addzone": {
+    '/s_zoneeditor': {
         access: 2,
-        description: "Создать security-зону радиусом 100м на позиции игрока.",
-        args: "[name]",
-        handler: async (player, args, out) => {
+        description: 'Открыть редактор security-зоны.',
+        args: '',
+        handler: (player, args, out) => {
             try {
-                const name = args.length ? args.join(' ') : null;
-                await mp.events.call('security:zone:add', player, name);
-                if (out?.info) out.info(`${player.name} вызвал /s_addzone ${args.join(' ')}`.trim());
-            } catch (e) {
-                if (out?.error) out.error(`Ошибка /s_addzone: ${e && e.message ? e.message : e}`, player);
+                mp.events.call('security:editor:open', player);
+                if (out?.info) out.info(`${player.name} вызвал /s_zoneeditor`);
+            } catch (error) {
+                if (out?.error) out.error(`Ошибка /s_zoneeditor: ${error.message}`, player);
             }
-        }
+        },
     },
-    "/s_respawn": {
+    '/s_respawn': {
         access: 2,
-        description: "Удалить и пересоздать охрану в активных security-зонах.",
-        args: "",
-        handler: async (player, args, out) => {
+        description: 'Пересоздать NPC ближайшей security-зоны в текущем dimension.',
+        args: '',
+        handler: (player, args, out) => {
             try {
-                await mp.events.call('security:respawn', player);
+                mp.events.call('security:respawn:nearest', player);
                 if (out?.info) out.info(`${player.name} вызвал /s_respawn`);
-            } catch (e) {
-                if (out?.error) out.error(`Ошибка /s_respawn: ${e && e.message ? e.message : e}`, player);
+            } catch (error) {
+                if (out?.error) out.error(`Ошибка /s_respawn: ${error.message}`, player);
             }
-        }
-    }
+        },
+    },
 };

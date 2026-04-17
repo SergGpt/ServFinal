@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-    return sequelize.define('SecurityZone', {
+    const model = sequelize.define('SecurityZone', {
         id: {
             type: DataTypes.INTEGER(11),
             primaryKey: true,
@@ -35,8 +35,20 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false,
             defaultValue: 100,
         },
+        guardCount: {
+            type: DataTypes.INTEGER(11),
+            allowNull: false,
+            defaultValue: 3,
+        },
+        chiefCount: {
+            type: DataTypes.INTEGER(11),
+            allowNull: false,
+            defaultValue: 1,
+        },
     }, {
         timestamps: false,
         tableName: 'security_zones',
     });
+
+    return model;
 };

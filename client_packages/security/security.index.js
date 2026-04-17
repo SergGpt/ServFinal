@@ -1,239 +1,151 @@
-const me = mp.players.local;
-const npcs = new Map();
-const pendingAssign = new Map();
-const HEARTBEAT_MS = 1000;
-
-const friskState = {
+const editor = {
     active: false,
-    endAt: 0,
-    chiefNpcId: null,
+    draft: {
+        zoneId: null,
+        name: '',
+        radius: 100,
+        guardCount: 3,
+        chiefCount: 1,
+        dimension: 0,
+    },
 };
 
-function log(msg) {
-    try { mp.console.logInfo(`[SECURITY-CL] ${msg}`); } catch {}
+const presetNames = [
+    'Security Zone Alpha',
+    'Security Zone Bravo',
+    'Security Zone Charlie',
+    'Security Zone Delta',
+    'Security Zone Echo',
+];
+
+const radiusValues = ['50', '75', '100', '125', '150', '200'];
+const guardValues = ['1', '2', '3', '4', '5', '6'];
+const chiefValues = ['0', '1', '2'];
+
+function clampIndex(values, currentValue) {
+    const idx = values.indexOf(String(currentValue));
+    return idx >= 0 ? idx : 0;
 }
 
-function attachIfSecurityPed(ped) {
-    if (!ped || ped.type !== 'ped') return false;
-    const nid = ped.getVariable('secNpcId');
-    const zoneId = ped.getVariable('secZoneId');
-    if (typeof nid !== 'number' || typeof zoneId !== 'number') return false;
-
-    if (!npcs.has(nid)) {
-        npcs.set(nid, {
-            ped,
-            holdRid: null,
-            friskRid: null,
-            lastCommandAt: 0,
-        });
-    } else {
-        npcs.get(nid).ped = ped;
-    }
-
-    preparePed(ped);
-    return true;
-}
-
-function preparePed(ped) {
-    try { ped.setBlockingOfNonTemporaryEvents(true); } catch {}
-    try { ped.setKeepTask(true); } catch {}
-    try { ped.setCanRagdoll(false); } catch {}
-    try { ped.setCombatAttributes(46, true); } catch {}
-}
-
-function findSecurityPed(nid) {
-    const obj = npcs.get(nid);
-    if (obj && obj.ped && mp.peds.exists(obj.ped)) return obj.ped;
-
-    let found = null;
+function notify(text, type = 'info') {
     try {
-        mp.peds.forEach((ped) => {
-            if (!found && ped && mp.peds.exists(ped) && ped.getVariable('secNpcId') === nid) found = ped;
-        });
-    } catch {}
-    return found;
-}
-
-function findPlayerById(rid) {
-    let found = null;
-    try {
-        mp.players.forEach((p) => {
-            if (!found && p.id === rid) found = p;
-        });
-    } catch {}
-    return found;
-}
-
-function ackController(nid, ver) {
-    try { mp.events.callRemote('sec:ctrlAck', nid, ver); } catch {}
-}
-
-function doHoldAim(obj, ped, target) {
-    if (!obj || !ped || !target) return;
-    try { ped.clearTasks(); } catch {}
-    try { ped.taskAimGunAtEntity(target.handle, 1000, false); } catch {}
-    try {
-        ped.taskFollowToOffsetOfEntity(target.handle, 0.0, -4.0, 0.0, 1.2, 1000, 4.0, true);
+        if (type === 'error') mp.notify.error(text, 'Security');
+        else mp.notify.info(text, 'Security');
     } catch {}
 }
 
-function doChiefFrisk(obj, ped, target, friskDist = 1.0) {
-    if (!obj || !ped || !target) return;
-    const dist = target.position.distanceTo(ped.position);
-
-    if (dist <= friskDist) {
-        try { ped.clearTasks(); } catch {}
-        try { ped.taskAimGunAtEntity(target.handle, 1500, false); } catch {}
-        try { mp.events.callRemote('sec:chiefReachedTarget', ped.getVariable('secNpcId'), target.id); } catch {}
-        return;
-    }
-
-    try { ped.clearTasks(); } catch {}
-    try { ped.taskGoToCoordAnyMeans(target.position.x, target.position.y, target.position.z, 1.4, 0, false, 0, 0.0); } catch {}
-    try { ped.taskAimGunAtEntity(target.handle, 1500, false); } catch {}
+function sendField(field, value) {
+    mp.events.callRemote('security:editor:setField', field, String(value));
 }
 
-function playFriskAnim(ped, target) {
-    try {
-        const dict = 'amb@prop_human_bum_bin@idle_b';
-        if (!mp.game.streaming.hasAnimDictLoaded(dict)) {
-            mp.game.streaming.requestAnimDict(dict);
-            let i = 0;
-            while (!mp.game.streaming.hasAnimDictLoaded(dict) && i++ < 100) mp.game.wait(0);
-        }
-        ped.taskPlayAnim(dict, 'idle_d', 8.0, -8.0, -1, 1, 0.0, false, false, false);
-        if (target && target.handle === me.handle) {
-            me.taskPlayAnim(dict, 'idle_a', 8.0, -8.0, -1, 1, 0.0, false, false, false);
-        }
-    } catch {}
-}
+function buildMenu() {
+    const zoneLabel = editor.draft.zoneId ? `#${editor.draft.zoneId}` : 'не создана';
+    const header = `Security Zone Editor (${zoneLabel})`;
 
-mp.events.add('entityStreamIn', (ent) => {
-    try {
-        if (ent && ent.type === 'ped') {
-            attachIfSecurityPed(ent);
-            const nid = ent.getVariable('secNpcId');
-            const pending = pendingAssign.get(nid);
-            if (pending) {
-                ackController(nid, pending.ver);
-                pendingAssign.delete(nid);
+    const nameIndex = Math.max(0, presetNames.indexOf(editor.draft.name || presetNames[0]));
+    const radiusIndex = clampIndex(radiusValues, editor.draft.radius || 100);
+    const guardIndex = clampIndex(guardValues, editor.draft.guardCount || 3);
+    const chiefIndex = clampIndex(chiefValues, editor.draft.chiefCount || 1);
+
+    mp.callCEFV(`selectMenu.menu = {
+        name: "securityZoneEditor",
+        header: "${header}",
+        items: [
+            { text: "Название", values: ${JSON.stringify(presetNames)}, i: ${nameIndex} },
+            { text: "Радиус", values: ${JSON.stringify(radiusValues)}, i: ${radiusIndex} },
+            { text: "Охрана (guard)", values: ${JSON.stringify(guardValues)}, i: ${guardIndex} },
+            { text: "Главный (chief)", values: ${JSON.stringify(chiefValues)}, i: ${chiefIndex} },
+            { text: "Создать зону" },
+            { text: "Создать NPC в этой зоне" },
+            { text: "Удалить NPC зоны" },
+            { text: "Сохранить зону" },
+            { text: "Закрыть" }
+        ],
+        i: 0,
+        j: 0,
+        handler(eventName) {
+            var item = this.items[this.i];
+            var e = {
+                itemName: item.text,
+                itemValue: (item.i != null && item.values) ? item.values[item.i] : null,
+            };
+            if (eventName == 'onItemValueChanged') {
+                if (e.itemName == 'Название') mp.trigger('security:editor:client:setName', String(e.itemValue || ''));
+                if (e.itemName == 'Радиус') mp.trigger('security:editor:client:setRadius', parseInt(e.itemValue || '100'));
+                if (e.itemName == 'Охрана (guard)') mp.trigger('security:editor:client:setGuardCount', parseInt(e.itemValue || '3'));
+                if (e.itemName == 'Главный (chief)') mp.trigger('security:editor:client:setChiefCount', parseInt(e.itemValue || '1'));
+            }
+            if (eventName == 'onItemSelected') {
+                if (e.itemName == 'Создать зону') mp.trigger('security:editor:client:createZone');
+                if (e.itemName == 'Создать NPC в этой зоне') mp.trigger('security:editor:client:spawnNpc');
+                if (e.itemName == 'Удалить NPC зоны') mp.trigger('security:editor:client:deleteNpc');
+                if (e.itemName == 'Сохранить зону') mp.trigger('security:editor:client:saveZone');
+                if (e.itemName == 'Закрыть') mp.trigger('security:editor:client:close');
+            }
+            if (eventName == 'onEscapePressed' || eventName == 'onBackspacePressed') {
+                mp.trigger('security:editor:client:close');
             }
         }
-    } catch {}
-});
+    }`);
 
-mp.events.add('entityStreamOut', (ent) => {
+    mp.callCEFV('selectMenu.show = true;');
+}
+
+function openEditor() {
+    if (editor.active) return;
+    editor.active = true;
+
     try {
-        if (ent && ent.type === 'ped') {
-            const nid = ent.getVariable('secNpcId');
-            if (typeof nid === 'number') npcs.delete(nid);
+        if (!mp.busy.add('security.zone.editor', false)) {
+            editor.active = false;
+            return;
         }
     } catch {}
-});
 
-mp.events.add('sec:assignController', (nid, ver) => {
-    nid = parseInt(nid);
-    ver = parseInt(ver);
-    const ped = findSecurityPed(nid);
-    if (!ped || !mp.peds.exists(ped)) {
-        pendingAssign.set(nid, { ver, at: Date.now() });
-        return;
-    }
-    attachIfSecurityPed(ped);
-    ackController(nid, ver);
-});
+    buildMenu();
+    notify('Редактор зон охраны открыт.');
+}
 
-mp.events.add('sec:executeCommand', (nid, cmd, extraJson) => {
-    nid = parseInt(nid);
-    const obj = npcs.get(nid);
-    if (!obj) return;
-    const ped = obj.ped;
-    if (!ped || !mp.peds.exists(ped)) return;
+function closeEditor(silent = false) {
+    if (!editor.active) return;
 
-    const ctrlRid = ped.getVariable('controllerRid');
-    if (ctrlRid !== me.id) return;
+    editor.active = false;
+    try { mp.busy.remove('security.zone.editor'); } catch {}
+    try { mp.callCEFV('selectMenu.show = false;'); } catch {}
 
-    let extra = {};
-    try { extra = extraJson ? JSON.parse(extraJson) : {}; } catch {}
+    if (!silent) notify('Редактор зон охраны закрыт.');
+}
 
-    const target = typeof extra.rid === 'number' ? findPlayerById(extra.rid) : null;
+function refreshMenu() {
+    if (!editor.active) return;
+    buildMenu();
+}
 
-    if (cmd === 'holdAim') {
-        obj.holdRid = extra.rid;
-        doHoldAim(obj, ped, target);
-    } else if (cmd === 'chiefFrisk') {
-        obj.friskRid = extra.rid;
-        doChiefFrisk(obj, ped, target, Number(extra.friskDist) || 1.0);
-    } else if (cmd === 'playFriskAnim') {
-        playFriskAnim(ped, target);
-    } else if (cmd === 'idle') {
-        try { ped.clearTasks(); } catch {}
-        try { ped.taskStandStill(1000); } catch {}
-    }
+mp.events.add('security:editor:open', openEditor);
+mp.events.add('security:editor:close', () => closeEditor(true));
 
-    obj.lastCommandAt = Date.now();
-});
-
-mp.events.add('sec:friskStart', (chiefNpcId, durationMs) => {
-    friskState.active = true;
-    friskState.endAt = Date.now() + (parseInt(durationMs) || 5000);
-    friskState.chiefNpcId = parseInt(chiefNpcId);
-});
-
-mp.events.add('sec:friskStop', () => {
-    friskState.active = false;
-    friskState.endAt = 0;
-    friskState.chiefNpcId = null;
-    try { me.clearTasks(); } catch {}
-});
-
-mp.events.add('render', () => {
+mp.events.add('security:editor:sync', (draftJson) => {
     try {
-        const now = Date.now();
-
-        if (friskState.active) {
-            try {
-                mp.game.controls.disableAllControlActions(0);
-                mp.game.controls.enableControlAction(0, 245, true);
-                mp.game.controls.enableControlAction(0, 200, true);
-            } catch {}
-            if (now >= friskState.endAt) {
-                friskState.active = false;
-                friskState.endAt = 0;
-                friskState.chiefNpcId = null;
-                try { me.clearTasks(); } catch {}
-            }
-        }
-
-        npcs.forEach((obj, nid) => {
-            const ped = obj.ped;
-            if (!ped || !mp.peds.exists(ped)) return;
-            const ctrlRid = ped.getVariable('controllerRid');
-            if (ctrlRid !== me.id) return;
-
-            if (!obj.lastHeartbeatAt || now - obj.lastHeartbeatAt >= HEARTBEAT_MS) {
-                obj.lastHeartbeatAt = now;
-                try { mp.events.callRemote('sec:heartbeat', nid); } catch {}
-            }
-
-            const cmd = ped.getVariable('secCommand');
-            const extra = ped.getVariable('secCommandExtra') || {};
-            const target = typeof extra.rid === 'number' ? findPlayerById(extra.rid) : null;
-
-            if (cmd === 'holdAim') {
-                doHoldAim(obj, ped, target);
-            } else if (cmd === 'chiefFrisk') {
-                doChiefFrisk(obj, ped, target, Number(extra.friskDist) || 1.0);
-            }
-        });
-    } catch (e) {
-        log(`render error: ${e.message}`);
-    }
-});
-
-setTimeout(() => {
-    try {
-        mp.peds.forEach((ped) => attachIfSecurityPed(ped));
-        log(`security client loaded npcs=${npcs.size}`);
+        const draft = JSON.parse(draftJson || '{}');
+        editor.draft = {
+            ...editor.draft,
+            ...draft,
+        };
+        refreshMenu();
     } catch {}
-}, 1000);
+});
+
+mp.events.add('security:editor:client:setName', (value) => sendField('name', value));
+mp.events.add('security:editor:client:setRadius', (value) => sendField('radius', value));
+mp.events.add('security:editor:client:setGuardCount', (value) => sendField('guardCount', value));
+mp.events.add('security:editor:client:setChiefCount', (value) => sendField('chiefCount', value));
+
+mp.events.add('security:editor:client:createZone', () => mp.events.callRemote('security:editor:createZone'));
+mp.events.add('security:editor:client:spawnNpc', () => mp.events.callRemote('security:editor:spawnNpc'));
+mp.events.add('security:editor:client:deleteNpc', () => mp.events.callRemote('security:editor:deleteNpc'));
+mp.events.add('security:editor:client:saveZone', () => mp.events.callRemote('security:editor:saveZone'));
+
+mp.events.add('security:editor:client:close', () => {
+    mp.events.callRemote('security:editor:close');
+    closeEditor();
+});
