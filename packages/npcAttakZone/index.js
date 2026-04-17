@@ -17,6 +17,7 @@ const RUNTIME = {
     followSpeed: 1.2,
     commandReissueMs: 1200,
     postAckGraceMs: 500,
+    livePosFreshMs: 3000,
 };
 
 const GUARD_MODELS = ['s_m_m_security_01', 's_m_y_blackops_01', 's_m_y_blackops_02'];
@@ -243,6 +244,7 @@ module.exports = {
             lastDebugAt: 0,
             livePos: { x: pos.x, y: pos.y, z: pos.z },
             liveHeading: 0,
+            livePosUpdatedAt: Date.now(),
         };
 
         try {
@@ -434,6 +436,8 @@ module.exports = {
                 ? distToTarget > 1.5
                 : distToTarget > 7.0;
             const now = Date.now();
+            const livePosAgeMs = st.livePosUpdatedAt ? now - st.livePosUpdatedAt : -1;
+            const isLivePosFresh = livePosAgeMs >= 0 && livePosAgeMs <= RUNTIME.livePosFreshMs;
             if (!st.lastDebugAt || now - st.lastDebugAt >= 1000) {
                 st.lastDebugAt = now;
                 const currentCmd = st.ped.getVariable ? st.ped.getVariable('npcazCommand') : null;
@@ -442,8 +446,15 @@ module.exports = {
                     `debug nid=${st.nid} role=${st.role} targetRid=${target.id} `
                     + `dist=${distToTarget.toFixed(2)} shouldMoveToTarget=${shouldMoveToTarget} `
                     + `task=${st.lastTaskType || 'none'} cmd=${currentCmd || 'none'} `
-                    + `ctrlState=${ctrlState || 'n/a'} switching=${!!st.switching}`
+                    + `ctrlState=${ctrlState || 'n/a'} switching=${!!st.switching} `
+                    + `livePosAgeMs=${livePosAgeMs} livePosFresh=${isLivePosFresh}`
                 );
+                if (!isLivePosFresh) {
+                    this.log(
+                        `debug stale livePos nid=${st.nid} livePosAgeMs=${livePosAgeMs} `
+                        + `controllerRid=${st.controllerRid} lastHeartbeatAt=${st.lastHeartbeatAt || 0}`
+                    );
+                }
             }
 
             const correctController = this.chooseController(this.zone, st.ped, st.targetRid);
@@ -580,25 +591,49 @@ module.exports = {
         if (!st) return;
         this.controllerManager.onHeartbeat(st, player.id);
 
-        if (posJson) {
-            let pos = null;
-            try { pos = typeof posJson === 'string' ? JSON.parse(posJson) : posJson; } catch (e) {}
-            if (pos && typeof pos === 'object') {
-                const livePos = {
-                    x: Number(pos.x) || 0,
-                    y: Number(pos.y) || 0,
-                    z: Number(pos.z) || 0,
-                };
-                st.livePos = livePos;
-                st.liveHeading = Number(pos.heading) || st.liveHeading || 0;
-                try {
-                    if (st.ped && mp.peds.exists(st.ped)) {
-                        st.ped.setVariable('npcazLivePos', livePos);
-                        st.ped.setVariable('npcazLiveHeading', st.liveHeading);
-                    }
-                } catch (e) {}
+        const hasPosJson = posJson !== null && posJson !== undefined && posJson !== '';
+        let payloadParsed = false;
+        let pos = null;
+        if (hasPosJson) {
+            try {
+                pos = typeof posJson === 'string' ? JSON.parse(posJson) : posJson;
+                payloadParsed = !!(pos && typeof pos === 'object');
+            } catch (e) {
+                payloadParsed = false;
             }
         }
+
+        const oldLivePos = st.livePos
+            ? { x: Number(st.livePos.x) || 0, y: Number(st.livePos.y) || 0, z: Number(st.livePos.z) || 0 }
+            : null;
+        let newLivePos = oldLivePos;
+        let deltaDist = -1;
+
+        if (payloadParsed) {
+            newLivePos = {
+                x: Number(pos.x) || 0,
+                y: Number(pos.y) || 0,
+                z: Number(pos.z) || 0,
+            };
+            deltaDist = oldLivePos ? dist3(oldLivePos, newLivePos) : 0;
+            st.livePos = newLivePos;
+            st.liveHeading = Number(pos.heading) || st.liveHeading || 0;
+            st.livePosUpdatedAt = Date.now();
+            try {
+                if (st.ped && mp.peds.exists(st.ped)) {
+                    st.ped.setVariable('npcazLivePos', newLivePos);
+                    st.ped.setVariable('npcazLiveHeading', st.liveHeading);
+                }
+            } catch (e) {}
+        }
+
+        this.log(
+            `heartbeat nid=${st.nid} playerId=${player.id} controllerRid=${st.controllerRid} `
+            + `hasPosJson=${hasPosJson} payloadParsed=${payloadParsed} `
+            + `oldLivePos=${oldLivePos ? `${oldLivePos.x.toFixed(3)},${oldLivePos.y.toFixed(3)},${oldLivePos.z.toFixed(3)}` : 'null'} `
+            + `newLivePos=${newLivePos ? `${newLivePos.x.toFixed(3)},${newLivePos.y.toFixed(3)},${newLivePos.z.toFixed(3)}` : 'null'} `
+            + `deltaDist=${deltaDist >= 0 ? deltaDist.toFixed(3) : 'n/a'}`
+        );
     },
 
     onPlayerQuit(player) {

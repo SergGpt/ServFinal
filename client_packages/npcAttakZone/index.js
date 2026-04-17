@@ -11,6 +11,14 @@ const HEARTBEAT_MS = 1000;
 const COMMAND_REISSUE_MS = 1200;
 const COMMAND_RECOVERY_MS = 2500;
 
+function logHeartbeatDebug(message) {
+    const text = `[NpcAttakZone][heartbeat] ${message}`;
+    try {
+        if (mp.console && typeof mp.console.logInfo === 'function') mp.console.logInfo(text);
+        else if (typeof console !== 'undefined' && typeof console.log === 'function') console.log(text);
+    } catch (e) {}
+}
+
 function parsePayload(value, fallback = null) {
     if (typeof value === 'string') {
         try { return JSON.parse(value); } catch (e) { return fallback; }
@@ -430,12 +438,17 @@ mp.events.add({
             if (!obj.lastHeartbeatAt || now - obj.lastHeartbeatAt >= HEARTBEAT_MS) {
                 obj.lastHeartbeatAt = now;
                 const p = ped.position;
+                const heading = Number((ped.heading || 0).toFixed(3));
                 const payload = {
                     x: Number(p.x.toFixed(3)),
                     y: Number(p.y.toFixed(3)),
                     z: Number(p.z.toFixed(3)),
-                    heading: Number((ped.heading || 0).toFixed(3)),
+                    heading,
                 };
+                logHeartbeatDebug(
+                    `send nid=${nid} meId=${me.id} controllerRid=${controllerRid} `
+                    + `pedPos=${payload.x},${payload.y},${payload.z} heading=${heading}`
+                );
                 try { mp.events.callRemote('npcattakzone:npc.heartbeat', nid, JSON.stringify(payload)); } catch (e) {}
             }
 
