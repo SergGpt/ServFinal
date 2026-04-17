@@ -196,7 +196,6 @@ function runGuardEngage(obj, ped, target, extra) {
         try { ped.clearTasks(); } catch (e) {}
     }
     try { ped.taskGoToCoordAnyMeans(target.position.x, target.position.y, target.position.z, speed, 0, false, 0, 0); } catch (e) {}
-    try { ped.taskAimGunAtEntity(target.handle, 1200, false); } catch (e) {}
 }
 
 function runLeaderFrisk(obj, ped, target, extra) {
