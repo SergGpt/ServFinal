@@ -8,7 +8,8 @@ let isInsideZone = false;
 const controlledNpcs = new Map();
 const pendingAssign = new Map();
 const HEARTBEAT_MS = 1000;
-const COMMAND_REISSUE_MS = 200;
+const COMMAND_REISSUE_MS = 1200;
+const COMMAND_RECOVERY_MS = 2500;
 
 function parsePayload(value, fallback = null) {
     if (typeof value === 'string') {
@@ -151,15 +152,17 @@ function ensureNpcEntry(ped) {
         controlledNpcs.set(nid, {
             ped,
             lastHeartbeatAt: 0,
-            lastHydrateAt: 0,
             lastCommandAt: 0,
             lastAppliedCommand: null,
             lastAppliedTargetRid: null,
             lastAppliedPayload: null,
             lastAppliedAt: 0,
+            needsRehydrate: true,
+            recoveryAt: 0,
         });
     } else {
         controlledNpcs.get(nid).ped = ped;
+        controlledNpcs.get(nid).needsRehydrate = true;
     }
 
     try { ped.setBlockingOfNonTemporaryEvents(true); } catch (e) {}
@@ -221,9 +224,11 @@ function runLeaderFrisk(obj, ped, target, extra) {
         return;
     }
 
-    obj.lastMode = 'leaderMove';
     obj.friskUntil = 0;
-    try { ped.clearTasks(); } catch (e) {}
+    if (obj.lastMode !== 'leaderMove') {
+        obj.lastMode = 'leaderMove';
+        try { ped.clearTasks(); } catch (e) {}
+    }
     try { ped.taskGoToCoordAnyMeans(target.position.x, target.position.y, target.position.z, runSpeed, 0, false, 0, 0); } catch (e) {}
 }
 
@@ -352,6 +357,8 @@ mp.events.add({
         }
 
         ensureNpcEntry(ped);
+        const obj = controlledNpcs.get(nid);
+        if (obj) obj.needsRehydrate = true;
         ackController(nid, ver);
     },
 
@@ -385,11 +392,12 @@ mp.events.add({
                 try { mp.events.callRemote('npcattakzone:npc.heartbeat', nid, JSON.stringify(payload)); } catch (e) {}
             }
 
-            if (!obj.lastHydrateAt || now - obj.lastHydrateAt >= 300) {
-                obj.lastHydrateAt = now;
+            if (obj.needsRehydrate || (obj.recoveryAt && now >= obj.recoveryAt)) {
+                obj.needsRehydrate = false;
+                obj.recoveryAt = now + COMMAND_RECOVERY_MS;
                 const cmd = ped.getVariable('npcazCommand');
                 const extra = ped.getVariable('npcazCommandExtra') || {};
-                if (cmd) applyCommand(nid, cmd, JSON.stringify(extra), false);
+                if (cmd) applyCommand(nid, cmd, JSON.stringify(extra), true);
             }
 
             if (!logicDebugText) {
