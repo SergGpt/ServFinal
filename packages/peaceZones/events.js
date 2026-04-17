@@ -4,13 +4,22 @@ let peaceZones = require('./index');
 let notifications = call('notifications');
 
 module.exports = {
-    "init": () => {
-        peaceZones.init();
+    "init": async () => {
+        try {
+            await peaceZones.init();
+        } catch (e) {
+            console.log('[PEACEZONE] init failed', e.message);
+        }
         inited(__dirname);
     },
-    "peaceZones.add": (player, info) => {
-        info = JSON.parse(info);
-        peaceZones.add(info.x, info.y, info.z, info.dx, info.dy, info.dz);
+    "peaceZones.add": async (player, info) => {
+        try {
+            info = JSON.parse(info);
+            await peaceZones.add(info.x, info.y, info.z, info.dx, info.dy, info.dz);
+        } catch (e) {
+            console.log('[PEACEZONE] add failed', e.message);
+            notifications.error(player, "Не удалось создать зеленую зону", "Peace Zone");
+        }
     },
     "peaceZones.menu.save": async (player, info) => {
         if (!player || !player.character || player.character.admin < 6) return;
@@ -22,11 +31,16 @@ module.exports = {
             return notifications.error(player, "Для сохранения нужно минимум 3 точки", "Peace Zone");
         }
 
-        const zone = await peaceZones.createPolygonZone(payload);
-        if (!zone) return notifications.error(player, "Не удалось сохранить polygon-зону", "Peace Zone");
+        try {
+            const zone = await peaceZones.createPolygonZone(payload);
+            if (!zone) return notifications.error(player, "Не удалось сохранить polygon-зону", "Peace Zone");
 
-        notifications.success(player, `Зеленая зона сохранена в БД (ID: ${zone.id})`, "Peace Zone");
-        player.call('peaceZones.menu.saved', [zone.id]);
+            notifications.success(player, `Зеленая зона сохранена в БД (ID: ${zone.id})`, "Peace Zone");
+            player.call('peaceZones.menu.saved', [zone.id]);
+        } catch (e) {
+            console.log('[PEACEZONE] menu save failed', e.message);
+            notifications.error(player, "Ошибка сохранения зеленой зоны", "Peace Zone");
+        }
     },
     "peaceZones.remove": (player, id) => {
         id = JSON.parse(id);
