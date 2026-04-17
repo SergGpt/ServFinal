@@ -18,8 +18,7 @@ class EnemyZonesSystem {
             name: 'Static Enemy Zone',
             center: { x: -2288.1455078125, y: 3019.822998046875, z: 32.810028076171875 },
             radius: 150,
-            dimension: null,
-            npcCount: 12,
+            npcCount: 12, // на каждое активное измерение
             respawnSec: 30,
             npcs: new Set(),
         };
@@ -30,14 +29,12 @@ class EnemyZonesSystem {
             damagePerTick: 12,
             heartbeatTimeoutMs: 4000,
             aiTickMs: 250,
-            modelHash: mp.joaat(MODEL_ARMY),
+            model: MODEL_ARMY,
             weaponHash: WEAPON_ASSAULTRIFLE,
         };
     }
 
     async init() {
-        this.ensureSpawnCount();
-
         if (!this.tickTimer) this.tickTimer = setInterval(() => this.tick(), this.cfg.aiTickMs);
         if (!this.hbTimer) this.hbTimer = setInterval(() => this.checkHeartbeat(), 1000);
 
@@ -50,13 +47,15 @@ class EnemyZonesSystem {
     setCount() { return { ok: false, msg: 'Отключено: используется статическая зона.' }; }
     setRespawn() { return { ok: false, msg: 'Отключено: используется статическая зона.' }; }
     async saveDraft() { return { ok: false, msg: 'Отключено: используется статическая зона.' }; }
-    async reload() { this.ensureSpawnCount(); }
+    async reload() {
+        [...this.npcs.keys()].forEach((id) => this.removeNpc(id));
+    }
 
     listZones() {
         return [{
             id: this.staticZone.id,
             name: this.staticZone.name,
-            dimension: 0,
+            dimension: -1,
             npcCount: this.staticZone.npcCount,
             respawnSec: this.staticZone.respawnSec,
             pointsCount: 0,
@@ -70,17 +69,6 @@ class EnemyZonesSystem {
         return { ok: true, msg: 'Телепорт в статическую зону NPC' };
     }
 
-    ensureSpawnCount() {
-        const alive = [...this.staticZone.npcs].filter((id) => {
-            const npc = this.npcs.get(id);
-            return npc && npc.isAlive;
-        }).length;
-
-        for (let i = alive; i < this.staticZone.npcCount; i++) {
-            this.spawnNpc();
-        }
-    }
-
     randomPointInCircle() {
         const t = Math.random() * Math.PI * 2;
         const r = Math.sqrt(Math.random()) * this.staticZone.radius;
@@ -91,12 +79,12 @@ class EnemyZonesSystem {
         };
     }
 
-    spawnNpc() {
+    spawnNpc(dimension) {
         const p = this.randomPointInCircle();
 
-        const ped = mp.peds.new(this.cfg.modelHash, new mp.Vector3(p.x, p.y, p.z), {
+        const ped = mp.peds.new(mp.joaat(this.cfg.model), new mp.Vector3(p.x, p.y, p.z), {
             dynamic: true,
-            dimension: 0,
+            dimension: Number(dimension) || 0,
             heading: Math.random() * 360,
         });
 
@@ -113,6 +101,7 @@ class EnemyZonesSystem {
             targetId: null,
             lastDamageAt: 0,
             respawnAt: 0,
+            dimension: Number(dimension) || 0,
         };
 
         this.npcs.set(ped.id, state);
@@ -138,8 +127,25 @@ class EnemyZonesSystem {
         return list;
     }
 
-    pickNearestPlayer(fromPos) {
-        const players = this.getPlayersInZone();
+    getAliveNpcCountByDimension(dimension) {
+        let c = 0;
+        this.npcs.forEach((npc) => {
+            if (!npc.isAlive) return;
+            if (!npc.ped || !mp.peds.exists(npc.ped)) return;
+            if (npc.dimension === dimension) c += 1;
+        });
+        return c;
+    }
+
+    ensureSpawnCountForDimensions(dimensions) {
+        dimensions.forEach((dimension) => {
+            const alive = this.getAliveNpcCountByDimension(dimension);
+            for (let i = alive; i < this.staticZone.npcCount; i++) this.spawnNpc(dimension);
+        });
+    }
+
+    pickNearestPlayer(fromPos, dimension) {
+        const players = this.getPlayersInZone().filter((p) => p.dimension === dimension);
         let best = null;
         let bestD = Infinity;
 
@@ -155,7 +161,11 @@ class EnemyZonesSystem {
     }
 
     tick() {
-        this.ensureSpawnCount();
+        const activePlayers = this.getPlayersInZone();
+        if (!activePlayers.length) return;
+
+        const dimensions = [...new Set(activePlayers.map((p) => Number(p.dimension) || 0))];
+        this.ensureSpawnCountForDimensions(dimensions);
 
         const now = Date.now();
 
@@ -163,7 +173,7 @@ class EnemyZonesSystem {
             const npc = this.npcs.get(pedId);
             if (!npc || !npc.isAlive || !npc.ped || !mp.peds.exists(npc.ped)) return;
 
-            const target = this.pickNearestPlayer(npc.ped.position);
+            const target = this.pickNearestPlayer(npc.ped.position, npc.dimension);
             if (!target) {
                 if (npc.controllerId) {
                     const ctrl = this.getPlayerById(npc.controllerId);
@@ -173,8 +183,6 @@ class EnemyZonesSystem {
                 npc.targetId = null;
                 return;
             }
-
-            if (npc.ped.dimension !== target.dimension) npc.ped.dimension = target.dimension;
 
             if (npc.controllerId !== target.id) {
                 npc.controllerId = target.id;
@@ -201,8 +209,9 @@ class EnemyZonesSystem {
         this.npcs.forEach((npc) => {
             if (!npc.isAlive) {
                 if (npc.respawnAt && now >= npc.respawnAt) {
+                    const respDim = npc.dimension;
                     this.removeNpc(npc.pedId);
-                    this.spawnNpc();
+                    this.spawnNpc(respDim);
                 }
                 return;
             }
