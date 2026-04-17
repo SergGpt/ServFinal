@@ -240,6 +240,7 @@ module.exports = {
             lastIssuedCommand: null,
             lastIssuedPayload: null,
             postAckGraceUntil: 0,
+            lastDebugAt: 0,
         };
 
         try {
@@ -422,6 +423,21 @@ module.exports = {
                 clearTask(st);
                 setNpcState(st, NPCAZ_STATE.IDLE, (msg) => this.log(msg), 'no-target');
                 return;
+            }
+
+            const livePos = st.livePos || st.ped.position;
+            const distToTarget = dist3(livePos, target.position);
+            const shouldMoveToTarget = st.role === 'leader'
+                ? distToTarget > 1.5
+                : distToTarget > 7.0;
+            const now = Date.now();
+            if (!st.lastDebugAt || now - st.lastDebugAt >= 1000) {
+                st.lastDebugAt = now;
+                this.log(
+                    `debug nid=${st.nid} role=${st.role} targetRid=${target.id} `
+                    + `dist=${distToTarget.toFixed(2)} shouldMoveToTarget=${shouldMoveToTarget} `
+                    + `task=${st.lastTaskType || 'none'} switching=${!!st.switching}`
+                );
             }
 
             const correctController = this.chooseController(this.zone, st.ped, st.targetRid);
