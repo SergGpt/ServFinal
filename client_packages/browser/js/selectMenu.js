@@ -7505,6 +7505,91 @@ var selectMenu = new Vue({
                     }
                 }
             },
+            "npcAttakZoneEditor": {
+                name: "npcAttakZoneEditor",
+                header: "NpcAttakZone",
+                items: [
+                    { text: "Точек полигона", values: ["0"], i: 0 },
+                    { text: "Добавить точку (моя позиция)" },
+                    { text: "Удалить последнюю точку" },
+                    { text: "Очистить точки" },
+                    { text: "Сохранить в БД" },
+                    { text: "Закрыть" }
+                ],
+                i: 0,
+                j: 0,
+                data: null,
+                init(data) {
+                    if (typeof data == 'string') data = JSON.parse(data);
+                    data = data || {};
+                    this.data = {
+                        name: data.name || 'NpcAttakZone',
+                        points: Array.isArray(data.points) ? data.points : [],
+                        minZ: data.minZ,
+                        maxZ: data.maxZ,
+                    };
+                    this.refreshLabels();
+                    mp.trigger('npcattakzone.zone.preview', JSON.stringify(this.getZonePayload()));
+                },
+                refreshLabels() {
+                    this.items[0].values = [String((this.data && this.data.points ? this.data.points.length : 0))];
+                    this.items[0].i = 0;
+                },
+                addPointFromPlayer(pos) {
+                    if (typeof pos == 'string') pos = JSON.parse(pos);
+                    if (!this.data) this.data = { name: 'NpcAttakZone', points: [] };
+                    if (!Array.isArray(this.data.points)) this.data.points = [];
+                    this.data.points.push({
+                        x: Number(pos.x || 0),
+                        y: Number(pos.y || 0),
+                        z: Number(pos.z || 0),
+                    });
+                    this.refreshLabels();
+                    mp.trigger('npcattakzone.zone.preview', JSON.stringify(this.getZonePayload()));
+                },
+                popPoint() {
+                    if (!this.data || !Array.isArray(this.data.points) || !this.data.points.length) return;
+                    this.data.points.pop();
+                    this.refreshLabels();
+                    mp.trigger('npcattakzone.zone.preview', JSON.stringify(this.getZonePayload()));
+                },
+                clearPoints() {
+                    if (!this.data) this.data = { name: 'NpcAttakZone', points: [] };
+                    this.data.points = [];
+                    this.refreshLabels();
+                    mp.trigger('npcattakzone.zone.preview', JSON.stringify(this.getZonePayload()));
+                },
+                getZonePayload() {
+                    var points = (this.data && Array.isArray(this.data.points)) ? this.data.points : [];
+                    var zs = points.map((p) => Number(p.z || 0));
+                    var minZ = zs.length ? Math.min.apply(null, zs) - 1.0 : 0;
+                    var maxZ = zs.length ? Math.max.apply(null, zs) + 2.5 : 0;
+                    return {
+                        name: this.data && this.data.name ? this.data.name : 'NpcAttakZone',
+                        points: points,
+                        minZ: Number(minZ.toFixed(3)),
+                        maxZ: Number(maxZ.toFixed(3)),
+                    };
+                },
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    if (eventName == 'onItemSelected') {
+                        if (item.text == 'Добавить точку (моя позиция)') {
+                            mp.trigger('npcattakzone.menu.point.fromPlayer');
+                        } else if (item.text == 'Удалить последнюю точку') {
+                            this.popPoint();
+                        } else if (item.text == 'Очистить точки') {
+                            this.clearPoints();
+                        } else if (item.text == 'Сохранить в БД') {
+                            mp.trigger('callRemote', 'npcattakzone.menu.save', JSON.stringify(this.getZonePayload()));
+                        } else if (item.text == 'Закрыть') {
+                            selectMenu.show = false;
+                        }
+                    } else if (eventName == 'onBackspacePressed') {
+                        selectMenu.show = false;
+                    }
+                }
+            },
             "moonshineFarm": {
                 name: "moonshineFarm",
                 header: "Самогоноварение",
