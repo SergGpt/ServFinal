@@ -1,1 +1,1 @@
-require('./security.index');
+require('./securityEditor.js');
