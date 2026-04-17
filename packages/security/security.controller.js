@@ -21,6 +21,7 @@ function dist3(a, b) {
 const zones = new Map();
 const npcs = new Map();
 let nextNid = 1;
+let initialized = false;
 
 function nextId() {
     return nextNid++;
@@ -118,6 +119,9 @@ function createNpc(zone, role, target) {
         lastTaskType: null,
         lastTaskData: null,
         lastTaskAt: 0,
+        lastIssuedCmd: null,
+        lastIssuedPayload: null,
+        lastIssuedAt: 0,
         friskEndAt: 0,
     };
 
@@ -167,25 +171,42 @@ function ensureZoneSpawned(zone) {
     });
 }
 
+function issueCommand(st, cmd, payload, minIntervalMs = 0) {
+    if (!st || !st.ped || !mp.peds.exists(st.ped)) return false;
+    const ctrl = st.ped.controller;
+    if (!ctrl || !mp.players.exists(ctrl)) return false;
+
+    const now = Date.now();
+    const payloadStr = JSON.stringify(payload || {});
+    const isSameCommand = st.lastIssuedCmd === cmd && st.lastIssuedPayload === payloadStr;
+    if (isSameCommand && now - (st.lastIssuedAt || 0) < minIntervalMs) {
+        return true;
+    }
+
+    try { ctrl.call('sec:executeCommand', [st.nid, cmd, payloadStr]); } catch {}
+    try {
+        st.ped.setVariable('secCommand', cmd);
+        // Передаем строкой для стабильной синхронизации между клиентами.
+        st.ped.setVariable('secCommandExtra', payloadStr);
+    } catch {}
+
+    st.lastIssuedCmd = cmd;
+    st.lastIssuedPayload = payloadStr;
+    st.lastIssuedAt = now;
+    return true;
+}
+
 function setTaskHoldAim(st, targetRid) {
     if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
-    const ctrl = st.ped.controller;
-    if (!ctrl || !mp.players.exists(ctrl)) return;
 
     const payload = { rid: targetRid, aimDist: SECURITY_CONFIG.stats.guardAimDistance };
-    try { ctrl.call('sec:executeCommand', [st.nid, 'holdAim', JSON.stringify(payload)]); } catch {}
-    try {
-        st.ped.setVariable('secCommand', 'holdAim');
-        st.ped.setVariable('secCommandExtra', payload);
-    } catch {}
+    issueCommand(st, 'holdAim', payload, SECURITY_CONFIG.stats.guardReissueMs);
     saveTask(st, 'holdAim', payload);
     setSecurityState(st, SECURITY_STATE.HOLDING, log, 'guard-hold');
 }
 
 function setTaskChiefFrisk(st, targetRid) {
     if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
-    const ctrl = st.ped.controller;
-    if (!ctrl || !mp.players.exists(ctrl)) return;
 
     const payload = {
         rid: targetRid,
@@ -193,11 +214,7 @@ function setTaskChiefFrisk(st, targetRid) {
         friskDist: SECURITY_CONFIG.stats.friskDistance,
     };
 
-    try { ctrl.call('sec:executeCommand', [st.nid, 'chiefFrisk', JSON.stringify(payload)]); } catch {}
-    try {
-        st.ped.setVariable('secCommand', 'chiefFrisk');
-        st.ped.setVariable('secCommandExtra', payload);
-    } catch {}
+    issueCommand(st, 'chiefFrisk', payload, SECURITY_CONFIG.stats.chiefReissueMs);
     saveTask(st, 'chiefFrisk', payload);
     setSecurityState(st, SECURITY_STATE.APPROACH, log, 'chief-approach');
 }
@@ -265,6 +282,45 @@ async function loadZones() {
     log(`loaded zones=${zones.size}`);
 }
 
+async function ensureTestZone() {
+    const cfg = SECURITY_CONFIG.testZone;
+    if (!cfg || !cfg.enabled) return;
+
+    const dbRef = global.db;
+    const Model = dbRef && dbRef.Models ? dbRef.Models.SecurityZone : null;
+    if (!Model) {
+        log('test zone skipped: SecurityZone model is not registered in db.Models');
+        return;
+    }
+
+    let row = await Model.findOne({ where: { name: cfg.name } }).catch(() => null);
+    if (!row) {
+        row = await Model.create({
+            name: cfg.name,
+            x: cfg.x,
+            y: cfg.y,
+            z: cfg.z,
+            dimension: cfg.dimension || 0,
+            radius: cfg.radius || SECURITY_CONFIG.zoneRadius,
+        });
+        log(`test zone created at ${cfg.x}, ${cfg.y}, ${cfg.z}`);
+    }
+
+    const zone = row.get ? row.get({ plain: true }) : row;
+    zones.set(Number(zone.id), {
+        id: Number(zone.id),
+        name: zone.name,
+        x: Number(zone.x) || 0,
+        y: Number(zone.y) || 0,
+        z: Number(zone.z) || 0,
+        dimension: Number(zone.dimension) || 0,
+        radius: Number(zone.radius) || SECURITY_CONFIG.zoneRadius,
+        active: false,
+        npcIds: [],
+        targetRid: null,
+    });
+}
+
 const controllerManager = createSecurityControllerManager({
     chooseController,
     getZone: (id) => zones.get(id),
@@ -311,19 +367,44 @@ async function addZone(player, name) {
     return zone;
 }
 
+
+function respawnAll() {
+    let touched = 0;
+    zones.forEach((zone) => {
+        clearZoneNpcs(zone);
+        touched += 1;
+    });
+    return touched;
+}
+
+function isSecurityInitialized() {
+    return initialized;
+}
+
 async function initSecurityController() {
+    if (initialized) {
+        log('init called again, skip duplicate initialization');
+        return;
+    }
+
     await loadZones();
+    await ensureTestZone();
 
     mp.events.add('security:zone:add', async (player, name) => {
-        const zone = await addZone(player, name);
-        if (zone) {
-            try { player.outputChatBox(`!{#99ff99}[SECURITY] Zone created id=${zone.id} radius=${zone.radius}`); } catch {}
-            log(`zone created id=${zone.id} by=${player.id}`);
+        try {
+            const zone = await addZone(player, name);
+            if (zone) {
+                try { player.outputChatBox(`!{#99ff99}[SECURITY] Zone created id=${zone.id} radius=${zone.radius}`); } catch {}
+                log(`zone created id=${zone.id} by=${player.id}`);
+            }
+        } catch (e) {
+            log(`zone add failed: ${e && e.message ? e.message : e}`);
+            try { player.outputChatBox(`!{#ff9999}[SECURITY] Zone create error: ${e && e.message ? e.message : e}`); } catch {}
         }
     });
 
     mp.events.add('security:respawn', async () => {
-        zones.forEach((zone) => clearZoneNpcs(zone));
+        respawnAll();
     });
 
     mp.events.add('playerQuit', (player) => {
@@ -372,7 +453,8 @@ async function initSecurityController() {
 
     setInterval(performBehaviorTick, SECURITY_CONFIG.timers.behaviorMs);
 
+    initialized = true;
     log(`server controller loaded (zones=${zones.size})`);
 }
 
-module.exports = { initSecurityController };
+module.exports = { initSecurityController, addZone, respawnAll, isSecurityInitialized };
