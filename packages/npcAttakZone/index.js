@@ -433,10 +433,13 @@ module.exports = {
             const now = Date.now();
             if (!st.lastDebugAt || now - st.lastDebugAt >= 1000) {
                 st.lastDebugAt = now;
+                const currentCmd = st.ped.getVariable ? st.ped.getVariable('npcazCommand') : null;
+                const ctrlState = st.ped.getVariable ? st.ped.getVariable('npcazCtrlState') : null;
                 this.log(
                     `debug nid=${st.nid} role=${st.role} targetRid=${target.id} `
                     + `dist=${distToTarget.toFixed(2)} shouldMoveToTarget=${shouldMoveToTarget} `
-                    + `task=${st.lastTaskType || 'none'} switching=${!!st.switching}`
+                    + `task=${st.lastTaskType || 'none'} cmd=${currentCmd || 'none'} `
+                    + `ctrlState=${ctrlState || 'n/a'} switching=${!!st.switching}`
                 );
             }
 
