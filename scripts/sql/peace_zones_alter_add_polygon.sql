@@ -1,0 +1,4 @@
+ALTER TABLE `PeaceZones`
+  ADD COLUMN `points` LONGTEXT NULL AFTER `dz`,
+  ADD COLUMN `minZ` FLOAT NULL AFTER `points`,
+  ADD COLUMN `maxZ` FLOAT NULL AFTER `minZ`;

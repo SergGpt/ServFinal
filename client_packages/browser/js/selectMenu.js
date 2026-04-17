@@ -7505,6 +7505,92 @@ var selectMenu = new Vue({
                     }
                 }
             },
+            "peaceZoneEditor": {
+                name: "peaceZoneEditor",
+                header: "Peace Zone Editor",
+                items: [
+                    { text: "Точек полигона", values: ["0"], i: 0 },
+                    { text: "Добавить точку (моя позиция)" },
+                    { text: "Удалить последнюю точку" },
+                    { text: "Очистить точки" },
+                    { text: "Сохранить в БД" },
+                    { text: "Закрыть" }
+                ],
+                i: 0,
+                j: 0,
+                data: null,
+                init(data) {
+                    if (typeof data == 'string') data = JSON.parse(data);
+                    data = data || {};
+                    this.data = {
+                        points: Array.isArray(data.points) ? data.points : [],
+                    };
+                    this.refreshLabels();
+                },
+                refreshLabels() {
+                    if (!this.data) this.data = { points: [] };
+                    if (!Array.isArray(this.data.points)) this.data.points = [];
+                    this.items[0].values = [String(this.data.points.length)];
+                    this.items[0].i = 0;
+                    mp.trigger('peaceZones.menu.local.sync', JSON.stringify(this.data.points));
+                },
+                addPointFromPlayer(pos) {
+                    if (typeof pos == 'string') pos = JSON.parse(pos);
+                    if (!this.data) this.data = { points: [] };
+                    if (!Array.isArray(this.data.points)) this.data.points = [];
+                    this.data.points.push({
+                        x: Number(pos.x || 0),
+                        y: Number(pos.y || 0),
+                        z: Number(pos.z || 0),
+                    });
+                    this.refreshLabels();
+                },
+                popPoint() {
+                    if (!this.data || !Array.isArray(this.data.points) || !this.data.points.length) return;
+                    this.data.points.pop();
+                    this.refreshLabels();
+                },
+                clearPoints() {
+                    if (!this.data) this.data = { points: [] };
+                    this.data.points = [];
+                    this.refreshLabels();
+                },
+                getPayload() {
+                    var points = (this.data && Array.isArray(this.data.points)) ? this.data.points : [];
+                    var zs = points.map((p) => Number(p.z || 0));
+                    var minZ = zs.length ? Math.min.apply(null, zs) - 1.0 : 0;
+                    var maxZ = zs.length ? Math.max.apply(null, zs) + 2.5 : 0;
+                    return {
+                        points: points,
+                        minZ: Number(minZ.toFixed(3)),
+                        maxZ: Number(maxZ.toFixed(3)),
+                    };
+                },
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    if (eventName == 'onItemSelected') {
+                        if (item.text == 'Добавить точку (моя позиция)') {
+                            mp.trigger('peaceZones.menu.point.fromPlayer');
+                        } else if (item.text == 'Удалить последнюю точку') {
+                            this.popPoint();
+                        } else if (item.text == 'Очистить точки') {
+                            this.clearPoints();
+                        } else if (item.text == 'Сохранить в БД') {
+                            if (!this.data || !Array.isArray(this.data.points) || this.data.points.length < 3) {
+                                selectMenu.notification = 'Нужно минимум 3 точки';
+                                return;
+                            }
+                            mp.trigger('callRemote', 'peaceZones.menu.save', JSON.stringify(this.getPayload()));
+                        } else if (item.text == 'Закрыть') {
+                            mp.trigger('peaceZones.menu.local.sync', JSON.stringify([]));
+                            selectMenu.show = false;
+                        }
+                    } else if (eventName == 'onBackspacePressed') {
+                        mp.trigger('peaceZones.menu.local.sync', JSON.stringify([]));
+                        selectMenu.show = false;
+                    }
+                }
+            },
             "moonshineFarm": {
                 name: "moonshineFarm",
                 header: "Самогоноварение",
