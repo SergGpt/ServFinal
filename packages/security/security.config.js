@@ -42,6 +42,16 @@ const SECURITY_CONFIG = {
         controllerTimeoutMs: 5000,
         switchCooldownMs: 900,
     },
+
+    testZone: {
+        enabled: true,
+        name: 'Security Test Zone',
+        x: -2273.8115234375,
+        y: 3129.416748046875,
+        z: 32.811885833740234,
+        dimension: 0,
+        radius: 100,
+    },
 };
 
 module.exports = { SECURITY_CONFIG };

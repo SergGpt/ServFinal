@@ -282,6 +282,45 @@ async function loadZones() {
     log(`loaded zones=${zones.size}`);
 }
 
+async function ensureTestZone() {
+    const cfg = SECURITY_CONFIG.testZone;
+    if (!cfg || !cfg.enabled) return;
+
+    const dbRef = global.db;
+    const Model = dbRef && dbRef.Models ? dbRef.Models.SecurityZone : null;
+    if (!Model) {
+        log('test zone skipped: SecurityZone model is not registered in db.Models');
+        return;
+    }
+
+    let row = await Model.findOne({ where: { name: cfg.name } }).catch(() => null);
+    if (!row) {
+        row = await Model.create({
+            name: cfg.name,
+            x: cfg.x,
+            y: cfg.y,
+            z: cfg.z,
+            dimension: cfg.dimension || 0,
+            radius: cfg.radius || SECURITY_CONFIG.zoneRadius,
+        });
+        log(`test zone created at ${cfg.x}, ${cfg.y}, ${cfg.z}`);
+    }
+
+    const zone = row.get ? row.get({ plain: true }) : row;
+    zones.set(Number(zone.id), {
+        id: Number(zone.id),
+        name: zone.name,
+        x: Number(zone.x) || 0,
+        y: Number(zone.y) || 0,
+        z: Number(zone.z) || 0,
+        dimension: Number(zone.dimension) || 0,
+        radius: Number(zone.radius) || SECURITY_CONFIG.zoneRadius,
+        active: false,
+        npcIds: [],
+        targetRid: null,
+    });
+}
+
 const controllerManager = createSecurityControllerManager({
     chooseController,
     getZone: (id) => zones.get(id),
@@ -349,6 +388,7 @@ async function initSecurityController() {
     }
 
     await loadZones();
+    await ensureTestZone();
 
     mp.events.add('security:zone:add', async (player, name) => {
         try {
