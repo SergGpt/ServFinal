@@ -10,6 +10,10 @@ const pendingAssign = new Map();
 const HEARTBEAT_MS = 1000;
 const COMMAND_REISSUE_MS = 1200;
 const COMMAND_RECOVERY_MS = 2500;
+const MOVE_PROGRESS_EPS = 0.06;
+const MOVE_STUCK_AFTER_MS = 2400;
+const MOVE_FOLLOW_REISSUE_MS = 900;
+const MOVE_FALLBACK_REISSUE_MS = 1200;
 
 function logHeartbeatDebug(message) {
     const text = `[NpcAttakZone][heartbeat] ${message}`;
@@ -90,7 +94,15 @@ function drawNpcLogicDebugText(text) {
     });
 }
 
-function drawNpcPedDebug(ped) {
+function distance3(a, b) {
+    if (!a || !b) return 0;
+    const dx = (Number(a.x) || 0) - (Number(b.x) || 0);
+    const dy = (Number(a.y) || 0) - (Number(b.y) || 0);
+    const dz = (Number(a.z) || 0) - (Number(b.z) || 0);
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+function drawNpcPedDebug(obj, ped) {
     if (!ped || !mp.peds.exists(ped)) return;
     const syncedPos = ped.getVariable('npcazLivePos');
     const pos = syncedPos && typeof syncedPos === 'object'
@@ -116,6 +128,7 @@ function drawNpcPedDebug(ped) {
         `pos: ${pos.x.toFixed(2)} ${pos.y.toFixed(2)} ${pos.z.toFixed(2)}`,
         `dist->target: ${dist >= 0 ? dist.toFixed(2) : 'n/a'} rid=${targetRid}`,
         `controllerRid: ${controllerRid}`,
+        obj ? `moveTask=${obj.moveTask || 'n/a'} progress=${obj.lastMoveHadProgress ? 'yes' : 'no'} fallback=${obj.lastStuckFallback ? 'yes' : 'no'}` : '',
     ].join(' | ');
 
     mp.game.graphics.drawText(text, [screenPos.x, screenPos.y], {
@@ -207,6 +220,15 @@ function ensureNpcEntry(ped) {
             lastAppliedAt: 0,
             needsRehydrate: true,
             recoveryAt: 0,
+            lastMovePos: null,
+            lastMoveProgressAt: 0,
+            stuckSince: 0,
+            moveTask: 'idle',
+            lastMoveHadProgress: false,
+            lastStuckFallback: false,
+            lastMoveDebugAt: 0,
+            lastFollowIssuedAt: 0,
+            lastFallbackIssuedAt: 0,
         });
     } else {
         controlledNpcs.get(nid).ped = ped;
@@ -235,15 +257,84 @@ function runGuardEngage(obj, ped, target, extra) {
             try { ped.clearTasks(); } catch (e) {}
             try { ped.taskStandStill(1200); } catch (e) {}
         }
+        obj.moveTask = 'aim';
+        obj.lastStuckFallback = false;
+        obj.stuckSince = 0;
+        obj.lastMovePos = { x: ped.position.x, y: ped.position.y, z: ped.position.z };
+        obj.lastMoveProgressAt = Date.now();
         try { ped.taskAimGunAtEntity(target.handle, 1800, false); } catch (e) {}
         return;
     }
 
-    if (obj.lastMode !== 'guardRun') {
-        obj.lastMode = 'guardRun';
-        try { ped.clearTasks(); } catch (e) {}
+    const now = Date.now();
+    const pos = { x: ped.position.x, y: ped.position.y, z: ped.position.z };
+    if (!obj.lastMovePos) {
+        obj.lastMovePos = pos;
+        obj.lastMoveProgressAt = now;
     }
-    try { ped.taskGoToCoordAnyMeans(target.position.x, target.position.y, target.position.z, speed, 0, false, 0, 0); } catch (e) {}
+
+    const stepDist = distance3(pos, obj.lastMovePos);
+    const hasProgress = stepDist >= MOVE_PROGRESS_EPS;
+    obj.lastMoveHadProgress = hasProgress;
+    if (hasProgress) {
+        obj.lastMoveProgressAt = now;
+        obj.stuckSince = 0;
+    } else if (!obj.stuckSince && now - (obj.lastMoveProgressAt || 0) >= MOVE_STUCK_AFTER_MS) {
+        obj.stuckSince = now;
+    }
+    obj.lastMovePos = pos;
+
+    const noProgressForMs = now - (obj.lastMoveProgressAt || 0);
+    const isStuck = noProgressForMs >= MOVE_STUCK_AFTER_MS;
+    let fallbackTriggered = false;
+
+    if (!isStuck) {
+        if (obj.lastMode !== 'guardRun' || obj.moveTask !== 'followEntity' || now - (obj.lastFollowIssuedAt || 0) >= MOVE_FOLLOW_REISSUE_MS) {
+            obj.lastMode = 'guardRun';
+            obj.moveTask = 'followEntity';
+            obj.lastStuckFallback = false;
+            obj.lastFollowIssuedAt = now;
+            try { ped.clearTasks(); } catch (e) {}
+            try {
+                ped.taskFollowToOffsetOfEntity(target.handle, 0.0, 0.0, 0.0, speed, -1, 1.2, true);
+            } catch (e) {
+                fallbackTriggered = true;
+            }
+        }
+    } else {
+        fallbackTriggered = true;
+    }
+
+    if (fallbackTriggered) {
+        if (obj.moveTask !== 'goStraightFallback' || now - (obj.lastFallbackIssuedAt || 0) >= MOVE_FALLBACK_REISSUE_MS) {
+            try { ped.clearTasks(); } catch (e) {}
+            try {
+                ped.taskGoStraightToCoord(
+                    target.position.x,
+                    target.position.y,
+                    target.position.z,
+                    speed,
+                    2500,
+                    Number(target.heading || 0),
+                    0.35
+                );
+            } catch (e) {}
+            obj.moveTask = 'goStraightFallback';
+            obj.lastFallbackIssuedAt = now;
+            obj.lastStuckFallback = true;
+            if (!obj.stuckSince) obj.stuckSince = now;
+        }
+    }
+
+    const nid = ped.getVariable('npcazNpcId');
+    if (!obj.lastMoveDebugAt || now - obj.lastMoveDebugAt >= 1000) {
+        obj.lastMoveDebugAt = now;
+        logHeartbeatDebug(
+            `move nid=${nid} task=${obj.moveTask} progress=${hasProgress} `
+            + `stepDist=${stepDist.toFixed(3)} noProgressForMs=${noProgressForMs} `
+            + `stuck=${isStuck} fallback=${obj.lastStuckFallback}`
+        );
+    }
 }
 
 function runLeaderFrisk(obj, ped, target, extra) {
@@ -426,7 +517,7 @@ mp.events.add({
         controlledNpcs.forEach((obj, nid) => {
             const ped = obj.ped;
             if (!ped || !mp.peds.exists(ped)) return;
-            drawNpcPedDebug(ped);
+            drawNpcPedDebug(obj, ped);
 
             const me = mp.players.local;
             const controllerRid = ped.getVariable('npcazControllerRid');
