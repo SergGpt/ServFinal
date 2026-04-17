@@ -82,14 +82,22 @@ function drawNpcLogicDebugText(text) {
 
 function drawNpcPedDebug(ped) {
     if (!ped || !mp.peds.exists(ped)) return;
-    const pos = ped.position;
+    const livePos = mp.game.entity.getEntityCoords(ped.handle, true);
+    const pos = livePos || ped.position;
     const screenPos = mp.game.graphics.world3dToScreen2d(pos.x, pos.y, pos.z + 1.1);
     if (!screenPos) return;
 
     const targetRid = Number(ped.getVariable('npcazTargetRid'));
     const controllerRid = Number(ped.getVariable('npcazControllerRid'));
     const target = Number.isInteger(targetRid) ? findPlayerById(targetRid) : null;
-    const dist = target ? target.position.distanceTo(pos) : -1;
+    let dist = -1;
+    if (target) {
+        const targetPos = mp.game.entity.getEntityCoords(target.handle, true) || target.position;
+        const dx = targetPos.x - pos.x;
+        const dy = targetPos.y - pos.y;
+        const dz = targetPos.z - pos.z;
+        dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
 
     const text = [
         `NPC#${ped.getVariable('npcazNpcId')} role=${ped.getVariable('npcazRole') || 'n/a'}`,
@@ -325,6 +333,7 @@ mp.events.add({
         controlledNpcs.forEach((obj, nid) => {
             const ped = obj.ped;
             if (!ped || !mp.peds.exists(ped)) return;
+            drawNpcPedDebug(ped);
 
             const me = mp.players.local;
             const controllerRid = ped.getVariable('npcazControllerRid');
@@ -348,7 +357,6 @@ mp.events.add({
                 else if (cmd === 'leaderFrisk') logicDebugText = 'Лидер: подходит на 1.5м и обыскивает';
             }
 
-            drawNpcPedDebug(ped);
         });
 
         if (logicDebugText) drawNpcLogicDebugText(logicDebugText);
