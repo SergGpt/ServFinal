@@ -21,6 +21,7 @@ function dist3(a, b) {
 const zones = new Map();
 const npcs = new Map();
 let nextNid = 1;
+let initialized = false;
 
 function nextId() {
     return nextNid++;
@@ -311,19 +312,43 @@ async function addZone(player, name) {
     return zone;
 }
 
+
+function respawnAll() {
+    let touched = 0;
+    zones.forEach((zone) => {
+        clearZoneNpcs(zone);
+        touched += 1;
+    });
+    return touched;
+}
+
+function isSecurityInitialized() {
+    return initialized;
+}
+
 async function initSecurityController() {
+    if (initialized) {
+        log('init called again, skip duplicate initialization');
+        return;
+    }
+
     await loadZones();
 
     mp.events.add('security:zone:add', async (player, name) => {
-        const zone = await addZone(player, name);
-        if (zone) {
-            try { player.outputChatBox(`!{#99ff99}[SECURITY] Zone created id=${zone.id} radius=${zone.radius}`); } catch {}
-            log(`zone created id=${zone.id} by=${player.id}`);
+        try {
+            const zone = await addZone(player, name);
+            if (zone) {
+                try { player.outputChatBox(`!{#99ff99}[SECURITY] Zone created id=${zone.id} radius=${zone.radius}`); } catch {}
+                log(`zone created id=${zone.id} by=${player.id}`);
+            }
+        } catch (e) {
+            log(`zone add failed: ${e && e.message ? e.message : e}`);
+            try { player.outputChatBox(`!{#ff9999}[SECURITY] Zone create error: ${e && e.message ? e.message : e}`); } catch {}
         }
     });
 
     mp.events.add('security:respawn', async () => {
-        zones.forEach((zone) => clearZoneNpcs(zone));
+        respawnAll();
     });
 
     mp.events.add('playerQuit', (player) => {
@@ -372,7 +397,8 @@ async function initSecurityController() {
 
     setInterval(performBehaviorTick, SECURITY_CONFIG.timers.behaviorMs);
 
+    initialized = true;
     log(`server controller loaded (zones=${zones.size})`);
 }
 
-module.exports = { initSecurityController };
+module.exports = { initSecurityController, addZone, respawnAll, isSecurityInitialized };
