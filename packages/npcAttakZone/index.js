@@ -241,6 +241,8 @@ module.exports = {
             lastIssuedPayload: null,
             postAckGraceUntil: 0,
             lastDebugAt: 0,
+            livePos: { x: pos.x, y: pos.y, z: pos.z },
+            liveHeading: 0,
         };
 
         try {
@@ -256,6 +258,7 @@ module.exports = {
             ped.setVariable('npcazCommand', 'idle');
             ped.setVariable('npcazCommandExtra', null);
             ped.setVariable('npcazLivePos', { x: pos.x, y: pos.y, z: pos.z });
+            ped.setVariable('npcazLiveHeading', Number(ped.heading || 0));
             ped.setVariable('npcazDead', false);
             ped.health = 250;
             ped.setHealth(250);
@@ -587,8 +590,12 @@ module.exports = {
                     z: Number(pos.z) || 0,
                 };
                 st.livePos = livePos;
+                st.liveHeading = Number(pos.heading) || st.liveHeading || 0;
                 try {
-                    if (st.ped && mp.peds.exists(st.ped)) st.ped.setVariable('npcazLivePos', livePos);
+                    if (st.ped && mp.peds.exists(st.ped)) {
+                        st.ped.setVariable('npcazLivePos', livePos);
+                        st.ped.setVariable('npcazLiveHeading', st.liveHeading);
+                    }
                 } catch (e) {}
             }
         }

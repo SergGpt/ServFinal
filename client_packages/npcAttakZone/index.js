@@ -119,6 +119,46 @@ function drawNpcPedDebug(ped) {
     });
 }
 
+function clamp01(value) {
+    if (value < 0) return 0;
+    if (value > 1) return 1;
+    return value;
+}
+
+function syncObserverNpcTransform(obj, ped) {
+    if (!obj || !ped || !mp.peds.exists(ped)) return;
+    const livePos = ped.getVariable('npcazLivePos');
+    if (!livePos || typeof livePos !== 'object') return;
+
+    const targetPos = new mp.Vector3(
+        Number(livePos.x) || 0,
+        Number(livePos.y) || 0,
+        Number(livePos.z) || 0,
+    );
+    const current = ped.position;
+    const dx = targetPos.x - current.x;
+    const dy = targetPos.y - current.y;
+    const dz = targetPos.z - current.z;
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    // крупное расхождение — жестко догоняем
+    if (dist > 3.0) {
+        try { ped.setCoordsNoOffset(targetPos.x, targetPos.y, targetPos.z, false, false, false); } catch (e) {}
+    } else if (dist > 0.05) {
+        // мелкие расхождения — мягкая интерполяция
+        const alpha = clamp01(0.22);
+        const nx = current.x + dx * alpha;
+        const ny = current.y + dy * alpha;
+        const nz = current.z + dz * alpha;
+        try { ped.setCoordsNoOffset(nx, ny, nz, false, false, false); } catch (e) {}
+    }
+
+    const liveHeading = Number(ped.getVariable('npcazLiveHeading'));
+    if (!isNaN(liveHeading)) {
+        try { ped.setHeading(liveHeading); } catch (e) {}
+    }
+}
+
 const debugMessage = {
     text: null,
     until: 0,
@@ -382,12 +422,20 @@ mp.events.add({
 
             const me = mp.players.local;
             const controllerRid = ped.getVariable('npcazControllerRid');
-            if (controllerRid !== me.id) return;
+            if (controllerRid !== me.id) {
+                syncObserverNpcTransform(obj, ped);
+                return;
+            }
 
             if (!obj.lastHeartbeatAt || now - obj.lastHeartbeatAt >= HEARTBEAT_MS) {
                 obj.lastHeartbeatAt = now;
                 const p = ped.position;
-                const payload = { x: Number(p.x.toFixed(3)), y: Number(p.y.toFixed(3)), z: Number(p.z.toFixed(3)) };
+                const payload = {
+                    x: Number(p.x.toFixed(3)),
+                    y: Number(p.y.toFixed(3)),
+                    z: Number(p.z.toFixed(3)),
+                    heading: Number((ped.heading || 0).toFixed(3)),
+                };
                 try { mp.events.callRemote('npcattakzone:npc.heartbeat', nid, JSON.stringify(payload)); } catch (e) {}
             }
 
