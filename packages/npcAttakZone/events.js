@@ -10,6 +10,13 @@ module.exports = {
 
     'player.joined': (player) => {
         player.call('npcattakzone.zone.sync', [moduleApi.getZoneData()]);
+        moduleApi.playerStates.set(player.id, false);
+        player.setVariable('npcattakzone:inside', false);
+    },
+
+    playerQuit: (player) => {
+        if (!player) return;
+        moduleApi.playerStates.delete(player.id);
     },
 
     'npcattakzone.menu.open': (player) => {

@@ -12,11 +12,64 @@ function normalizePoint(point) {
 
 module.exports = {
     zone: null,
+    playerStates: new Map(),
 
     async init() {
         await this.loadZoneFromDb();
         this.syncForAll();
+        this.startDebugTracker();
         console.log(`[NpcAttakZone] inited. zone=${this.zone ? this.zone.id : 'none'}`);
+    },
+
+    isPointInsidePolygon2d(x, y, points) {
+        let inside = false;
+        for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+            const xi = Number(points[i].x) || 0;
+            const yi = Number(points[i].y) || 0;
+            const xj = Number(points[j].x) || 0;
+            const yj = Number(points[j].y) || 0;
+            const intersect = ((yi > y) !== (yj > y))
+                && (x < ((xj - xi) * (y - yi)) / ((yj - yi) || 0.000001) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    },
+
+    isPlayerInsideZone(player) {
+        if (!this.zone || !Array.isArray(this.zone.points) || this.zone.points.length < 3) return false;
+        if (!player || !mp.players.exists(player)) return false;
+        if (Number(player.dimension) !== Number(this.zone.dimension)) return false;
+
+        const pos = player.position;
+        const minZ = Number(this.zone.minZ);
+        const maxZ = Number(this.zone.maxZ);
+        if (Number.isFinite(minZ) && pos.z < minZ) return false;
+        if (Number.isFinite(maxZ) && pos.z > maxZ) return false;
+
+        return this.isPointInsidePolygon2d(pos.x, pos.y, this.zone.points);
+    },
+
+    startDebugTracker() {
+        setInterval(() => {
+            mp.players.forEach((player) => {
+                if (!player || !mp.players.exists(player)) return;
+
+                const prev = !!this.playerStates.get(player.id);
+                const inside = this.isPlayerInsideZone(player);
+
+                if (inside !== prev) {
+                    this.playerStates.set(player.id, inside);
+                    player.setVariable('npcattakzone:inside', inside);
+                    player.call('npcattakzone.debug.state', [inside]);
+
+                    if (inside) {
+                        console.log(`[NpcAttakZone] player ${player.name} (${player.id}) entered zone`);
+                    } else {
+                        console.log(`[NpcAttakZone] player ${player.name} (${player.id}) left zone`);
+                    }
+                }
+            });
+        }, 1000);
     },
 
     getDefaultZone() {

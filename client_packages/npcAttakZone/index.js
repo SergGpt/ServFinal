@@ -3,6 +3,7 @@
 let zoneState = null;
 let previewUntil = 0;
 const PREVIEW_MS = 20000;
+let isInsideZone = false;
 
 function parsePayload(value, fallback = null) {
     if (typeof value === 'string') {
@@ -42,6 +43,17 @@ function drawPolygon(zone, color) {
     }
 }
 
+function drawDebugText() {
+    const text = '~r~NpcAttakZone~w~: игрок внутри зоны';
+    mp.game.graphics.drawText(text, [0.5, 0.83], {
+        font: 4,
+        color: [255, 255, 255, 230],
+        scale: [0.45, 0.45],
+        outline: true,
+        centre: true,
+    });
+}
+
 mp.events.add({
     'npcattakzone.menu.show.request': () => {
         mp.events.callRemote('npcattakzone.menu.open');
@@ -69,9 +81,27 @@ mp.events.add({
         zoneState = parsePayload(zone, null);
     },
 
+    'npcattakzone.debug.state': (inside) => {
+        const nextState = !!inside;
+        if (nextState !== isInsideZone) {
+            isInsideZone = nextState;
+            if (isInsideZone) {
+                mp.notify.success('Вы вошли в NpcAttakZone', 'NpcAttakZone');
+            } else {
+                mp.notify.info('Вы вышли из NpcAttakZone', 'NpcAttakZone');
+            }
+        }
+    },
+
     render: () => {
         if (!zoneState) return;
-        if (Date.now() > previewUntil) return;
-        drawPolygon(zoneState, [220, 45, 45, 185]);
+
+        if (Date.now() <= previewUntil) {
+            drawPolygon(zoneState, [220, 45, 45, 185]);
+        }
+
+        if (isInsideZone) {
+            drawDebugText();
+        }
     },
 });
