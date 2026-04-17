@@ -82,8 +82,7 @@ function drawNpcLogicDebugText(text) {
 
 function drawNpcPedDebug(ped) {
     if (!ped || !mp.peds.exists(ped)) return;
-    const livePos = mp.game.entity.getEntityCoords(ped.handle, true);
-    const pos = livePos || ped.position;
+    const pos = ped.position;
     const screenPos = mp.game.graphics.world3dToScreen2d(pos.x, pos.y, pos.z + 1.1);
     if (!screenPos) return;
 
@@ -92,7 +91,7 @@ function drawNpcPedDebug(ped) {
     const target = Number.isInteger(targetRid) ? findPlayerById(targetRid) : null;
     let dist = -1;
     if (target) {
-        const targetPos = mp.game.entity.getEntityCoords(target.handle, true) || target.position;
+        const targetPos = target.position;
         const dx = targetPos.x - pos.x;
         const dy = targetPos.y - pos.y;
         const dz = targetPos.z - pos.z;
@@ -162,13 +161,19 @@ function ensureNpcEntry(ped) {
 
 function runGuardEngage(obj, ped, target, extra) {
     if (!obj || !ped || !target) return;
-    const speed = Number(extra && extra.runSpeed) || 3.2;
-    const action = String(extra && extra.action ? extra.action : 'guardRun');
+    const weaponHash = mp.game.joaat('WEAPON_CARBINERIFLE');
+    try { ped.setWeapon(weaponHash); } catch (e) {}
+    try { ped.currentWeapon = weaponHash; } catch (e) {}
 
-    if (action === 'guardAim') {
+    const speed = Number(extra && extra.runSpeed) || 3.2;
+    const aimDist = Number(extra && extra.aimDist) || 7.0;
+    const dist = target.position.distanceTo(ped.position);
+    const shouldAim = dist <= aimDist;
+
+    if (shouldAim) {
         try { ped.clearTasks(); } catch (e) {}
-        try { ped.taskStandStill(700); } catch (e) {}
-        try { ped.taskAimGunAtEntity(target.handle, 1200, false); } catch (e) {}
+        try { ped.taskStandStill(1200); } catch (e) {}
+        try { ped.taskAimGunAtEntity(target.handle, 1500, false); } catch (e) {}
         return;
     }
 
@@ -182,20 +187,25 @@ function runLeaderFrisk(obj, ped, target, extra) {
     const friskDist = Number(extra && extra.friskDist) || 1.5;
     const runSpeed = Number(extra && extra.runSpeed) || 2.1;
     const dist = target.position.distanceTo(ped.position);
+    const now = Date.now();
 
     if (dist <= friskDist) {
-        try { ped.clearTasks(); } catch (e) {}
-        try { ped.taskTurnToFaceCoord(target.position.x, target.position.y, target.position.z, 400); } catch (e) {}
-        try {
-            const dict = 'amb@prop_human_bum_bin@idle_b';
-            if (!mp.game.streaming.hasAnimDictLoaded(dict)) {
-                mp.game.streaming.requestAnimDict(dict);
-            }
-            ped.taskPlayAnim(dict, 'idle_d', 8.0, -8.0, -1, 1, 0.0, false, false, false);
-        } catch (e) {}
+        if (!obj.friskUntil || now >= obj.friskUntil) {
+            obj.friskUntil = now + 2600;
+            try { ped.clearTasks(); } catch (e) {}
+            try { ped.taskTurnToFaceCoord(target.position.x, target.position.y, target.position.z, 600); } catch (e) {}
+            try {
+                const dict = 'amb@prop_human_bum_bin@idle_b';
+                if (!mp.game.streaming.hasAnimDictLoaded(dict)) {
+                    mp.game.streaming.requestAnimDict(dict);
+                }
+                ped.taskPlayAnim(dict, 'idle_d', 8.0, -8.0, 2500, 1, 0.0, false, false, false);
+            } catch (e) {}
+        }
         return;
     }
 
+    obj.friskUntil = 0;
     try { ped.clearTasks(); } catch (e) {}
     try { ped.taskGoToCoordAnyMeans(target.position.x, target.position.y, target.position.z, runSpeed, 0, false, 0, 0); } catch (e) {}
 }
