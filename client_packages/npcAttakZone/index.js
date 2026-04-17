@@ -8,7 +8,7 @@ let isInsideZone = false;
 const controlledNpcs = new Map();
 const pendingAssign = new Map();
 const HEARTBEAT_MS = 1000;
-const COMMAND_REISSUE_MS = 700;
+const COMMAND_REISSUE_MS = 200;
 
 function parsePayload(value, fallback = null) {
     if (typeof value === 'string') {
@@ -192,7 +192,7 @@ function runGuardEngage(obj, ped, target, extra) {
         obj.lastMode = 'guardRun';
         try { ped.clearTasks(); } catch (e) {}
     }
-    try { ped.taskFollowToOffsetOfEntity(target.handle, 0.0, -aimDist, 0.0, speed, 900, aimDist, true); } catch (e) {}
+    try { ped.taskGoToCoordAnyMeans(target.position.x, target.position.y, target.position.z, speed, 0, false, 0, 0); } catch (e) {}
     try { ped.taskAimGunAtEntity(target.handle, 1200, false); } catch (e) {}
 }
 
@@ -224,7 +224,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
     obj.lastMode = 'leaderMove';
     obj.friskUntil = 0;
     try { ped.clearTasks(); } catch (e) {}
-    try { ped.taskFollowToOffsetOfEntity(target.handle, 0.0, -friskDist, 0.0, runSpeed, 900, friskDist, true); } catch (e) {}
+    try { ped.taskGoToCoordAnyMeans(target.position.x, target.position.y, target.position.z, runSpeed, 0, false, 0, 0); } catch (e) {}
 }
 
 function applyCommand(nid, cmd, extraJson, force = false) {
