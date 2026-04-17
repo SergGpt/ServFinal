@@ -36,6 +36,21 @@ module.exports = (sequelize, DataTypes) => {
             defaultValue: null,
             allowNull: true
         },
+        points: {
+            type: DataTypes.TEXT('long'),
+            allowNull: true,
+            defaultValue: null,
+        },
+        minZ: {
+            type: DataTypes.FLOAT,
+            allowNull: true,
+            defaultValue: null,
+        },
+        maxZ: {
+            type: DataTypes.FLOAT,
+            allowNull: true,
+            defaultValue: null,
+        },
     }, {timestamps: false});
 
     return model;

@@ -12,6 +12,22 @@ module.exports = {
         info = JSON.parse(info);
         peaceZones.add(info.x, info.y, info.z, info.dx, info.dy, info.dz);
     },
+    "peaceZones.menu.save": async (player, info) => {
+        if (!player || !player.character || player.character.admin < 6) return;
+        let payload = null;
+        try {
+            payload = typeof info === 'string' ? JSON.parse(info) : info;
+        } catch (e) {}
+        if (!payload || !Array.isArray(payload.points) || payload.points.length < 3) {
+            return notifications.error(player, "Для сохранения нужно минимум 3 точки", "Peace Zone");
+        }
+
+        const zone = await peaceZones.createPolygonZone(payload);
+        if (!zone) return notifications.error(player, "Не удалось сохранить polygon-зону", "Peace Zone");
+
+        notifications.success(player, `Зеленая зона сохранена в БД (ID: ${zone.id})`, "Peace Zone");
+        player.call('peaceZones.menu.saved', [zone.id]);
+    },
     "peaceZones.remove": (player, id) => {
         id = JSON.parse(id);
         if (id != null) {

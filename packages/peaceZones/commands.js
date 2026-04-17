@@ -25,6 +25,14 @@ module.exports = {
             player.call('peaceZones.addClose', []);
         }
     },
+    "/peacezonesetup": {
+        description: "Настройка polygon-зоны через select menu",
+        args: "",
+        access: 6,
+        handler: (player) => {
+            player.call('peaceZones.menu.show');
+        }
+    },
     "/peacezoneshow": {
         description: "Показать зеленые зоны",
         args: "",
