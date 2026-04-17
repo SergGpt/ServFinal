@@ -8,6 +8,7 @@ let isInsideZone = false;
 const controlledNpcs = new Map();
 const pendingAssign = new Map();
 const HEARTBEAT_MS = 1000;
+const COMMAND_REISSUE_MS = 700;
 
 function parsePayload(value, fallback = null) {
     if (typeof value === 'string') {
@@ -152,6 +153,10 @@ function ensureNpcEntry(ped) {
             lastHeartbeatAt: 0,
             lastHydrateAt: 0,
             lastCommandAt: 0,
+            lastAppliedCommand: null,
+            lastAppliedTargetRid: null,
+            lastAppliedPayload: null,
+            lastAppliedAt: 0,
         });
     } else {
         controlledNpcs.get(nid).ped = ped;
@@ -222,7 +227,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
     try { ped.taskFollowToOffsetOfEntity(target.handle, 0.0, -friskDist, 0.0, runSpeed, 900, friskDist, true); } catch (e) {}
 }
 
-function applyCommand(nid, cmd, extraJson) {
+function applyCommand(nid, cmd, extraJson, force = false) {
     nid = parseInt(nid);
     const obj = controlledNpcs.get(nid);
     if (!obj) return;
@@ -239,6 +244,14 @@ function applyCommand(nid, cmd, extraJson) {
 
     const rid = typeof extra.rid === 'number' ? extra.rid : Number(extra.rid);
     const target = Number.isInteger(rid) ? findPlayerById(rid) : null;
+    const payloadKey = JSON.stringify(extra || {});
+    const now = Date.now();
+
+    const sameCommand = obj.lastAppliedCommand === cmd;
+    const sameTarget = obj.lastAppliedTargetRid === (Number.isInteger(rid) ? rid : null);
+    const samePayload = obj.lastAppliedPayload === payloadKey;
+    const inCooldown = now - (obj.lastAppliedAt || 0) < COMMAND_REISSUE_MS;
+    if (!force && sameCommand && sameTarget && samePayload && inCooldown) return;
 
     if (cmd === 'guardEngage') {
         runGuardEngage(obj, ped, target, extra);
@@ -249,6 +262,10 @@ function applyCommand(nid, cmd, extraJson) {
         try { ped.taskStandStill(1000); } catch (e) {}
     }
 
+    obj.lastAppliedCommand = cmd;
+    obj.lastAppliedTargetRid = Number.isInteger(rid) ? rid : null;
+    obj.lastAppliedPayload = payloadKey;
+    obj.lastAppliedAt = now;
     obj.lastCommandAt = Date.now();
 }
 
@@ -339,7 +356,7 @@ mp.events.add({
     },
 
     'npcattakzone:npc.executeCommand': (nid, cmd, extraJson) => {
-        applyCommand(nid, cmd, extraJson);
+        applyCommand(nid, cmd, extraJson, true);
     },
 
     render: () => {
@@ -372,7 +389,7 @@ mp.events.add({
                 obj.lastHydrateAt = now;
                 const cmd = ped.getVariable('npcazCommand');
                 const extra = ped.getVariable('npcazCommandExtra') || {};
-                if (cmd) applyCommand(nid, cmd, JSON.stringify(extra));
+                if (cmd) applyCommand(nid, cmd, JSON.stringify(extra), false);
             }
 
             if (!logicDebugText) {

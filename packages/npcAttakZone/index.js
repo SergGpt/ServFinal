@@ -15,6 +15,8 @@ const RUNTIME = {
     pedSpawnRadiusMin: 0.8,
     pedSpawnRadiusMax: 1.8,
     followSpeed: 1.2,
+    commandReissueMs: 1200,
+    postAckGraceMs: 500,
 };
 
 const GUARD_MODELS = ['s_m_m_security_01', 's_m_y_blackops_01', 's_m_y_blackops_02'];
@@ -234,6 +236,10 @@ module.exports = {
             deadFlag: false,
             ped,
             cooldownUntil: 0,
+            lastCommandSentAt: 0,
+            lastIssuedCommand: null,
+            lastIssuedPayload: null,
+            postAckGraceUntil: 0,
         };
 
         try {
@@ -318,6 +324,16 @@ module.exports = {
             runSpeed: 3.2,
         };
 
+        const payloadKey = JSON.stringify(payload);
+        const now = Date.now();
+        if (
+            st.lastIssuedCommand === 'guardEngage'
+            && st.lastIssuedPayload === payloadKey
+            && now - (st.lastCommandSentAt || 0) < RUNTIME.commandReissueMs
+        ) {
+            return;
+        }
+
         try {
             controller.call('npcattakzone:npc.executeCommand', [st.nid, 'guardEngage', JSON.stringify(payload)]);
         } catch (e) {}
@@ -327,6 +343,9 @@ module.exports = {
             st.ped.setVariable('npcazCommandExtra', payload);
         } catch (e) {}
 
+        st.lastIssuedCommand = 'guardEngage';
+        st.lastIssuedPayload = payloadKey;
+        st.lastCommandSentAt = now;
         saveTask(st, 'guardEngage', payload);
         setNpcState(st, NPCAZ_STATE.HOLD_AIM, (msg) => this.log(msg), 'guard-engage');
     },
@@ -344,6 +363,16 @@ module.exports = {
             runSpeed: 2.1,
         };
 
+        const payloadKey = JSON.stringify(payload);
+        const now = Date.now();
+        if (
+            st.lastIssuedCommand === 'leaderFrisk'
+            && st.lastIssuedPayload === payloadKey
+            && now - (st.lastCommandSentAt || 0) < RUNTIME.commandReissueMs
+        ) {
+            return;
+        }
+
         try {
             controller.call('npcattakzone:npc.executeCommand', [st.nid, 'leaderFrisk', JSON.stringify(payload)]);
         } catch (e) {}
@@ -353,6 +382,9 @@ module.exports = {
             st.ped.setVariable('npcazCommandExtra', payload);
         } catch (e) {}
 
+        st.lastIssuedCommand = 'leaderFrisk';
+        st.lastIssuedPayload = payloadKey;
+        st.lastCommandSentAt = now;
         saveTask(st, 'leaderFrisk', payload);
         setNpcState(st, NPCAZ_STATE.FRISK, (msg) => this.log(msg), 'leader-frisk');
     },
@@ -375,6 +407,9 @@ module.exports = {
             if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
 
             this.controllerManager.checkTimeout(st);
+            if (st.switching) return;
+            if (st.controllerRid === null || st.controllerRid === undefined) return;
+            if (Date.now() < (st.postAckGraceUntil || 0)) return;
 
             let target = mp.players.at(st.targetRid);
             if (!target || !mp.players.exists(target) || !this.isPlayerInsideZone(target)) {
@@ -568,6 +603,7 @@ module.exports.controllerManager = createNpcControllerManager({
     timers: {
         controllerTimeoutMs: RUNTIME.controllerTimeoutMs,
         switchCooldownMs: RUNTIME.switchCooldownMs,
+        postAckGraceMs: RUNTIME.postAckGraceMs,
     },
     restoreTask: (st) => restoreTask(st, {
         guardEngage: (npc, data) => module.exports.setTaskGuardEngage(npc, data.rid),

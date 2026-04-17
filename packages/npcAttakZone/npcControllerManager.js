@@ -26,6 +26,7 @@ function createNpcControllerManager(deps) {
         st.switchStartAt = now;
         st.ctrlVer = (st.ctrlVer || 0) + 1;
         st.controllerRid = nextController.id;
+        st.postAckGraceUntil = 0;
 
         try {
             st.ped.controller = nextController;
@@ -58,6 +59,7 @@ function createNpcControllerManager(deps) {
 
         st.switching = false;
         st.lastHeartbeatAt = Date.now();
+        st.postAckGraceUntil = Date.now() + ((timers && timers.postAckGraceMs) || 500);
         try {
             if (st.ped && mp.peds.exists(st.ped)) {
                 st.ped.setVariable('npcazCtrlState', 'ready');
