@@ -16,7 +16,7 @@ module.exports = {
 
     playerQuit: (player) => {
         if (!player) return;
-        moduleApi.playerStates.delete(player.id);
+        moduleApi.onPlayerQuit(player);
     },
 
     'npcattakzone.menu.open': (player) => {
@@ -48,5 +48,13 @@ module.exports = {
         if (ok) {
             player.call('npcattakzone.menu.show', [moduleApi.getZoneData()]);
         }
+    },
+
+    'npcattakzone:npc.ctrlAck': (player, nid, ver) => {
+        moduleApi.onControllerAck(player, nid, ver);
+    },
+
+    'npcattakzone:npc.heartbeat': (player, nid) => {
+        moduleApi.onHeartbeat(player, nid);
     },
 };
