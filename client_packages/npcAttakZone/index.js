@@ -80,6 +80,33 @@ function drawNpcLogicDebugText(text) {
     });
 }
 
+function drawNpcPedDebug(ped) {
+    if (!ped || !mp.peds.exists(ped)) return;
+    const pos = ped.position;
+    const screenPos = mp.game.graphics.world3dToScreen2d(pos.x, pos.y, pos.z + 1.1);
+    if (!screenPos) return;
+
+    const targetRid = Number(ped.getVariable('npcazTargetRid'));
+    const controllerRid = Number(ped.getVariable('npcazControllerRid'));
+    const target = Number.isInteger(targetRid) ? findPlayerById(targetRid) : null;
+    const dist = target ? target.position.distanceTo(pos) : -1;
+
+    const text = [
+        `NPC#${ped.getVariable('npcazNpcId')} role=${ped.getVariable('npcazRole') || 'n/a'}`,
+        `pos: ${pos.x.toFixed(2)} ${pos.y.toFixed(2)} ${pos.z.toFixed(2)}`,
+        `dist->target: ${dist >= 0 ? dist.toFixed(2) : 'n/a'} rid=${targetRid}`,
+        `controllerRid: ${controllerRid}`,
+    ].join(' | ');
+
+    mp.game.graphics.drawText(text, [screenPos.x, screenPos.y], {
+        font: 4,
+        color: [255, 255, 255, 220],
+        scale: [0.26, 0.26],
+        outline: true,
+        centre: true,
+    });
+}
+
 const debugMessage = {
     text: null,
     until: 0,
@@ -320,6 +347,8 @@ mp.events.add({
                 if (cmd === 'guardEngage') logicDebugText = 'Охрана: бег >3м, при <=3м целится';
                 else if (cmd === 'leaderFrisk') logicDebugText = 'Лидер: подходит на 0.3м и обыскивает';
             }
+
+            drawNpcPedDebug(ped);
         });
 
         if (logicDebugText) drawNpcLogicDebugText(logicDebugText);
