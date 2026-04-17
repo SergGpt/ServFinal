@@ -171,7 +171,7 @@ function runGuardEngage(obj, ped, target, extra) {
 
 function runLeaderFrisk(obj, ped, target, extra) {
     if (!obj || !ped || !target) return;
-    const friskDist = Number(extra && extra.friskDist) || 0.35;
+    const friskDist = Number(extra && extra.friskDist) || 1.5;
     const runSpeed = Number(extra && extra.runSpeed) || 2.1;
     const dist = target.position.distanceTo(ped.position);
 
@@ -344,8 +344,8 @@ mp.events.add({
 
             if (!logicDebugText) {
                 const cmd = ped.getVariable('npcazCommand');
-                if (cmd === 'guardEngage') logicDebugText = 'Охрана: бег >3м, при <=3м целится';
-                else if (cmd === 'leaderFrisk') logicDebugText = 'Лидер: подходит на 0.3м и обыскивает';
+                if (cmd === 'guardEngage') logicDebugText = 'Охрана: бег >7м, при <=7м целится';
+                else if (cmd === 'leaderFrisk') logicDebugText = 'Лидер: подходит на 1.5м и обыскивает';
             }
 
             drawNpcPedDebug(ped);

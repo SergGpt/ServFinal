@@ -312,10 +312,10 @@ module.exports = {
         if (!controller || !mp.players.exists(controller)) return;
 
         const distanceToTarget = dist3(st.ped.position, target.position);
-        const action = distanceToTarget <= 3.0 ? 'guardAim' : 'guardRun';
+        const action = distanceToTarget <= 7.0 ? 'guardAim' : 'guardRun';
         const payload = {
             rid: targetRid,
-            aimDist: 3.0,
+            aimDist: 7.0,
             runSpeed: 3.2,
             action,
         };
@@ -345,8 +345,8 @@ module.exports = {
 
         const payload = {
             rid: targetRid,
-            stopDist: 0.3,
-            friskDist: 0.35,
+            stopDist: 1.5,
+            friskDist: 1.5,
             runSpeed: 2.1,
         };
 
