@@ -12,8 +12,8 @@ const RUNTIME = {
     controllerMaxDistance: 230,
     controllerTimeoutMs: 6500,
     switchCooldownMs: 800,
-    pedSpawnRadiusMin: 2,
-    pedSpawnRadiusMax: 6,
+    pedSpawnRadiusMin: 0.8,
+    pedSpawnRadiusMax: 1.8,
     followSpeed: 1.2,
 };
 
@@ -303,7 +303,41 @@ module.exports = {
         this.createNpc('leader', target.id);
     },
 
-    setTaskFollowStop(st, targetRid, stopDist) {
+    setTaskGuardEngage(st, targetRid) {
+        if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
+        const target = mp.players.at(targetRid);
+        if (!target || !mp.players.exists(target)) return;
+
+        const controller = st.ped.controller;
+        if (!controller || !mp.players.exists(controller)) return;
+
+        const distanceToTarget = dist3(st.ped.position, target.position);
+        const action = distanceToTarget <= 3.0 ? 'guardAim' : 'guardRun';
+        const payload = {
+            rid: targetRid,
+            aimDist: 3.0,
+            runSpeed: 3.2,
+            action,
+        };
+
+        try {
+            controller.call('npcattakzone:npc.executeCommand', [st.nid, 'guardEngage', JSON.stringify(payload)]);
+        } catch (e) {}
+
+        try {
+            st.ped.setVariable('npcazCommand', 'guardEngage');
+            st.ped.setVariable('npcazCommandExtra', payload);
+        } catch (e) {}
+
+        saveTask(st, 'guardEngage', payload);
+        if (action === 'guardAim') {
+            setNpcState(st, NPCAZ_STATE.HOLD_AIM, (msg) => this.log(msg), 'guard-aim');
+        } else {
+            setNpcState(st, NPCAZ_STATE.FOLLOW, (msg) => this.log(msg), 'guard-run');
+        }
+    },
+
+    setTaskLeaderFrisk(st, targetRid) {
         if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
 
         const controller = st.ped.controller;
@@ -311,21 +345,22 @@ module.exports = {
 
         const payload = {
             rid: targetRid,
-            stopDist,
-            speed: RUNTIME.followSpeed,
+            stopDist: 0.3,
+            friskDist: 0.35,
+            runSpeed: 2.1,
         };
 
         try {
-            controller.call('npcattakzone:npc.executeCommand', [st.nid, 'followStop', JSON.stringify(payload)]);
+            controller.call('npcattakzone:npc.executeCommand', [st.nid, 'leaderFrisk', JSON.stringify(payload)]);
         } catch (e) {}
 
         try {
-            st.ped.setVariable('npcazCommand', 'followStop');
+            st.ped.setVariable('npcazCommand', 'leaderFrisk');
             st.ped.setVariable('npcazCommandExtra', payload);
         } catch (e) {}
 
-        saveTask(st, 'followStop', payload);
-        setNpcState(st, NPCAZ_STATE.FOLLOW, (msg) => this.log(msg), st.role === 'leader' ? 'leader-follow' : 'guard-follow');
+        saveTask(st, 'leaderFrisk', payload);
+        setNpcState(st, NPCAZ_STATE.FRISK, (msg) => this.log(msg), 'leader-frisk');
     },
 
     runBehaviorTick() {
@@ -366,8 +401,11 @@ module.exports = {
                 return;
             }
 
-            const stopDist = st.role === 'leader' ? 1.0 : 5.0;
-            this.setTaskFollowStop(st, target.id, stopDist);
+            if (st.role === 'leader') {
+                this.setTaskLeaderFrisk(st, target.id);
+            } else {
+                this.setTaskGuardEngage(st, target.id);
+            }
         });
     },
 
@@ -522,6 +560,7 @@ module.exports.controllerManager = createNpcControllerManager({
         switchCooldownMs: RUNTIME.switchCooldownMs,
     },
     restoreTask: (st) => restoreTask(st, {
-        followStop: (npc, data) => module.exports.setTaskFollowStop(npc, data.rid, data.stopDist),
+        guardEngage: (npc, data) => module.exports.setTaskGuardEngage(npc, data.rid),
+        leaderFrisk: (npc, data) => module.exports.setTaskLeaderFrisk(npc, data.rid),
     }),
 });

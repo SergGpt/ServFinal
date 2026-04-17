@@ -1,7 +1,8 @@
 const NPCAZ_STATE = {
     IDLE: 'idle',
     FOLLOW: 'follow',
-    HOLD: 'hold',
+    HOLD_AIM: 'hold_aim',
+    FRISK: 'frisk',
     SWITCH_CONTROLLER: 'switch_controller',
     DEAD: 'dead',
 };

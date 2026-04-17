@@ -69,6 +69,17 @@ function drawServerDebugMessage(text) {
     });
 }
 
+function drawNpcLogicDebugText(text) {
+    if (!text) return;
+    mp.game.graphics.drawText(`~b~NPC DEBUG~w~: ${text}`, [0.5, 0.75], {
+        font: 4,
+        color: [180, 220, 255, 230],
+        scale: [0.36, 0.36],
+        outline: true,
+        centre: true,
+    });
+}
+
 const debugMessage = {
     text: null,
     until: 0,
@@ -114,22 +125,44 @@ function ensureNpcEntry(ped) {
     return controlledNpcs.get(nid);
 }
 
-function runFollowStop(obj, ped, target, extra) {
+function runGuardEngage(obj, ped, target, extra) {
     if (!obj || !ped || !target) return;
-    const stopDist = Number(extra && extra.stopDist) || 3.0;
-    const speed = Number(extra && extra.speed) || 1.2;
-    const dist = target.position.distanceTo(ped.position);
+    const speed = Number(extra && extra.runSpeed) || 3.2;
+    const action = String(extra && extra.action ? extra.action : 'guardRun');
 
-    if (dist <= stopDist) {
+    if (action === 'guardAim') {
         try { ped.clearTasks(); } catch (e) {}
         try { ped.taskStandStill(700); } catch (e) {}
-        try { ped.taskAimGunAtEntity(target.handle, 800, false); } catch (e) {}
+        try { ped.taskAimGunAtEntity(target.handle, 1200, false); } catch (e) {}
         return;
     }
 
     try { ped.clearTasks(); } catch (e) {}
-    try { ped.taskFollowToOffsetOfEntity(target.handle, 0.0, -stopDist, 0.0, speed, 800, stopDist, true); } catch (e) {}
-    try { ped.taskAimGunAtEntity(target.handle, 1200, false); } catch (e) {}
+    try { ped.taskGoToCoordAnyMeans(target.position.x, target.position.y, target.position.z, speed, 0, false, 0, 0); } catch (e) {}
+    try { ped.taskAimGunAtEntity(target.handle, 800, false); } catch (e) {}
+}
+
+function runLeaderFrisk(obj, ped, target, extra) {
+    if (!obj || !ped || !target) return;
+    const friskDist = Number(extra && extra.friskDist) || 0.35;
+    const runSpeed = Number(extra && extra.runSpeed) || 2.1;
+    const dist = target.position.distanceTo(ped.position);
+
+    if (dist <= friskDist) {
+        try { ped.clearTasks(); } catch (e) {}
+        try { ped.taskTurnToFaceCoord(target.position.x, target.position.y, target.position.z, 400); } catch (e) {}
+        try {
+            const dict = 'amb@prop_human_bum_bin@idle_b';
+            if (!mp.game.streaming.hasAnimDictLoaded(dict)) {
+                mp.game.streaming.requestAnimDict(dict);
+            }
+            ped.taskPlayAnim(dict, 'idle_d', 8.0, -8.0, -1, 1, 0.0, false, false, false);
+        } catch (e) {}
+        return;
+    }
+
+    try { ped.clearTasks(); } catch (e) {}
+    try { ped.taskGoToCoordAnyMeans(target.position.x, target.position.y, target.position.z, runSpeed, 0, false, 0, 0); } catch (e) {}
 }
 
 function applyCommand(nid, cmd, extraJson) {
@@ -150,8 +183,10 @@ function applyCommand(nid, cmd, extraJson) {
     const rid = typeof extra.rid === 'number' ? extra.rid : Number(extra.rid);
     const target = Number.isInteger(rid) ? findPlayerById(rid) : null;
 
-    if (cmd === 'followStop') {
-        runFollowStop(obj, ped, target, extra);
+    if (cmd === 'guardEngage') {
+        runGuardEngage(obj, ped, target, extra);
+    } else if (cmd === 'leaderFrisk') {
+        runLeaderFrisk(obj, ped, target, extra);
     } else if (cmd === 'idle') {
         try { ped.clearTasks(); } catch (e) {}
         try { ped.taskStandStill(1000); } catch (e) {}
@@ -259,6 +294,7 @@ mp.events.add({
         if (debugMessage.text && Date.now() <= debugMessage.until) drawServerDebugMessage(debugMessage.text);
 
         const now = Date.now();
+        let logicDebugText = null;
         controlledNpcs.forEach((obj, nid) => {
             const ped = obj.ped;
             if (!ped || !mp.peds.exists(ped)) return;
@@ -278,7 +314,15 @@ mp.events.add({
                 const extra = ped.getVariable('npcazCommandExtra') || {};
                 if (cmd) applyCommand(nid, cmd, JSON.stringify(extra));
             }
+
+            if (!logicDebugText) {
+                const cmd = ped.getVariable('npcazCommand');
+                if (cmd === 'guardEngage') logicDebugText = 'Охрана: бег >3м, при <=3м целится';
+                else if (cmd === 'leaderFrisk') logicDebugText = 'Лидер: подходит на 0.3м и обыскивает';
+            }
         });
+
+        if (logicDebugText) drawNpcLogicDebugText(logicDebugText);
     },
 });
 
