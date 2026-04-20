@@ -210,15 +210,14 @@ function drawNpcPedDebug(obj, ped) {
 
 function ensureWeaponVisual(ped) {
     if (!ped || !mp.peds.exists(ped)) return;
-    const weaponName = ped.getVariable("npcazWeaponName") || "WEAPON_CARBINERIFLE";
     const holdWeapon = !!ped.getVariable("npcazHoldWeapon");
     if (!holdWeapon) return;
 
+    const weaponName = ped.getVariable("npcazWeaponName") || "WEAPON_CARBINERIFLE";
     const hash = weaponNameToHash(weaponName);
-    try { ped.giveWeapon(hash, 9999); } catch (e) {}
+    try { ped.giveWeapon(hash, 9999, true); } catch (e) {}
     try { ped.setWeapon(hash); } catch (e) {}
     try { ped.currentWeapon = hash; } catch (e) {}
-    try { ped.setCanSwitchWeapon(false); } catch (e) {}
 }
 
 function applyObserverCombatVisual(obj, ped) {
@@ -261,6 +260,7 @@ function applyObserverCombatVisual(obj, ped) {
 
 function syncObserverNpcTransform(obj, ped) {
     if (!obj || !ped || !mp.peds.exists(ped)) return;
+    ensureWeaponVisual(ped);
 
     const livePos = ped.getVariable("npcazLivePos");
     if (!livePos || typeof livePos !== "object") return;
@@ -349,6 +349,7 @@ function ensureNpcEntry(ped) {
 
 function runGuardEngage(obj, ped, target, extra) {
     if (!obj || !ped || !target) return;
+    ensureWeaponVisual(ped);
 
     const weaponHash = mp.game.joaat("WEAPON_CARBINERIFLE");
     try { ped.setWeapon(weaponHash); } catch (e) {}
@@ -466,6 +467,7 @@ function runGuardEngage(obj, ped, target, extra) {
 
 function runLeaderFrisk(obj, ped, target, extra) {
     if (!obj || !ped || !target) return;
+    ensureWeaponVisual(ped);
 
     const friskDist = Number(extra && extra.friskDist) || 1.5;
     const runSpeed = Number(extra && extra.runSpeed) || 2.1;
