@@ -32,6 +32,11 @@ var acceptWindow = new Vue({
             if (this.name == 'cargo_rent') {
                 mp.trigger('cargo.rent.accept');
             }
+            if (this.name == 'npcaz_pass') {
+                mp.trigger('callRemote', 'npcattakzone.pass.answer', 1);
+                this.show = false;
+                mp.trigger('npcattakzone.pass.close');
+            }
         },
         decline() {
             if (this.name == 'carsell') {
@@ -48,6 +53,11 @@ var acceptWindow = new Vue({
             }
             if (this.name == 'cargo_board' || this.name == 'cargo_rent') {
                 mp.trigger('cargo.board.close');
+            }
+            if (this.name == 'npcaz_pass') {
+                mp.trigger('callRemote', 'npcattakzone.pass.answer', 0);
+                this.show = false;
+                mp.trigger('npcattakzone.pass.close');
             }
         },
     }

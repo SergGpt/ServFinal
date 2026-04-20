@@ -5,6 +5,8 @@ const { saveTask, clearTask, restoreTask } = require("./npcTaskMemory");
 const { createNpcControllerManager } = require("./npcControllerManager");
 
 let notifs = call("notifications");
+let inventory = call("inventory");
+let damageSystem = call("damageSystem");
 
 const RUNTIME = {
     behaviorTickMs: 350,
@@ -19,6 +21,8 @@ const RUNTIME = {
     postAckGraceMs: 500,
     livePosFreshMs: 3000,
     controllerSwitchHysteresis: 15.0,
+    spawnControllerGraceMs: 1800,
+    controllerEnsureRetryMs: 1200,
 };
 
 const GUARD_MODELS = ["s_m_m_security_01", "s_m_y_blackops_01", "s_m_y_blackops_02"];
@@ -57,6 +61,18 @@ function normalizeLivePos(pos, fallback) {
     };
 }
 
+function findPlayerByRid(rid) {
+    rid = Number(rid);
+    if (!Number.isInteger(rid)) return null;
+    let found = null;
+    mp.players.forEach((player) => {
+        if (!found && player && mp.players.exists(player) && Number(player.id) === rid) {
+            found = player;
+        }
+    });
+    return found;
+}
+
 module.exports = {
     zone: null,
     zoneRuntimeId: 1,
@@ -65,6 +81,7 @@ module.exports = {
     zoneNpcIds: [],
     nextNid: 1,
     initialized: false,
+    passDialogs: new Map(),
 
     async init() {
         if (this.initialized) return;
@@ -185,6 +202,23 @@ module.exports = {
         return list;
     },
 
+    getNearestInsidePlayerToPos(pos, players) {
+        const list = Array.isArray(players) ? players : this.getPlayersInsideZone();
+        if (!list.length) return null;
+
+        let nearest = null;
+        let bestDist = Infinity;
+        list.forEach((player) => {
+            if (!player || !mp.players.exists(player)) return;
+            const d = dist3(pos || { x: 0, y: 0, z: 0 }, player.position);
+            if (d < bestDist) {
+                nearest = player;
+                bestDist = d;
+            }
+        });
+        return nearest;
+    },
+
  chooseController(zone, ped, preferredRid = null, livePos = null, blockedControllerRid = null) {
     let best = null;
     let bestDist = Infinity;
@@ -275,6 +309,8 @@ module.exports = {
             switching: false,
             switchStartAt: 0,
             deadFlag: false,
+            forceFire: false,
+            lastFireDamageAt: 0,
             ped,
             cooldownUntil: 0,
             lastCommandSentAt: 0,
@@ -285,6 +321,8 @@ module.exports = {
             livePos: { x: pos.x, y: pos.y, z: pos.z },
             liveHeading: initialHeading,
             livePosUpdatedAt: Date.now(),
+            spawnedAt: Date.now(),
+            lastEnsureControllerAt: 0,
         };
 
         try {
@@ -307,6 +345,7 @@ module.exports = {
             ped.setVariable("npcazHoldWeapon", true);
             ped.setVariable("npcazAimActive", false);
             ped.setVariable("npcazVisualMode", "idle");
+            ped.setVariable("npcazForceFire", false);
 
             ped.health = 250;
             ped.setHealth(250);
@@ -369,7 +408,7 @@ module.exports = {
         if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
         this.forceWeaponSync(st);
 
-        const target = mp.players.at(targetRid);
+        const target = findPlayerByRid(targetRid);
         if (!target || !mp.players.exists(target)) return;
 
         const controller = st.ped.controller;
@@ -422,8 +461,8 @@ module.exports = {
 
         const payload = {
             rid: targetRid,
-            stopDist: 1.5,
-            friskDist: 1.5,
+            stopDist: 2.0,
+            friskDist: 2.0,
             runSpeed: 2.1,
         };
 
@@ -480,13 +519,43 @@ module.exports = {
 
             this.controllerManager.checkTimeout(st);
 
-            if (st.switching) return;
-            if (st.controllerRid === null || st.controllerRid === undefined) return;
-            if (Date.now() < (st.postAckGraceUntil || 0)) return;
+            const now = Date.now();
 
-            let target = mp.players.at(st.targetRid);
-            if (!target || !mp.players.exists(target) || !this.isPlayerInsideZone(target)) {
-                target = insidePlayers[0] || null;
+            if (st.switching) return;
+
+            if (st.controllerRid === null || st.controllerRid === undefined) {
+                if (!st.lastEnsureControllerAt || now - st.lastEnsureControllerAt >= RUNTIME.controllerEnsureRetryMs) {
+                    st.lastEnsureControllerAt = now;
+                    this.controllerManager.beginSwitch(st, "ensure-controller");
+                }
+                return;
+            }
+
+            const controller = findPlayerByRid(st.controllerRid);
+            if (!controller || !mp.players.exists(controller)) {
+                if (!st.lastEnsureControllerAt || now - st.lastEnsureControllerAt >= RUNTIME.controllerEnsureRetryMs) {
+                    st.lastEnsureControllerAt = now;
+                    this.controllerManager.beginSwitch(st, "controller-missing");
+                }
+                return;
+            }
+
+            if (now - (st.spawnedAt || 0) < RUNTIME.spawnControllerGraceMs) return;
+            if (now < (st.postAckGraceUntil || 0)) return;
+
+            const livePos = normalizeLivePos(st.livePos, st.ped.position);
+            const nearestInside = this.getNearestInsidePlayerToPos(livePos, insidePlayers);
+
+            let target = findPlayerByRid(st.targetRid);
+            const shouldRefreshTarget = (
+                !target
+                || !mp.players.exists(target)
+                || !this.isPlayerInsideZone(target)
+                || (nearestInside && target.id !== nearestInside.id)
+            );
+
+            if (shouldRefreshTarget) {
+                target = nearestInside || null;
                 st.targetRid = target ? target.id : null;
                 try {
                     st.ped.setVariable("npcazTargetRid", st.targetRid == null ? -1 : st.targetRid);
@@ -503,13 +572,15 @@ module.exports = {
                 return;
             }
 
-            const livePos = normalizeLivePos(st.livePos, st.ped.position);
+            if (st.role === "guard" && st.forceFire) {
+                this.applyNpcFireDamage(st, target, now);
+            }
+
             const distToTarget = dist3(livePos, target.position);
             const shouldMoveToTarget = st.role === "leader"
                 ? distToTarget > 1.5
                 : distToTarget > 7.0;
 
-            const now = Date.now();
             const livePosAgeMs = st.livePosUpdatedAt ? now - st.livePosUpdatedAt : -1;
             const isLivePosFresh = livePosAgeMs >= 0 && livePosAgeMs <= RUNTIME.livePosFreshMs;
 
@@ -536,7 +607,7 @@ module.exports = {
 
             const betterController = this.chooseController(this.zone, st.ped, st.targetRid, livePos);
             if (betterController && st.controllerRid !== betterController.id && !st.switching) {
-                const currentController = mp.players.at(st.controllerRid);
+                const currentController = findPlayerByRid(st.controllerRid);
                 const currentDist = currentController && mp.players.exists(currentController)
                     ? dist3(currentController.position, livePos)
                     : Infinity;
@@ -746,6 +817,7 @@ module.exports = {
 
     onPlayerQuit(player) {
         this.playerStates.delete(player.id);
+        this.passDialogs.delete(player.id);
 
         this.zoneNpcIds.forEach((nid) => {
             const st = this.npcs.get(nid);
@@ -764,6 +836,124 @@ module.exports = {
                 } catch (e) {}
             }
         });
+    },
+
+    setGuardsFire(targetRid, fireState) {
+        this.zoneNpcIds.forEach((nid) => {
+            const st = this.npcs.get(nid);
+            if (!st || st.role !== "guard" || !st.ped || !mp.peds.exists(st.ped)) return;
+            if (Number(st.targetRid) !== Number(targetRid)) return;
+            st.forceFire = !!fireState;
+            try { st.ped.setVariable("npcazForceFire", !!fireState); } catch (e) {}
+        });
+    },
+
+    applyNpcFireDamage(st, target, now) {
+        if (!st || !target || !mp.players.exists(target)) return;
+        if (now - (st.lastFireDamageAt || 0) < 1000) return;
+        st.lastFireDamageAt = now;
+
+        const weaponHash = mp.joaat(DEFAULT_WEAPON);
+        let damageValue = 18;
+        try {
+            if (damageSystem && typeof damageSystem.findDamageValue === "function") {
+                const foundDamage = damageSystem.findDamageValue(weaponHash);
+                if (typeof foundDamage === "number" && foundDamage > 0) damageValue = foundDamage;
+            }
+        } catch (e) {}
+        damageValue = Math.max(6, Math.round(damageValue * 0.55));
+
+        const damaged = { armour: target.armour, health: target.health };
+        try {
+            if (damageSystem && typeof damageSystem.damagePlayer === "function") damageSystem.damagePlayer(damaged, damageValue);
+            else damaged.health -= damageValue;
+        } catch (e) {
+            damaged.health -= damageValue;
+        }
+
+        target.armour = Math.clamp(damaged.armour, 0, 100);
+        target.health = Math.clamp(damaged.health, 0, 100);
+
+        if (target.health <= 0) {
+            if (!target.isCustomDeath) {
+                target.isCustomDeath = true;
+                const killer = st.ped && st.ped.controller && mp.players.exists(st.ped.controller) ? st.ped.controller : null;
+                mp.events.call("customDeath", target, weaponHash, killer);
+            }
+            this.putGuardsToSleep(target.id);
+        }
+    },
+
+    putGuardsToSleep(targetRid) {
+        this.zoneNpcIds.forEach((nid) => {
+            const st = this.npcs.get(nid);
+            if (!st || st.role !== "guard" || !st.ped || !mp.peds.exists(st.ped)) return;
+            if (Number(st.targetRid) !== Number(targetRid)) return;
+
+            st.forceFire = false;
+            st.targetRid = null;
+            st.lastIssuedCommand = null;
+            st.lastIssuedPayload = null;
+            clearTask(st);
+
+            try {
+                st.ped.setVariable("npcazForceFire", false);
+                st.ped.setVariable("npcazTargetRid", -1);
+                st.ped.setVariable("npcazAimActive", false);
+                st.ped.setVariable("npcazVisualMode", "idle");
+                st.ped.setVariable("npcazCommand", "idle");
+                st.ped.setVariable("npcazCommandExtra", null);
+            } catch (e) {}
+
+            setNpcState(st, NPCAZ_STATE.IDLE, (msg) => this.log(msg), "guards-sleep");
+        });
+    },
+
+    hasPassItem(player) {
+        if (!player || !mp.players.exists(player) || !inventory) return false;
+        try {
+            return !!inventory.getItemByItemId(player, 500);
+        } catch (e) {
+            return false;
+        }
+    },
+
+    onPassReady(controller, nid, targetRid) {
+        const st = this.npcs.get(parseInt(nid));
+        if (!st || st.role !== "leader") return;
+        if (Number(st.controllerRid) !== Number(controller.id)) return;
+
+        const target = findPlayerByRid(targetRid);
+        if (!target || !mp.players.exists(target) || !this.isPlayerInsideZone(target)) return;
+        if (Number(st.targetRid) !== Number(target.id)) return;
+
+        const active = this.passDialogs.get(target.id);
+        const now = Date.now();
+        if (active && now - active.at < 2500) return;
+
+        this.passDialogs.set(target.id, { nid: st.nid, targetRid: target.id, at: now });
+        target.call("npcattakzone.pass.show");
+    },
+
+    onPassAnswer(player, answer) {
+        const req = this.passDialogs.get(player.id);
+        if (!req) return;
+        this.passDialogs.delete(player.id);
+
+        const approved = Number(answer) === 1;
+        if (!approved) {
+            this.setGuardsFire(req.targetRid, true);
+            notifs.error(player, "Вы отказались показывать пропуск", "NpcAttakZone");
+            return;
+        }
+
+        if (this.hasPassItem(player)) {
+            this.setGuardsFire(req.targetRid, false);
+            notifs.success(player, "Пропуск подтвержден", "NpcAttakZone");
+        } else {
+            this.setGuardsFire(req.targetRid, true);
+            notifs.error(player, "Пропуск не найден (нужен предмет #500)", "NpcAttakZone");
+        }
     },
 };
 

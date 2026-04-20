@@ -19,6 +19,9 @@ const MOVE_FALLBACK_REISSUE_MS = 1200;
 
 const OBSERVER_VISUAL_REISSUE_MS = 1200;
 const AIM_REISSUE_MS = 900;
+const PASS_REQUEST_REISSUE_MS = 3000;
+const LEADER_CLIPBOARD_ANIM_DICT = "amb@world_human_clipboard@male@idle_a";
+const LEADER_CLIPBOARD_ANIM_NAME = "idle_c";
 
 function logHeartbeatDebug(message) {
     const text = `[NpcAttakZone][heartbeat] ${message}`;
@@ -298,7 +301,9 @@ function applyObserverCombatVisual(obj, ped) {
 
     if (visualMode === "leaderFrisk") {
         obj.lastVisualMode = "leaderFrisk";
-        ensureWeaponVisual(ped);
+        if (ensureAnimDictLoaded(LEADER_CLIPBOARD_ANIM_DICT)) {
+            try { ped.taskPlayAnim(LEADER_CLIPBOARD_ANIM_DICT, LEADER_CLIPBOARD_ANIM_NAME, 8.0, -8.0, 1200, 1, 0.0, false, false, false); } catch (e) {}
+        }
         return;
     }
 
@@ -383,6 +388,9 @@ function ensureNpcEntry(ped) {
             lastObserverVisualAt: 0,
             lastAimIssuedAt: 0,
             lastVisualMode: "idle",
+            lastPassRequestAt: 0,
+            lastForceFireVisualAt: 0,
+            lastForceFireShotAt: 0,
         });
     } else {
         const entry = controlledNpcs.get(nid);
@@ -541,7 +549,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
     try { ped.setWeapon(weaponHash); } catch (e) {}
     try { ped.currentWeapon = weaponHash; } catch (e) {}
 
-    if (dist <= friskDist) {
+    if (!isTargetInVehicle && dist <= friskDist) {
         obj.lastMode = "leaderFrisk";
         obj.moveTask = "frisk";
         obj.lastStuckFallback = false;
@@ -553,23 +561,51 @@ function runLeaderFrisk(obj, ped, target, extra) {
             obj.friskUntil = now + 2600;
             try { ped.clearTasks(); } catch (e) {}
             try { ped.taskTurnToFaceCoord(target.position.x, target.position.y, target.position.z, 600); } catch (e) {}
-            try {
-                const dict = "amb@prop_human_bum_bin@idle_b";
-                if (!mp.game.streaming.hasAnimDictLoaded(dict)) {
-                    mp.game.streaming.requestAnimDict(dict);
-                    return;
-                }
-                ped.taskPlayAnim(dict, "idle_d", 8.0, -8.0, 2500, 1, 0.0, false, false, false);
-            } catch (e) {}
+            if (ensureAnimDictLoaded(LEADER_CLIPBOARD_ANIM_DICT)) {
+                try { ped.taskPlayAnim(LEADER_CLIPBOARD_ANIM_DICT, LEADER_CLIPBOARD_ANIM_NAME, 8.0, -8.0, 2400, 1, 0.0, false, false, false); } catch (e) {}
+            } else {
+                try { ped.taskStandStill(1200); } catch (e) {}
+            }
+        }
+
+        if (!obj.lastPassRequestAt || now - obj.lastPassRequestAt >= PASS_REQUEST_REISSUE_MS) {
+            obj.lastPassRequestAt = now;
+            try { mp.events.callRemote("npcattakzone.pass.ready", ped.getVariable("npcazNpcId"), target.remoteId); } catch (e) {}
         }
         return;
     }
 
     obj.friskUntil = 0;
-    if (obj.lastMode !== "leaderMove") {
+    const shouldReissueFollow = (
+        obj.lastMode !== "leaderMove"
+        || obj.moveTask !== "leaderFollow"
+        || now - (obj.lastFollowIssuedAt || 0) >= MOVE_FOLLOW_REISSUE_MS
+    );
+
+    if (shouldReissueFollow) {
         obj.lastMode = "leaderMove";
-        resetMoveTracking(obj, ped, "leaderMove");
+        resetMoveTracking(obj, ped, "leaderFollow");
+        obj.lastFollowIssuedAt = now;
+
         try { ped.clearTasks(); } catch (e) {}
+        try {
+            const followHandle = isTargetInVehicle ? targetVehicle.handle : target.handle;
+            ped.taskFollowToOffsetOfEntity(followHandle, 0.0, 0.0, 0.0, runSpeed, -1, approachDist, true);
+        } catch (e) {
+            try {
+                ped.taskGoStraightToCoord(
+                    targetPos.x,
+                    targetPos.y,
+                    targetPos.z,
+                    runSpeed,
+                    2500,
+                    Number(target.heading || 0),
+                    0.35
+                );
+            } catch (err) {}
+            obj.moveTask = "leaderFallback";
+            obj.lastFallbackIssuedAt = now;
+        }
     }
 
     try {
@@ -607,8 +643,8 @@ function applyCommand(nid, cmd, extraJson, force = false) {
     if (!ped || !mp.peds.exists(ped)) return;
 
     const me = mp.players.local;
-    const controllerRid = ped.getVariable("npcazControllerRid");
-    if (controllerRid !== me.id) return;
+    const controllerRid = Number(ped.getVariable("npcazControllerRid"));
+    if (controllerRid !== Number(me.id)) return;
 
     let extra = {};
     try { extra = extraJson ? JSON.parse(extraJson) : {}; } catch (e) {}
@@ -740,6 +776,23 @@ mp.events.add({
         applyCommand(nid, cmd, extraJson, true);
     },
 
+    "npcattakzone.pass.show": () => {
+        mp.callCEFV(`acceptWindow.name = 'npcaz_pass';`);
+        mp.callCEFV(`acceptWindow.header = 'Показать пропуск';`);
+        mp.callCEFV(`acceptWindow.text = 'Показать пропуск в заражённую зону?';`);
+        mp.callCEFV(`acceptWindow.leftWord = 'Да (Y)';`);
+        mp.callCEFV(`acceptWindow.rightWord = 'Нет (N)';`);
+        mp.callCEFV(`acceptWindow.show = true;`);
+        mp.busy.add("npcaz_pass", true);
+        mp.gui.cursor.show(true, true);
+    },
+
+    "npcattakzone.pass.close": () => {
+        mp.callCEFV(`acceptWindow.show = false;`);
+        mp.busy.remove("npcaz_pass");
+        mp.gui.cursor.show(false, false);
+    },
+
     render: () => {
         if (zoneState && Date.now() <= previewUntil) {
             drawPolygon(zoneState, [220, 45, 45, 185]);
@@ -758,9 +811,9 @@ mp.events.add({
             drawNpcPedDebug(obj, ped);
 
             const me = mp.players.local;
-            const controllerRid = ped.getVariable("npcazControllerRid");
+            const controllerRid = Number(ped.getVariable("npcazControllerRid"));
 
-            if (controllerRid !== me.id) {
+            if (controllerRid !== Number(me.id)) {
                 syncObserverNpcTransform(obj, ped);
                 return;
             }
