@@ -209,15 +209,25 @@ function drawNpcPedDebug(obj, ped) {
 }
 
 function ensureWeaponVisual(ped) {
-    if (!ped || !mp.peds.exists(ped)) return;
+    if (!ped || !mp.peds.exists(ped)) return false;
     const holdWeapon = !!ped.getVariable("npcazHoldWeapon");
-    if (!holdWeapon) return;
+    if (!holdWeapon) return false;
 
     const weaponName = ped.getVariable("npcazWeaponName") || "WEAPON_CARBINERIFLE";
     const hash = weaponNameToHash(weaponName);
     try { ped.giveWeapon(hash, 9999, true); } catch (e) {}
     try { ped.setWeapon(hash); } catch (e) {}
     try { ped.currentWeapon = hash; } catch (e) {}
+
+    try {
+        mp.game.invoke("0xADF692B254977C0C", ped.handle, hash, true);
+    } catch (e) {}
+
+    try {
+        mp.game.invoke("0xBF0FD6E56C964FCB", ped.handle, false);
+    } catch (e) {}
+
+    return true;
 }
 
 function applyObserverCombatVisual(obj, ped) {
@@ -232,6 +242,8 @@ function applyObserverCombatVisual(obj, ped) {
     ensureWeaponVisual(ped);
 
     if (visualMode === "combat" && aimActive && target) {
+        ensureWeaponVisual(ped);
+
         if (
             obj.lastVisualMode !== "combatAim" ||
             now - (obj.lastObserverVisualAt || 0) >= OBSERVER_VISUAL_REISSUE_MS ||
@@ -351,9 +363,11 @@ function runGuardEngage(obj, ped, target, extra) {
     if (!obj || !ped || !target) return;
     ensureWeaponVisual(ped);
 
-    const weaponHash = mp.game.joaat("WEAPON_CARBINERIFLE");
+    const weaponHash = weaponNameToHash(ped.getVariable("npcazWeaponName") || "WEAPON_CARBINERIFLE");
+    try { ped.giveWeapon(weaponHash, 9999, true); } catch (e) {}
     try { ped.setWeapon(weaponHash); } catch (e) {}
     try { ped.currentWeapon = weaponHash; } catch (e) {}
+    try { mp.game.invoke("0xADF692B254977C0C", ped.handle, weaponHash, true); } catch (e) {}
 
     const speed = Number(extra && extra.runSpeed) || 3.2;
     const aimDist = Number(extra && extra.aimDist) || 7.0;
@@ -365,6 +379,8 @@ function runGuardEngage(obj, ped, target, extra) {
     const now = Date.now();
 
     if (shouldAim) {
+        ensureWeaponVisual(ped);
+
         if (obj.lastMode !== "guardAim") {
             obj.lastMode = "guardAim";
             try { ped.clearTasks(); } catch (e) {}
