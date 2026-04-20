@@ -187,8 +187,16 @@ module.exports = {
 
  chooseController(zone, ped, preferredRid = null, livePos = null, blockedControllerRid = null) {
     let best = null;
-    let bestDist = Infinity;
+    let bestScore = Infinity;
+    let bestFallback = null;
+    let bestFallbackDist = Infinity;
     const pedPos = livePos || (ped && ped.position) || { x: 0, y: 0, z: 0 };
+
+    const loadByRid = new Map();
+    this.npcs.forEach((npc) => {
+        if (!npc || npc.controllerRid == null) return;
+        loadByRid.set(npc.controllerRid, (loadByRid.get(npc.controllerRid) || 0) + 1);
+    });
 
     mp.players.forEach((player) => {
         if (!player || !mp.players.exists(player)) return;
@@ -197,22 +205,24 @@ module.exports = {
         if (blockedControllerRid !== null && blockedControllerRid !== undefined && player.id === blockedControllerRid) return;
 
         const d = dist3(player.position, pedPos);
-
-        if (preferredRid !== null && player.id === preferredRid) {
-            if (d <= RUNTIME.controllerMaxDistance && d < bestDist) {
-                best = player;
-                bestDist = d;
-            }
-            return;
+        if (d < bestFallbackDist) {
+            bestFallbackDist = d;
+            bestFallback = player;
         }
 
-        if (d <= RUNTIME.controllerMaxDistance && d < bestDist) {
+        if (d > RUNTIME.controllerMaxDistance) return;
+
+        const load = loadByRid.get(player.id) || 0;
+        const preferredBonus = preferredRid !== null && player.id === preferredRid ? 18 : 0;
+        const score = d + (load * 22) - preferredBonus;
+
+        if (score < bestScore) {
+            bestScore = score;
             best = player;
-            bestDist = d;
         }
     });
 
-    return best;
+    return best || bestFallback || null;
 },
 
     giveWeapon(ped) {
