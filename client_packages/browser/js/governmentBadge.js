@@ -19,6 +19,7 @@ var governmentBadge = new Vue({
                 "sheriff": "officer",
                 "gover": "name",
                 "army": "soldier",
+                "propusk": "name",
             }[this.document.faction];
         },
         sign() {

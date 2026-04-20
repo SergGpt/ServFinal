@@ -4,6 +4,7 @@ let controlsDisabled = false;
 let isOpen = false;
 let currentType;
 let carPassList = [];
+let hasPropusk = false;
 
 mp.events.add('documents.show', (type, data) => {
     if (isOpen) return;
@@ -52,6 +53,15 @@ mp.events.add('documents.show', (type, data) => {
             }
             data.licensesCard.carClasses = classes;
             mp.callCEFV(`documents.setLicensesCard(${JSON.stringify(data.licensesCard)})`);
+        } else {
+            mp.callCEFV('documents.setLicensesCard({"show":false})');
+        }
+
+        if (data.propuskCard) {
+            data.propuskCard.show = true;
+            mp.callCEFV(`documents.setPropuskCard(${JSON.stringify(data.propuskCard)})`);
+        } else {
+            mp.callCEFV('documents.setPropuskCard({"show":false})');
         }
         mp.callCEFV(`documents.active = 'idCard'`);
         mp.callCEFV('documents.show = true');
@@ -98,13 +108,22 @@ mp.events.add('render', () => {
 });
 
 mp.events.add('documents.list', () => {
+    mp.events.callRemote('documents.list.request');
+});
+
+mp.events.add('documents.list.state', (canShowPropusk) => {
+    hasPropusk = !!canShowPropusk;
     mp.callCEFV('interactionMenu.menu = cloneObj(interactionMenu.menus["player_docs"])');
+    if (hasPropusk) {
+        mp.callCEFV(`interactionMenu.menu.items.push({
+            text: "Пропуск",
+            icon: "doc.png"
+        });`);
+    }
 
     let left = mp.getDefaultInteractionLeft();
     mp.callCEFV(`interactionMenu.left = ${left}`);
     mp.events.call('interaction.menu.show');
-
-
 });
 
 mp.events.add('documents.showTo', (type) => {
@@ -125,6 +144,9 @@ mp.events.add('documents.showTo', (type) => {
             break;
         case "mainDocuments":
             mp.events.call('documents.offer', "mainDocuments", target.remoteId);
+            break;
+        case "propusk":
+            mp.events.call('documents.offer', "propusk", target.remoteId);
             break;
     }
 });

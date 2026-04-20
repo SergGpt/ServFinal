@@ -94,6 +94,12 @@ module.exports = {
                 description: 'Бутылка качественного вина.',
                 products: 8
             },
+            {
+                id: 500,
+                name: 'Пропуск',
+                description: 'Служебный пропуск.',
+                products: 100
+            },
         ]
     },
     async init() {

@@ -286,6 +286,10 @@ var interactionMenu = new Vue({
                         mp.trigger(`documents.showTo`, "governmentBadge");
                         mp.trigger(`interaction.menu.close`);
                     }
+                    if (item.text == 'Пропуск') {
+                        mp.trigger(`documents.showTo`, "propusk");
+                        mp.trigger(`interaction.menu.close`);
+                    }
                 }
             },
             "carPass_list": {
