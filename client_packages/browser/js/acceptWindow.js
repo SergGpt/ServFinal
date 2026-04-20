@@ -35,6 +35,7 @@ var acceptWindow = new Vue({
             if (this.name == 'npcaz_pass') {
                 mp.trigger('callRemote', 'npcattakzone.pass.answer', 1);
                 this.show = false;
+                mp.trigger('npcattakzone.pass.close');
             }
         },
         decline() {
@@ -56,6 +57,7 @@ var acceptWindow = new Vue({
             if (this.name == 'npcaz_pass') {
                 mp.trigger('callRemote', 'npcattakzone.pass.answer', 0);
                 this.show = false;
+                mp.trigger('npcattakzone.pass.close');
             }
         },
     }

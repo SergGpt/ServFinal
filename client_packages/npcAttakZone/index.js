@@ -758,6 +758,14 @@ mp.events.add({
         mp.callCEFV(`acceptWindow.leftWord = 'Да (Y)';`);
         mp.callCEFV(`acceptWindow.rightWord = 'Нет (N)';`);
         mp.callCEFV(`acceptWindow.show = true;`);
+        mp.busy.add("npcaz_pass", true);
+        mp.gui.cursor.show(true, true);
+    },
+
+    "npcattakzone.pass.close": () => {
+        mp.callCEFV(`acceptWindow.show = false;`);
+        mp.busy.remove("npcaz_pass");
+        mp.gui.cursor.show(false, false);
     },
 
     render: () => {
