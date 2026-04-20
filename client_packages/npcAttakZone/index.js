@@ -20,7 +20,7 @@ const MOVE_FALLBACK_REISSUE_MS = 1200;
 const OBSERVER_VISUAL_REISSUE_MS = 1200;
 const AIM_REISSUE_MS = 900;
 const PASS_REQUEST_REISSUE_MS = 3000;
-const LEADER_CLIPBOARD_MODEL = "tr_prop_tr_clipboard_sh_01a";
+const LEADER_CLIPBOARD_MODEL = "tr_prop_tr_files_paper_01b";
 const LEADER_CLIPBOARD_ANIM_DICT = "amb@world_human_clipboard@male@idle_a";
 const LEADER_CLIPBOARD_ANIM_NAME = "idle_c";
 
@@ -159,9 +159,9 @@ function ensureLeaderClipboard(obj, ped) {
         if (obj.clipboardObj && mp.objects.exists(obj.clipboardObj)) {
             obj.clipboardObj.attachTo(
                 ped.handle,
-                24818,
-                0.14, 0.02, 0.02,
-                10.0, -15.0, 95.0,
+                57005,
+                0.06, 0.31, -0.49,
+                -5.69, -33.48, -7.13,
                 false, false, false, false, 2, true
             );
         }
