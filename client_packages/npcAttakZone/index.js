@@ -377,6 +377,7 @@ function ensureNpcEntry(ped) {
             lastStuckFallback: false,
             lastMoveDebugAt: 0,
             lastFollowIssuedAt: 0,
+            lastLeaderFollowIssuedAt: 0,
             lastFallbackIssuedAt: 0,
             lastNativeHeartbeatPos: null,
 
@@ -544,6 +545,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
     if (dist <= friskDist) {
         obj.lastMode = "leaderFrisk";
         obj.moveTask = "frisk";
+        obj.lastLeaderFollowIssuedAt = 0;
         obj.lastStuckFallback = false;
         obj.lastMovePos = pedPos;
         obj.lastMoveProgressAt = now;
@@ -572,9 +574,17 @@ function runLeaderFrisk(obj, ped, target, extra) {
         try { ped.clearTasks(); } catch (e) {}
     }
 
-    try {
-        ped.taskGoToCoordAnyMeans(target.position.x, target.position.y, target.position.z, runSpeed, 0, false, 0, 0);
-    } catch (e) {}
+    if (!obj.lastLeaderFollowIssuedAt || now - obj.lastLeaderFollowIssuedAt >= MOVE_FOLLOW_REISSUE_MS) {
+        obj.lastLeaderFollowIssuedAt = now;
+
+        try {
+            ped.taskFollowToOffsetOfEntity(target.handle, 0.0, 0.0, 0.0, runSpeed, -1, friskDist, true);
+        } catch (e) {
+            try {
+                ped.taskGoToCoordAnyMeans(target.position.x, target.position.y, target.position.z, runSpeed, 0, false, 0, 0);
+            } catch (e2) {}
+        }
+    }
 }
 
 function applyCommand(nid, cmd, extraJson, force = false) {
