@@ -17,6 +17,8 @@ const RUNTIME = {
     followSpeed: 1.2,
     commandReissueMs: 1200,
     postAckGraceMs: 500,
+    spawnTaskDelayMs: 1800,
+    ensureControllerRetryMs: 1200,
     livePosFreshMs: 3000,
     controllerSwitchHysteresis: 15.0,
 };
@@ -314,6 +316,9 @@ module.exports = {
             livePos: { x: pos.x, y: pos.y, z: pos.z },
             liveHeading: initialHeading,
             livePosUpdatedAt: Date.now(),
+            spawnAt: Date.now(),
+            spawnTaskDelayUntil: Date.now() + RUNTIME.spawnTaskDelayMs,
+            ensureControllerRetryAt: 0,
         };
 
         try {
@@ -506,12 +511,22 @@ module.exports = {
             const st = this.npcs.get(nid);
             if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
             this.forceWeaponSync(st);
+            const now = Date.now();
 
             this.controllerManager.checkTimeout(st);
 
             if (st.switching) return;
-            if (st.controllerRid === null || st.controllerRid === undefined) return;
-            if (Date.now() < (st.postAckGraceUntil || 0)) return;
+
+            if (st.controllerRid === null || st.controllerRid === undefined) {
+                if (!st.ensureControllerRetryAt || now >= st.ensureControllerRetryAt) {
+                    st.ensureControllerRetryAt = now + RUNTIME.ensureControllerRetryMs;
+                    this.controllerManager.beginSwitch(st, "ensure-controller");
+                }
+                return;
+            }
+
+            if (now < (st.postAckGraceUntil || 0)) return;
+            if (now < (st.spawnTaskDelayUntil || 0)) return;
 
             const livePos = normalizeLivePos(st.livePos, st.ped.position);
             const nearestInside = this.getNearestInsidePlayerToPos(livePos, insidePlayers);
@@ -547,7 +562,6 @@ module.exports = {
                 ? distToTarget > 1.5
                 : distToTarget > 7.0;
 
-            const now = Date.now();
             const livePosAgeMs = st.livePosUpdatedAt ? now - st.livePosUpdatedAt : -1;
             const isLivePosFresh = livePosAgeMs >= 0 && livePosAgeMs <= RUNTIME.livePosFreshMs;
 
@@ -713,7 +727,10 @@ module.exports = {
         const st = this.npcs.get(parseInt(nid));
         if (!st) return;
         const ok = this.controllerManager.onControllerAck(st, player.id, parseInt(ver));
-        if (ok) this.forceWeaponSync(st);
+        if (ok) {
+            st.ensureControllerRetryAt = 0;
+            this.forceWeaponSync(st);
+        }
     },
 
     onHeartbeat(player, nid, posJson = null) {
