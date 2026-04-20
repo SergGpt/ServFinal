@@ -851,7 +851,7 @@ module.exports = {
 
     applyNpcFireDamage(st, target, now) {
         if (!st || !target || !mp.players.exists(target)) return;
-        if (now - (st.lastFireDamageAt || 0) < 650) return;
+        if (now - (st.lastFireDamageAt || 0) < 1000) return;
         st.lastFireDamageAt = now;
 
         const weaponHash = mp.joaat(DEFAULT_WEAPON);
@@ -862,6 +862,7 @@ module.exports = {
                 if (typeof foundDamage === "number" && foundDamage > 0) damageValue = foundDamage;
             }
         } catch (e) {}
+        damageValue = Math.max(6, Math.round(damageValue * 0.55));
 
         const damaged = { armour: target.armour, health: target.health };
         try {

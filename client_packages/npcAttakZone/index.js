@@ -402,6 +402,8 @@ function ensureNpcEntry(ped) {
             lastAimIssuedAt: 0,
             lastVisualMode: "idle",
             lastPassRequestAt: 0,
+            lastForceFireVisualAt: 0,
+            lastForceFireShotAt: 0,
         });
     } else {
         const entry = controlledNpcs.get(nid);
@@ -458,7 +460,20 @@ function runGuardEngage(obj, ped, target, extra) {
 
         const forceFire = !!ped.getVariable("npcazForceFire");
         if (forceFire) {
-            try { ped.taskShootAtEntity(target.handle, 1200, 0xC6EE6B4C); } catch (e) {}
+            if (!obj.lastForceFireVisualAt || now - obj.lastForceFireVisualAt >= 800) {
+                obj.lastForceFireVisualAt = now;
+                try { ped.clearTasks(); } catch (e) {}
+                try { ped.taskAimGunAtEntity(target.handle, 700, false); } catch (e) {}
+            }
+
+            if (!obj.lastForceFireShotAt || now - obj.lastForceFireShotAt >= 950) {
+                obj.lastForceFireShotAt = now;
+                const spread = 1.6;
+                const tx = target.position.x + ((Math.random() * 2 - 1) * spread);
+                const ty = target.position.y + ((Math.random() * 2 - 1) * spread);
+                const tz = target.position.z + ((Math.random() * 2 - 1) * 0.45);
+                try { ped.taskShootAtCoord(tx, ty, tz, 450, 0xC6EE6B4C); } catch (e) {}
+            }
         } else {
             try { ped.taskAimGunAtEntity(target.handle, 1800, false); } catch (e) {}
             try { ped.taskAimGunAtCoord(target.position.x, target.position.y, target.position.z, 1800, false, false); } catch (e) {}
