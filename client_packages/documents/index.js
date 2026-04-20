@@ -53,6 +53,15 @@ mp.events.add('documents.show', (type, data) => {
             }
             data.licensesCard.carClasses = classes;
             mp.callCEFV(`documents.setLicensesCard(${JSON.stringify(data.licensesCard)})`);
+        } else {
+            mp.callCEFV('documents.setLicensesCard({"show":false})');
+        }
+
+        if (data.propuskCard) {
+            data.propuskCard.show = true;
+            mp.callCEFV(`documents.setPropuskCard(${JSON.stringify(data.propuskCard)})`);
+        } else {
+            mp.callCEFV('documents.setPropuskCard({"show":false})');
         }
         mp.callCEFV(`documents.active = 'idCard'`);
         mp.callCEFV('documents.show = true');

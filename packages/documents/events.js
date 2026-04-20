@@ -150,6 +150,14 @@ module.exports = {
                 boatLicense: player.character.boatLicense
             }
         }
+
+        if (inventory.getItemByItemId(player, 500)) {
+            data.propuskCard = {
+                name: player.character.name,
+                sex: sex,
+                passNum: `500-${player.character.id}`
+            };
+        }
         if (player.id == target.id) {
             mp.events.call('/me', player, `смотрит свои документы`);
         } else {

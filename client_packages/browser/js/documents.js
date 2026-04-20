@@ -80,11 +80,30 @@ var documents = new Vue({
                         value: "",
                     }
                 }
+            },
+            propusk: {
+                keyHead: "Пропуск",
+                show: false,
+                values: {
+                    name: {
+                        head: "Name:",
+                        value: "",
+                    },
+                    sex: {
+                        head: "Sex:",
+                        value: "",
+                    },
+                    passNum: {
+                        head: "Pass ID:",
+                        value: "",
+                    }
+                }
             }
         }
     },
     computed: {
         background() {
+            if (this.active == "propusk") return "img/governmentBadge/Propusk.png";
             return `img/documents/${this.active}.png`;
         },
     },
@@ -124,6 +143,18 @@ var documents = new Vue({
                         if (this.docs.licenses.values[key]) {
                             this.docs.licenses.values[key].value = data[key];
                         }
+                }
+            }
+        },
+        setPropuskCard(data) {
+            for (var key in data) {
+                if (key == "show") {
+                    this.docs.propusk.show = data[key];
+                    this.active = (data[key]) ? this.active : 'idCard';
+                    continue;
+                }
+                if (this.docs.propusk.values[key]) {
+                    this.docs.propusk.values[key].value = data[key];
                 }
             }
         },

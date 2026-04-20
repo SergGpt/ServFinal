@@ -194,3 +194,15 @@
 #documents .card.licenses .carClass .value .disable {
     opacity: .25;
 }
+
+#documents .card.propusk .name {
+    top: 9.5vh;
+}
+
+#documents .card.propusk .sex {
+    top: 13.7vh;
+}
+
+#documents .card.propusk .passNum {
+    top: 17.9vh;
+}
