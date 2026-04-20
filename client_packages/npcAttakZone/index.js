@@ -20,7 +20,6 @@ const MOVE_FALLBACK_REISSUE_MS = 1200;
 const OBSERVER_VISUAL_REISSUE_MS = 1200;
 const AIM_REISSUE_MS = 900;
 const PASS_REQUEST_REISSUE_MS = 3000;
-const LEADER_CLIPBOARD_MODEL = "tr_prop_tr_files_paper_01b";
 const LEADER_CLIPBOARD_ANIM_DICT = "amb@world_human_clipboard@male@idle_a";
 const LEADER_CLIPBOARD_ANIM_NAME = "idle_c";
 
@@ -137,35 +136,6 @@ function ensureAnimDictLoaded(dict) {
     } catch (e) {
         return false;
     }
-}
-
-function clearLeaderClipboard(obj) {
-    if (!obj) return;
-    try {
-        if (obj.clipboardObj && mp.objects.exists(obj.clipboardObj)) obj.clipboardObj.destroy();
-    } catch (e) {}
-    obj.clipboardObj = null;
-}
-
-function ensureLeaderClipboard(obj, ped) {
-    if (!obj || !ped || !mp.peds.exists(ped)) return;
-    try {
-        if (!obj.clipboardObj || !mp.objects.exists(obj.clipboardObj)) {
-            const pos = getPedReliableCoords(ped);
-            obj.clipboardObj = mp.objects.new(mp.game.joaat(LEADER_CLIPBOARD_MODEL), new mp.Vector3(pos.x, pos.y, pos.z), {
-                dimension: ped.dimension,
-            });
-        }
-        if (obj.clipboardObj && mp.objects.exists(obj.clipboardObj)) {
-            obj.clipboardObj.attachTo(
-                ped.handle,
-                57005,
-                0.06, 0.31, -0.49,
-                -5.69, -33.48, -7.13,
-                false, false, false, false, 2, true
-            );
-        }
-    } catch (e) {}
 }
 
 function drawPolygon(zone, color) {
@@ -344,14 +314,11 @@ function applyObserverCombatVisual(obj, ped) {
 
     if (visualMode === "leaderFrisk") {
         obj.lastVisualMode = "leaderFrisk";
-        ensureLeaderClipboard(obj, ped);
         if (ensureAnimDictLoaded(LEADER_CLIPBOARD_ANIM_DICT)) {
             try { ped.taskPlayAnim(LEADER_CLIPBOARD_ANIM_DICT, LEADER_CLIPBOARD_ANIM_NAME, 8.0, -8.0, 1200, 1, 0.0, false, false, false); } catch (e) {}
         }
         return;
     }
-
-    clearLeaderClipboard(obj);
 
     if (obj.lastVisualMode !== "idleVisual") {
         try { ped.taskStandStill(500); } catch (e) {}
@@ -435,7 +402,6 @@ function ensureNpcEntry(ped) {
             lastAimIssuedAt: 0,
             lastVisualMode: "idle",
             lastPassRequestAt: 0,
-            clipboardObj: null,
         });
     } else {
         const entry = controlledNpcs.get(nid);
@@ -453,7 +419,6 @@ function ensureNpcEntry(ped) {
 
 function runGuardEngage(obj, ped, target, extra) {
     if (!obj || !ped || !target) return;
-    clearLeaderClipboard(obj);
     ensureWeaponVisual(ped);
 
     const weaponHash = weaponNameToHash(ped.getVariable("npcazWeaponName") || "WEAPON_CARBINERIFLE");
@@ -612,7 +577,6 @@ function runLeaderFrisk(obj, ped, target, extra) {
         obj.lastMovePos = pedPos;
         obj.lastMoveProgressAt = now;
         obj.stuckSince = 0;
-        ensureLeaderClipboard(obj, ped);
 
         if (!obj.friskUntil || now >= obj.friskUntil) {
             obj.friskUntil = now + 2600;
@@ -633,7 +597,6 @@ function runLeaderFrisk(obj, ped, target, extra) {
     }
 
     obj.friskUntil = 0;
-    clearLeaderClipboard(obj);
     const shouldReissueFollow = (
         obj.lastMode !== "leaderMove"
         || obj.moveTask !== "leaderFollow"
@@ -739,11 +702,7 @@ mp.events.add("entityStreamOut", (ent) => {
     try {
         if (!ent || ent.type !== "ped") return;
         const nid = ent.getVariable("npcazNpcId");
-        if (typeof nid === "number") {
-            const obj = controlledNpcs.get(nid);
-            if (obj) clearLeaderClipboard(obj);
-            controlledNpcs.delete(nid);
-        }
+        if (typeof nid === "number") controlledNpcs.delete(nid);
     } catch (e) {}
 });
 
@@ -909,7 +868,6 @@ mp.events.add({
 });
 
 mp.events.add("playerQuit", () => {
-    controlledNpcs.forEach((obj) => clearLeaderClipboard(obj));
     controlledNpcs.clear();
     pendingAssign.clear();
     isInsideZone = false;
