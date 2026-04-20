@@ -6,6 +6,7 @@ const { createNpcControllerManager } = require("./npcControllerManager");
 
 let notifs = call("notifications");
 let inventory = call("inventory");
+let damageSystem = call("damageSystem");
 
 const RUNTIME = {
     behaviorTickMs: 350,
@@ -309,6 +310,7 @@ module.exports = {
             switchStartAt: 0,
             deadFlag: false,
             forceFire: false,
+            lastFireDamageAt: 0,
             ped,
             cooldownUntil: 0,
             lastCommandSentAt: 0,
@@ -569,6 +571,10 @@ module.exports = {
                 } catch (e) {}
                 setNpcState(st, NPCAZ_STATE.IDLE, (msg) => this.log(msg), "no-target");
                 return;
+            }
+
+            if (st.role === "guard" && st.forceFire) {
+                this.applyNpcFireDamage(st, target, now);
             }
 
             const distToTarget = dist3(livePos, target.position);
@@ -840,6 +846,66 @@ module.exports = {
             if (Number(st.targetRid) !== Number(targetRid)) return;
             st.forceFire = !!fireState;
             try { st.ped.setVariable("npcazForceFire", !!fireState); } catch (e) {}
+        });
+    },
+
+    applyNpcFireDamage(st, target, now) {
+        if (!st || !target || !mp.players.exists(target)) return;
+        if (now - (st.lastFireDamageAt || 0) < 650) return;
+        st.lastFireDamageAt = now;
+
+        const weaponHash = mp.joaat(DEFAULT_WEAPON);
+        let damageValue = 18;
+        try {
+            if (damageSystem && typeof damageSystem.findDamageValue === "function") {
+                const foundDamage = damageSystem.findDamageValue(weaponHash);
+                if (typeof foundDamage === "number" && foundDamage > 0) damageValue = foundDamage;
+            }
+        } catch (e) {}
+
+        const damaged = { armour: target.armour, health: target.health };
+        try {
+            if (damageSystem && typeof damageSystem.damagePlayer === "function") damageSystem.damagePlayer(damaged, damageValue);
+            else damaged.health -= damageValue;
+        } catch (e) {
+            damaged.health -= damageValue;
+        }
+
+        target.armour = Math.clamp(damaged.armour, 0, 100);
+        target.health = Math.clamp(damaged.health, 0, 100);
+
+        if (target.health <= 0) {
+            if (!target.isCustomDeath) {
+                target.isCustomDeath = true;
+                const killer = st.ped && st.ped.controller && mp.players.exists(st.ped.controller) ? st.ped.controller : null;
+                mp.events.call("customDeath", target, weaponHash, killer);
+            }
+            this.putGuardsToSleep(target.id);
+        }
+    },
+
+    putGuardsToSleep(targetRid) {
+        this.zoneNpcIds.forEach((nid) => {
+            const st = this.npcs.get(nid);
+            if (!st || st.role !== "guard" || !st.ped || !mp.peds.exists(st.ped)) return;
+            if (Number(st.targetRid) !== Number(targetRid)) return;
+
+            st.forceFire = false;
+            st.targetRid = null;
+            st.lastIssuedCommand = null;
+            st.lastIssuedPayload = null;
+            clearTask(st);
+
+            try {
+                st.ped.setVariable("npcazForceFire", false);
+                st.ped.setVariable("npcazTargetRid", -1);
+                st.ped.setVariable("npcazAimActive", false);
+                st.ped.setVariable("npcazVisualMode", "idle");
+                st.ped.setVariable("npcazCommand", "idle");
+                st.ped.setVariable("npcazCommandExtra", null);
+            } catch (e) {}
+
+            setNpcState(st, NPCAZ_STATE.IDLE, (msg) => this.log(msg), "guards-sleep");
         });
     },
 
