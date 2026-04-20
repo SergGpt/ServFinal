@@ -69,6 +69,16 @@ function weaponNameToHash(name) {
 function getPedReliableCoords(ped) {
     if (!ped || !mp.peds.exists(ped)) return vec3(0, 0, 0);
     try {
+        if (typeof ped.getCoords === "function") {
+            const pos = ped.getCoords(true);
+            if (pos) return vec3(pos.x, pos.y, pos.z);
+        }
+    } catch (e) {}
+    try {
+        const nativePos = mp.game.entity.getEntityCoords(ped.handle, false);
+        if (nativePos) return vec3(nativePos.x, nativePos.y, nativePos.z);
+    } catch (e) {}
+    try {
         const p = ped.position;
         if (p) return vec3(p.x, p.y, p.z);
     } catch (e) {}
@@ -78,9 +88,38 @@ function getPedReliableCoords(ped) {
 function getPedReliableHeading(ped) {
     if (!ped || !mp.peds.exists(ped)) return 0;
     try {
+        const nativeHeading = mp.game.entity.getEntityHeading(ped.handle);
+        if (!isNaN(Number(nativeHeading))) return Number(nativeHeading);
+    } catch (e) {}
+    try {
         if (!isNaN(Number(ped.heading))) return Number(ped.heading);
     } catch (e) {}
     return 0;
+}
+
+function getNpcLogicalPos(ped) {
+    if (!ped || !mp.peds.exists(ped)) return vec3(0, 0, 0);
+
+    const livePos = ped.getVariable("npcazLivePos");
+    if (livePos && typeof livePos === "object") {
+        return vec3(livePos.x, livePos.y, livePos.z);
+    }
+
+    try {
+        const p = ped.position;
+        if (p) return vec3(p.x, p.y, p.z);
+    } catch (e) {}
+
+    return vec3(0, 0, 0);
+}
+
+function getNpcTaskPos(ped) {
+    if (!ped || !mp.peds.exists(ped)) return vec3(0, 0, 0);
+
+    const nativePos = getPedReliableCoords(ped);
+    if (nativePos && (nativePos.x || nativePos.y || nativePos.z)) return nativePos;
+
+    return getNpcLogicalPos(ped);
 }
 
 function drawPolygon(zone, color) {
@@ -209,14 +248,25 @@ function drawNpcPedDebug(obj, ped) {
 }
 
 function ensureWeaponVisual(ped) {
-    if (!ped || !mp.peds.exists(ped)) return;
-    const weaponName = ped.getVariable("npcazWeaponName") || "WEAPON_CARBINERIFLE";
+    if (!ped || !mp.peds.exists(ped)) return false;
     const holdWeapon = !!ped.getVariable("npcazHoldWeapon");
-    if (!holdWeapon) return;
+    if (!holdWeapon) return false;
 
+    const weaponName = ped.getVariable("npcazWeaponName") || "WEAPON_CARBINERIFLE";
     const hash = weaponNameToHash(weaponName);
+    try { ped.giveWeapon(hash, 9999, true); } catch (e) {}
     try { ped.setWeapon(hash); } catch (e) {}
     try { ped.currentWeapon = hash; } catch (e) {}
+
+    try {
+        mp.game.invoke("0xADF692B254977C0C", ped.handle, hash, true);
+    } catch (e) {}
+
+    try {
+        mp.game.invoke("0xBF0FD6E56C964FCB", ped.handle, false);
+    } catch (e) {}
+
+    return true;
 }
 
 function applyObserverCombatVisual(obj, ped) {
@@ -231,6 +281,8 @@ function applyObserverCombatVisual(obj, ped) {
     ensureWeaponVisual(ped);
 
     if (visualMode === "combat" && aimActive && target) {
+        ensureWeaponVisual(ped);
+
         if (
             obj.lastVisualMode !== "combatAim" ||
             now - (obj.lastObserverVisualAt || 0) >= OBSERVER_VISUAL_REISSUE_MS ||
@@ -259,6 +311,7 @@ function applyObserverCombatVisual(obj, ped) {
 
 function syncObserverNpcTransform(obj, ped) {
     if (!obj || !ped || !mp.peds.exists(ped)) return;
+    ensureWeaponVisual(ped);
 
     const livePos = ped.getVariable("npcazLivePos");
     if (!livePos || typeof livePos !== "object") return;
@@ -290,7 +343,7 @@ function syncObserverNpcTransform(obj, ped) {
 }
 
 function resetMoveTracking(obj, ped, moveTask) {
-    const pos = getPedReliableCoords(ped);
+    const pos = getNpcTaskPos(ped);
     obj.moveTask = moveTask;
     obj.lastMovePos = pos;
     obj.lastMoveProgressAt = Date.now();
@@ -347,21 +400,30 @@ function ensureNpcEntry(ped) {
 
 function runGuardEngage(obj, ped, target, extra) {
     if (!obj || !ped || !target) return;
+    ensureWeaponVisual(ped);
 
-    const weaponHash = mp.game.joaat("WEAPON_CARBINERIFLE");
+    const weaponHash = weaponNameToHash(ped.getVariable("npcazWeaponName") || "WEAPON_CARBINERIFLE");
+    try { ped.giveWeapon(weaponHash, 9999, true); } catch (e) {}
     try { ped.setWeapon(weaponHash); } catch (e) {}
     try { ped.currentWeapon = weaponHash; } catch (e) {}
+    try { mp.game.invoke("0xADF692B254977C0C", ped.handle, weaponHash, true); } catch (e) {}
 
     const speed = Number(extra && extra.runSpeed) || 3.2;
     const aimDist = Number(extra && extra.aimDist) || 7.0;
 
-    const pedPos = getPedReliableCoords(ped);
+    const pedPos = getNpcTaskPos(ped);
     const targetPos = vec3(target.position.x, target.position.y, target.position.z);
     const dist = distance3(pedPos, targetPos);
     const shouldAim = dist <= aimDist;
     const now = Date.now();
 
     if (shouldAim) {
+        ensureWeaponVisual(ped);
+        try { ped.giveWeapon(weaponHash, 9999, true); } catch (e) {}
+        try { ped.setWeapon(weaponHash); } catch (e) {}
+        try { ped.currentWeapon = weaponHash; } catch (e) {}
+        try { mp.game.invoke("0xADF692B254977C0C", ped.handle, weaponHash, true); } catch (e) {}
+
         if (obj.lastMode !== "guardAim") {
             obj.lastMode = "guardAim";
             try { ped.clearTasks(); } catch (e) {}
@@ -372,14 +434,15 @@ function runGuardEngage(obj, ped, target, extra) {
         obj.moveTask = "aim";
         obj.lastStuckFallback = false;
         obj.stuckSince = 0;
-        obj.lastMovePos = getPedReliableCoords(ped);
+        obj.lastMovePos = getNpcTaskPos(ped);
         obj.lastMoveProgressAt = now;
 
         try { ped.taskAimGunAtEntity(target.handle, 1800, false); } catch (e) {}
+        try { ped.taskAimGunAtCoord(target.position.x, target.position.y, target.position.z, 1800, false, false); } catch (e) {}
         return;
     }
 
-    const pos = getPedReliableCoords(ped);
+    const pos = getNpcTaskPos(ped);
 
     if (!obj.lastMovePos) {
         obj.lastMovePos = pos;
@@ -464,12 +527,18 @@ function runGuardEngage(obj, ped, target, extra) {
 
 function runLeaderFrisk(obj, ped, target, extra) {
     if (!obj || !ped || !target) return;
+    ensureWeaponVisual(ped);
 
     const friskDist = Number(extra && extra.friskDist) || 1.5;
     const runSpeed = Number(extra && extra.runSpeed) || 2.1;
+    const targetVehicle = target.vehicle && mp.vehicles.exists(target.vehicle) ? target.vehicle : null;
+    const isTargetInVehicle = !!targetVehicle;
+    const approachDist = isTargetInVehicle ? Math.max(friskDist, 4.5) : friskDist;
 
-    const pedPos = getPedReliableCoords(ped);
-    const targetPos = vec3(target.position.x, target.position.y, target.position.z);
+    const pedPos = getNpcTaskPos(ped);
+    const targetPos = isTargetInVehicle
+        ? vec3(targetVehicle.position.x, targetVehicle.position.y, targetVehicle.position.z)
+        : vec3(target.position.x, target.position.y, target.position.z);
     const dist = distance3(pedPos, targetPos);
     const now = Date.now();
 
@@ -477,7 +546,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
     try { ped.setWeapon(weaponHash); } catch (e) {}
     try { ped.currentWeapon = weaponHash; } catch (e) {}
 
-    if (dist <= friskDist) {
+    if (!isTargetInVehicle && dist <= friskDist) {
         obj.lastMode = "leaderFrisk";
         obj.moveTask = "frisk";
         obj.lastStuckFallback = false;
@@ -502,15 +571,37 @@ function runLeaderFrisk(obj, ped, target, extra) {
     }
 
     obj.friskUntil = 0;
-    if (obj.lastMode !== "leaderMove") {
-        obj.lastMode = "leaderMove";
-        resetMoveTracking(obj, ped, "leaderMove");
-        try { ped.clearTasks(); } catch (e) {}
-    }
+    const shouldReissueFollow = (
+        obj.lastMode !== "leaderMove"
+        || obj.moveTask !== "leaderFollow"
+        || now - (obj.lastFollowIssuedAt || 0) >= MOVE_FOLLOW_REISSUE_MS
+    );
 
-    try {
-        ped.taskGoToCoordAnyMeans(target.position.x, target.position.y, target.position.z, runSpeed, 0, false, 0, 0);
-    } catch (e) {}
+    if (shouldReissueFollow) {
+        obj.lastMode = "leaderMove";
+        resetMoveTracking(obj, ped, "leaderFollow");
+        obj.lastFollowIssuedAt = now;
+
+        try { ped.clearTasks(); } catch (e) {}
+        try {
+            const followHandle = isTargetInVehicle ? targetVehicle.handle : target.handle;
+            ped.taskFollowToOffsetOfEntity(followHandle, 0.0, 0.0, 0.0, runSpeed, -1, approachDist, true);
+        } catch (e) {
+            try {
+                ped.taskGoStraightToCoord(
+                    targetPos.x,
+                    targetPos.y,
+                    targetPos.z,
+                    runSpeed,
+                    2500,
+                    Number(target.heading || 0),
+                    0.35
+                );
+            } catch (err) {}
+            obj.moveTask = "leaderFallback";
+            obj.lastFallbackIssuedAt = now;
+        }
+    }
 }
 
 function applyCommand(nid, cmd, extraJson, force = false) {
@@ -685,7 +776,7 @@ mp.events.add({
             if (!obj.lastHeartbeatAt || now - obj.lastHeartbeatAt >= HEARTBEAT_MS) {
                 obj.lastHeartbeatAt = now;
 
-                const nativePos = getPedReliableCoords(ped);
+                const nativePos = getNpcTaskPos(ped);
                 const heading = round3(getPedReliableHeading(ped));
 
                 const payload = {
