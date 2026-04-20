@@ -69,6 +69,10 @@ function weaponNameToHash(name) {
 function getPedReliableCoords(ped) {
     if (!ped || !mp.peds.exists(ped)) return vec3(0, 0, 0);
     try {
+        const nativePos = mp.game.entity.getEntityCoords(ped.handle, false);
+        if (nativePos) return vec3(nativePos.x, nativePos.y, nativePos.z);
+    } catch (e) {}
+    try {
         const p = ped.position;
         if (p) return vec3(p.x, p.y, p.z);
     } catch (e) {}
@@ -77,6 +81,10 @@ function getPedReliableCoords(ped) {
 
 function getPedReliableHeading(ped) {
     if (!ped || !mp.peds.exists(ped)) return 0;
+    try {
+        const nativeHeading = mp.game.entity.getEntityHeading(ped.handle);
+        if (!isNaN(Number(nativeHeading))) return Number(nativeHeading);
+    } catch (e) {}
     try {
         if (!isNaN(Number(ped.heading))) return Number(ped.heading);
     } catch (e) {}
