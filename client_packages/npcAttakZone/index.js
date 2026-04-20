@@ -91,6 +91,14 @@ function getPedReliableHeading(ped) {
     return 0;
 }
 
+function getNpcRuntimePos(obj, ped) {
+    if (obj && obj.lastNativeHeartbeatPos) {
+        const p = obj.lastNativeHeartbeatPos;
+        return vec3(p.x, p.y, p.z);
+    }
+    return getPedReliableCoords(ped);
+}
+
 function drawPolygon(zone, color) {
     if (!zone || !Array.isArray(zone.points) || zone.points.length < 2) return;
     const c = color || [220, 45, 45, 190];
@@ -380,7 +388,7 @@ function runGuardEngage(obj, ped, target, extra) {
     const speed = Number(extra && extra.runSpeed) || 3.2;
     const aimDist = Number(extra && extra.aimDist) || 7.0;
 
-    const pedPos = getPedReliableCoords(ped);
+    const pedPos = getNpcRuntimePos(obj, ped);
     const targetPos = vec3(target.position.x, target.position.y, target.position.z);
     const dist = distance3(pedPos, targetPos);
     const shouldAim = dist <= aimDist;
@@ -399,14 +407,14 @@ function runGuardEngage(obj, ped, target, extra) {
         obj.moveTask = "aim";
         obj.lastStuckFallback = false;
         obj.stuckSince = 0;
-        obj.lastMovePos = getPedReliableCoords(ped);
+        obj.lastMovePos = getNpcRuntimePos(obj, ped);
         obj.lastMoveProgressAt = now;
 
         try { ped.taskAimGunAtEntity(target.handle, 1800, false); } catch (e) {}
         return;
     }
 
-    const pos = getPedReliableCoords(ped);
+    const pos = getNpcRuntimePos(obj, ped);
 
     if (!obj.lastMovePos) {
         obj.lastMovePos = pos;
@@ -496,7 +504,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
     const friskDist = Number(extra && extra.friskDist) || 1.5;
     const runSpeed = Number(extra && extra.runSpeed) || 2.1;
 
-    const pedPos = getPedReliableCoords(ped);
+    const pedPos = getNpcRuntimePos(obj, ped);
     const targetPos = vec3(target.position.x, target.position.y, target.position.z);
     const dist = distance3(pedPos, targetPos);
     const now = Date.now();
