@@ -159,7 +159,7 @@ function ensureLeaderClipboard(obj, ped) {
         if (obj.clipboardObj && mp.objects.exists(obj.clipboardObj)) {
             obj.clipboardObj.attachTo(
                 ped.handle,
-                57005,
+                24818,
                 0.14, 0.02, 0.02,
                 10.0, -15.0, 95.0,
                 false, false, false, false, 2, true
@@ -612,12 +612,12 @@ function runLeaderFrisk(obj, ped, target, extra) {
         obj.lastMovePos = pedPos;
         obj.lastMoveProgressAt = now;
         obj.stuckSince = 0;
+        ensureLeaderClipboard(obj, ped);
 
         if (!obj.friskUntil || now >= obj.friskUntil) {
             obj.friskUntil = now + 2600;
             try { ped.clearTasks(); } catch (e) {}
             try { ped.taskTurnToFaceCoord(target.position.x, target.position.y, target.position.z, 600); } catch (e) {}
-            ensureLeaderClipboard(obj, ped);
             if (ensureAnimDictLoaded(LEADER_CLIPBOARD_ANIM_DICT)) {
                 try { ped.taskPlayAnim(LEADER_CLIPBOARD_ANIM_DICT, LEADER_CLIPBOARD_ANIM_NAME, 8.0, -8.0, 2400, 1, 0.0, false, false, false); } catch (e) {}
             } else {
