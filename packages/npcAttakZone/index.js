@@ -5,6 +5,7 @@ const { saveTask, clearTask, restoreTask } = require("./npcTaskMemory");
 const { createNpcControllerManager } = require("./npcControllerManager");
 
 let notifs = call("notifications");
+let inventory = call("inventory");
 
 const RUNTIME = {
     behaviorTickMs: 350,
@@ -79,6 +80,7 @@ module.exports = {
     zoneNpcIds: [],
     nextNid: 1,
     initialized: false,
+    passDialogs: new Map(),
 
     async init() {
         if (this.initialized) return;
@@ -306,6 +308,7 @@ module.exports = {
             switching: false,
             switchStartAt: 0,
             deadFlag: false,
+            forceFire: false,
             ped,
             cooldownUntil: 0,
             lastCommandSentAt: 0,
@@ -340,6 +343,7 @@ module.exports = {
             ped.setVariable("npcazHoldWeapon", true);
             ped.setVariable("npcazAimActive", false);
             ped.setVariable("npcazVisualMode", "idle");
+            ped.setVariable("npcazForceFire", false);
 
             ped.health = 250;
             ped.setHealth(250);
@@ -434,6 +438,7 @@ module.exports = {
             st.ped.setVariable("npcazHoldWeapon", true);
             st.ped.setVariable("npcazAimActive", true);
             st.ped.setVariable("npcazVisualMode", "combat");
+            st.ped.setVariable("npcazForceFire", !!st.forceFire);
             st.ped.setVariable("npcazCommand", "guardEngage");
             st.ped.setVariable("npcazCommandExtra", payload);
         } catch (e) {}
@@ -455,8 +460,8 @@ module.exports = {
 
         const payload = {
             rid: targetRid,
-            stopDist: 1.5,
-            friskDist: 1.5,
+            stopDist: 2.0,
+            friskDist: 2.0,
             runSpeed: 2.1,
         };
 
@@ -807,6 +812,7 @@ module.exports = {
 
     onPlayerQuit(player) {
         this.playerStates.delete(player.id);
+        this.passDialogs.delete(player.id);
 
         this.zoneNpcIds.forEach((nid) => {
             const st = this.npcs.get(nid);
@@ -825,6 +831,63 @@ module.exports = {
                 } catch (e) {}
             }
         });
+    },
+
+    setGuardsFire(targetRid, fireState) {
+        this.zoneNpcIds.forEach((nid) => {
+            const st = this.npcs.get(nid);
+            if (!st || st.role !== "guard" || !st.ped || !mp.peds.exists(st.ped)) return;
+            if (Number(st.targetRid) !== Number(targetRid)) return;
+            st.forceFire = !!fireState;
+            try { st.ped.setVariable("npcazForceFire", !!fireState); } catch (e) {}
+        });
+    },
+
+    hasPassItem(player) {
+        if (!player || !mp.players.exists(player) || !inventory) return false;
+        try {
+            return !!inventory.getItemByItemId(player, 500);
+        } catch (e) {
+            return false;
+        }
+    },
+
+    onPassReady(controller, nid, targetRid) {
+        const st = this.npcs.get(parseInt(nid));
+        if (!st || st.role !== "leader") return;
+        if (Number(st.controllerRid) !== Number(controller.id)) return;
+
+        const target = findPlayerByRid(targetRid);
+        if (!target || !mp.players.exists(target) || !this.isPlayerInsideZone(target)) return;
+        if (Number(st.targetRid) !== Number(target.id)) return;
+
+        const active = this.passDialogs.get(target.id);
+        const now = Date.now();
+        if (active && now - active.at < 2500) return;
+
+        this.passDialogs.set(target.id, { nid: st.nid, targetRid: target.id, at: now });
+        target.call("npcattakzone.pass.show");
+    },
+
+    onPassAnswer(player, answer) {
+        const req = this.passDialogs.get(player.id);
+        if (!req) return;
+        this.passDialogs.delete(player.id);
+
+        const approved = Number(answer) === 1;
+        if (!approved) {
+            this.setGuardsFire(req.targetRid, true);
+            notifs.error(player, "Вы отказались показывать пропуск", "NpcAttakZone");
+            return;
+        }
+
+        if (this.hasPassItem(player)) {
+            this.setGuardsFire(req.targetRid, false);
+            notifs.success(player, "Пропуск подтвержден", "NpcAttakZone");
+        } else {
+            this.setGuardsFire(req.targetRid, true);
+            notifs.error(player, "Пропуск не найден (нужен предмет #500)", "NpcAttakZone");
+        }
     },
 };
 

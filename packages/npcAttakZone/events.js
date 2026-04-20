@@ -57,4 +57,12 @@ module.exports = {
     'npcattakzone:npc.heartbeat': (player, nid, posJson) => {
         moduleApi.onHeartbeat(player, nid, posJson);
     },
+
+    'npcattakzone.pass.ready': (player, nid, targetRid) => {
+        moduleApi.onPassReady(player, nid, targetRid);
+    },
+
+    'npcattakzone.pass.answer': (player, answer) => {
+        moduleApi.onPassAnswer(player, answer);
+    },
 };

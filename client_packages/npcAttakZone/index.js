@@ -19,6 +19,7 @@ const MOVE_FALLBACK_REISSUE_MS = 1200;
 
 const OBSERVER_VISUAL_REISSUE_MS = 1200;
 const AIM_REISSUE_MS = 900;
+const PASS_REQUEST_REISSUE_MS = 3000;
 
 function logHeartbeatDebug(message) {
     const text = `[NpcAttakZone][heartbeat] ${message}`;
@@ -383,6 +384,7 @@ function ensureNpcEntry(ped) {
             lastObserverVisualAt: 0,
             lastAimIssuedAt: 0,
             lastVisualMode: "idle",
+            lastPassRequestAt: 0,
         });
     } else {
         const entry = controlledNpcs.get(nid);
@@ -437,8 +439,13 @@ function runGuardEngage(obj, ped, target, extra) {
         obj.lastMovePos = getNpcTaskPos(ped);
         obj.lastMoveProgressAt = now;
 
-        try { ped.taskAimGunAtEntity(target.handle, 1800, false); } catch (e) {}
-        try { ped.taskAimGunAtCoord(target.position.x, target.position.y, target.position.z, 1800, false, false); } catch (e) {}
+        const forceFire = !!ped.getVariable("npcazForceFire");
+        if (forceFire) {
+            try { ped.taskShootAtEntity(target.handle, 1200, 0xC6EE6B4C); } catch (e) {}
+        } else {
+            try { ped.taskAimGunAtEntity(target.handle, 1800, false); } catch (e) {}
+            try { ped.taskAimGunAtCoord(target.position.x, target.position.y, target.position.z, 1800, false, false); } catch (e) {}
+        }
         return;
     }
 
@@ -558,14 +565,12 @@ function runLeaderFrisk(obj, ped, target, extra) {
             obj.friskUntil = now + 2600;
             try { ped.clearTasks(); } catch (e) {}
             try { ped.taskTurnToFaceCoord(target.position.x, target.position.y, target.position.z, 600); } catch (e) {}
-            try {
-                const dict = "amb@prop_human_bum_bin@idle_b";
-                if (!mp.game.streaming.hasAnimDictLoaded(dict)) {
-                    mp.game.streaming.requestAnimDict(dict);
-                    return;
-                }
-                ped.taskPlayAnim(dict, "idle_d", 8.0, -8.0, 2500, 1, 0.0, false, false, false);
-            } catch (e) {}
+            try { ped.taskStandStill(1200); } catch (e) {}
+        }
+
+        if (!obj.lastPassRequestAt || now - obj.lastPassRequestAt >= PASS_REQUEST_REISSUE_MS) {
+            obj.lastPassRequestAt = now;
+            try { mp.events.callRemote("npcattakzone.pass.ready", ped.getVariable("npcazNpcId"), target.remoteId); } catch (e) {}
         }
         return;
     }
@@ -744,6 +749,15 @@ mp.events.add({
 
     "npcattakzone:npc.executeCommand": (nid, cmd, extraJson) => {
         applyCommand(nid, cmd, extraJson, true);
+    },
+
+    "npcattakzone.pass.show": () => {
+        mp.callCEFV(`acceptWindow.name = 'npcaz_pass';`);
+        mp.callCEFV(`acceptWindow.header = 'Показать пропуск';`);
+        mp.callCEFV(`acceptWindow.text = 'Показать пропуск в заражённую зону?';`);
+        mp.callCEFV(`acceptWindow.leftWord = 'Да (Y)';`);
+        mp.callCEFV(`acceptWindow.rightWord = 'Нет (N)';`);
+        mp.callCEFV(`acceptWindow.show = true;`);
     },
 
     render: () => {
