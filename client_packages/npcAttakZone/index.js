@@ -22,6 +22,8 @@ const AIM_REISSUE_MS = 900;
 const PASS_REQUEST_REISSUE_MS = 3000;
 const LEADER_CLIPBOARD_ANIM_DICT = "amb@world_human_clipboard@male@idle_a";
 const LEADER_CLIPBOARD_ANIM_NAME = "idle_c";
+const ANIM_DICT_RETRY_MS = 400;
+const animDictRequestAt = new Map();
 
 function logHeartbeatDebug(message) {
     const text = `[NpcAttakZone][heartbeat] ${message}`;
@@ -66,6 +68,28 @@ function weaponNameToHash(name) {
         return mp.game.joaat(weaponName);
     } catch (e) {
         return mp.game.joaat("WEAPON_CARBINERIFLE");
+    }
+}
+
+function ensureAnimDictLoaded(dictName) {
+    const name = String(dictName || "").trim();
+    if (!name) return false;
+
+    try {
+        if (mp.game.streaming.hasAnimDictLoaded(name)) return true;
+    } catch (e) {}
+
+    const now = Date.now();
+    const lastRequestAt = Number(animDictRequestAt.get(name) || 0);
+    if (!lastRequestAt || now - lastRequestAt >= ANIM_DICT_RETRY_MS) {
+        try { mp.game.streaming.requestAnimDict(name); } catch (e) {}
+        animDictRequestAt.set(name, now);
+    }
+
+    try {
+        return !!mp.game.streaming.hasAnimDictLoaded(name);
+    } catch (e) {
+        return false;
     }
 }
 
