@@ -616,6 +616,33 @@ function applyCommand(nid, cmd, extraJson, force = false) {
     obj.lastCommandAt = now;
 }
 
+function runActiveCommandTick(obj, ped) {
+    if (!obj || !ped || !mp.peds.exists(ped)) return;
+
+    const cmd = String(ped.getVariable("npcazCommand") || "idle");
+    const extra = ped.getVariable("npcazCommandExtra") || {};
+    const rid = Number(extra.rid);
+    const target = Number.isInteger(rid) ? findPlayerById(rid) : null;
+
+    if (cmd === "guardEngage") {
+        if (target) runGuardEngage(obj, ped, target, extra);
+        return;
+    }
+
+    if (cmd === "leaderFrisk") {
+        if (target) runLeaderFrisk(obj, ped, target, extra);
+        return;
+    }
+
+    if (cmd === "idle") {
+        if (obj.lastMode !== "idleTick") {
+            try { ped.clearTasks(); } catch (e) {}
+            try { ped.taskStandStill(700); } catch (e) {}
+            obj.lastMode = "idleTick";
+        }
+    }
+}
+
 function ackController(nid, ver) {
     try { mp.events.callRemote("npcattakzone:npc.ctrlAck", nid, ver); } catch (e) {}
 }
@@ -768,6 +795,8 @@ mp.events.add({
                     mp.events.callRemote("npcattakzone:npc.heartbeat", nid, JSON.stringify(payload));
                 } catch (e) {}
             }
+
+            runActiveCommandTick(obj, ped);
 
             if (obj.needsRehydrate || (obj.recoveryAt && now >= obj.recoveryAt)) {
                 obj.needsRehydrate = false;
