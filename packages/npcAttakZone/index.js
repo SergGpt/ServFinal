@@ -57,6 +57,18 @@ function normalizeLivePos(pos, fallback) {
     };
 }
 
+function findPlayerByRid(rid) {
+    rid = Number(rid);
+    if (!Number.isInteger(rid)) return null;
+    let found = null;
+    mp.players.forEach((player) => {
+        if (!found && player && mp.players.exists(player) && Number(player.id) === rid) {
+            found = player;
+        }
+    });
+    return found;
+}
+
 module.exports = {
     zone: null,
     zoneRuntimeId: 1,
@@ -386,7 +398,7 @@ module.exports = {
         if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
         this.forceWeaponSync(st);
 
-        const target = mp.players.at(targetRid);
+        const target = findPlayerByRid(targetRid);
         if (!target || !mp.players.exists(target)) return;
 
         const controller = st.ped.controller;
@@ -504,7 +516,7 @@ module.exports = {
             const livePos = normalizeLivePos(st.livePos, st.ped.position);
             const nearestInside = this.getNearestInsidePlayerToPos(livePos, insidePlayers);
 
-            let target = mp.players.at(st.targetRid);
+            let target = findPlayerByRid(st.targetRid);
             const shouldRefreshTarget = (
                 !target
                 || !mp.players.exists(target)
@@ -562,7 +574,7 @@ module.exports = {
 
             const betterController = this.chooseController(this.zone, st.ped, st.targetRid, livePos);
             if (betterController && st.controllerRid !== betterController.id && !st.switching) {
-                const currentController = mp.players.at(st.controllerRid);
+                const currentController = findPlayerByRid(st.controllerRid);
                 const currentDist = currentController && mp.players.exists(currentController)
                     ? dist3(currentController.position, livePos)
                     : Infinity;
