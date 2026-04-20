@@ -22,6 +22,8 @@ const AIM_REISSUE_MS = 900;
 const PASS_REQUEST_REISSUE_MS = 3000;
 const LEADER_CLIPBOARD_ANIM_DICT = "amb@world_human_clipboard@male@idle_a";
 const LEADER_CLIPBOARD_ANIM_NAME = "idle_c";
+const ANIM_DICT_RETRY_MS = 400;
+const animDictRequestAt = new Map();
 
 function logHeartbeatDebug(message) {
     const text = `[NpcAttakZone][heartbeat] ${message}`;
@@ -66,6 +68,28 @@ function weaponNameToHash(name) {
         return mp.game.joaat(weaponName);
     } catch (e) {
         return mp.game.joaat("WEAPON_CARBINERIFLE");
+    }
+}
+
+function ensureAnimDictLoaded(dictName) {
+    const name = String(dictName || "").trim();
+    if (!name) return false;
+
+    try {
+        if (mp.game.streaming.hasAnimDictLoaded(name)) return true;
+    } catch (e) {}
+
+    const now = Date.now();
+    const lastRequestAt = Number(animDictRequestAt.get(name) || 0);
+    if (!lastRequestAt || now - lastRequestAt >= ANIM_DICT_RETRY_MS) {
+        try { mp.game.streaming.requestAnimDict(name); } catch (e) {}
+        animDictRequestAt.set(name, now);
+    }
+
+    try {
+        return !!mp.game.streaming.hasAnimDictLoaded(name);
+    } catch (e) {
+        return false;
     }
 }
 
@@ -539,6 +563,9 @@ function runLeaderFrisk(obj, ped, target, extra) {
 
     const friskDist = Number(extra && extra.friskDist) || 1.5;
     const runSpeed = Number(extra && extra.runSpeed) || 2.1;
+    const isTargetInVehicle = !!target.vehicle;
+    const targetVehicle = isTargetInVehicle ? target.vehicle : null;
+    const approachDist = Math.max(friskDist + 0.2, 1.6);
 
     const pedPos = getNpcTaskPos(ped);
     const targetPos = vec3(target.position.x, target.position.y, target.position.z);
@@ -589,7 +616,8 @@ function runLeaderFrisk(obj, ped, target, extra) {
 
         try { ped.clearTasks(); } catch (e) {}
         try {
-            const followHandle = isTargetInVehicle ? targetVehicle.handle : target.handle;
+            const canFollowVehicle = isTargetInVehicle && targetVehicle && mp.vehicles.exists(targetVehicle);
+            const followHandle = canFollowVehicle ? targetVehicle.handle : target.handle;
             ped.taskFollowToOffsetOfEntity(followHandle, 0.0, 0.0, 0.0, runSpeed, -1, approachDist, true);
         } catch (e) {
             try {
@@ -610,7 +638,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
 
     try {
         ped.taskFollowToOffsetOfEntity(
-            target.handle,
+            isTargetInVehicle && targetVehicle && mp.vehicles.exists(targetVehicle) ? targetVehicle.handle : target.handle,
             0.0,
             0.0,
             0.0,
