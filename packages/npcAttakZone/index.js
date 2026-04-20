@@ -19,6 +19,8 @@ const RUNTIME = {
     postAckGraceMs: 500,
     livePosFreshMs: 3000,
     controllerSwitchHysteresis: 15.0,
+    spawnControllerGraceMs: 1800,
+    controllerEnsureRetryMs: 1200,
 };
 
 const GUARD_MODELS = ["s_m_m_security_01", "s_m_y_blackops_01", "s_m_y_blackops_02"];
@@ -55,6 +57,18 @@ function normalizeLivePos(pos, fallback) {
         y: Number(src.y) || 0,
         z: Number(src.z) || 0,
     };
+}
+
+function findPlayerByRid(rid) {
+    rid = Number(rid);
+    if (!Number.isInteger(rid)) return null;
+    let found = null;
+    mp.players.forEach((player) => {
+        if (!found && player && mp.players.exists(player) && Number(player.id) === rid) {
+            found = player;
+        }
+    });
+    return found;
 }
 
 module.exports = {
@@ -185,6 +199,23 @@ module.exports = {
         return list;
     },
 
+    getNearestInsidePlayerToPos(pos, players) {
+        const list = Array.isArray(players) ? players : this.getPlayersInsideZone();
+        if (!list.length) return null;
+
+        let nearest = null;
+        let bestDist = Infinity;
+        list.forEach((player) => {
+            if (!player || !mp.players.exists(player)) return;
+            const d = dist3(pos || { x: 0, y: 0, z: 0 }, player.position);
+            if (d < bestDist) {
+                nearest = player;
+                bestDist = d;
+            }
+        });
+        return nearest;
+    },
+
  chooseController(zone, ped, preferredRid = null, livePos = null, blockedControllerRid = null) {
     let best = null;
     let bestDist = Infinity;
@@ -216,11 +247,26 @@ module.exports = {
 },
 
     giveWeapon(ped) {
+        if (!ped || !mp.peds.exists(ped)) return;
         try {
             const hash = mp.joaat(DEFAULT_WEAPON);
             ped.giveWeapon(hash, 9999);
             ped.setWeapon(hash);
             ped.currentWeapon = hash;
+            ped.setVariable("npcazWeaponName", DEFAULT_WEAPON);
+            ped.setVariable("npcazHoldWeapon", true);
+        } catch (e) {}
+    },
+
+    forceWeaponSync(st) {
+        if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
+        try {
+            const hash = mp.joaat(DEFAULT_WEAPON);
+            st.ped.giveWeapon(hash, 9999);
+            st.ped.setWeapon(hash);
+            st.ped.currentWeapon = hash;
+            st.ped.setVariable("npcazWeaponName", DEFAULT_WEAPON);
+            st.ped.setVariable("npcazHoldWeapon", true);
         } catch (e) {}
     },
 
@@ -270,6 +316,8 @@ module.exports = {
             livePos: { x: pos.x, y: pos.y, z: pos.z },
             liveHeading: initialHeading,
             livePosUpdatedAt: Date.now(),
+            spawnedAt: Date.now(),
+            lastEnsureControllerAt: 0,
         };
 
         try {
@@ -298,6 +346,7 @@ module.exports = {
         } catch (e) {}
 
         this.giveWeapon(ped);
+        this.forceWeaponSync(st);
         this.npcs.set(nid, st);
         this.zoneNpcIds.push(nid);
         this.controllerManager.beginSwitch(st, "spawn");
@@ -351,8 +400,9 @@ module.exports = {
 
     setTaskGuardEngage(st, targetRid) {
         if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
+        this.forceWeaponSync(st);
 
-        const target = mp.players.at(targetRid);
+        const target = findPlayerByRid(targetRid);
         if (!target || !mp.players.exists(target)) return;
 
         const controller = st.ped.controller;
@@ -380,12 +430,12 @@ module.exports = {
         } catch (e) {}
 
         try {
-            st.ped.setVariable("npcazCommand", "guardEngage");
-            st.ped.setVariable("npcazCommandExtra", payload);
             st.ped.setVariable("npcazWeaponName", DEFAULT_WEAPON);
             st.ped.setVariable("npcazHoldWeapon", true);
             st.ped.setVariable("npcazAimActive", true);
             st.ped.setVariable("npcazVisualMode", "combat");
+            st.ped.setVariable("npcazCommand", "guardEngage");
+            st.ped.setVariable("npcazCommandExtra", payload);
         } catch (e) {}
 
         st.lastIssuedCommand = "guardEngage";
@@ -398,6 +448,7 @@ module.exports = {
 
     setTaskLeaderFrisk(st, targetRid) {
         if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
+        this.forceWeaponSync(st);
 
         const controller = st.ped.controller;
         if (!controller || !mp.players.exists(controller)) return;
@@ -458,16 +509,47 @@ module.exports = {
         this.zoneNpcIds.forEach((nid) => {
             const st = this.npcs.get(nid);
             if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
+            this.forceWeaponSync(st);
 
             this.controllerManager.checkTimeout(st);
 
-            if (st.switching) return;
-            if (st.controllerRid === null || st.controllerRid === undefined) return;
-            if (Date.now() < (st.postAckGraceUntil || 0)) return;
+            const now = Date.now();
 
-            let target = mp.players.at(st.targetRid);
-            if (!target || !mp.players.exists(target) || !this.isPlayerInsideZone(target)) {
-                target = insidePlayers[0] || null;
+            if (st.switching) return;
+
+            if (st.controllerRid === null || st.controllerRid === undefined) {
+                if (!st.lastEnsureControllerAt || now - st.lastEnsureControllerAt >= RUNTIME.controllerEnsureRetryMs) {
+                    st.lastEnsureControllerAt = now;
+                    this.controllerManager.beginSwitch(st, "ensure-controller");
+                }
+                return;
+            }
+
+            const controller = findPlayerByRid(st.controllerRid);
+            if (!controller || !mp.players.exists(controller)) {
+                if (!st.lastEnsureControllerAt || now - st.lastEnsureControllerAt >= RUNTIME.controllerEnsureRetryMs) {
+                    st.lastEnsureControllerAt = now;
+                    this.controllerManager.beginSwitch(st, "controller-missing");
+                }
+                return;
+            }
+
+            if (now - (st.spawnedAt || 0) < RUNTIME.spawnControllerGraceMs) return;
+            if (now < (st.postAckGraceUntil || 0)) return;
+
+            const livePos = normalizeLivePos(st.livePos, st.ped.position);
+            const nearestInside = this.getNearestInsidePlayerToPos(livePos, insidePlayers);
+
+            let target = findPlayerByRid(st.targetRid);
+            const shouldRefreshTarget = (
+                !target
+                || !mp.players.exists(target)
+                || !this.isPlayerInsideZone(target)
+                || (nearestInside && target.id !== nearestInside.id)
+            );
+
+            if (shouldRefreshTarget) {
+                target = nearestInside || null;
                 st.targetRid = target ? target.id : null;
                 try {
                     st.ped.setVariable("npcazTargetRid", st.targetRid == null ? -1 : st.targetRid);
@@ -484,13 +566,11 @@ module.exports = {
                 return;
             }
 
-            const livePos = normalizeLivePos(st.livePos, st.ped.position);
             const distToTarget = dist3(livePos, target.position);
             const shouldMoveToTarget = st.role === "leader"
                 ? distToTarget > 1.5
                 : distToTarget > 7.0;
 
-            const now = Date.now();
             const livePosAgeMs = st.livePosUpdatedAt ? now - st.livePosUpdatedAt : -1;
             const isLivePosFresh = livePosAgeMs >= 0 && livePosAgeMs <= RUNTIME.livePosFreshMs;
 
@@ -517,7 +597,7 @@ module.exports = {
 
             const betterController = this.chooseController(this.zone, st.ped, st.targetRid, livePos);
             if (betterController && st.controllerRid !== betterController.id && !st.switching) {
-                const currentController = mp.players.at(st.controllerRid);
+                const currentController = findPlayerByRid(st.controllerRid);
                 const currentDist = currentController && mp.players.exists(currentController)
                     ? dist3(currentController.position, livePos)
                     : Infinity;
@@ -655,7 +735,8 @@ module.exports = {
     onControllerAck(player, nid, ver) {
         const st = this.npcs.get(parseInt(nid));
         if (!st) return;
-        this.controllerManager.onControllerAck(st, player.id, parseInt(ver));
+        const ok = this.controllerManager.onControllerAck(st, player.id, parseInt(ver));
+        if (ok) this.forceWeaponSync(st);
     },
 
     onHeartbeat(player, nid, posJson = null) {
@@ -757,8 +838,11 @@ module.exports.controllerManager = createNpcControllerManager({
         switchCooldownMs: RUNTIME.switchCooldownMs,
         postAckGraceMs: RUNTIME.postAckGraceMs,
     },
-    restoreTask: (st) => restoreTask(st, {
-        guardEngage: (npc, data) => module.exports.setTaskGuardEngage(npc, data.rid),
-        leaderFrisk: (npc, data) => module.exports.setTaskLeaderFrisk(npc, data.rid),
-    }),
+    restoreTask: (st) => {
+        module.exports.forceWeaponSync(st);
+        return restoreTask(st, {
+            guardEngage: (npc, data) => module.exports.setTaskGuardEngage(npc, data.rid),
+            leaderFrisk: (npc, data) => module.exports.setTaskLeaderFrisk(npc, data.rid),
+        });
+    },
 });
