@@ -1,6 +1,7 @@
 "use strict";
 let documents = require("./index.js");
 let factions = call("factions");
+let inventory = call("inventory");
 
 module.exports = {
     "init": () => {
@@ -12,6 +13,11 @@ module.exports = {
             let allowedFactionIds = [1, 2, 3, 4, 6];
             if (!allowedFactionIds.includes(player.character.factionId)) {
                 return player.call('notifications.push.error', ['Вы не сотрудник PD/FIB/GOV/ARMY', 'Документы']);
+            }
+        }
+        if (type == 'propusk') {
+            if (!inventory.getItemByItemId(player, 500)) {
+                return player.call('notifications.push.error', ['У вас нет пропуска', 'Документы']);
             }
         }
 
@@ -38,6 +44,9 @@ module.exports = {
                 break;
             case 'mainDocuments':
                 docName = 'документы';
+                break;
+            case 'propusk':
+                docName = 'пропуск';
                 break;
         }
         target.call('offerDialog.show', ["documents", {
@@ -75,7 +84,14 @@ module.exports = {
             case 'mainDocuments':
                 mp.events.call('documents.mainDocuments.show', player, targetId);
                 break;
+            case 'propusk':
+                mp.events.call('documents.propusk.show', player, targetId);
+                break;
         }
+    },
+    "documents.list.request": (player) => {
+        if (!player || !player.character) return;
+        player.call('documents.list.state', [!!inventory.getItemByItemId(player, 500)]);
     },
     "documents.characterPass.show": (player, targetId) => {
         let target = mp.players.at(targetId);
@@ -178,6 +194,25 @@ module.exports = {
             mp.events.call('/me', player, `смотрит свое удостоверение`);
         } else {
             mp.events.call('/me', player, `показал${player.character.gender ? 'а' : ''} свое удостоверение`);
+        }
+        target.call('documents.show', ['governmentBadge', data]);
+    },
+    "documents.propusk.show": (player, targetId) => {
+        let target = mp.players.at(targetId);
+        if (!target) return;
+
+        let data = {
+            faction: 'propusk',
+            name: player.character.name,
+            sex: player.character.gender ? 'F' : 'M',
+            rank: 'Пропуск №500',
+            director: ''
+        };
+
+        if (player.id == target.id) {
+            mp.events.call('/me', player, `смотрит свой пропуск`);
+        } else {
+            mp.events.call('/me', player, `показал${player.character.gender ? 'а' : ''} свой пропуск`);
         }
         target.call('documents.show', ['governmentBadge', data]);
     },

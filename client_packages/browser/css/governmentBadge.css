@@ -31,6 +31,10 @@
     background-image: url("../img/governmentBadge/army.png");
 }
 
+#governmentBadge.propusk {
+    background-image: url("../img/governmentBadge/Propusk.png");
+}
+
 #governmentBadge .info {
     position: absolute;
     left: 59.8%;
