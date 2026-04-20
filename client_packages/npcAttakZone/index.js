@@ -531,9 +531,14 @@ function runLeaderFrisk(obj, ped, target, extra) {
 
     const friskDist = Number(extra && extra.friskDist) || 1.5;
     const runSpeed = Number(extra && extra.runSpeed) || 2.1;
+    const targetVehicle = target.vehicle && mp.vehicles.exists(target.vehicle) ? target.vehicle : null;
+    const isTargetInVehicle = !!targetVehicle;
+    const approachDist = isTargetInVehicle ? Math.max(friskDist, 4.5) : friskDist;
 
     const pedPos = getNpcTaskPos(ped);
-    const targetPos = vec3(target.position.x, target.position.y, target.position.z);
+    const targetPos = isTargetInVehicle
+        ? vec3(targetVehicle.position.x, targetVehicle.position.y, targetVehicle.position.z)
+        : vec3(target.position.x, target.position.y, target.position.z);
     const dist = distance3(pedPos, targetPos);
     const now = Date.now();
 
@@ -541,7 +546,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
     try { ped.setWeapon(weaponHash); } catch (e) {}
     try { ped.currentWeapon = weaponHash; } catch (e) {}
 
-    if (dist <= friskDist) {
+    if (!isTargetInVehicle && dist <= friskDist) {
         obj.lastMode = "leaderFrisk";
         obj.moveTask = "frisk";
         obj.lastStuckFallback = false;
@@ -579,13 +584,14 @@ function runLeaderFrisk(obj, ped, target, extra) {
 
         try { ped.clearTasks(); } catch (e) {}
         try {
-            ped.taskFollowToOffsetOfEntity(target.handle, 0.0, 0.0, 0.0, runSpeed, -1, friskDist, true);
+            const followHandle = isTargetInVehicle ? targetVehicle.handle : target.handle;
+            ped.taskFollowToOffsetOfEntity(followHandle, 0.0, 0.0, 0.0, runSpeed, -1, approachDist, true);
         } catch (e) {
             try {
                 ped.taskGoStraightToCoord(
-                    target.position.x,
-                    target.position.y,
-                    target.position.z,
+                    targetPos.x,
+                    targetPos.y,
+                    targetPos.z,
                     runSpeed,
                     2500,
                     Number(target.heading || 0),
