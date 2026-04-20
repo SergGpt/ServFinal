@@ -125,19 +125,6 @@ function getNpcTaskPos(ped) {
     return getNpcLogicalPos(ped);
 }
 
-function ensureAnimDictLoaded(dict) {
-    if (!dict) return false;
-    try {
-        if (!mp.game.streaming.hasAnimDictLoaded(dict)) {
-            mp.game.streaming.requestAnimDict(dict);
-            return false;
-        }
-        return true;
-    } catch (e) {
-        return false;
-    }
-}
-
 function drawPolygon(zone, color) {
     if (!zone || !Array.isArray(zone.points) || zone.points.length < 2) return;
     const c = color || [220, 45, 45, 190];
@@ -458,26 +445,8 @@ function runGuardEngage(obj, ped, target, extra) {
         obj.lastMovePos = getNpcTaskPos(ped);
         obj.lastMoveProgressAt = now;
 
-        const forceFire = !!ped.getVariable("npcazForceFire");
-        if (forceFire) {
-            if (!obj.lastForceFireVisualAt || now - obj.lastForceFireVisualAt >= 800) {
-                obj.lastForceFireVisualAt = now;
-                try { ped.clearTasks(); } catch (e) {}
-                try { ped.taskAimGunAtEntity(target.handle, 700, false); } catch (e) {}
-            }
-
-            if (!obj.lastForceFireShotAt || now - obj.lastForceFireShotAt >= 950) {
-                obj.lastForceFireShotAt = now;
-                const spread = 1.6;
-                const tx = target.position.x + ((Math.random() * 2 - 1) * spread);
-                const ty = target.position.y + ((Math.random() * 2 - 1) * spread);
-                const tz = target.position.z + ((Math.random() * 2 - 1) * 0.45);
-                try { ped.taskShootAtCoord(tx, ty, tz, 450, 0xC6EE6B4C); } catch (e) {}
-            }
-        } else {
-            try { ped.taskAimGunAtEntity(target.handle, 1800, false); } catch (e) {}
-            try { ped.taskAimGunAtCoord(target.position.x, target.position.y, target.position.z, 1800, false, false); } catch (e) {}
-        }
+        try { ped.taskAimGunAtEntity(target.handle, 1800, false); } catch (e) {}
+        try { ped.taskAimGunAtCoord(target.position.x, target.position.y, target.position.z, 1800, false, false); } catch (e) {}
         return;
     }
 
@@ -570,14 +539,9 @@ function runLeaderFrisk(obj, ped, target, extra) {
 
     const friskDist = Number(extra && extra.friskDist) || 1.5;
     const runSpeed = Number(extra && extra.runSpeed) || 2.1;
-    const targetVehicle = target.vehicle && mp.vehicles.exists(target.vehicle) ? target.vehicle : null;
-    const isTargetInVehicle = !!targetVehicle;
-    const approachDist = isTargetInVehicle ? Math.max(friskDist, 4.5) : friskDist;
 
     const pedPos = getNpcTaskPos(ped);
-    const targetPos = isTargetInVehicle
-        ? vec3(targetVehicle.position.x, targetVehicle.position.y, targetVehicle.position.z)
-        : vec3(target.position.x, target.position.y, target.position.z);
+    const targetPos = vec3(target.position.x, target.position.y, target.position.z);
     const dist = distance3(pedPos, targetPos);
     const now = Date.now();
 
@@ -642,6 +606,31 @@ function runLeaderFrisk(obj, ped, target, extra) {
             obj.moveTask = "leaderFallback";
             obj.lastFallbackIssuedAt = now;
         }
+    }
+
+    try {
+        ped.taskFollowToOffsetOfEntity(
+            target.handle,
+            0.0,
+            0.0,
+            0.0,
+            runSpeed,
+            -1,
+            friskDist + 0.2,
+            true
+        );
+    } catch (e) {
+        try {
+            ped.taskGoStraightToCoord(
+                target.position.x,
+                target.position.y,
+                target.position.z,
+                runSpeed,
+                2500,
+                Number(target.heading || 0),
+                0.35
+            );
+        } catch (err) {}
     }
 }
 

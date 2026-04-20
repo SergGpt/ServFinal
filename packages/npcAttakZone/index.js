@@ -440,7 +440,6 @@ module.exports = {
             st.ped.setVariable("npcazHoldWeapon", true);
             st.ped.setVariable("npcazAimActive", true);
             st.ped.setVariable("npcazVisualMode", "combat");
-            st.ped.setVariable("npcazForceFire", !!st.forceFire);
             st.ped.setVariable("npcazCommand", "guardEngage");
             st.ped.setVariable("npcazCommandExtra", payload);
         } catch (e) {}
