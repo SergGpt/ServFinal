@@ -69,6 +69,12 @@ function weaponNameToHash(name) {
 function getPedReliableCoords(ped) {
     if (!ped || !mp.peds.exists(ped)) return vec3(0, 0, 0);
     try {
+        if (typeof ped.getCoords === "function") {
+            const pos = ped.getCoords(true);
+            if (pos) return vec3(pos.x, pos.y, pos.z);
+        }
+    } catch (e) {}
+    try {
         const nativePos = mp.game.entity.getEntityCoords(ped.handle, false);
         if (nativePos) return vec3(nativePos.x, nativePos.y, nativePos.z);
     } catch (e) {}
@@ -105,6 +111,15 @@ function getNpcLogicalPos(ped) {
     } catch (e) {}
 
     return vec3(0, 0, 0);
+}
+
+function getNpcTaskPos(ped) {
+    if (!ped || !mp.peds.exists(ped)) return vec3(0, 0, 0);
+
+    const nativePos = getPedReliableCoords(ped);
+    if (nativePos && (nativePos.x || nativePos.y || nativePos.z)) return nativePos;
+
+    return getNpcLogicalPos(ped);
 }
 
 function drawPolygon(zone, color) {
@@ -328,7 +343,7 @@ function syncObserverNpcTransform(obj, ped) {
 }
 
 function resetMoveTracking(obj, ped, moveTask) {
-    const pos = getNpcLogicalPos(ped);
+    const pos = getNpcTaskPos(ped);
     obj.moveTask = moveTask;
     obj.lastMovePos = pos;
     obj.lastMoveProgressAt = Date.now();
@@ -396,7 +411,7 @@ function runGuardEngage(obj, ped, target, extra) {
     const speed = Number(extra && extra.runSpeed) || 3.2;
     const aimDist = Number(extra && extra.aimDist) || 7.0;
 
-    const pedPos = getNpcLogicalPos(ped);
+    const pedPos = getNpcTaskPos(ped);
     const targetPos = vec3(target.position.x, target.position.y, target.position.z);
     const dist = distance3(pedPos, targetPos);
     const shouldAim = dist <= aimDist;
@@ -415,14 +430,14 @@ function runGuardEngage(obj, ped, target, extra) {
         obj.moveTask = "aim";
         obj.lastStuckFallback = false;
         obj.stuckSince = 0;
-        obj.lastMovePos = getNpcLogicalPos(ped);
+        obj.lastMovePos = getNpcTaskPos(ped);
         obj.lastMoveProgressAt = now;
 
         try { ped.taskAimGunAtEntity(target.handle, 1800, false); } catch (e) {}
         return;
     }
 
-    const pos = getNpcLogicalPos(ped);
+    const pos = getNpcTaskPos(ped);
 
     if (!obj.lastMovePos) {
         obj.lastMovePos = pos;
@@ -512,7 +527,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
     const friskDist = Number(extra && extra.friskDist) || 1.5;
     const runSpeed = Number(extra && extra.runSpeed) || 2.1;
 
-    const pedPos = getNpcLogicalPos(ped);
+    const pedPos = getNpcTaskPos(ped);
     const targetPos = vec3(target.position.x, target.position.y, target.position.z);
     const dist = distance3(pedPos, targetPos);
     const now = Date.now();
@@ -729,7 +744,7 @@ mp.events.add({
             if (!obj.lastHeartbeatAt || now - obj.lastHeartbeatAt >= HEARTBEAT_MS) {
                 obj.lastHeartbeatAt = now;
 
-                const nativePos = getPedReliableCoords(ped);
+                const nativePos = getNpcTaskPos(ped);
                 const heading = round3(getPedReliableHeading(ped));
 
                 const payload = {
