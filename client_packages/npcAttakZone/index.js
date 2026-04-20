@@ -215,8 +215,10 @@ function ensureWeaponVisual(ped) {
     if (!holdWeapon) return;
 
     const hash = weaponNameToHash(weaponName);
+    try { ped.giveWeapon(hash, 9999); } catch (e) {}
     try { ped.setWeapon(hash); } catch (e) {}
     try { ped.currentWeapon = hash; } catch (e) {}
+    try { ped.setCanSwitchWeapon(false); } catch (e) {}
 }
 
 function applyObserverCombatVisual(obj, ped) {

@@ -216,11 +216,14 @@ module.exports = {
 },
 
     giveWeapon(ped) {
+        if (!ped || !mp.peds.exists(ped)) return;
         try {
             const hash = mp.joaat(DEFAULT_WEAPON);
             ped.giveWeapon(hash, 9999);
             ped.setWeapon(hash);
             ped.currentWeapon = hash;
+            ped.setVariable("npcazWeaponName", DEFAULT_WEAPON);
+            ped.setVariable("npcazHoldWeapon", true);
         } catch (e) {}
     },
 
@@ -458,6 +461,7 @@ module.exports = {
         this.zoneNpcIds.forEach((nid) => {
             const st = this.npcs.get(nid);
             if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
+            this.giveWeapon(st.ped);
 
             this.controllerManager.checkTimeout(st);
 
