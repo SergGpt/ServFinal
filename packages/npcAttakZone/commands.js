@@ -1,5 +1,3 @@
-let moduleApi = require('./index');
-
 module.exports = {
     '/npcattakzone': {
         description: 'Настройка зоны спавна NPC (select menu)',
@@ -7,7 +5,7 @@ module.exports = {
         access: 6,
         handler: (player) => {
             if (!player || !player.character || player.character.admin < 6) return;
-            player.call('npcattakzone.menu.show', [moduleApi.getZoneData()]);
+            mp.events.call('npcattakzone.menu.open', player);
         },
     },
     '/npczone': {
@@ -16,7 +14,16 @@ module.exports = {
         access: 6,
         handler: (player) => {
             if (!player || !player.character || player.character.admin < 6) return;
-            player.call('npcattakzone.menu.show', [moduleApi.getZoneData()]);
+            mp.events.call('npcattakzone.menu.open', player);
+        },
+    },
+    '/npcaz': {
+        description: 'Настройка зоны спавна NPC (select menu)',
+        args: '',
+        access: 6,
+        handler: (player) => {
+            if (!player || !player.character || player.character.admin < 6) return;
+            mp.events.call('npcattakzone.menu.open', player);
         },
     },
 };
