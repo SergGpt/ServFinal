@@ -497,7 +497,7 @@ function runGuardEngage(obj, ped, target, extra) {
                 }
                 if (!started) {
                     try {
-                        ped.taskShootAtCoord(target.position.x, target.position.y, target.position.z, 900, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
+                        ped.taskCombat(target.handle, 0, 16);
                     } catch (e) {}
                 }
             }
@@ -721,6 +721,33 @@ function runLeaderFrisk(obj, ped, target, extra) {
     }
 }
 
+function processForceFire(obj, ped) {
+    if (!obj || !ped || !mp.peds.exists(ped)) return;
+
+    const forceFire = !!ped.getVariable("npcazForceFire");
+    const cmd = String(ped.getVariable("npcazCommand") || "");
+    const targetRid = Number(ped.getVariable("npcazTargetRid"));
+    const target = Number.isInteger(targetRid) ? findPlayerById(targetRid) : null;
+    const now = Date.now();
+
+    if (!forceFire || cmd !== "guardEngage" || !target || !mp.players.exists(target)) {
+        obj.lastForceFireVisualAt = 0;
+        obj.lastForceFireShotAt = 0;
+        return;
+    }
+
+    if (!obj.lastForceFireVisualAt || now - obj.lastForceFireVisualAt >= 500) {
+        try {
+            ped.taskShootAt(target.handle, 900, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
+            obj.lastForceFireVisualAt = now;
+            if (!obj.lastForceFireShotAt || now - obj.lastForceFireShotAt >= 450) {
+                obj.lastForceFireShotAt = now;
+                try { mp.events.callRemote("npcattakzone:npc.fireOpened", ped.getVariable("npcazNpcId"), targetRid); } catch (e) {}
+            }
+        } catch (e) {}
+    }
+}
+
 function applyCommand(nid, cmd, extraJson, force = false) {
     nid = parseInt(nid);
     const obj = controlledNpcs.get(nid);
@@ -902,6 +929,7 @@ mp.events.add({
             }
 
             ensureWeaponVisual(ped);
+            processForceFire(obj, ped);
 
             if (!obj.lastHeartbeatAt || now - obj.lastHeartbeatAt >= HEARTBEAT_MS) {
                 obj.lastHeartbeatAt = now;

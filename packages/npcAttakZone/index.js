@@ -23,6 +23,7 @@ const RUNTIME = {
     controllerSwitchHysteresis: 15.0,
     spawnControllerGraceMs: 1800,
     controllerEnsureRetryMs: 1200,
+    passSleepMs: 3 * 60 * 1000,
 };
 
 const GUARD_MODELS = ["s_m_m_security_01", "s_m_y_blackops_01", "s_m_y_blackops_02"];
@@ -83,7 +84,6 @@ module.exports = {
     initialized: false,
     passDialogs: new Map(),
     passDialogsBlockedUntil: new Map(),
-    passApprovedSleepUntil: new Map(),
 
     async init() {
         if (this.initialized) return;
@@ -312,6 +312,8 @@ module.exports = {
             deadFlag: false,
             forceFire: false,
             lastFireDamageAt: 0,
+            fireStartRequestedAt: 0,
+            lastFireOpenedAt: 0,
             ped,
             cooldownUntil: 0,
             lastCommandSentAt: 0,
@@ -511,7 +513,41 @@ module.exports = {
             return;
         }
 
-        const primaryTarget = insidePlayers[0];
+        const awakePlayers = insidePlayers.filter((player) => {
+            const sleepUntil = this.passApprovedSleepUntil.get(player.id) || 0;
+            if (Date.now() >= sleepUntil) {
+                this.passApprovedSleepUntil.delete(player.id);
+                return true;
+            }
+            return false;
+        });
+
+        if (!awakePlayers.length) {
+            this.zoneNpcIds.forEach((nid) => {
+                const st = this.npcs.get(nid);
+                if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
+
+                st.forceFire = false;
+                st.targetRid = null;
+                st.lastIssuedCommand = null;
+                st.lastIssuedPayload = null;
+                clearTask(st);
+
+                try {
+                    st.ped.setVariable("npcazForceFire", false);
+                    st.ped.setVariable("npcazTargetRid", -1);
+                    st.ped.setVariable("npcazAimActive", false);
+                    st.ped.setVariable("npcazVisualMode", "idle");
+                    st.ped.setVariable("npcazCommand", "idle");
+                    st.ped.setVariable("npcazCommandExtra", null);
+                } catch (e) {}
+
+                setNpcState(st, NPCAZ_STATE.IDLE, (msg) => this.log(msg), "all-checked-sleep");
+            });
+            return;
+        }
+
+        const primaryTarget = awakePlayers[0];
         this.ensureNpcGroupForTarget(primaryTarget);
 
         this.zoneNpcIds.forEach((nid) => {
@@ -546,7 +582,7 @@ module.exports = {
             if (now < (st.postAckGraceUntil || 0)) return;
 
             const livePos = normalizeLivePos(st.livePos, st.ped.position);
-            const nearestInside = this.getNearestInsidePlayerToPos(livePos, insidePlayers);
+            const nearestInside = this.getNearestInsidePlayerToPos(livePos, awakePlayers);
 
             let target = findPlayerByRid(st.targetRid);
             const shouldRefreshTarget = (
@@ -843,17 +879,34 @@ module.exports = {
     },
 
     setGuardsFire(targetRid, fireState) {
+        const now = Date.now();
         this.zoneNpcIds.forEach((nid) => {
             const st = this.npcs.get(nid);
             if (!st || st.role !== "guard" || !st.ped || !mp.peds.exists(st.ped)) return;
             if (Number(st.targetRid) !== Number(targetRid)) return;
             st.forceFire = !!fireState;
+            st.fireStartRequestedAt = fireState ? now : 0;
+            st.lastFireOpenedAt = 0;
             try { st.ped.setVariable("npcazForceFire", !!fireState); } catch (e) {}
         });
     },
 
+    onNpcFireOpened(player, nid, targetRid) {
+        const st = this.npcs.get(parseInt(nid));
+        if (!st || st.role !== "guard" || !st.ped || !mp.peds.exists(st.ped)) return;
+        if (!player || !mp.players.exists(player)) return;
+        if (Number(st.controllerRid) !== Number(player.id)) return;
+        if (!st.forceFire) return;
+        if (Number(st.targetRid) !== Number(targetRid)) return;
+        st.lastFireOpenedAt = Date.now();
+    },
+
     applyNpcFireDamage(st, target, now) {
         if (!st || !target || !mp.players.exists(target)) return;
+        if (!st.forceFire) return;
+        if (!st.lastFireOpenedAt) return;
+        if (st.fireStartRequestedAt && st.lastFireOpenedAt < st.fireStartRequestedAt) return;
+        if (now - st.lastFireOpenedAt > 1500) return;
         if (now - (st.lastFireDamageAt || 0) < 1000) return;
         st.lastFireDamageAt = now;
 
@@ -896,10 +949,12 @@ module.exports = {
     putGuardsToSleep(targetRid) {
         this.zoneNpcIds.forEach((nid) => {
             const st = this.npcs.get(nid);
-            if (!st || st.role !== "guard" || !st.ped || !mp.peds.exists(st.ped)) return;
+            if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
             if (Number(st.targetRid) !== Number(targetRid)) return;
 
             st.forceFire = false;
+            st.fireStartRequestedAt = 0;
+            st.lastFireOpenedAt = 0;
             st.targetRid = null;
             st.lastIssuedCommand = null;
             st.lastIssuedPayload = null;
@@ -962,6 +1017,7 @@ module.exports = {
         if (this.hasPassItem(player)) {
             this.passDialogsBlockedUntil.delete(req.targetRid);
             this.setGuardsFire(req.targetRid, false);
+            this.putGuardsToSleep(req.targetRid);
             notifs.success(player, "Пропуск подтвержден", "NpcAttakZone");
         } else {
             this.passDialogsBlockedUntil.set(req.targetRid, Date.now() + 120000);
