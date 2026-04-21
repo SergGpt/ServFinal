@@ -313,6 +313,8 @@ module.exports = {
             deadFlag: false,
             forceFire: false,
             lastFireDamageAt: 0,
+            fireStartRequestedAt: 0,
+            lastFireOpenedAt: 0,
             ped,
             cooldownUntil: 0,
             lastCommandSentAt: 0,
@@ -877,17 +879,34 @@ module.exports = {
     },
 
     setGuardsFire(targetRid, fireState) {
+        const now = Date.now();
         this.zoneNpcIds.forEach((nid) => {
             const st = this.npcs.get(nid);
             if (!st || st.role !== "guard" || !st.ped || !mp.peds.exists(st.ped)) return;
             if (Number(st.targetRid) !== Number(targetRid)) return;
             st.forceFire = !!fireState;
+            st.fireStartRequestedAt = fireState ? now : 0;
+            st.lastFireOpenedAt = 0;
             try { st.ped.setVariable("npcazForceFire", !!fireState); } catch (e) {}
         });
     },
 
+    onNpcFireOpened(player, nid, targetRid) {
+        const st = this.npcs.get(parseInt(nid));
+        if (!st || st.role !== "guard" || !st.ped || !mp.peds.exists(st.ped)) return;
+        if (!player || !mp.players.exists(player)) return;
+        if (Number(st.controllerRid) !== Number(player.id)) return;
+        if (!st.forceFire) return;
+        if (Number(st.targetRid) !== Number(targetRid)) return;
+        st.lastFireOpenedAt = Date.now();
+    },
+
     applyNpcFireDamage(st, target, now) {
         if (!st || !target || !mp.players.exists(target)) return;
+        if (!st.forceFire) return;
+        if (!st.lastFireOpenedAt) return;
+        if (st.fireStartRequestedAt && st.lastFireOpenedAt < st.fireStartRequestedAt) return;
+        if (now - st.lastFireOpenedAt > 1500) return;
         if (now - (st.lastFireDamageAt || 0) < 1000) return;
         st.lastFireDamageAt = now;
 
@@ -929,6 +948,8 @@ module.exports = {
             if (Number(st.targetRid) !== Number(targetRid)) return;
 
             st.forceFire = false;
+            st.fireStartRequestedAt = 0;
+            st.lastFireOpenedAt = 0;
             st.targetRid = null;
             st.lastIssuedCommand = null;
             st.lastIssuedPayload = null;

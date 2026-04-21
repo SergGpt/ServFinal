@@ -662,6 +662,32 @@ function runLeaderFrisk(obj, ped, target, extra) {
     }
 }
 
+function processForceFire(obj, ped) {
+    if (!obj || !ped || !mp.peds.exists(ped)) return;
+
+    const forceFire = !!ped.getVariable("npcazForceFire");
+    const cmd = String(ped.getVariable("npcazCommand") || "");
+    const targetRid = Number(ped.getVariable("npcazTargetRid"));
+    const target = Number.isInteger(targetRid) ? findPlayerById(targetRid) : null;
+    const now = Date.now();
+
+    if (!forceFire || cmd !== "guardEngage" || !target || !mp.players.exists(target)) {
+        obj.lastForceFireVisualAt = 0;
+        obj.lastForceFireShotAt = 0;
+        return;
+    }
+
+    if (!obj.lastForceFireVisualAt || now - obj.lastForceFireVisualAt >= 650) {
+        try { ped.taskShootAtEntity(target.handle, 700, mp.game.joaat("FIRING_PATTERN_BURST_FIRE")); } catch (e) {}
+        obj.lastForceFireVisualAt = now;
+    }
+
+    if (!obj.lastForceFireShotAt || now - obj.lastForceFireShotAt >= 500) {
+        obj.lastForceFireShotAt = now;
+        try { mp.events.callRemote("npcattakzone:npc.fireOpened", ped.getVariable("npcazNpcId"), targetRid); } catch (e) {}
+    }
+}
+
 function applyCommand(nid, cmd, extraJson, force = false) {
     nid = parseInt(nid);
     const obj = controlledNpcs.get(nid);
@@ -847,6 +873,7 @@ mp.events.add({
             }
 
             ensureWeaponVisual(ped);
+            processForceFire(obj, ped);
 
             if (!obj.lastHeartbeatAt || now - obj.lastHeartbeatAt >= HEARTBEAT_MS) {
                 obj.lastHeartbeatAt = now;
