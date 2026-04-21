@@ -56,6 +56,7 @@ module.exports = {
             9: [9],
             10: [10],
             11: [11],
+            21: [21],
             // мафии
             12: [8, 9, 10, 11, 12],
             13: [8, 9, 10, 11, 13],
@@ -473,10 +474,16 @@ createGarageMarker(faction) {
     },
     setLeader(faction, player) {
         if (typeof faction == 'number') faction = this.getFaction(faction);
+        var maxRank = this.getMaxRank(faction);
+        if (!maxRank) {
+            console.log(`[FACTIONS] Не удалось назначить лидера для ${faction ? faction.name : 'Unknown'}: отсутствуют ранги`);
+            return false;
+        }
+
         var character = player.character;
         var oldVal = character.factionId;
         character.factionId = faction.id;
-        character.factionRank = this.getMaxRank(faction).id;
+        character.factionRank = maxRank.id;
         character.save();
 
         player.setVariable("factionId", character.factionId);
@@ -517,11 +524,17 @@ createGarageMarker(faction) {
     },
     addMember(faction, player) {
         if (typeof faction == 'number') faction = this.getFaction(faction);
+        var minRank = this.getMinRank(faction);
+        if (!minRank) {
+            console.log(`[FACTIONS] Не удалось добавить участника в ${faction ? faction.name : 'Unknown'}: отсутствуют ранги`);
+            return false;
+        }
+
         var character = player.character;
         if (character.factionId) this.fullDeleteItems(character.id, character.factionId);
         var oldVal = character.factionId;
         character.factionId = faction.id;
-        character.factionRank = this.getMinRank(faction).id;
+        character.factionRank = minRank.id;
         character.save();
 
         player.setVariable("factionId", character.factionId);
@@ -685,14 +698,14 @@ createGarageMarker(faction) {
     },
     isBandFaction(faction) {
         if (typeof faction == 'number') faction = this.getFaction(faction);
-        return faction && ((faction.id >= 8 && faction.id <= 11) || faction.id == 16);
+        return faction && ((faction.id >= 8 && faction.id <= 11) || faction.id == 16 || faction.id == this.rastFactionId);
     },
     isMafiaFaction(faction) {
         if (typeof faction == 'number') faction = this.getFaction(faction);
         return faction && ((faction.id >= 12 && faction.id <= 14) || faction.id == 17);
     },
     getBandFactions() {
-        return this.factions.filter(x => x.id >= 8 && x.id <= 11);
+        return this.factions.filter(x => (x.id >= 8 && x.id <= 11) || x.id == this.rastFactionId);
     },
     getMafiaFactions() {
         return this.factions.filter(x => (x.id >= 12 && x.id <= 14) || x.id == 17);

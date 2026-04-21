@@ -94,9 +94,12 @@ module.exports = {
             });;
             if (!character) return out.error(`Персонаж ${fullName} не найден`, player);
 
+            const maxRank = factions.getMaxRank(faction);
+            if (!maxRank) return out.error(`У организации ${faction.name} не настроены ранги (FactionRanks)`, player);
+
             out.info(`${player.name} добавил лидера организации ${faction.name} оффлайн (#${character.id})`);
             character.factionId = faction.id;
-            character.factionRank = factions.getMaxRank(faction).id;
+            character.factionRank = maxRank.id;
             character.save();
         }
     },
@@ -110,6 +113,9 @@ module.exports = {
 
             var rec = mp.players.at(args[0]);
             if (!rec || !rec.character) return out.error(`Игрок #${args[0]} не найден`, player);
+
+            const maxRank = factions.getMaxRank(faction);
+            if (!maxRank) return out.error(`У организации ${faction.name} не настроены ранги (FactionRanks)`, player);
 
             out.info(`${player.name} добавил лидера организации ${faction.name} (${rec.name})`);
             factions.setLeader(faction, rec);
@@ -142,6 +148,9 @@ module.exports = {
             var faction = factions.getFaction(args[1]);
             if (!faction) return out.error(`Организация #${args[1]} не найдена`, player);
 
+
+            const minRank = factions.getMinRank(faction);
+            if (!minRank) return out.error(`У организации ${faction.name} не настроены ранги (FactionRanks)`, player);
 
             out.info(`${player.name} добавил ${rec.name} в организацию ${faction.name}`);
             factions.addMember(faction, rec);
