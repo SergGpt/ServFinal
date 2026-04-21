@@ -74,6 +74,9 @@ module.exports = {
     // Бонус к ЗП (1 - x1)
     bonusPay: 1,
 
+    // Спец. фракция: Rast жестянщики
+    rastFactionId: 18,
+
     async init() {
         await this.loadFactionsFromDB();
         await this.initFactionMarkers();
@@ -668,6 +671,10 @@ createGarageMarker(faction) {
         if (typeof faction == 'number') faction = this.getFaction(faction);
         return faction && faction.id == 7;
     },
+    isRastFaction(faction) {
+        if (typeof faction == 'number') faction = this.getFaction(faction);
+        return faction && faction.id == this.rastFactionId;
+    },
     isStateFaction(faction) {
         if (typeof faction == 'number') faction = this.getFaction(faction);
         return faction && ((faction.id >= 1 && faction.id <= 7) || faction.id == 15);
@@ -721,9 +728,13 @@ createGarageMarker(faction) {
             notifs.info(player, `Медикаменты: ${faction.medicines} из ${faction.maxMedicines} ед.`, header);
             if (faction.medicines == faction.maxMedicines) notifs.warning(player, `Склад заполнен`, header);
         } else if (player.hasAttachment("materialsBox")) {
+            if (!this.isRastFaction(player.character.factionId) || player.character.factionId != faction.id) {
+                return notifs.error(player, `Сдавать металлолом может только фракция Rast`, header);
+            }
+
             this.setAmmo(faction, faction.ammo + this.materialsBox);
             player.addAttachment("materialsBox", true);
-            notifs.info(player, `Боеприпасы: ${faction.ammo} из ${faction.maxAmmo} ед.`, header);
+            notifs.info(player, `Материалы: ${faction.ammo} из ${faction.maxAmmo} ед.`, header);
             mp.events.call('materialWar.box.putInFaction', player);
             if (faction.ammo == faction.maxAmmo) notifs.warning(player, `Склад заполнен`, header);
         } else {
