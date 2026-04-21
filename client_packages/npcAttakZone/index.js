@@ -20,6 +20,8 @@ const MOVE_FALLBACK_REISSUE_MS = 1200;
 const OBSERVER_VISUAL_REISSUE_MS = 1200;
 const AIM_REISSUE_MS = 900;
 const PASS_REQUEST_REISSUE_MS = 3000;
+const GUARD_AIM_ENTER_DIST = 6.8;
+const GUARD_AIM_EXIT_DIST = 8.2;
 const LEADER_CLIPBOARD_ANIM_DICT = "amb@world_human_clipboard@male@idle_a";
 const LEADER_CLIPBOARD_ANIM_NAME = "idle_c";
 const ANIM_DICT_RETRY_MS = 400;
@@ -425,6 +427,7 @@ function ensureNpcEntry(ped) {
             lastForceFireVisualAt: 0,
             lastForceFireShotAt: 0,
             lastStabilityAt: 0,
+            bornAt: Date.now(),
         });
     } else {
         const entry = controlledNpcs.get(nid);
@@ -457,7 +460,11 @@ function runGuardEngage(obj, ped, target, extra) {
     const pedPos = getNpcTaskPos(ped);
     const targetPos = vec3(target.position.x, target.position.y, target.position.z);
     const dist = distance3(pedPos, targetPos);
-    const shouldAim = dist <= aimDist;
+    const aimEnterDist = Math.min(aimDist, GUARD_AIM_ENTER_DIST);
+    const aimExitDist = Math.max(aimDist + 1.0, GUARD_AIM_EXIT_DIST);
+    const shouldAim = obj.moveTask === "aim"
+        ? dist <= aimExitDist
+        : dist <= aimEnterDist;
     const now = Date.now();
 
     if (shouldAim) {
@@ -473,7 +480,6 @@ function runGuardEngage(obj, ped, target, extra) {
         if (obj.lastMode !== (forceFire ? "guardFire" : "guardAim")) {
             obj.lastMode = forceFire ? "guardFire" : "guardAim";
             try { ped.clearTasks(); } catch (e) {}
-            try { ped.taskStandStill(1200); } catch (e) {}
             resetMoveTracking(obj, ped, "aim");
         }
 
@@ -487,6 +493,7 @@ function runGuardEngage(obj, ped, target, extra) {
             if (!obj.lastForceFireVisualAt || now - obj.lastForceFireVisualAt >= 500) {
                 let startedShootTask = false;
                 try {
+                    applyCombatStability(ped);
                     ped.taskShootAt(target.handle, 900, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
                     startedShootTask = true;
                 } catch (e) {}
@@ -507,8 +514,8 @@ function runGuardEngage(obj, ped, target, extra) {
                 }
             }
         } else {
-            try { ped.taskAimGunAtEntity(target.handle, 1800, false); } catch (e) {}
-            try { ped.taskAimGunAtCoord(target.position.x, target.position.y, target.position.z, 1800, false, false); } catch (e) {}
+            try { ped.taskAimGunAtEntity(target.handle, 2600, false); } catch (e) {}
+            try { ped.taskAimGunAtCoord(target.position.x, target.position.y, target.position.z, 2600, false, false); } catch (e) {}
             obj.lastForceFireVisualAt = 0;
             obj.lastForceFireShotAt = 0;
         }
@@ -612,6 +619,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
     const targetPos = vec3(target.position.x, target.position.y, target.position.z);
     const dist = distance3(pedPos, targetPos);
     const now = Date.now();
+    const inSpawnGrace = !obj.bornAt || now - obj.bornAt < 1500;
 
     const weaponHash = mp.game.joaat("WEAPON_CARBINERIFLE");
     try { ped.setWeapon(weaponHash); } catch (e) {}
@@ -626,7 +634,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
         obj.lastMode = "leaderMove";
     }
 
-    if (!isTargetInVehicle && dist <= friskDist) {
+    if (!inSpawnGrace && !isTargetInVehicle && dist <= friskDist) {
         obj.lastMode = "leaderFrisk";
         obj.moveTask = "frisk";
         obj.lastStuckFallback = false;
