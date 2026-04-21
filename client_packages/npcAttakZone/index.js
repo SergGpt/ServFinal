@@ -566,6 +566,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
     const isTargetInVehicle = !!target.vehicle;
     const targetVehicle = isTargetInVehicle ? target.vehicle : null;
     const approachDist = Math.max(friskDist + 0.2, 1.6);
+    const vehiclePassDist = Math.max(friskDist + 3.5, 5.5);
 
     const pedPos = getNpcTaskPos(ped);
     const targetPos = vec3(target.position.x, target.position.y, target.position.z);
@@ -575,6 +576,28 @@ function runLeaderFrisk(obj, ped, target, extra) {
     const weaponHash = mp.game.joaat("WEAPON_CARBINERIFLE");
     try { ped.setWeapon(weaponHash); } catch (e) {}
     try { ped.currentWeapon = weaponHash; } catch (e) {}
+
+    if (isTargetInVehicle && dist <= vehiclePassDist) {
+        obj.lastMode = "leaderFriskVehicle";
+        obj.moveTask = "friskVehicle";
+        obj.lastStuckFallback = false;
+        obj.lastMovePos = pedPos;
+        obj.lastMoveProgressAt = now;
+        obj.stuckSince = 0;
+        obj.friskUntil = 0;
+
+        if (!obj.friskVehicleUntil || now >= obj.friskVehicleUntil) {
+            obj.friskVehicleUntil = now + 1200;
+            try { ped.clearTasks(); } catch (e) {}
+            try { ped.taskTurnToFaceCoord(target.position.x, target.position.y, target.position.z, 800); } catch (e) {}
+        }
+
+        if (!obj.lastPassRequestAt || now - obj.lastPassRequestAt >= PASS_REQUEST_REISSUE_MS) {
+            obj.lastPassRequestAt = now;
+            try { mp.events.callRemote("npcattakzone.pass.ready", ped.getVariable("npcazNpcId"), target.remoteId); } catch (e) {}
+        }
+        return;
+    }
 
     if (!isTargetInVehicle && dist <= friskDist) {
         obj.lastMode = "leaderFrisk";
@@ -603,6 +626,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
     }
 
     obj.friskUntil = 0;
+    obj.friskVehicleUntil = 0;
     const shouldReissueFollow = (
         obj.lastMode !== "leaderMove"
         || obj.moveTask !== "leaderFollow"
