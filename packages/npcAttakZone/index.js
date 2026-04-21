@@ -985,6 +985,8 @@ module.exports = {
         const target = findPlayerByRid(targetRid);
         if (!target || !mp.players.exists(target) || !this.isPlayerInsideZone(target)) return;
         if (Number(st.targetRid) !== Number(target.id)) return;
+        const blockedUntil = Number(this.passDialogsBlockedUntil.get(target.id) || 0);
+        if (Date.now() < blockedUntil) return;
 
         const active = this.passDialogs.get(target.id);
         const now = Date.now();
@@ -1001,6 +1003,7 @@ module.exports = {
 
         const approved = Number(answer) === 1;
         if (!approved) {
+            this.passDialogsBlockedUntil.set(req.targetRid, Date.now() + 120000);
             this.setGuardsFire(req.targetRid, true);
             notifs.error(player, "Вы отказались показывать пропуск", "NpcAttakZone");
             return;
@@ -1012,6 +1015,7 @@ module.exports = {
             this.putGuardsToSleep(req.targetRid);
             notifs.success(player, "Пропуск подтвержден", "NpcAttakZone");
         } else {
+            this.passDialogsBlockedUntil.set(req.targetRid, Date.now() + 120000);
             this.setGuardsFire(req.targetRid, true);
             notifs.error(player, "Пропуск не найден (нужен предмет #500)", "NpcAttakZone");
         }

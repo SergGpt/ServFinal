@@ -4,7 +4,8 @@ module.exports = {
         args: '',
         access: 6,
         handler: (player) => {
-            player.call('npcattakzone.menu.show.request');
+            if (!player || !player.character || player.character.admin < 6) return;
+            mp.events.call('npcattakzone.menu.open', player);
         },
     },
     '/npczone': {
@@ -12,7 +13,17 @@ module.exports = {
         args: '',
         access: 6,
         handler: (player) => {
-            player.call('npcattakzone.menu.show.request');
+            if (!player || !player.character || player.character.admin < 6) return;
+            mp.events.call('npcattakzone.menu.open', player);
+        },
+    },
+    '/npcaz': {
+        description: 'Настройка зоны спавна NPC (select menu)',
+        args: '',
+        access: 6,
+        handler: (player) => {
+            if (!player || !player.character || player.character.admin < 6) return;
+            mp.events.call('npcattakzone.menu.open', player);
         },
     },
 };
