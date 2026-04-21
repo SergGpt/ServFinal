@@ -23,6 +23,7 @@ const RUNTIME = {
     controllerSwitchHysteresis: 15.0,
     spawnControllerGraceMs: 1800,
     controllerEnsureRetryMs: 1200,
+    passSleepMs: 3 * 60 * 1000,
 };
 
 const GUARD_MODELS = ["s_m_m_security_01", "s_m_y_blackops_01", "s_m_y_blackops_02"];
@@ -82,6 +83,7 @@ module.exports = {
     nextNid: 1,
     initialized: false,
     passDialogs: new Map(),
+    passApprovedSleepUntil: new Map(),
 
     async init() {
         if (this.initialized) return;
@@ -509,7 +511,41 @@ module.exports = {
             return;
         }
 
-        const primaryTarget = insidePlayers[0];
+        const awakePlayers = insidePlayers.filter((player) => {
+            const sleepUntil = this.passApprovedSleepUntil.get(player.id) || 0;
+            if (Date.now() >= sleepUntil) {
+                this.passApprovedSleepUntil.delete(player.id);
+                return true;
+            }
+            return false;
+        });
+
+        if (!awakePlayers.length) {
+            this.zoneNpcIds.forEach((nid) => {
+                const st = this.npcs.get(nid);
+                if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
+
+                st.forceFire = false;
+                st.targetRid = null;
+                st.lastIssuedCommand = null;
+                st.lastIssuedPayload = null;
+                clearTask(st);
+
+                try {
+                    st.ped.setVariable("npcazForceFire", false);
+                    st.ped.setVariable("npcazTargetRid", -1);
+                    st.ped.setVariable("npcazAimActive", false);
+                    st.ped.setVariable("npcazVisualMode", "idle");
+                    st.ped.setVariable("npcazCommand", "idle");
+                    st.ped.setVariable("npcazCommandExtra", null);
+                } catch (e) {}
+
+                setNpcState(st, NPCAZ_STATE.IDLE, (msg) => this.log(msg), "all-checked-sleep");
+            });
+            return;
+        }
+
+        const primaryTarget = awakePlayers[0];
         this.ensureNpcGroupForTarget(primaryTarget);
 
         this.zoneNpcIds.forEach((nid) => {
@@ -544,7 +580,7 @@ module.exports = {
             if (now < (st.postAckGraceUntil || 0)) return;
 
             const livePos = normalizeLivePos(st.livePos, st.ped.position);
-            const nearestInside = this.getNearestInsidePlayerToPos(livePos, insidePlayers);
+            const nearestInside = this.getNearestInsidePlayerToPos(livePos, awakePlayers);
 
             let target = findPlayerByRid(st.targetRid);
             const shouldRefreshTarget = (
@@ -654,6 +690,7 @@ module.exports = {
                         this.log(`player ${player.name} (${player.id}) entered zone`);
                         this.debugMessage(player, "Сервер: игрок вошел в зону");
                     } else {
+                        this.passApprovedSleepUntil.delete(player.id);
                         this.log(`player ${player.name} (${player.id}) left zone`);
                         this.debugMessage(player, "Сервер: игрок вышел из зоны");
                     }
@@ -818,6 +855,7 @@ module.exports = {
     onPlayerQuit(player) {
         this.playerStates.delete(player.id);
         this.passDialogs.delete(player.id);
+        this.passApprovedSleepUntil.delete(player.id);
 
         this.zoneNpcIds.forEach((nid) => {
             const st = this.npcs.get(nid);
@@ -887,7 +925,7 @@ module.exports = {
     putGuardsToSleep(targetRid) {
         this.zoneNpcIds.forEach((nid) => {
             const st = this.npcs.get(nid);
-            if (!st || st.role !== "guard" || !st.ped || !mp.peds.exists(st.ped)) return;
+            if (!st || !st.ped || !mp.peds.exists(st.ped)) return;
             if (Number(st.targetRid) !== Number(targetRid)) return;
 
             st.forceFire = false;
@@ -948,7 +986,9 @@ module.exports = {
         }
 
         if (this.hasPassItem(player)) {
+            this.passApprovedSleepUntil.set(req.targetRid, Date.now() + RUNTIME.passSleepMs);
             this.setGuardsFire(req.targetRid, false);
+            this.putGuardsToSleep(req.targetRid);
             notifs.success(player, "Пропуск подтвержден", "NpcAttakZone");
         } else {
             this.setGuardsFire(req.targetRid, true);
