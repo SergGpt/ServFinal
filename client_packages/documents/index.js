@@ -4,30 +4,7 @@ let controlsDisabled = false;
 let isOpen = false;
 let currentType;
 let carPassList = [];
-let hasPropuskItem = false;
-const propuskSqlIds = new Set();
-
-function hasInventoryItem(items, itemId) {
-    if (!items || typeof items !== 'object') return false;
-
-    const values = Array.isArray(items) ? items : Object.values(items);
-    for (let i = 0; i < values.length; i++) {
-        const item = values[i];
-        if (!item || typeof item !== 'object') continue;
-        if (item.itemId == itemId) return true;
-
-        if (item.pockets && hasInventoryItem(item.pockets, itemId)) return true;
-        if (item.items && hasInventoryItem(item.items, itemId)) return true;
-    }
-
-    return false;
-}
-
-function syncPropuskByInventory() {
-    if (!hasPropuskItem) {
-        mp.callCEFV('documents.setPropuskCard({"show":false})');
-    }
-}
+let hasPropusk = false;
 
 mp.events.add('documents.show', (type, data) => {
     if (isOpen) return;
@@ -80,7 +57,7 @@ mp.events.add('documents.show', (type, data) => {
             mp.callCEFV('documents.setLicensesCard({"show":false})');
         }
 
-        if (data.propuskCard && hasPropuskItem) {
+        if (data.propuskCard) {
             data.propuskCard.show = true;
             mp.callCEFV(`documents.setPropuskCard(${JSON.stringify(data.propuskCard)})`);
         } else {
@@ -134,43 +111,19 @@ mp.events.add('documents.list', () => {
     mp.events.callRemote('documents.list.request');
 });
 
-mp.events.add('documents.list.state', () => {
+mp.events.add('documents.list.state', (canShowPropusk) => {
+    hasPropusk = !!canShowPropusk;
     mp.callCEFV('interactionMenu.menu = cloneObj(interactionMenu.menus["player_docs"])');
+    if (hasPropusk) {
+        mp.callCEFV(`interactionMenu.menu.items.push({
+            text: "Пропуск",
+            icon: "doc.png"
+        });`);
+    }
 
     let left = mp.getDefaultInteractionLeft();
     mp.callCEFV(`interactionMenu.left = ${left}`);
     mp.events.call('interaction.menu.show');
-});
-
-mp.events.add('inventory.initItems', (items) => {
-    propuskSqlIds.clear();
-    const collectPropuskSqlIds = (data) => {
-        if (!data || typeof data !== 'object') return;
-        const values = Array.isArray(data) ? data : Object.values(data);
-        for (let i = 0; i < values.length; i++) {
-            const item = values[i];
-            if (!item || typeof item !== 'object') continue;
-            if (item.itemId == 500 && item.sqlId != null) propuskSqlIds.add(item.sqlId);
-            if (item.pockets) collectPropuskSqlIds(item.pockets);
-            if (item.items) collectPropuskSqlIds(item.items);
-        }
-    };
-    collectPropuskSqlIds(items);
-    hasPropuskItem = hasInventoryItem(items, 500);
-    syncPropuskByInventory();
-});
-
-mp.events.add('inventory.addItem', (item) => {
-    if (!item || item.itemId != 500) return;
-    if (item.sqlId != null) propuskSqlIds.add(item.sqlId);
-    hasPropuskItem = true;
-});
-
-mp.events.add('inventory.deleteItem', (sqlId) => {
-    if (!propuskSqlIds.has(sqlId)) return;
-    propuskSqlIds.delete(sqlId);
-    hasPropuskItem = propuskSqlIds.size > 0;
-    syncPropuskByInventory();
 });
 
 mp.events.add('documents.showTo', (type) => {
@@ -191,6 +144,9 @@ mp.events.add('documents.showTo', (type) => {
             break;
         case "mainDocuments":
             mp.events.call('documents.offer', "mainDocuments", target.remoteId);
+            break;
+        case "propusk":
+            mp.events.call('documents.offer', "propusk", target.remoteId);
             break;
     }
 });

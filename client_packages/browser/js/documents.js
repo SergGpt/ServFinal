@@ -103,7 +103,7 @@ var documents = new Vue({
     },
     computed: {
         background() {
-            if (this.active == "propusk") return "img/documents/propusk.png";
+            if (this.active == "propusk") return "img/governmentBadge/Propusk.png";
             return `img/documents/${this.active}.png`;
         },
     },
