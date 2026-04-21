@@ -82,6 +82,8 @@ module.exports = {
     nextNid: 1,
     initialized: false,
     passDialogs: new Map(),
+    passDialogsBlockedUntil: new Map(),
+    passApprovedSleepUntil: new Map(),
 
     async init() {
         if (this.initialized) return;
@@ -499,6 +501,7 @@ module.exports = {
     },
 
     runBehaviorTick() {
+        if (!this.passApprovedSleepUntil) this.passApprovedSleepUntil = new Map();
         const insidePlayers = this.getPlayersInsideZone();
 
         if (!insidePlayers.length) {
@@ -654,6 +657,7 @@ module.exports = {
                         this.log(`player ${player.name} (${player.id}) entered zone`);
                         this.debugMessage(player, "Сервер: игрок вошел в зону");
                     } else {
+                        this.passDialogsBlockedUntil.delete(player.id);
                         this.log(`player ${player.name} (${player.id}) left zone`);
                         this.debugMessage(player, "Сервер: игрок вышел из зоны");
                     }
@@ -818,6 +822,7 @@ module.exports = {
     onPlayerQuit(player) {
         this.playerStates.delete(player.id);
         this.passDialogs.delete(player.id);
+        this.passDialogsBlockedUntil.delete(player.id);
 
         this.zoneNpcIds.forEach((nid) => {
             const st = this.npcs.get(nid);
@@ -863,16 +868,21 @@ module.exports = {
         } catch (e) {}
         damageValue = Math.max(6, Math.round(damageValue * 0.55));
 
-        const damaged = { armour: target.armour, health: target.health };
-        try {
-            if (damageSystem && typeof damageSystem.damagePlayer === "function") damageSystem.damagePlayer(damaged, damageValue);
-            else damaged.health -= damageValue;
-        } catch (e) {
-            damaged.health -= damageValue;
+        let nextArmour = Math.max(0, Number(target.armour) || 0);
+        let nextHealth = Math.max(0, Number(target.health) || 0);
+        let leftDamage = damageValue;
+
+        if (nextArmour > 0) {
+            const absorbed = Math.min(nextArmour, leftDamage);
+            nextArmour -= absorbed;
+            leftDamage -= absorbed;
+        }
+        if (leftDamage > 0) {
+            nextHealth -= leftDamage;
         }
 
-        target.armour = Math.clamp(damaged.armour, 0, 100);
-        target.health = Math.clamp(damaged.health, 0, 100);
+        target.armour = Math.clamp(nextArmour, 0, 100);
+        target.health = Math.clamp(nextHealth, 0, 100);
 
         if (target.health <= 0) {
             if (!target.isCustomDeath) {
@@ -926,6 +936,8 @@ module.exports = {
         const target = findPlayerByRid(targetRid);
         if (!target || !mp.players.exists(target) || !this.isPlayerInsideZone(target)) return;
         if (Number(st.targetRid) !== Number(target.id)) return;
+        const blockedUntil = Number(this.passDialogsBlockedUntil.get(target.id) || 0);
+        if (Date.now() < blockedUntil) return;
 
         const active = this.passDialogs.get(target.id);
         const now = Date.now();
@@ -942,15 +954,18 @@ module.exports = {
 
         const approved = Number(answer) === 1;
         if (!approved) {
+            this.passDialogsBlockedUntil.set(req.targetRid, Date.now() + 120000);
             this.setGuardsFire(req.targetRid, true);
             notifs.error(player, "Вы отказались показывать пропуск", "NpcAttakZone");
             return;
         }
 
         if (this.hasPassItem(player)) {
+            this.passDialogsBlockedUntil.delete(req.targetRid);
             this.setGuardsFire(req.targetRid, false);
             notifs.success(player, "Пропуск подтвержден", "NpcAttakZone");
         } else {
+            this.passDialogsBlockedUntil.set(req.targetRid, Date.now() + 120000);
             this.setGuardsFire(req.targetRid, true);
             notifs.error(player, "Пропуск не найден (нужен предмет #500)", "NpcAttakZone");
         }
