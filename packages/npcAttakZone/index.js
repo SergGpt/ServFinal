@@ -503,6 +503,7 @@ module.exports = {
     },
 
     runBehaviorTick() {
+        if (!this.passApprovedSleepUntil) this.passApprovedSleepUntil = new Map();
         const insidePlayers = this.getPlayersInsideZone();
 
         if (!insidePlayers.length) {
