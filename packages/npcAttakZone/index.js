@@ -93,16 +93,15 @@ module.exports = {
         this.syncForAll();
         this.startDebugTracker();
         this.startBehaviorLoop();
-        console.log(`[NpcAttakZone] inited. zone=${this.zone ? this.zone.id : "none"}`);
+        // silent init
     },
 
     log(msg) {
-        console.log(`[NpcAttakZone] ${msg}`);
+        // debug disabled
     },
 
     debugMessage(player, msg) {
-        if (!player || !mp.players.exists(player)) return;
-        try { player.call("npcattakzone:debug.message", [String(msg || "")]); } catch (e) {}
+        // debug disabled
     },
 
     getZoneById(id) {

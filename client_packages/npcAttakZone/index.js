@@ -820,15 +820,12 @@ mp.events.add({
         const nextState = !!inside;
         if (nextState !== isInsideZone) {
             isInsideZone = nextState;
-            if (isInsideZone) mp.notify.success("Вы вошли в NpcAttakZone", "NpcAttakZone");
-            else mp.notify.info("Вы вышли из NpcAttakZone", "NpcAttakZone");
         }
     },
 
     "npcattakzone:debug.message": (msg) => {
         debugMessage.text = String(msg || "");
         debugMessage.until = Date.now() + 3000;
-        mp.notify.info(debugMessage.text, "NpcAttakZone DEBUG");
     },
 
     "npcattakzone:npc.assignController": (nid, ver) => {
@@ -873,8 +870,7 @@ mp.events.add({
             drawPolygon(zoneState, [220, 45, 45, 185]);
         }
 
-        if (isInsideZone) drawDebugText();
-        if (debugMessage.text && Date.now() <= debugMessage.until) drawServerDebugMessage(debugMessage.text);
+        // debug drawing disabled
 
         const now = Date.now();
         let logicDebugText = null;
@@ -883,7 +879,7 @@ mp.events.add({
             const ped = obj.ped;
             if (!ped || !mp.peds.exists(ped)) return;
 
-            drawNpcPedDebug(obj, ped);
+            // debug drawing disabled
 
             const me = mp.players.local;
             const controllerRid = Number(ped.getVariable("npcazControllerRid"));
@@ -942,7 +938,7 @@ mp.events.add({
             }
         });
 
-        if (logicDebugText) drawNpcLogicDebugText(logicDebugText);
+        // debug drawing disabled
     },
 });
 
