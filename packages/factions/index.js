@@ -75,7 +75,7 @@ module.exports = {
     bonusPay: 1,
 
     // Спец. фракция: Rast жестянщики
-    rastFactionId: 18,
+    rastFactionId: 21,
 
     async init() {
         await this.loadFactionsFromDB();
