@@ -455,9 +455,10 @@ function runGuardEngage(obj, ped, target, extra) {
         try { ped.setWeapon(weaponHash); } catch (e) {}
         try { ped.currentWeapon = weaponHash; } catch (e) {}
         try { mp.game.invoke("0xADF692B254977C0C", ped.handle, weaponHash, true); } catch (e) {}
+        const forceFire = !!ped.getVariable("npcazForceFire");
 
-        if (obj.lastMode !== "guardAim") {
-            obj.lastMode = "guardAim";
+        if (obj.lastMode !== (forceFire ? "guardFire" : "guardAim")) {
+            obj.lastMode = forceFire ? "guardFire" : "guardAim";
             try { ped.clearTasks(); } catch (e) {}
             try { ped.taskStandStill(1200); } catch (e) {}
             resetMoveTracking(obj, ped, "aim");
@@ -469,8 +470,16 @@ function runGuardEngage(obj, ped, target, extra) {
         obj.lastMovePos = getNpcTaskPos(ped);
         obj.lastMoveProgressAt = now;
 
-        try { ped.taskAimGunAtEntity(target.handle, 1800, false); } catch (e) {}
-        try { ped.taskAimGunAtCoord(target.position.x, target.position.y, target.position.z, 1800, false, false); } catch (e) {}
+        if (forceFire) {
+            if (!obj.lastForceFireVisualAt || now - obj.lastForceFireVisualAt >= 600) {
+                obj.lastForceFireVisualAt = now;
+                try { ped.taskShootAt(target.handle, 900, mp.game.joaat("FIRING_PATTERN_FULL_AUTO")); } catch (e) {}
+            }
+        } else {
+            obj.lastForceFireVisualAt = 0;
+            try { ped.taskAimGunAtEntity(target.handle, 1800, false); } catch (e) {}
+            try { ped.taskAimGunAtCoord(target.position.x, target.position.y, target.position.z, 1800, false, false); } catch (e) {}
+        }
         return;
     }
 
