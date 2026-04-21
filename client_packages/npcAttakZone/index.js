@@ -455,14 +455,11 @@ function runGuardEngage(obj, ped, target, extra) {
         try { ped.setWeapon(weaponHash); } catch (e) {}
         try { ped.currentWeapon = weaponHash; } catch (e) {}
         try { mp.game.invoke("0xADF692B254977C0C", ped.handle, weaponHash, true); } catch (e) {}
-
-        const forceFire = !!ped.getVariable("npcazForceFire");
-        const targetRid = Number(ped.getVariable("npcazTargetRid"));
+        var forceFire = !!ped.getVariable("npcazForceFire");
 
         if (obj.lastMode !== (forceFire ? "guardFire" : "guardAim")) {
             obj.lastMode = forceFire ? "guardFire" : "guardAim";
             try { ped.clearTasks(); } catch (e) {}
-            try { ped.taskStandStill(1200); } catch (e) {}
             resetMoveTracking(obj, ped, "aim");
         }
 
@@ -473,33 +470,29 @@ function runGuardEngage(obj, ped, target, extra) {
         obj.lastMoveProgressAt = now;
 
         if (forceFire) {
-            if (!obj.lastForceFireVisualAt || now - obj.lastForceFireVisualAt >= 500) {
-                let startedShootTask = false;
+            if (!obj.lastForceFireVisualAt || now - obj.lastForceFireVisualAt >= 600) {
+                obj.lastForceFireVisualAt = now;
+                let started = false;
                 try {
                     ped.taskShootAt(target.handle, 900, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
-                    startedShootTask = true;
+                    started = true;
                 } catch (e) {}
-
-                if (!startedShootTask) {
+                if (!started) {
                     try {
                         mp.game.invoke("0x08DA95E8298AE772", ped.handle, target.handle, 900, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
-                        startedShootTask = true;
+                        started = true;
                     } catch (e) {}
                 }
-
-                if (startedShootTask) {
-                    obj.lastForceFireVisualAt = now;
-                    if (!obj.lastForceFireShotAt || now - obj.lastForceFireShotAt >= 450) {
-                        obj.lastForceFireShotAt = now;
-                        try { mp.events.callRemote("npcattakzone:npc.fireOpened", ped.getVariable("npcazNpcId"), targetRid); } catch (e) {}
-                    }
+                if (!started) {
+                    try {
+                        ped.taskCombat(target.handle, 0, 16);
+                    } catch (e) {}
                 }
             }
         } else {
+            obj.lastForceFireVisualAt = 0;
             try { ped.taskAimGunAtEntity(target.handle, 1800, false); } catch (e) {}
             try { ped.taskAimGunAtCoord(target.position.x, target.position.y, target.position.z, 1800, false, false); } catch (e) {}
-            obj.lastForceFireVisualAt = 0;
-            obj.lastForceFireShotAt = 0;
         }
         return;
     }
@@ -596,6 +589,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
     const isTargetInVehicle = !!target.vehicle;
     const targetVehicle = isTargetInVehicle ? target.vehicle : null;
     const approachDist = Math.max(friskDist + 0.2, 1.6);
+    const vehiclePassDist = Math.max(friskDist + 3.5, 5.5);
 
     const pedPos = getNpcTaskPos(ped);
     const targetPos = vec3(target.position.x, target.position.y, target.position.z);
@@ -605,6 +599,28 @@ function runLeaderFrisk(obj, ped, target, extra) {
     const weaponHash = mp.game.joaat("WEAPON_CARBINERIFLE");
     try { ped.setWeapon(weaponHash); } catch (e) {}
     try { ped.currentWeapon = weaponHash; } catch (e) {}
+
+    if (isTargetInVehicle && dist <= vehiclePassDist) {
+        obj.lastMode = "leaderFriskVehicle";
+        obj.moveTask = "friskVehicle";
+        obj.lastStuckFallback = false;
+        obj.lastMovePos = pedPos;
+        obj.lastMoveProgressAt = now;
+        obj.stuckSince = 0;
+        obj.friskUntil = 0;
+
+        if (!obj.friskVehicleUntil || now >= obj.friskVehicleUntil) {
+            obj.friskVehicleUntil = now + 1200;
+            try { ped.clearTasks(); } catch (e) {}
+            try { ped.taskTurnToFaceCoord(target.position.x, target.position.y, target.position.z, 800); } catch (e) {}
+        }
+
+        if (!obj.lastPassRequestAt || now - obj.lastPassRequestAt >= PASS_REQUEST_REISSUE_MS) {
+            obj.lastPassRequestAt = now;
+            try { mp.events.callRemote("npcattakzone.pass.ready", ped.getVariable("npcazNpcId"), target.remoteId); } catch (e) {}
+        }
+        return;
+    }
 
     if (!isTargetInVehicle && dist <= friskDist) {
         obj.lastMode = "leaderFrisk";
@@ -633,6 +649,7 @@ function runLeaderFrisk(obj, ped, target, extra) {
     }
 
     obj.friskUntil = 0;
+    obj.friskVehicleUntil = 0;
     const shouldReissueFollow = (
         obj.lastMode !== "leaderMove"
         || obj.moveTask !== "leaderFollow"

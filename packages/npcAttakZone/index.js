@@ -83,7 +83,7 @@ module.exports = {
     nextNid: 1,
     initialized: false,
     passDialogs: new Map(),
-    passApprovedSleepUntil: new Map(),
+    passDialogsBlockedUntil: new Map(),
 
     async init() {
         if (this.initialized) return;
@@ -692,7 +692,7 @@ module.exports = {
                         this.log(`player ${player.name} (${player.id}) entered zone`);
                         this.debugMessage(player, "Сервер: игрок вошел в зону");
                     } else {
-                        this.passApprovedSleepUntil.delete(player.id);
+                        this.passDialogsBlockedUntil.delete(player.id);
                         this.log(`player ${player.name} (${player.id}) left zone`);
                         this.debugMessage(player, "Сервер: игрок вышел из зоны");
                     }
@@ -857,7 +857,7 @@ module.exports = {
     onPlayerQuit(player) {
         this.playerStates.delete(player.id);
         this.passDialogs.delete(player.id);
-        this.passApprovedSleepUntil.delete(player.id);
+        this.passDialogsBlockedUntil.delete(player.id);
 
         this.zoneNpcIds.forEach((nid) => {
             const st = this.npcs.get(nid);
@@ -985,6 +985,8 @@ module.exports = {
         const target = findPlayerByRid(targetRid);
         if (!target || !mp.players.exists(target) || !this.isPlayerInsideZone(target)) return;
         if (Number(st.targetRid) !== Number(target.id)) return;
+        const blockedUntil = Number(this.passDialogsBlockedUntil.get(target.id) || 0);
+        if (Date.now() < blockedUntil) return;
 
         const active = this.passDialogs.get(target.id);
         const now = Date.now();
@@ -1001,17 +1003,19 @@ module.exports = {
 
         const approved = Number(answer) === 1;
         if (!approved) {
+            this.passDialogsBlockedUntil.set(req.targetRid, Date.now() + 120000);
             this.setGuardsFire(req.targetRid, true);
             notifs.error(player, "Вы отказались показывать пропуск", "NpcAttakZone");
             return;
         }
 
         if (this.hasPassItem(player)) {
-            this.passApprovedSleepUntil.set(req.targetRid, Date.now() + RUNTIME.passSleepMs);
+            this.passDialogsBlockedUntil.delete(req.targetRid);
             this.setGuardsFire(req.targetRid, false);
             this.putGuardsToSleep(req.targetRid);
             notifs.success(player, "Пропуск подтвержден", "NpcAttakZone");
         } else {
+            this.passDialogsBlockedUntil.set(req.targetRid, Date.now() + 120000);
             this.setGuardsFire(req.targetRid, true);
             notifs.error(player, "Пропуск не найден (нужен предмет #500)", "NpcAttakZone");
         }
