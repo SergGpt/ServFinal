@@ -4,7 +4,6 @@ let controlsDisabled = false;
 let isOpen = false;
 let currentType;
 let carPassList = [];
-let hasPropusk = false;
 let hasPropuskItem = false;
 const propuskSqlIds = new Set();
 
@@ -26,7 +25,6 @@ function hasInventoryItem(items, itemId) {
 
 function syncPropuskByInventory() {
     if (!hasPropuskItem) {
-        hasPropusk = false;
         mp.callCEFV('documents.setPropuskCard({"show":false})');
     }
 }
@@ -136,15 +134,8 @@ mp.events.add('documents.list', () => {
     mp.events.callRemote('documents.list.request');
 });
 
-mp.events.add('documents.list.state', (canShowPropusk) => {
-    hasPropusk = !!canShowPropusk && hasPropuskItem;
+mp.events.add('documents.list.state', () => {
     mp.callCEFV('interactionMenu.menu = cloneObj(interactionMenu.menus["player_docs"])');
-    if (hasPropusk) {
-        mp.callCEFV(`interactionMenu.menu.items.push({
-            text: "Пропуск",
-            icon: "doc.png"
-        });`);
-    }
 
     let left = mp.getDefaultInteractionLeft();
     mp.callCEFV(`interactionMenu.left = ${left}`);
@@ -200,9 +191,6 @@ mp.events.add('documents.showTo', (type) => {
             break;
         case "mainDocuments":
             mp.events.call('documents.offer', "mainDocuments", target.remoteId);
-            break;
-        case "propusk":
-            mp.events.call('documents.offer', "propusk", target.remoteId);
             break;
     }
 });
