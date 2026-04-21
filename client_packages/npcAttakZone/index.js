@@ -424,10 +424,22 @@ function ensureNpcEntry(ped) {
 
     try { ped.setBlockingOfNonTemporaryEvents(true); } catch (e) {}
     try { ped.setKeepTask(true); } catch (e) {}
+    applyNoPanicCombatProfile(ped);
 
     ensureWeaponVisual(ped);
 
     return controlledNpcs.get(nid);
+}
+
+function applyNoPanicCombatProfile(ped) {
+    if (!ped || ped.type !== "ped") return;
+
+    // Keep NPCs stable in firefights: don't enter ambient panic/flee from nearby shots.
+    try { ped.setBlockingOfNonTemporaryEvents(true); } catch (e) {}
+    try { mp.game.invoke("0x70A2D1137C8ED7C9", ped.handle, 0, false); } catch (e) {} // SET_PED_FLEE_ATTRIBUTES
+    try { mp.game.invoke("0x9F7794730795E019", ped.handle, 5, true); } catch (e) {}  // BF_AlwaysFight
+    try { mp.game.invoke("0x9F7794730795E019", ped.handle, 17, true); } catch (e) {} // commonly used with anti-flee setups
+    try { mp.game.invoke("0x9F7794730795E019", ped.handle, 58, true); } catch (e) {} // BF_DisableFleeFromCombat
 }
 
 function runGuardEngage(obj, ped, target, extra) {
