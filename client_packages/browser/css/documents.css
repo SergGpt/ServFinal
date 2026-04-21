@@ -196,13 +196,31 @@
 }
 
 #documents .card.propusk .name {
-    top: 9.5vh;
+    left: 2.1vh;
+    top: 10.35vh;
 }
 
 #documents .card.propusk .sex {
-    top: 13.7vh;
+    left: 2.1vh;
+    top: 13.62vh;
 }
 
 #documents .card.propusk .passNum {
-    top: 17.9vh;
+    left: 2.1vh;
+    top: 16.87vh;
+}
+
+#documents .card.propusk > div .head {
+    display: none;
+}
+
+#documents .card.propusk > div .value {
+    color: #0a0a0a;
+    font-family: 'Roboto Condensed';
+    font-size: 1.55vh;
+    font-weight: 700;
+    letter-spacing: .01vh;
+    line-height: 1;
+    margin: 0;
+    text-transform: none;
 }
