@@ -58,6 +58,10 @@ module.exports = {
         moduleApi.onHeartbeat(player, nid, posJson);
     },
 
+    'npcattakzone:npc.fireOpened': (player, nid, targetRid) => {
+        moduleApi.onNpcFireOpened(player, nid, targetRid);
+    },
+
     'npcattakzone.pass.ready': (player, nid, targetRid) => {
         moduleApi.onPassReady(player, nid, targetRid);
     },
