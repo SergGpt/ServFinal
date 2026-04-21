@@ -460,7 +460,6 @@ function runGuardEngage(obj, ped, target, extra) {
         if (obj.lastMode !== (forceFire ? "guardFire" : "guardAim")) {
             obj.lastMode = forceFire ? "guardFire" : "guardAim";
             try { ped.clearTasks(); } catch (e) {}
-            try { ped.taskStandStill(1200); } catch (e) {}
             resetMoveTracking(obj, ped, "aim");
         }
 
@@ -473,7 +472,22 @@ function runGuardEngage(obj, ped, target, extra) {
         if (forceFire) {
             if (!obj.lastForceFireVisualAt || now - obj.lastForceFireVisualAt >= 600) {
                 obj.lastForceFireVisualAt = now;
-                try { ped.taskShootAt(target.handle, 900, mp.game.joaat("FIRING_PATTERN_FULL_AUTO")); } catch (e) {}
+                let started = false;
+                try {
+                    ped.taskShootAt(target.handle, 900, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
+                    started = true;
+                } catch (e) {}
+                if (!started) {
+                    try {
+                        mp.game.invoke("0x08DA95E8298AE772", ped.handle, target.handle, 900, mp.game.joaat("FIRING_PATTERN_FULL_AUTO"));
+                        started = true;
+                    } catch (e) {}
+                }
+                if (!started) {
+                    try {
+                        ped.taskCombat(target.handle, 0, 16);
+                    } catch (e) {}
+                }
             }
         } else {
             obj.lastForceFireVisualAt = 0;
