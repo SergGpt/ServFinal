@@ -424,10 +424,22 @@ function ensureNpcEntry(ped) {
 
     try { ped.setBlockingOfNonTemporaryEvents(true); } catch (e) {}
     try { ped.setKeepTask(true); } catch (e) {}
+    applyNoPanicCombatProfile(ped);
 
     ensureWeaponVisual(ped);
 
     return controlledNpcs.get(nid);
+}
+
+function applyNoPanicCombatProfile(ped) {
+    if (!ped || ped.type !== "ped") return;
+
+    // Keep NPCs stable in firefights: don't enter ambient panic/flee from nearby shots.
+    try { ped.setBlockingOfNonTemporaryEvents(true); } catch (e) {}
+    try { mp.game.invoke("0x70A2D1137C8ED7C9", ped.handle, 0, false); } catch (e) {} // SET_PED_FLEE_ATTRIBUTES
+    try { mp.game.invoke("0x9F7794730795E019", ped.handle, 5, true); } catch (e) {}  // BF_AlwaysFight
+    try { mp.game.invoke("0x9F7794730795E019", ped.handle, 17, true); } catch (e) {} // commonly used with anti-flee setups
+    try { mp.game.invoke("0x9F7794730795E019", ped.handle, 58, true); } catch (e) {} // BF_DisableFleeFromCombat
 }
 
 function runGuardEngage(obj, ped, target, extra) {
@@ -847,15 +859,12 @@ mp.events.add({
         const nextState = !!inside;
         if (nextState !== isInsideZone) {
             isInsideZone = nextState;
-            if (isInsideZone) mp.notify.success("Вы вошли в NpcAttakZone", "NpcAttakZone");
-            else mp.notify.info("Вы вышли из NpcAttakZone", "NpcAttakZone");
         }
     },
 
     "npcattakzone:debug.message": (msg) => {
         debugMessage.text = String(msg || "");
         debugMessage.until = Date.now() + 3000;
-        mp.notify.info(debugMessage.text, "NpcAttakZone DEBUG");
     },
 
     "npcattakzone:npc.assignController": (nid, ver) => {
@@ -900,8 +909,7 @@ mp.events.add({
             drawPolygon(zoneState, [220, 45, 45, 185]);
         }
 
-        if (isInsideZone) drawDebugText();
-        if (debugMessage.text && Date.now() <= debugMessage.until) drawServerDebugMessage(debugMessage.text);
+        // debug drawing disabled
 
         const now = Date.now();
         let logicDebugText = null;
@@ -910,7 +918,7 @@ mp.events.add({
             const ped = obj.ped;
             if (!ped || !mp.peds.exists(ped)) return;
 
-            drawNpcPedDebug(obj, ped);
+            // debug drawing disabled
 
             const me = mp.players.local;
             const controllerRid = Number(ped.getVariable("npcazControllerRid"));
@@ -970,7 +978,7 @@ mp.events.add({
             }
         });
 
-        if (logicDebugText) drawNpcLogicDebugText(logicDebugText);
+        // debug drawing disabled
     },
 });
 

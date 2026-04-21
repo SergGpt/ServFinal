@@ -93,16 +93,15 @@ module.exports = {
         this.syncForAll();
         this.startDebugTracker();
         this.startBehaviorLoop();
-        console.log(`[NpcAttakZone] inited. zone=${this.zone ? this.zone.id : "none"}`);
+        // silent init
     },
 
     log(msg) {
-        console.log(`[NpcAttakZone] ${msg}`);
+        // debug disabled
     },
 
     debugMessage(player, msg) {
-        if (!player || !mp.players.exists(player)) return;
-        try { player.call("npcattakzone:debug.message", [String(msg || "")]); } catch (e) {}
+        // debug disabled
     },
 
     getZoneById(id) {
@@ -921,16 +920,21 @@ module.exports = {
         } catch (e) {}
         damageValue = Math.max(6, Math.round(damageValue * 0.55));
 
-        const damaged = { armour: target.armour, health: target.health };
-        try {
-            if (damageSystem && typeof damageSystem.damagePlayer === "function") damageSystem.damagePlayer(damaged, damageValue);
-            else damaged.health -= damageValue;
-        } catch (e) {
-            damaged.health -= damageValue;
+        let nextArmour = Math.max(0, Number(target.armour) || 0);
+        let nextHealth = Math.max(0, Number(target.health) || 0);
+        let leftDamage = damageValue;
+
+        if (nextArmour > 0) {
+            const absorbed = Math.min(nextArmour, leftDamage);
+            nextArmour -= absorbed;
+            leftDamage -= absorbed;
+        }
+        if (leftDamage > 0) {
+            nextHealth -= leftDamage;
         }
 
-        target.armour = Math.clamp(damaged.armour, 0, 100);
-        target.health = Math.clamp(damaged.health, 0, 100);
+        target.armour = Math.clamp(nextArmour, 0, 100);
+        target.health = Math.clamp(nextHealth, 0, 100);
 
         if (target.health <= 0) {
             if (!target.isCustomDeath) {
