@@ -23,6 +23,7 @@ const RUNTIME = {
     controllerSwitchHysteresis: 15.0,
     spawnControllerGraceMs: 1800,
     controllerEnsureRetryMs: 1200,
+    passDialogCooldownMs: 60000,
 };
 
 const GUARD_MODELS = ["s_m_m_security_01", "s_m_y_blackops_01", "s_m_y_blackops_02"];
@@ -82,6 +83,7 @@ module.exports = {
     nextNid: 1,
     initialized: false,
     passDialogs: new Map(),
+    passDialogCooldownUntil: new Map(),
 
     async init() {
         if (this.initialized) return;
@@ -654,6 +656,7 @@ module.exports = {
                         this.log(`player ${player.name} (${player.id}) entered zone`);
                         this.debugMessage(player, "Сервер: игрок вошел в зону");
                     } else {
+                        this.passDialogCooldownUntil.delete(player.id);
                         this.log(`player ${player.name} (${player.id}) left zone`);
                         this.debugMessage(player, "Сервер: игрок вышел из зоны");
                     }
@@ -818,6 +821,7 @@ module.exports = {
     onPlayerQuit(player) {
         this.playerStates.delete(player.id);
         this.passDialogs.delete(player.id);
+        this.passDialogCooldownUntil.delete(player.id);
 
         this.zoneNpcIds.forEach((nid) => {
             const st = this.npcs.get(nid);
@@ -930,6 +934,8 @@ module.exports = {
         const active = this.passDialogs.get(target.id);
         const now = Date.now();
         if (active && now - active.at < 2500) return;
+        const cooldownUntil = this.passDialogCooldownUntil.get(target.id) || 0;
+        if (now < cooldownUntil) return;
 
         this.passDialogs.set(target.id, { nid: st.nid, targetRid: target.id, at: now });
         target.call("npcattakzone.pass.show");
@@ -942,6 +948,7 @@ module.exports = {
 
         const approved = Number(answer) === 1;
         if (!approved) {
+            this.passDialogCooldownUntil.set(req.targetRid, Date.now() + RUNTIME.passDialogCooldownMs);
             this.setGuardsFire(req.targetRid, true);
             notifs.error(player, "Вы отказались показывать пропуск", "NpcAttakZone");
             return;
@@ -951,6 +958,7 @@ module.exports = {
             this.setGuardsFire(req.targetRid, false);
             notifs.success(player, "Пропуск подтвержден", "NpcAttakZone");
         } else {
+            this.passDialogCooldownUntil.set(req.targetRid, Date.now() + RUNTIME.passDialogCooldownMs);
             this.setGuardsFire(req.targetRid, true);
             notifs.error(player, "Пропуск не найден (нужен предмет #500)", "NpcAttakZone");
         }
