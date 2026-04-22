@@ -154,13 +154,13 @@ var mapCase = new Vue({
         switchStorage(lock) {
             var ranks = mapCase.ranks;
             var maxRankName = ranks[ranks.length - 1];
-            if (statistics['factionRank'].value !== maxRankName) return mapCase.showRedMessage('Вы не лидер');
+            if (mapCase.userRank !== maxRankName) return mapCase.showRedMessage('Вы не лидер');
             mp.trigger(`callRemote`, `factions.holder.common.state`, lock);
         },
         getData(tab) {
             var ranks = mapCase.ranks;
             var maxRankName = ranks[ranks.length - 1];
-            if (statistics['factionRank'].value !== maxRankName) return mapCase.showRedMessage('Вы не лидер');
+            if (mapCase.userRank !== maxRankName) return mapCase.showRedMessage('Вы не лидер');
 
             switch (tab) {
                 case 'transport':

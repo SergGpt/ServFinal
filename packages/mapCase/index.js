@@ -99,6 +99,8 @@ module.exports = {
         for (var i = 0; i < members.length; i++) {
             var rec = members[i];
             var rank = factions.getRankById(rec.character.factionId, rec.character.factionRank);
+            if (!rank) rank = factions.getMinRank(rec.character.factionId);
+            if (!rank) continue;
             // const lastOnline = await db.Models.Account.findOne({ where: { id: rec.character.accountId } }).lastDate;
             result.push({
                 id: rec.character.id,
@@ -115,7 +117,10 @@ module.exports = {
 
         for (let i = 0; i < members.length; i++) {
             let m = members[i];
-            const rank = factions.getRankById(m.factionId, m.factionRank);
+            let rank = factions.getRankById(m.factionId, m.factionRank);
+            if (!rank) rank = factions.getMinRank(m.factionId);
+            if (!rank) continue;
+
             const lastOnline = await db.Models.Account.findOne({
                 where: { id: m.accountId }
             });
@@ -127,7 +132,7 @@ module.exports = {
                 num: i + 1,
                 name: m.name,
                 rank: rank.rank,
-                lastOnline: player ? null : lastOnline.lastDate
+                lastOnline: player ? null : (lastOnline ? lastOnline.lastDate : null)
             });
         }
 
