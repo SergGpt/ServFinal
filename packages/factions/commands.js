@@ -473,13 +473,13 @@ module.exports = {
 
             const lines = [
                 `Игрок: ${rec.name} (#${rec.id})`,
-                `Фракция: #${faction.id} ${faction.name}`,
+                `Фракция: #${faction.id} ${faction.name} (type=${typeof faction.id})`,
                 `FactionRank (id): ${rec.character.factionRank}`,
                 `Текущий ранг: ${rankById ? `${rankById.name} (rank=${rankById.rank})` : 'НЕ НАЙДЕН'}`,
                 `Минимальный ранг: ${minRank ? `${minRank.name} (#${minRank.id})` : 'НЕТ'}`,
                 `Максимальный ранг: ${maxRank ? `${maxRank.name} (#${maxRank.id})` : 'НЕТ'}`,
                 `Количество рангов: ${faction.ranks ? faction.ranks.length : 0}`,
-                `Crime/Band/Mafia: ${factions.isCrimeFaction(faction.id)} / ${factions.isBandFaction(faction.id)} / ${factions.isMafiaFaction(faction.id)}`,
+                `Crime/Band/Mafia: ${factions.isCrimeFaction(faction)} / ${factions.isBandFaction(faction)} / ${factions.isMafiaFaction(faction)}`,
                 `Marker/Storage/Holder/Common/Warehouse: ${!!marker} / ${!!storage} / ${!!holder} / ${!!commonHolder} / ${!!warehouse}`,
                 `BlipsPos: ${blipsPos ? 'OK' : 'NULL'}`
             ];

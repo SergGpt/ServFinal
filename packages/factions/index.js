@@ -401,7 +401,7 @@ createGarageMarker(faction) {
         return this.blips.find(x => x && x.factionId == id) || this.blips[id - 1];
     },
     getBlipsPos(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         if (!faction) return null;
 
         const holder = this.getHolder(faction.id);
@@ -441,11 +441,11 @@ createGarageMarker(faction) {
         return faction.name;
     },
     getRank(faction, rank) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction.ranks[rank - 1];
     },
     getRankById(faction, rankId) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         var ranks = faction.ranks;
         for (var i = 0; i < ranks.length; i++) {
             if (ranks[i].id == rankId) return ranks[i];
@@ -457,15 +457,15 @@ createGarageMarker(faction) {
         return this.getRankById(player.character.factionId, player.character.factionRank).name;
     },
     getMinRank(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction.ranks[0];
     },
     getMaxRank(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction.ranks[faction.ranks.length - 1];
     },
     getRankNames(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         var names = [];
         for (var i = 0; i < faction.ranks.length; i++) {
             names.push(faction.ranks[i].name);
@@ -474,12 +474,12 @@ createGarageMarker(faction) {
     },
     getRanks(faction) {
         if (!faction) return null;
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction.ranks;
     },
     getClientRanks(faction) {
         if (!faction) return null;
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction.ranks.map(x => {
             return {
                 id: x.id,
@@ -491,7 +491,7 @@ createGarageMarker(faction) {
         });
     },
     setLeader(faction, player) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         var maxRank = this.getMaxRank(faction);
         if (!maxRank) {
             console.log(`[FACTIONS] Не удалось назначить лидера для ${faction ? faction.name : 'Unknown'}: отсутствуют ранги`);
@@ -526,7 +526,7 @@ createGarageMarker(faction) {
         return player.character.factionRank == maxRank.id;
     },
     setBlip(faction, type, color) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         var blip = this.getBlip(faction.id);
         blip.model = type;
         blip.color = color;
@@ -535,13 +535,13 @@ createGarageMarker(faction) {
         faction.save();
     },
     setAmmoRank(faction, rank) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
 
         faction.ammoRank = rank;
         faction.save();
     },
     addMember(faction, player) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         var minRank = this.getMinRank(faction);
         if (!minRank) {
             console.log(`[FACTIONS] Не удалось добавить участника в ${faction ? faction.name : 'Unknown'}: отсутствуют ранги`);
@@ -679,47 +679,47 @@ createGarageMarker(faction) {
         character.save();
     },
     isGovernmentFaction(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction && faction.id == 1;
     },
     isPoliceFaction(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction && (faction.id == 2 || faction.id == 3);
     },
     isFibFaction(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction && faction.id == 4;
     },
     isHospitalFaction(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction && faction.id == 5;
     },
     isArmyFaction(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction && (faction.id == 6 || faction.id == 15);
     },
     isNewsFaction(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction && faction.id == 7;
     },
     isRastFaction(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction && faction.id == this.rastFactionId;
     },
     isStateFaction(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction && ((faction.id >= 1 && faction.id <= 7) || faction.id == 15);
     },
     isCrimeFaction(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction && (this.isBandFaction(faction.id) || this.isMafiaFaction(faction.id));
     },
     isBandFaction(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction && ((faction.id >= 8 && faction.id <= 11) || faction.id == 16 || faction.id == this.rastFactionId);
     },
     isMafiaFaction(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         return faction && ((faction.id >= 12 && faction.id <= 14) || faction.id == 17);
     },
     getBandFactions() {
@@ -855,7 +855,7 @@ createGarageMarker(faction) {
         }, `Зарплата организации x${this.bonusPay} ${faction.name}`);
     },
     fullDeleteItems(owner, faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
         inventory.fullDeleteItemsByParams(null, ["owner", "faction"], [owner, faction.id]);
     },
     setAmmo(faction, count) {
@@ -894,13 +894,13 @@ createGarageMarker(faction) {
         return text;
     },
     addCash(faction, count) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
 
         faction.cash += count;
         faction.save();
     },
     removeCash(faction, count) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
 
         faction.cash -= count;
         faction.save();
@@ -919,7 +919,7 @@ createGarageMarker(faction) {
         notifs.warning(player, `Предмет из шкафа потеряны (${count} шт.)`, `Организация`);
     },
     respawnVehicles(faction) {
-        if (typeof faction == 'number') faction = this.getFaction(faction);
+        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
 
         var start = new Date();
         mp.vehicles.forEach(veh => {
