@@ -446,4 +446,45 @@ module.exports = {
             rank.save();
         }
     },
+    "/fdebug": {
+        description: "Диагностика состояния фракции игрока.",
+        access: 6,
+        args: "[ид_игрока]:n",
+        handler: (player, args, out) => {
+            const rec = mp.players.at(args[0]);
+            if (!rec || !rec.character) return out.error(`Игрок #${args[0]} не найден`, player);
+
+            const factionId = rec.character.factionId;
+            if (!factionId) return out.info(`${rec.name} не состоит в организации`, player);
+
+            const faction = factions.getFaction(factionId);
+            if (!faction) return out.error(`Фракция #${factionId} не найдена в runtime`, player);
+
+            const rankById = factions.getRankById(faction, rec.character.factionRank);
+            const minRank = factions.getMinRank(faction);
+            const maxRank = factions.getMaxRank(faction);
+
+            const marker = factions.getMarker(faction.id);
+            const storage = factions.getStorage(faction.id);
+            const holder = factions.getHolder(faction.id);
+            const commonHolder = factions.getCommonHolder(faction.id);
+            const warehouse = factions.getWarehouse(faction.id);
+            const blipsPos = factions.getBlipsPos(faction.id);
+
+            const lines = [
+                `Игрок: ${rec.name} (#${rec.id})`,
+                `Фракция: #${faction.id} ${faction.name}`,
+                `FactionRank (id): ${rec.character.factionRank}`,
+                `Текущий ранг: ${rankById ? `${rankById.name} (rank=${rankById.rank})` : 'НЕ НАЙДЕН'}`,
+                `Минимальный ранг: ${minRank ? `${minRank.name} (#${minRank.id})` : 'НЕТ'}`,
+                `Максимальный ранг: ${maxRank ? `${maxRank.name} (#${maxRank.id})` : 'НЕТ'}`,
+                `Количество рангов: ${faction.ranks ? faction.ranks.length : 0}`,
+                `Crime/Band/Mafia: ${factions.isCrimeFaction(faction.id)} / ${factions.isBandFaction(faction.id)} / ${factions.isMafiaFaction(faction.id)}`,
+                `Marker/Storage/Holder/Common/Warehouse: ${!!marker} / ${!!storage} / ${!!holder} / ${!!commonHolder} / ${!!warehouse}`,
+                `BlipsPos: ${blipsPos ? 'OK' : 'NULL'}`
+            ];
+
+            out.log(lines.join('<br/>'), player);
+        }
+    },
 }
