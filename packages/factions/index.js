@@ -380,7 +380,7 @@ createGarageMarker(faction) {
         
     },
     getFaction(id) {
-        return this.factions[id - 1];
+        return this.factions.find(x => x && x.id == id) || this.factions[id - 1];
     },
     getMarker(id) {
         return this.markers.find(x => x && x.factionId == id) || this.markers[id - 1];
