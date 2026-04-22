@@ -12,7 +12,7 @@ module.exports = {
     // гараж
 
     garages: [],
-    getGarage(id) { return this.garages[id - 1]; },
+    getGarage(id) { return this.garages.find(x => x && x.factionId == id) || this.garages[id - 1]; },
     factions: [],
     // Маркеры организаций
     markers: [],
@@ -130,17 +130,22 @@ module.exports = {
     createFactionMarker(faction) {
         var pos = new mp.Vector3(faction.x, faction.y, faction.z - 1);
 
-        this.markers.push(mp.markers.new(1, pos, 0.5, {
+        const marker = mp.markers.new(1, pos, 0.5, {
             color: [255, 255, 255, 70],
             dimension: faction.d
-        }));
-        this.blips.push(mp.blips.new(faction.blip, pos, {
+        });
+        marker.factionId = faction.id;
+        this.markers.push(marker);
+
+        const blip = mp.blips.new(faction.blip, pos, {
             color: faction.blipColor,
             name: faction.name,
             shortRange: 10,
             scale: 1,
             dimension: faction.d
-        }));
+        });
+        blip.factionId = faction.id;
+        this.blips.push(blip);
     },
     createWarehouseMarker(faction) {
         if (!faction.wX) return;
@@ -174,6 +179,7 @@ module.exports = {
                 drawDistance: 10,
                 dimension: warehouse.dimension
             });
+        warehouse.factionId = faction.id;
         this.warehouses.push(warehouse);
     },
     createStorageMarker(faction) {
@@ -184,6 +190,7 @@ module.exports = {
             dimension: faction.sD
         });
         storage.isOpen = false;
+        storage.factionId = faction.id;
         this.storages.push(storage);
 
         var colshape = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 1.5, storage.dimension);
@@ -213,6 +220,7 @@ module.exports = {
         holder.inventory = {
             items: {}, // предметов игроков в шкафе
         };
+        holder.factionId = faction.id;
         this.holders.push(holder);
 
         var colshape = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 1.5, holder.dimension);
@@ -375,42 +383,52 @@ createGarageMarker(faction) {
         return this.factions[id - 1];
     },
     getMarker(id) {
-        return this.markers[id - 1];
+        return this.markers.find(x => x && x.factionId == id) || this.markers[id - 1];
     },
     getWarehouse(id) {
-        return this.warehouses[id - 1];
+        return this.warehouses.find(x => x && x.factionId == id) || this.warehouses[id - 1];
     },
     getStorage(id) {
-        return this.storages[id - 1];
+        return this.storages.find(x => x && x.factionId == id) || this.storages[id - 1];
     },
     getHolder(id) {
-        return this.holders[id - 1];
+        return this.holders.find(x => x && x.factionId == id) || this.holders[id - 1];
     },
     getCommonHolder(id) {
-        return this.commonHolders[id - 1];
+        return this.commonHolders.find(x => x && x.factionId == id) || this.commonHolders[id - 1];
     },
     getBlip(id) {
-        return this.blips[id - 1];
+        return this.blips.find(x => x && x.factionId == id) || this.blips[id - 1];
     },
     getBlipsPos(faction) {
         if (typeof faction == 'number') faction = this.getFaction(faction);
         if (!faction) return null;
+
+        const holder = this.getHolder(faction.id);
+        const storage = this.getStorage(faction.id);
+        const commonHolder = this.getCommonHolder(faction.id);
+        const warehouse = this.getWarehouse(faction.id);
+
+        if (!holder || !storage || !commonHolder) {
+            console.log(`[FACTIONS] Не удалось собрать blip позиции для ${faction.name} (#${faction.id})`);
+            return null;
+        }
+
         var positions = {
-            "holder": this.getHolder(faction.id).position,
-            "storage": this.getStorage(faction.id).position,
-            //"warehouse": this.getWarehouse(faction.id).position,
-            "commonHolder": this.getCommonHolder(faction.id).position,
+            "holder": holder.position,
+            "storage": storage.position,
+            "commonHolder": commonHolder.position,
             "blipColor": faction.blipColor
         };
-        let warehouse = this.getWarehouse(faction.id);
+
         if (warehouse) {
             positions.warehouse = warehouse.position;
             positions.warehouse.d = warehouse.dimension;
         }
-        positions.holder.d = this.getHolder(faction.id).dimension;
-        positions.storage.d = this.getStorage(faction.id).dimension;
-        //positions.warehouse.d = this.getWarehouse(faction.id).dimension;
-        positions.commonHolder.d = this.getCommonHolder(faction.id).dimension;
+
+        positions.holder.d = holder.dimension;
+        positions.storage.d = storage.dimension;
+        positions.commonHolder.d = commonHolder.dimension;
         return positions;
     },
     getFactionName(player) {
