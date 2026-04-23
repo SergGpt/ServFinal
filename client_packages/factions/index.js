@@ -312,7 +312,6 @@ mp.events.add({
         if (mp.busy.includes('mapCase')) {
             const clothesRanks = JSON.stringify(data.clothesRanks);
             const itemRanks = JSON.stringify(data.itemRanks);
-            debug(itemRanks);
             mp.mapCase.clothesRanks(clothesRanks);
             mp.mapCase.itemRanks(itemRanks);
             const factionId = mp.players.local.getVariable('factionId');
