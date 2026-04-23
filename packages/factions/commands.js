@@ -479,6 +479,7 @@ module.exports = {
                 `Минимальный ранг: ${minRank ? `${minRank.name} (#${minRank.id})` : 'НЕТ'}`,
                 `Максимальный ранг: ${maxRank ? `${maxRank.name} (#${maxRank.id})` : 'НЕТ'}`,
                 `Количество рангов: ${faction.ranks ? faction.ranks.length : 0}`,
+                `rastFactionId: ${factions.rastFactionId}, normalizedFactionId: ${factions.getFactionId(faction)}`,
                 `Crime/Band/Mafia: ${factions.isCrimeFaction(faction)} / ${factions.isBandFaction(faction)} / ${factions.isMafiaFaction(faction)}`,
                 `Marker/Storage/Holder/Common/Warehouse: ${!!marker} / ${!!storage} / ${!!holder} / ${!!commonHolder} / ${!!warehouse}`,
                 `BlipsPos: ${blipsPos ? 'OK' : 'NULL'}`

@@ -678,49 +678,55 @@ createGarageMarker(faction) {
         character.factionRank = rank.id;
         character.save();
     },
+    getFactionId(faction) {
+        if (!faction) return null;
+        if (typeof faction === 'object') return parseInt(faction.id);
+        const id = parseInt(faction);
+        return Number.isNaN(id) ? null : id;
+    },
     isGovernmentFaction(faction) {
-        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
-        return faction && faction.id == 1;
+        const id = this.getFactionId(faction);
+        return id === 1;
     },
     isPoliceFaction(faction) {
-        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
-        return faction && (faction.id == 2 || faction.id == 3);
+        const id = this.getFactionId(faction);
+        return id === 2 || id === 3;
     },
     isFibFaction(faction) {
-        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
-        return faction && faction.id == 4;
+        const id = this.getFactionId(faction);
+        return id === 4;
     },
     isHospitalFaction(faction) {
-        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
-        return faction && faction.id == 5;
+        const id = this.getFactionId(faction);
+        return id === 5;
     },
     isArmyFaction(faction) {
-        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
-        return faction && (faction.id == 6 || faction.id == 15);
+        const id = this.getFactionId(faction);
+        return id === 6 || id === 15;
     },
     isNewsFaction(faction) {
-        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
-        return faction && faction.id == 7;
+        const id = this.getFactionId(faction);
+        return id === 7;
     },
     isRastFaction(faction) {
-        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
-        return faction && faction.id == this.rastFactionId;
+        const id = this.getFactionId(faction);
+        return id === this.rastFactionId;
     },
     isStateFaction(faction) {
-        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
-        return faction && ((faction.id >= 1 && faction.id <= 7) || faction.id == 15);
+        const id = this.getFactionId(faction);
+        return id != null && ((id >= 1 && id <= 7) || id === 15);
     },
     isCrimeFaction(faction) {
-        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
-        return faction && (this.isBandFaction(faction.id) || this.isMafiaFaction(faction.id));
+        const id = this.getFactionId(faction);
+        return id != null && (this.isBandFaction(id) || this.isMafiaFaction(id));
     },
     isBandFaction(faction) {
-        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
-        return faction && ((faction.id >= 8 && faction.id <= 11) || faction.id == 16 || faction.id == this.rastFactionId);
+        const id = this.getFactionId(faction);
+        return id != null && ((id >= 8 && id <= 11) || id === 16 || id === this.rastFactionId);
     },
     isMafiaFaction(faction) {
-        if (typeof faction != 'object') faction = this.getFaction(parseInt(faction));
-        return faction && ((faction.id >= 12 && faction.id <= 14) || faction.id == 17);
+        const id = this.getFactionId(faction);
+        return id != null && ((id >= 12 && id <= 14) || id === 17);
     },
     getBandFactions() {
         return this.factions.filter(x => (x.id >= 8 && x.id <= 11) || x.id == this.rastFactionId);
