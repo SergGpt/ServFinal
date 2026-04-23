@@ -114,6 +114,17 @@ module.exports = {
             });
         });
         this.factions = dbFactions;
+
+        const rastByName = this.factions.find(x => x && x.name && ['rust', 'rast', 'раст', 'жестянщики'].includes(String(x.name).toLowerCase()));
+        if (rastByName && this.rastFactionId !== rastByName.id) {
+            console.log(`[FACTIONS] rastFactionId обновлен автоматически: ${this.rastFactionId} -> ${rastByName.id}`);
+            this.rastFactionId = rastByName.id;
+        }
+
+        const rastById = this.getFaction(this.rastFactionId);
+        if (!rastById) {
+            console.log(`[FACTIONS] Внимание: rastFactionId=${this.rastFactionId} не найден в таблице factions`);
+        }
         console.log(`[FACTIONS] Организации загужены (${dbFactions.length} шт.)`);
     },
     async initFactionMarkers() {
