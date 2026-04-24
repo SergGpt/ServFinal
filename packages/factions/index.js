@@ -289,11 +289,11 @@ createGarageMarker(faction) {
     });
     
     // Блип гаража
-    marker.blip = mp.blips.new(50, pos, { 
+    marker.blip = mp.blips.new(225, pos, { 
         color: faction.blipColor || 3, 
         name: header, 
-        shortRange: 10, 
-        scale: 1, 
+        shortRange: true, 
+        scale: 1.35, 
         dimension: garageDim
     });
 
