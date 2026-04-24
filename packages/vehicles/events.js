@@ -579,6 +579,8 @@ module.exports = {
             if (!veh.db) return;
             if (!veh.lastPlayerTime) return;
             if (veh.db.key == 'private' || veh.db.key == 'market' || veh.db.key == 'rent') return;
+            // Фракционные авто управляются через гаражный lifecycle, не респавним их общим таймером
+            if (veh.db.key == 'faction') return;
             if (start.getTime() - veh.lastPlayerTime < vehicles.vehWaitSpawn) return;
             if (vehicles.getOccupants(veh).length) return;
 
