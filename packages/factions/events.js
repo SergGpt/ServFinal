@@ -794,7 +794,6 @@ module.exports = {
     }
 
     const faction = factions.getFaction(player.character.factionId);
-    const garageDim = faction.gD != null ? faction.gD : 0;
     if (veh.db.owner !== faction.id) {
         return notifs.error(player, 'Машина не принадлежит вашей фракции', header);
     }
@@ -809,7 +808,7 @@ module.exports = {
             setTimeout(() => {
                 // Телепортируем игрока рядом с гаражом
                 p.position = new mp.Vector3(playerPos.x + 2, playerPos.y, playerPos.z);
-                p.dimension = garageDim;
+                p.dimension = 0;
             }, 100);
         }
     });
