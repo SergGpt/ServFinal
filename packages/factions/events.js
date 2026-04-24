@@ -696,16 +696,30 @@ module.exports = {
     }
 
     const isVehicleInWorld = (veh.spawned !== false && veh.dimension !== 999999);
+    const hasOccupants = mp.players.toArray().some(p => p && p.vehicle === veh);
 
-    // Проверяем, не заспавнена ли уже машина
-    if (isVehicleInWorld) {
+    // Если машина "в мире", но в другом измерении и без пассажиров — считаем рассинхроном и возвращаем в гараж
+    if (isVehicleInWorld && veh.dimension !== player.dimension && !hasOccupants) {
+        veh.spawned = false;
+        veh.position = new mp.Vector3(0, 0, -100);
+        veh.dimension = 999999;
+        if (veh.db) {
+            veh.db.x = 0;
+            veh.db.y = 0;
+            veh.db.z = -100;
+            veh.db.h = veh.heading;
+            veh.db.dimension = 999999;
+            veh.db.save();
+        }
+    } else if (isVehicleInWorld) {
+        // Проверяем, не заспавнена ли уже машина в текущем мире
         return notifs.warning(player, 'Машина уже в мире', header);
     }
 
     // Проверяем свободно ли место спавна
     const spawnPos = new mp.Vector3(faction.gX, faction.gY, faction.gZ);
     const spawnRot = faction.gH || 0;
-    const spawnDim = faction.gD != null ? faction.gD : 0;
+    const spawnDim = player.dimension;
     const blocked = mp.vehicles.toArray().some(v => {
         if (!v || v === veh) return false;
         if (!mp.vehicles.exists(v)) return false;
