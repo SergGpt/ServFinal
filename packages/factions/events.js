@@ -466,6 +466,47 @@ module.exports = {
             notifs.info(rec, `${player.name} изменил ранг авто ${vehName} (${veh.plate})`, factionName);
         });
     },
+    "factions.control.vehicles.returnToGarage": (player, vehId) => {
+        var out = (text) => {
+            notifs.error(player, text);
+        };
+        if (!player.character.factionId) return out(`Вы не состоите в организации`);
+        if (!factions.isLeader(player)) return out(`Вы не лидер`);
+
+        vehId = parseInt(vehId);
+        var veh = mp.vehicles.at(vehId);
+        if (!veh || !veh.db) return out(`Авто #${vehId} не найдено`);
+        if (veh.db.key != 'faction' || veh.db.owner != player.character.factionId) {
+            return out(`Это не транспорт вашей организации`);
+        }
+
+        const occupants = [];
+        mp.players.forEach(p => {
+            if (p.vehicle === veh) occupants.push(p);
+        });
+        occupants.forEach((p, idx) => {
+            p.dimension = 0;
+            p.removeFromVehicle();
+            p.position = new mp.Vector3(player.position.x + 2 + idx, player.position.y, player.position.z);
+        });
+
+        veh.spawned = false;
+        veh.position = new mp.Vector3(0, 0, -100);
+        veh.dimension = 999999;
+        veh.d = 999999;
+        veh.engine = false;
+        veh.setVariable("engine", false);
+        if (veh.db) {
+            veh.db.x = 0;
+            veh.db.y = 0;
+            veh.db.z = -100;
+            veh.db.h = veh.heading;
+            veh.db.dimension = 999999;
+            veh.db.save();
+        }
+
+        notifs.success(player, `${veh.properties?.name || veh.db.modelName} возвращена в гараж`, `Организация`);
+    },
     "factions.control.vehicles.respawn": (player) => {
         var out = (text) => {
             player.call(`selectMenu.notification`, [text]);

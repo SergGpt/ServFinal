@@ -1775,9 +1775,9 @@ Vue.component('map-case-permissions-tab', {
         size() {
             if (this.type == 'transport') {
                 if (mapCase.type == 'crm')
-                    return '6vh 21.11vh 18vh 1fr 13.24vh';
+                    return '6vh 21.11vh 18vh 1fr 12vh 16vh';
 
-                return '7.4vh 18.9vh 18.9vh 12.22vh 1fr';
+                return '7.4vh 18.9vh 18.9vh 12.22vh 1fr 16vh';
             }
 
             return false;
@@ -1797,6 +1797,12 @@ Vue.component('map-case-permissions-tab', {
             item.type = this.type,
             mapCase.temp_data_pull = item;
             mapCase.currentOverWindow = 'map-case-over-rank-changer';
+        },
+        returnToGarage(item) {
+            if (this.type != 'transport') return;
+            mapCase.showLoad();
+            mp.trigger(`callRemote`, `factions.control.vehicles.returnToGarage`, item.id);
+            mapCase.hideLoad();
         }
     }
 });
