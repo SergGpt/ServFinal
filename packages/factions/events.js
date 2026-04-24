@@ -628,13 +628,14 @@ module.exports = {
 
     const faction = factions.getFaction(player.character.factionId);
     const vehicleItems = [];
+    const isVehicleInWorld = (v) => v && v.spawned !== false && v.dimension !== 999999;
 
     // Получаем все машины фракции
     mp.vehicles.forEach(v => {
         if (!v.db || v.db.key !== 'faction') return;
         if (v.db.owner !== faction.id) return;
 
-        const isSpawned = v.spawned !== false; // если spawned не false, значит в мире
+        const isSpawned = isVehicleInWorld(v);
         
         vehicleItems.push({
             text: `${v.properties?.name || v.db.modelName} [${v.db.plate}]`,
@@ -694,8 +695,10 @@ module.exports = {
         }
     }
 
+    const isVehicleInWorld = (veh.spawned !== false && veh.dimension !== 999999);
+
     // Проверяем, не заспавнена ли уже машина
-    if (veh.spawned !== false) {
+    if (isVehicleInWorld) {
         return notifs.warning(player, 'Машина уже в мире', header);
     }
 
@@ -720,6 +723,8 @@ module.exports = {
     veh.heading = spawnRot;
     veh.dimension = spawnDim;
     veh.spawned = true;
+    veh.repair();
+    player.putIntoVehicle(veh, 0);
     if (veh.db) {
         veh.db.x = spawnPos.x;
         veh.db.y = spawnPos.y;
@@ -761,7 +766,7 @@ module.exports = {
         return notifs.error(player, 'Машина не принадлежит вашей фракции', header);
     }
 
-    // Сохраняем позицию игрока (в dimension 0)
+    // Сохраняем позицию игрока возле гаража
     const playerPos = player.position;
 
     // Выкидываем всех из машины
@@ -769,7 +774,7 @@ module.exports = {
         if (p.vehicle === veh) {
             p.removeFromVehicle();
             setTimeout(() => {
-                // Телепортируем игрока рядом в СВОЁМ dimension (0)
+                // Телепортируем игрока рядом с гаражом
                 p.position = new mp.Vector3(playerPos.x + 2, playerPos.y, playerPos.z);
                 p.dimension = garageDim;
             }, 100);
