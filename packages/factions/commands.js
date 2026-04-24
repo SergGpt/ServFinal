@@ -64,6 +64,7 @@ module.exports = {
             veh.spawned = false;
             veh.position = new mp.Vector3(0, 0, -100);
             veh.dimension = 999999;
+            veh.d = 999999;
 
             veh.db.x = 0;
             veh.db.y = 0;
@@ -172,6 +173,7 @@ module.exports = {
             const veh = await vehicles.spawnVehicle(dbVeh, 0);
             veh.spawned = false;
             veh.dimension = 999999;
+            veh.d = 999999;
             veh.position = new mp.Vector3(0, 0, -100);
             factions.setVehicleMinRank(veh, minRank);
 

@@ -703,6 +703,7 @@ module.exports = {
         veh.spawned = false;
         veh.position = new mp.Vector3(0, 0, -100);
         veh.dimension = 999999;
+        veh.d = 999999;
         if (veh.db) {
             veh.db.x = 0;
             veh.db.y = 0;
@@ -736,6 +737,7 @@ module.exports = {
     veh.position = spawnPos;
     veh.heading = spawnRot;
     veh.dimension = spawnDim;
+    veh.d = spawnDim;
     veh.spawned = true;
     veh.repair();
     player.putIntoVehicle(veh, 0);
@@ -802,6 +804,7 @@ module.exports = {
         // Прячем машину под карту в отдельный dimension
         veh.position = new mp.Vector3(0, 0, -100);
         veh.dimension = 999999; // Машина уходит в другой dimension
+        veh.d = 999999;
         if (veh.db) {
             veh.db.x = 0;
             veh.db.y = 0;

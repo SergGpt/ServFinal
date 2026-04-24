@@ -192,7 +192,9 @@ module.exports = {
 
         vehicle.setVariable('isValid', true);
 
-        veh.d ? vehicle.dimension = veh.d : vehicle.dimension = 0; /// устанавливаем измерение
+        const spawnDimension = veh.dimension != null ? veh.dimension : (veh.d != null ? veh.d : 0);
+        vehicle.dimension = spawnDimension; /// устанавливаем измерение
+        vehicle.d = spawnDimension;
 
         veh.isInGarage ? vehicle.isInGarage = veh.isInGarage : vehicle.isInGarage = false;
 

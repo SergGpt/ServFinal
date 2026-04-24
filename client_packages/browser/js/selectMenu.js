@@ -1223,17 +1223,18 @@ var selectMenu = new Vue({
                 }
                 
                 selectMenu.show = false;
-                mp.events.callRemote('factions.garage.spawn', item.meta.sqlId);
+                mp.trigger('factions.garage.spawn', item.meta.sqlId);
                 return;
             }
             
             if (item.text === "Обновить список") {
-                mp.events.callRemote('factions.garage.menu.request');
+                mp.trigger('factions.garage.menu.request');
                 return;
             }
             
             if (item.text === "Закрыть меню") {
                 selectMenu.show = false;
+                mp.trigger('factions.garage.menu.close');
                 return;
             }
         } 
