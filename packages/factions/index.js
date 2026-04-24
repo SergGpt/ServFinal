@@ -283,8 +283,8 @@ createGarageMarker(faction) {
     const header = `Гараж ${faction.name}`;
     const garageDim = faction.gD != null ? faction.gD : 0;
 
-    const marker = mp.markers.new(1, pos, 0.5, { 
-        color: [0, 255, 0, 70], 
+    const marker = mp.markers.new(36, pos, 1.2, { 
+        color: [0, 170, 255, 120], 
         dimension: garageDim
     });
     
@@ -297,7 +297,7 @@ createGarageMarker(faction) {
         dimension: garageDim
     });
 
-    const cs = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 1.5, garageDim);
+    const cs = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 3, garageDim);
     
     cs.onEnter = (player) => {
         // Если игрок в машине
