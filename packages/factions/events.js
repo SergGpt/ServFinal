@@ -801,19 +801,18 @@ module.exports = {
     // Сохраняем позицию игрока возле гаража
     const playerPos = player.position;
 
-    // Выкидываем всех из машины
+    // Сначала высаживаем всех и оставляем в dimension 0
+    const occupants = [];
     mp.players.forEach(p => {
-        if (p.vehicle === veh) {
-            p.removeFromVehicle();
-            setTimeout(() => {
-                // Телепортируем игрока рядом с гаражом
-                p.position = new mp.Vector3(playerPos.x + 2, playerPos.y, playerPos.z);
-                p.dimension = 0;
-            }, 100);
-        }
+        if (p.vehicle === veh) occupants.push(p);
+    });
+    occupants.forEach((p, idx) => {
+        p.dimension = 0;
+        p.removeFromVehicle();
+        p.position = new mp.Vector3(playerPos.x + 2 + idx, playerPos.y, playerPos.z);
     });
 
-    // Паркуем машину после задержки
+    // Только после этого паркуем машину
     setTimeout(() => {
         veh.spawned = false;
         
@@ -831,7 +830,7 @@ module.exports = {
         }
         
         notifs.success(player, `${veh.properties?.name || veh.db.modelName} припаркована`, header);
-    }, 200);
+    }, 50);
 },
 
 
