@@ -665,10 +665,13 @@ module.exports = {
 
     const faction = factions.getFaction(player.character.factionId);
     
+    vehSqlId = parseInt(vehSqlId);
+    if (!vehSqlId) return notifs.error(player, 'Неверный ID машины', header);
+
     // Ищем машину по ID из базы данных
     let veh = null;
     mp.vehicles.forEach(v => {
-        if (v.db && v.db.id === vehSqlId && v.db.key === 'faction') {
+        if (v.db && v.db.id == vehSqlId && v.db.key === 'faction') {
             veh = v;
         }
     });
@@ -699,10 +702,11 @@ module.exports = {
     // Проверяем свободно ли место спавна
     const spawnPos = new mp.Vector3(faction.gX, faction.gY, faction.gZ);
     const spawnRot = faction.gH || 0;
+    const spawnDim = faction.gD != null ? faction.gD : 0;
     const blocked = mp.vehicles.toArray().some(v => {
         if (!v || v === veh) return false;
         if (!mp.vehicles.exists(v)) return false;
-        if (v.dimension !== 0) return false;
+        if (v.dimension !== spawnDim) return false;
         return v.dist(spawnPos) < 4;
     });
     if (blocked) {
@@ -711,14 +715,14 @@ module.exports = {
 
     veh.position = spawnPos;
     veh.heading = spawnRot;
-    veh.dimension = 0; // ВАЖНО: всегда dimension 0
+    veh.dimension = spawnDim;
     veh.spawned = true;
     if (veh.db) {
         veh.db.x = spawnPos.x;
         veh.db.y = spawnPos.y;
         veh.db.z = spawnPos.z;
         veh.db.h = spawnRot;
-        veh.db.dimension = 0;
+        veh.db.dimension = spawnDim;
         veh.db.save();
     }
 
@@ -749,6 +753,7 @@ module.exports = {
     }
 
     const faction = factions.getFaction(player.character.factionId);
+    const garageDim = faction.gD != null ? faction.gD : 0;
     if (veh.db.owner !== faction.id) {
         return notifs.error(player, 'Машина не принадлежит вашей фракции', header);
     }
@@ -763,7 +768,7 @@ module.exports = {
             setTimeout(() => {
                 // Телепортируем игрока рядом в СВОЁМ dimension (0)
                 p.position = new mp.Vector3(playerPos.x + 2, playerPos.y, playerPos.z);
-                p.dimension = 0; // ВАЖНО: всегда dimension 0
+                p.dimension = garageDim;
             }, 100);
         }
     });

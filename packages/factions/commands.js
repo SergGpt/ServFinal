@@ -111,6 +111,25 @@ module.exports = {
             faction.gD = player.dimension;
             faction.gH = player.heading;
             faction.save();
+
+            const existing = factions.getGarage(faction.id);
+            if (existing) {
+                existing.colshape.destroy();
+                existing.position = new mp.Vector3(pos.x, pos.y, pos.z - 1);
+                existing.dimension = faction.gD;
+                if (existing.blip) {
+                    existing.blip.position = existing.position;
+                    existing.blip.dimension = faction.gD;
+                }
+                const cs = mp.colshapes.newSphere(existing.position.x, existing.position.y, existing.position.z, 1.5, existing.dimension);
+                cs.onEnter = existing.colshape.onEnter;
+                cs.onExit = existing.colshape.onExit;
+                existing.colshape = cs;
+                existing.label.position = new mp.Vector3(existing.position.x, existing.position.y, existing.position.z + 1.5);
+                existing.label.dimension = existing.dimension;
+            } else {
+                factions.createGarageMarker(faction);
+            }
             out.info(`${player.name} обновил spawn гаража для ${faction.name}`);
         }
     },

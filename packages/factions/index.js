@@ -281,22 +281,23 @@ createGarageMarker(faction) {
     if (!faction.gX) return;
     const pos = new mp.Vector3(faction.gX, faction.gY, faction.gZ - 1);
     const header = `Гараж ${faction.name}`;
+    const garageDim = faction.gD != null ? faction.gD : 0;
 
     const marker = mp.markers.new(1, pos, 0.5, { 
         color: [0, 255, 0, 70], 
-        dimension: 0 // ВАЖНО: всегда dimension 0
+        dimension: garageDim
     });
     
-    // Блип гаража - ПОСТОЯННЫЙ в dimension 0
+    // Блип гаража
     marker.blip = mp.blips.new(50, pos, { 
         color: faction.blipColor || 3, 
         name: header, 
         shortRange: 10, 
         scale: 1, 
-        dimension: 0 // ВАЖНО: всегда dimension 0
+        dimension: garageDim
     });
 
-    const cs = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 1.5, 0); // dimension 0
+    const cs = mp.colshapes.newSphere(pos.x, pos.y, pos.z, 1.5, garageDim);
     
     cs.onEnter = (player) => {
         // Если игрок в машине
@@ -332,7 +333,7 @@ createGarageMarker(faction) {
         los: false, 
         font: 0, 
         drawDistance: 10, 
-        dimension: 0 // ВАЖНО: всегда dimension 0
+        dimension: garageDim
     });
     
     this.garages.push(marker);
