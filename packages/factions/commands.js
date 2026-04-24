@@ -184,6 +184,7 @@ module.exports = {
         args: "",
         handler: (player, args, out) => {
             if (!player.character || !player.character.factionId) return out.error(`Вы не в фракции`, player);
+            player.setVariable('insideFactionGarage', true);
             player.call('factions.garage.menu.open');
         }
     },

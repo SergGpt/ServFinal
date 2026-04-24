@@ -707,7 +707,10 @@ module.exports = {
         if (!v || v === veh) return false;
         if (!mp.vehicles.exists(v)) return false;
         if (v.dimension !== spawnDim) return false;
-        return v.dist(spawnPos) < 4;
+        const dx = v.position.x - spawnPos.x;
+        const dy = v.position.y - spawnPos.y;
+        const dz = v.position.z - spawnPos.z;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz) < 4;
     });
     if (blocked) {
         return notifs.warning(player, 'Точка выдачи занята, освободите место', header);
