@@ -628,7 +628,16 @@ module.exports = {
 
     const faction = factions.getFaction(player.character.factionId);
     const vehicleItems = [];
-    const isVehicleInWorld = (v) => v && v.spawned !== false && v.dimension !== 999999;
+    const isVehicleStoredInGarage = (v) => {
+        if (!v) return false;
+        if (v.spawned === false) return true;
+        if (v.dimension === 999999) return true;
+        const x = v.position ? v.position.x : (v.db ? v.db.x : null);
+        const y = v.position ? v.position.y : (v.db ? v.db.y : null);
+        const z = v.position ? v.position.z : (v.db ? v.db.z : null);
+        return x === 0 && y === 0 && z === -100;
+    };
+    const isVehicleInWorld = (v) => !isVehicleStoredInGarage(v);
 
     // Получаем все машины фракции
     mp.vehicles.forEach(v => {
@@ -695,7 +704,15 @@ module.exports = {
         }
     }
 
-    const isVehicleInWorld = (veh.spawned !== false && veh.dimension !== 999999);
+    const isVehicleStoredInGarage = () => {
+        if (veh.spawned === false) return true;
+        if (veh.dimension === 999999) return true;
+        const x = veh.position ? veh.position.x : (veh.db ? veh.db.x : null);
+        const y = veh.position ? veh.position.y : (veh.db ? veh.db.y : null);
+        const z = veh.position ? veh.position.z : (veh.db ? veh.db.z : null);
+        return x === 0 && y === 0 && z === -100;
+    };
+    const isVehicleInWorld = !isVehicleStoredInGarage();
     const hasOccupants = mp.players.toArray().some(p => p && p.vehicle === veh);
 
     // Если машина "в мире", но в другом измерении и без пассажиров — считаем рассинхроном и возвращаем в гараж
