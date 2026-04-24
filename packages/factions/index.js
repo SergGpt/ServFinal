@@ -279,7 +279,7 @@ module.exports = {
     },
 createGarageMarker(faction) {
     if (!faction.gX) return;
-    const pos = new mp.Vector3(faction.gX, faction.gY, faction.gZ - 1);
+    const pos = new mp.Vector3(faction.gX, faction.gY, faction.gZ + 0.35);
     const header = `Гараж ${faction.name}`;
     const garageDim = faction.gD != null ? faction.gD : 0;
 
