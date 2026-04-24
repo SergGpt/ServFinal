@@ -812,8 +812,7 @@ module.exports = {
         p.position = new mp.Vector3(playerPos.x + 2 + idx, playerPos.y, playerPos.z);
     });
 
-    // Только после этого паркуем машину
-    setTimeout(() => {
+    const parkVehicleNow = () => {
         veh.spawned = false;
         
         // Прячем машину под карту в отдельный dimension
@@ -830,7 +829,18 @@ module.exports = {
         }
         
         notifs.success(player, `${veh.properties?.name || veh.db.modelName} припаркована`, header);
-    }, 50);
+    };
+
+    // Ждём пока движок точно отвяжет игроков от авто, и только потом уводим авто в другой dimension
+    const start = Date.now();
+    const waitDetachAndPark = () => {
+        const stillOccupied = occupants.some(p => p && mp.players.exists(p) && p.vehicle === veh);
+        if (!stillOccupied || Date.now() - start > 1000) {
+            return parkVehicleNow();
+        }
+        setTimeout(waitDetachAndPark, 50);
+    };
+    waitDetachAndPark();
 },
 
 
