@@ -44,8 +44,75 @@ module.exports = {
         out.info(`${player.name} изменил позицию гаража у организации ${faction.name}`);
     }
 },
+    "/fgarageaddveh": {
+        description: "Добавить текущее авто в гараж фракции (key=faction).",
+        access: 6,
+        args: "[ид_организации]:n [мин_ранг]:n",
+        handler: async (player, args, out) => {
+            const veh = player.vehicle;
+            if (!veh || !veh.db) return out.error(`Вы должны сидеть в авто из БД`, player);
 
+            const faction = factions.getFaction(args[0]);
+            if (!faction) return out.error(`Организация #${args[0]} не найдена`, player);
 
+            const minRank = Math.clamp(parseInt(args[1]) || 1, 1, faction.ranks.length);
+            veh.db.key = 'faction';
+            veh.db.owner = faction.id;
+            veh.key = 'faction';
+            veh.owner = faction.id;
+            veh.spawned = false;
+            veh.position = new mp.Vector3(0, 0, -100);
+            veh.dimension = 999999;
+
+            veh.db.x = 0;
+            veh.db.y = 0;
+            veh.db.z = -100;
+            veh.db.h = veh.heading;
+            veh.db.dimension = 999999;
+            await veh.db.save();
+
+            factions.setVehicleMinRank(veh, minRank);
+            out.info(`${player.name} добавил ${veh.db.modelName} [#${veh.db.id}] в гараж ${faction.name} (мин. ранг ${minRank})`);
+        }
+    },
+    "/fgaragevehlist": {
+        description: "Список фракционных машин для гаража организации.",
+        access: 6,
+        args: "[ид_организации]:n",
+        handler: (player, args, out) => {
+            const faction = factions.getFaction(args[0]);
+            if (!faction) return out.error(`Организация #${args[0]} не найдена`, player);
+
+            const rows = [];
+            mp.vehicles.forEach(v => {
+                if (!v || !v.db) return;
+                if (v.db.key !== 'faction') return;
+                if (v.db.owner != faction.id) return;
+                rows.push(`${v.db.id}) ${v.db.modelName} [${v.db.plate}] | minRank=${v.db.minRank ? v.db.minRank.rank : 1} | ${v.spawned !== false ? 'В мире' : 'В гараже'}`);
+            });
+
+            if (!rows.length) return out.info(`У ${faction.name} нет машин в runtime`, player);
+            out.log(rows.join('<br/>'), player);
+        }
+    },
+    "/fgaragesetspawn": {
+        description: "Alias для /fsetgaragepos (точка выдачи машин гаража).",
+        access: 6,
+        args: "[ид_организации]:n",
+        handler: (player, args, out) => {
+            const faction = factions.getFaction(args[0]);
+            if (!faction) return out.error(`Организация #${args[0]} не найдена`, player);
+
+            const pos = player.position;
+            faction.gX = pos.x;
+            faction.gY = pos.y;
+            faction.gZ = pos.z;
+            faction.gD = player.dimension;
+            faction.gH = player.heading;
+            faction.save();
+            out.info(`${player.name} обновил spawn гаража для ${faction.name}`);
+        }
+    },
 
     "/ftp": {
         description: "Телепортироваться к организации.",

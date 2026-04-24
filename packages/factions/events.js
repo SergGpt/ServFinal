@@ -696,14 +696,31 @@ module.exports = {
         return notifs.warning(player, 'Машина уже в мире', header);
     }
 
-    // Спавним машину на позиции гаража
+    // Проверяем свободно ли место спавна
     const spawnPos = new mp.Vector3(faction.gX, faction.gY, faction.gZ);
     const spawnRot = faction.gH || 0;
+    const blocked = mp.vehicles.toArray().some(v => {
+        if (!v || v === veh) return false;
+        if (!mp.vehicles.exists(v)) return false;
+        if (v.dimension !== 0) return false;
+        return v.dist(spawnPos) < 4;
+    });
+    if (blocked) {
+        return notifs.warning(player, 'Точка выдачи занята, освободите место', header);
+    }
 
     veh.position = spawnPos;
-    veh.rotation = new mp.Vector3(0, 0, spawnRot);
+    veh.heading = spawnRot;
     veh.dimension = 0; // ВАЖНО: всегда dimension 0
     veh.spawned = true;
+    if (veh.db) {
+        veh.db.x = spawnPos.x;
+        veh.db.y = spawnPos.y;
+        veh.db.z = spawnPos.z;
+        veh.db.h = spawnRot;
+        veh.db.dimension = 0;
+        veh.db.save();
+    }
 
     notifs.success(player, `${veh.properties?.name || veh.db.modelName} выдана`, header);
     
@@ -758,6 +775,14 @@ module.exports = {
         // Прячем машину под карту в отдельный dimension
         veh.position = new mp.Vector3(0, 0, -100);
         veh.dimension = 999999; // Машина уходит в другой dimension
+        if (veh.db) {
+            veh.db.x = 0;
+            veh.db.y = 0;
+            veh.db.z = -100;
+            veh.db.h = veh.heading;
+            veh.db.dimension = 999999;
+            veh.db.save();
+        }
         
         notifs.success(player, `${veh.properties?.name || veh.db.modelName} припаркована`, header);
     }, 200);
