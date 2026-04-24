@@ -1,5 +1,6 @@
 let factions = require('./index');
 let notifs = require('../notifications');
+let vehicles = call('vehicles');
 
 module.exports = {
     "/flist": {
@@ -111,6 +112,60 @@ module.exports = {
             faction.gH = player.heading;
             faction.save();
             out.info(`${player.name} обновил spawn гаража для ${faction.name}`);
+        }
+    },
+    "/fgaragecreateveh": {
+        description: "Создать новое авто сразу в БД и добавить в гараж фракции.",
+        access: 6,
+        args: "[ид_организации]:n [model]:s [мин_ранг]:n [color1]:n [color2]:n",
+        handler: async (player, args, out) => {
+            const faction = factions.getFaction(args[0]);
+            if (!faction) return out.error(`Организация #${args[0]} не найдена`, player);
+
+            const modelName = String(args[1]).toLowerCase();
+            const minRank = Math.clamp(parseInt(args[2]) || 1, 1, faction.ranks.length);
+            const color1 = parseInt(args[3]) || 0;
+            const color2 = parseInt(args[4]) || 0;
+
+            const dbVeh = await db.Models.Vehicle.create({
+                key: 'faction',
+                owner: faction.id,
+                modelName: modelName,
+                plate: vehicles.generateVehiclePlate(),
+                color1: color1,
+                color2: color2,
+                x: 0,
+                y: 0,
+                z: -100,
+                h: player.heading,
+                fuel: 70,
+                health: 1000,
+                destroys: 0,
+                engineState: 0,
+                steeringState: 0,
+                fuelState: 0,
+                brakeState: 0,
+                dimension: 999999,
+                mileage: 0
+            });
+
+            dbVeh.d = dbVeh.dimension;
+            const veh = await vehicles.spawnVehicle(dbVeh, 0);
+            veh.spawned = false;
+            veh.dimension = 999999;
+            veh.position = new mp.Vector3(0, 0, -100);
+            factions.setVehicleMinRank(veh, minRank);
+
+            out.info(`${player.name} создал ${modelName} [#${dbVeh.id}] для гаража ${faction.name} (мин. ранг ${minRank})`);
+        }
+    },
+    "/fgarageui": {
+        description: "Открыть UI гаража фракции (тест).",
+        access: 0,
+        args: "",
+        handler: (player, args, out) => {
+            if (!player.character || !player.character.factionId) return out.error(`Вы не в фракции`, player);
+            player.call('factions.garage.menu.open');
         }
     },
 

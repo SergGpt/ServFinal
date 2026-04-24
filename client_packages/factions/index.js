@@ -419,6 +419,10 @@ mp.events.add('factions.garage.spawn', (vehIdOrSqlId) => {
     mp.events.callRemote('factions.garage.spawn', vehIdOrSqlId);
 });
 
+mp.events.add('factions.garage.menu.close', () => {
+    mp.callCEFV(`selectMenu.show = false`);
+});
+
 
 mp.events.addDataHandler("trunk", (vehicle, value) => {
     if (!value) return;
