@@ -3,15 +3,19 @@
 let factions;
 let notifs;
 let inventory;
+let animations;
+let utils;
 
 module.exports = {
     dumps: [],
-    playerCooldowns: new Map(),
+    dumpCooldowns: new Map(),
 
     async init() {
         factions = call('factions');
         notifs = call('notifications');
         inventory = call('inventory');
+        animations = call('animations');
+        utils = call('utils');
 
         await this.loadFromDB();
         inited(__dirname);
@@ -83,17 +87,35 @@ module.exports = {
         if (!dump) return { ok: false, message: 'Вы не на свалке', header };
         if (!this.isRastMember(player)) return { ok: false, message: 'Только для фракции Rast', header };
         if (inventory.getHandsItem(player)) return { ok: false, message: 'Освободите руки', header };
-        if (this.hasAnyBox(player)) return { ok: false, message: 'У вас уже есть ящик', header };
+        if (player.rastScrapCollecting) return { ok: false, message: 'Вы уже собираете металлолом', header };
 
-        const key = `${player.character.id}:${dump.dbPoint.id}`;
         const now = Date.now();
-        const next = this.playerCooldowns.get(key) || 0;
+        const next = this.dumpCooldowns.get(dump.dbPoint.id) || 0;
         if (now < next) {
             const wait = Math.ceil((next - now) / 1000);
-            return { ok: false, message: `Подождите ${wait} сек.`, header };
+            return { ok: false, message: `Свалка остывает. Подождите ${wait} сек.`, header };
         }
 
-        return { ok: true, key, header };
+        return { ok: true, header };
+    },
+
+    async finishCollect(player, dump) {
+        if (!player || !player.character) return;
+        if (!this.isRastMember(player)) return;
+        if (player.dimension != dump.dbPoint.d) return;
+
+        const dist = utils.vdist(player.position, new mp.Vector3(dump.dbPoint.x, dump.dbPoint.y, dump.dbPoint.z));
+        if (dist > dump.dbPoint.radius + 2.5) {
+            return notifs.error(player, 'Вы отошли слишком далеко от точки свалки', 'Сбор металлолома');
+        }
+
+        const nextTs = Date.now() + dump.dbPoint.cooldownSec * 1000;
+        this.dumpCooldowns.set(dump.dbPoint.id, nextTs);
+
+        inventory.addItem(player, 501, { count: 1 }, (err) => {
+            if (err) return notifs.error(player, err, 'Сбор металлолома');
+            notifs.success(player, `Вы получили Scrap Metal`, 'Сбор металлолома');
+        });
     },
 
     collect(player) {
@@ -101,13 +123,25 @@ module.exports = {
         const state = this.canCollect(player, dump);
         if (!state.ok) return notifs.error(player, state.message, state.header);
 
-        player.addAttachment('materialsBox');
-        const nextTs = Date.now() + dump.dbPoint.cooldownSec * 1000;
-        this.playerCooldowns.set(state.key, nextTs);
-        notifs.success(player, `Вы собрали металлолом`, state.header);
+        player.rastScrapCollecting = true;
+        player.addAttachment('rastGrinder');
+        animations.playAnimation(player, 'amb@world_human_welding@male@base', 'base', 8, 49);
+        player.call('rastScrap.collect.fx.start', [5000]);
+        notifs.info(player, `Сбор металлолома...`, state.header);
+
+        setTimeout(async () => {
+            if (!player || !mp.players.exists(player)) return;
+
+            player.addAttachment('rastGrinder', true);
+            animations.stopAnimation(player);
+            player.call('rastScrap.collect.fx.stop');
+            delete player.rastScrapCollecting;
+
+            await this.finishCollect(player, dump);
+        }, 5000);
     },
 
-    async createDump(player, radius = 2.0, cooldownSec = 120) {
+    async createDump(player, radius = 2.0, cooldownSec = 30) {
         const dbPoint = await db.Models.RastDumpPoint.create({
             x: player.position.x,
             y: player.position.y,

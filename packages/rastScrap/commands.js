@@ -14,7 +14,16 @@ module.exports = {
         description: "Добавить точку свалки",
         args: "[radius]:n [cooldownSec]:n",
         handler: async (player, args, out) => {
-            const point = await rastScrap.createDump(player, parseFloat(args[0]) || 2, parseInt(args[1]) || 120);
+            const point = await rastScrap.createDump(player, parseFloat(args[0]) || 2, parseInt(args[1]) || 30);
+            out.info(`Добавлена точка свалки #${point.id}`);
+        }
+    },
+    "/scrapdumpadd": {
+        access: 6,
+        description: "Добавить точку свалки (alias)",
+        args: "[radius]:n [cooldownSec]:n",
+        handler: async (player, args, out) => {
+            const point = await rastScrap.createDump(player, parseFloat(args[0]) || 2, parseInt(args[1]) || 30);
             out.info(`Добавлена точка свалки #${point.id}`);
         }
     },
