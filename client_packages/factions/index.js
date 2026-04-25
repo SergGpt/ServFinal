@@ -125,7 +125,7 @@ mp.factions = {
         return (factionId >= 1 && factionId <= 7) || factionId == 15;
     },
     isBandFaction(factionId) {
-        return (factionId >= 8 && factionId <= 11) || factionId == 16;
+        return (factionId >= 8 && factionId <= 11) || factionId == 16 || factionId == 21;
     },
     isMafiaFaction(factionId) {
         return (factionId >= 12 && factionId <= 14) || factionId == 17;
@@ -156,6 +156,7 @@ mp.factions = {
         if (!positions) return;
         for (var name in positions) {
             if (name == 'blipColor') continue;
+            if (!positions[name]) continue;
             this.blips[name] = mp.blips.new(this.getBlipSprite(name), positions[name], {
                 color: positions['blipColor'],
                 dimension: positions[name].d,
@@ -166,7 +167,8 @@ mp.factions = {
     },
     getBlipSprite(name) {
         if (name != 'storage') return this.blipSprites[name];
-        return [0, 567, 175, 175, 175, 498, 175, 498, 110, 110, 110, 110, 110, 110, 110, 498, 110, 110][this.faction];
+        const byFaction = [0, 567, 175, 175, 175, 498, 175, 498, 110, 110, 110, 110, 110, 110, 110, 498, 110, 110];
+        return byFaction[this.faction] || 110;
     },
     registerAttachments() {
         mp.attachmentMngr.register("ammoBox", "prop_box_ammo04a", 11363, new mp.Vector3(0.05, 0, -0.25),
@@ -310,7 +312,6 @@ mp.events.add({
         if (mp.busy.includes('mapCase')) {
             const clothesRanks = JSON.stringify(data.clothesRanks);
             const itemRanks = JSON.stringify(data.itemRanks);
-            debug(itemRanks);
             mp.mapCase.clothesRanks(clothesRanks);
             mp.mapCase.itemRanks(itemRanks);
             const factionId = mp.players.local.getVariable('factionId');
@@ -416,6 +417,10 @@ mp.events.add('factions.garage.menu.request', () => {
 // клик по конкретной машине
 mp.events.add('factions.garage.spawn', (vehIdOrSqlId) => {
     mp.events.callRemote('factions.garage.spawn', vehIdOrSqlId);
+});
+
+mp.events.add('factions.garage.menu.close', () => {
+    mp.callCEFV(`selectMenu.show = false`);
 });
 
 

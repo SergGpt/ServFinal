@@ -1,5 +1,5 @@
 function isBandFaction(factionId) {
-    return (factionId >= 8 && factionId <= 11) || factionId == 16;
+    return (factionId >= 8 && factionId <= 11) || factionId == 16 || factionId == 21;
 }
 
 function isMafiaFaction(factionId) {

@@ -1,5 +1,6 @@
 let factions = require('./index');
 let notifs = require('../notifications');
+let vehicles = call('vehicles');
 
 module.exports = {
     "/flist": {
@@ -44,8 +45,151 @@ module.exports = {
         out.info(`${player.name} изменил позицию гаража у организации ${faction.name}`);
     }
 },
+    "/fgarageaddveh": {
+        description: "Добавить текущее авто в гараж фракции (key=faction).",
+        access: 6,
+        args: "[ид_организации]:n [мин_ранг]:n",
+        handler: async (player, args, out) => {
+            const veh = player.vehicle;
+            if (!veh || !veh.db) return out.error(`Вы должны сидеть в авто из БД`, player);
 
+            const faction = factions.getFaction(args[0]);
+            if (!faction) return out.error(`Организация #${args[0]} не найдена`, player);
 
+            const minRank = Math.clamp(parseInt(args[1]) || 1, 1, faction.ranks.length);
+            veh.db.key = 'faction';
+            veh.db.owner = faction.id;
+            veh.key = 'faction';
+            veh.owner = faction.id;
+            veh.spawned = false;
+            veh.position = new mp.Vector3(0, 0, -100);
+            veh.dimension = 999999;
+            veh.d = 999999;
+
+            veh.db.x = 0;
+            veh.db.y = 0;
+            veh.db.z = -100;
+            veh.db.h = veh.heading;
+            veh.db.dimension = 999999;
+            await veh.db.save();
+
+            factions.setVehicleMinRank(veh, minRank);
+            out.info(`${player.name} добавил ${veh.db.modelName} [#${veh.db.id}] в гараж ${faction.name} (мин. ранг ${minRank})`);
+        }
+    },
+    "/fgaragevehlist": {
+        description: "Список фракционных машин для гаража организации.",
+        access: 6,
+        args: "[ид_организации]:n",
+        handler: (player, args, out) => {
+            const faction = factions.getFaction(args[0]);
+            if (!faction) return out.error(`Организация #${args[0]} не найдена`, player);
+
+            const rows = [];
+            mp.vehicles.forEach(v => {
+                if (!v || !v.db) return;
+                if (v.db.key !== 'faction') return;
+                if (v.db.owner != faction.id) return;
+                rows.push(`${v.db.id}) ${v.db.modelName} [${v.db.plate}] | minRank=${v.db.minRank ? v.db.minRank.rank : 1} | ${v.spawned !== false ? 'В мире' : 'В гараже'}`);
+            });
+
+            if (!rows.length) return out.info(`У ${faction.name} нет машин в runtime`, player);
+            out.log(rows.join('<br/>'), player);
+        }
+    },
+    "/fgaragesetspawn": {
+        description: "Alias для /fsetgaragepos (точка выдачи машин гаража).",
+        access: 6,
+        args: "[ид_организации]:n",
+        handler: (player, args, out) => {
+            const faction = factions.getFaction(args[0]);
+            if (!faction) return out.error(`Организация #${args[0]} не найдена`, player);
+
+            const pos = player.position;
+            faction.gX = pos.x;
+            faction.gY = pos.y;
+            faction.gZ = pos.z;
+            faction.gD = player.dimension;
+            faction.gH = player.heading;
+            faction.save();
+
+            const existing = factions.getGarage(faction.id);
+            if (existing) {
+                existing.colshape.destroy();
+                existing.position = new mp.Vector3(pos.x, pos.y, pos.z - 1);
+                existing.dimension = faction.gD;
+                if (existing.blip) {
+                    existing.blip.position = existing.position;
+                    existing.blip.dimension = faction.gD;
+                }
+                const cs = mp.colshapes.newSphere(existing.position.x, existing.position.y, existing.position.z, 1.5, existing.dimension);
+                cs.onEnter = existing.colshape.onEnter;
+                cs.onExit = existing.colshape.onExit;
+                existing.colshape = cs;
+                existing.label.position = new mp.Vector3(existing.position.x, existing.position.y, existing.position.z + 1.5);
+                existing.label.dimension = existing.dimension;
+            } else {
+                factions.createGarageMarker(faction);
+            }
+            out.info(`${player.name} обновил spawn гаража для ${faction.name}`);
+        }
+    },
+    "/fgaragecreateveh": {
+        description: "Создать новое авто сразу в БД и добавить в гараж фракции.",
+        access: 6,
+        args: "[ид_организации]:n [model]:s [мин_ранг]:n [color1]:n [color2]:n",
+        handler: async (player, args, out) => {
+            const faction = factions.getFaction(args[0]);
+            if (!faction) return out.error(`Организация #${args[0]} не найдена`, player);
+
+            const modelName = String(args[1]).toLowerCase();
+            const minRank = Math.clamp(parseInt(args[2]) || 1, 1, faction.ranks.length);
+            const color1 = parseInt(args[3]) || 0;
+            const color2 = parseInt(args[4]) || 0;
+
+            const dbVeh = await db.Models.Vehicle.create({
+                key: 'faction',
+                owner: faction.id,
+                modelName: modelName,
+                plate: vehicles.generateVehiclePlate(),
+                color1: color1,
+                color2: color2,
+                x: 0,
+                y: 0,
+                z: -100,
+                h: player.heading,
+                fuel: 70,
+                health: 1000,
+                destroys: 0,
+                engineState: 0,
+                steeringState: 0,
+                fuelState: 0,
+                brakeState: 0,
+                dimension: 999999,
+                mileage: 0
+            });
+
+            dbVeh.d = dbVeh.dimension;
+            const veh = await vehicles.spawnVehicle(dbVeh, 0);
+            veh.spawned = false;
+            veh.dimension = 999999;
+            veh.d = 999999;
+            veh.position = new mp.Vector3(0, 0, -100);
+            factions.setVehicleMinRank(veh, minRank);
+
+            out.info(`${player.name} создал ${modelName} [#${dbVeh.id}] для гаража ${faction.name} (мин. ранг ${minRank})`);
+        }
+    },
+    "/fgarageui": {
+        description: "Открыть UI гаража фракции (тест).",
+        access: 0,
+        args: "",
+        handler: (player, args, out) => {
+            if (!player.character || !player.character.factionId) return out.error(`Вы не в фракции`, player);
+            player.setVariable('insideFactionGarage', true);
+            player.call('factions.garage.menu.open');
+        }
+    },
 
     "/ftp": {
         description: "Телепортироваться к организации.",
@@ -94,9 +238,12 @@ module.exports = {
             });;
             if (!character) return out.error(`Персонаж ${fullName} не найден`, player);
 
+            const maxRank = factions.getMaxRank(faction);
+            if (!maxRank) return out.error(`У организации ${faction.name} не настроены ранги (FactionRanks)`, player);
+
             out.info(`${player.name} добавил лидера организации ${faction.name} оффлайн (#${character.id})`);
             character.factionId = faction.id;
-            character.factionRank = factions.getMaxRank(faction).id;
+            character.factionRank = maxRank.id;
             character.save();
         }
     },
@@ -110,6 +257,9 @@ module.exports = {
 
             var rec = mp.players.at(args[0]);
             if (!rec || !rec.character) return out.error(`Игрок #${args[0]} не найден`, player);
+
+            const maxRank = factions.getMaxRank(faction);
+            if (!maxRank) return out.error(`У организации ${faction.name} не настроены ранги (FactionRanks)`, player);
 
             out.info(`${player.name} добавил лидера организации ${faction.name} (${rec.name})`);
             factions.setLeader(faction, rec);
@@ -142,6 +292,9 @@ module.exports = {
             var faction = factions.getFaction(args[1]);
             if (!faction) return out.error(`Организация #${args[1]} не найдена`, player);
 
+
+            const minRank = factions.getMinRank(faction);
+            if (!minRank) return out.error(`У организации ${faction.name} не настроены ранги (FactionRanks)`, player);
 
             out.info(`${player.name} добавил ${rec.name} в организацию ${faction.name}`);
             factions.addMember(faction, rec);
@@ -435,6 +588,48 @@ module.exports = {
             out.info(`${player.name} изменил зарплату ранга ${rank.pay} у организации ${faction.name} (${rank.pay} => ${args[2]})`);
             rank.pay = args[2];
             rank.save();
+        }
+    },
+    "/fdebug": {
+        description: "Диагностика состояния фракции игрока.",
+        access: 6,
+        args: "[ид_игрока]:n",
+        handler: (player, args, out) => {
+            const rec = mp.players.at(args[0]);
+            if (!rec || !rec.character) return out.error(`Игрок #${args[0]} не найден`, player);
+
+            const factionId = rec.character.factionId;
+            if (!factionId) return out.info(`${rec.name} не состоит в организации`, player);
+
+            const faction = factions.getFaction(factionId);
+            if (!faction) return out.error(`Фракция #${factionId} не найдена в runtime`, player);
+
+            const rankById = factions.getRankById(faction, rec.character.factionRank);
+            const minRank = factions.getMinRank(faction);
+            const maxRank = factions.getMaxRank(faction);
+
+            const marker = factions.getMarker(faction.id);
+            const storage = factions.getStorage(faction.id);
+            const holder = factions.getHolder(faction.id);
+            const commonHolder = factions.getCommonHolder(faction.id);
+            const warehouse = factions.getWarehouse(faction.id);
+            const blipsPos = factions.getBlipsPos(faction.id);
+
+            const lines = [
+                `Игрок: ${rec.name} (#${rec.id})`,
+                `Фракция: #${faction.id} ${faction.name} (type=${typeof faction.id})`,
+                `FactionRank (id): ${rec.character.factionRank}`,
+                `Текущий ранг: ${rankById ? `${rankById.name} (rank=${rankById.rank})` : 'НЕ НАЙДЕН'}`,
+                `Минимальный ранг: ${minRank ? `${minRank.name} (#${minRank.id})` : 'НЕТ'}`,
+                `Максимальный ранг: ${maxRank ? `${maxRank.name} (#${maxRank.id})` : 'НЕТ'}`,
+                `Количество рангов: ${faction.ranks ? faction.ranks.length : 0}`,
+                `rastFactionId: ${factions.rastFactionId}, normalizedFactionId: ${factions.getFactionId(faction)}`,
+                `Crime/Band/Mafia: ${factions.isCrimeFaction(faction)} / ${factions.isBandFaction(faction)} / ${factions.isMafiaFaction(faction)}`,
+                `Marker/Storage/Holder/Common/Warehouse: ${!!marker} / ${!!storage} / ${!!holder} / ${!!commonHolder} / ${!!warehouse}`,
+                `BlipsPos: ${blipsPos ? 'OK' : 'NULL'}`
+            ];
+
+            out.log(lines.join('<br/>'), player);
         }
     },
 }

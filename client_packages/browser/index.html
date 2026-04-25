@@ -2681,6 +2681,7 @@
                         />
                     </div>
                     <div>Доступ</div>
+                    <div v-if="type == 'transport'">Возврат</div>
                 </div>
                 <div class="body">
                     <div
@@ -2699,6 +2700,14 @@
                                 @click="edit(record)"
                             >
                                 {{ (mapCase.type != 'crm') ? 'Редактировать' : 'Редакт.' }}
+                            </div>
+                        </div>
+                        <div v-if="type == 'transport'">
+                            <div
+                                class="btn"
+                                @click="returnToGarage(record)"
+                            >
+                                Вернуть
                             </div>
                         </div>
                     </div>

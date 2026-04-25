@@ -48,6 +48,20 @@ module.exports = {
             if (player.vehicle.key == "private") return player.call('notifications.push.error', ['Это личный транспорт', 'Ошибка']);
 
             let veh = player.vehicle;
+            const isFactionVehicle = args[0] == "faction";
+            const targetState = isFactionVehicle ? {
+                x: 0,
+                y: 0,
+                z: -100,
+                h: veh.heading,
+                dimension: 999999
+            } : {
+                x: veh.position.x,
+                y: veh.position.y,
+                z: veh.position.z,
+                h: veh.heading,
+                dimension: player.dimension
+            };
 
             if (args[0] == "newbie") {
                 args[1] = 0;
@@ -59,10 +73,11 @@ module.exports = {
                     modelName: veh.modelName,
                     color1: veh.color1,
                     color2: veh.color2,
-                    x: veh.position.x,
-                    y: veh.position.y,
-                    z: veh.position.z,
-                    h: veh.heading,
+                    x: targetState.x,
+                    y: targetState.y,
+                    z: targetState.z,
+                    h: targetState.h,
+                    dimension: targetState.dimension,
                     plate: veh.plate,
                     fuel: veh.properties.maxFuel * 0.7
                 });
@@ -73,10 +88,11 @@ module.exports = {
                     modelName: veh.modelName,
                     color1: veh.color1,
                     color2: veh.color2,
-                    x: veh.position.x,
-                    y: veh.position.y,
-                    z: veh.position.z,
-                    h: veh.heading,
+                    x: targetState.x,
+                    y: targetState.y,
+                    z: targetState.z,
+                    h: targetState.h,
+                    dimension: targetState.dimension,
                     plate: veh.plate,
                     fuel: veh.properties.maxFuel * 0.7
                 });
@@ -88,10 +104,23 @@ module.exports = {
             }
             veh.key = args[0];
             veh.owner = args[1];
-            veh.x = veh.position.x;
-            veh.y = veh.position.y;
-            veh.z = veh.position.z;
-            veh.h = veh.heading;
+            veh.x = targetState.x;
+            veh.y = targetState.y;
+            veh.z = targetState.z;
+            veh.h = targetState.h;
+            veh.d = targetState.dimension;
+
+            if (isFactionVehicle) {
+                const exitPos = new mp.Vector3(player.position.x + 2, player.position.y, player.position.z);
+                mp.players.forEach(rec => {
+                    if (rec.vehicle === veh) rec.removeFromVehicle();
+                });
+                veh.position = new mp.Vector3(0, 0, -100);
+                veh.dimension = 999999;
+                veh.spawned = false;
+                player.position = exitPos;
+                player.call('notifications.push.success', ['Фракционное авто отправлено в гараж (dimension 999999)', 'Гараж']);
+            }
 
             switch (args[0]) {
                 case "newbie":
