@@ -127,7 +127,7 @@ module.exports = {
 
         player.rastScrapCollecting = true;
         player.addAttachment('rastGrinder');
-        animations.playAnimation(player, 'amb@world_human_welding@male@base', 'base', 8, 49);
+        animations.playAnimation(player, 'amb@world_human_const_drill@male@drill@base', 'base', 8, 49);
         player.call('rastScrap.collect.fx.start', [5000]);
         notifs.info(player, `Сбор металлолома...`, state.header);
 
