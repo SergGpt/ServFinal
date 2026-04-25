@@ -179,6 +179,7 @@ mp.events.add({
         mp.game.graphics.notify(`~g~Cloth set: comp ${comp}, drawable ${drawable}, texture ${texture}`);
     },
     'clothes.editor.open': (rawData) => {
+        mp.events.call('busy.add', 'clothes.editor', true);
         if (!mp.clothesEditor.snapshotTaken) {
             mp.clothesEditor.snapshot = captureClothesSnapshot();
             mp.clothesEditor.snapshotTaken = true;
@@ -225,6 +226,7 @@ mp.events.add({
         applyClothesSnapshot(mp.clothesEditor.snapshot);
     },
     'clothes.editor.close': () => {
+        mp.events.call('busy.remove', 'clothes.editor');
         applyClothesSnapshot(mp.clothesEditor.snapshot);
         mp.clothesEditor.snapshot = null;
         mp.clothesEditor.snapshotTaken = false;

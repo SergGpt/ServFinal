@@ -8,22 +8,23 @@
 .clothes-editor-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(9, 11, 17, 0.78);
+    background: rgba(9, 11, 17, 0.18);
+    pointer-events: none;
 }
 
 .clothes-editor-window {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 78vw;
-    height: 82vh;
-    transform: translate(-50%, -50%);
+    top: 6vh;
+    right: 2vw;
+    width: 60vw;
+    height: 88vh;
     background: #121826;
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 12px;
     display: flex;
     flex-direction: column;
     color: #e9edf8;
+    overflow: hidden;
 }
 
 .clothes-editor-header {
@@ -56,6 +57,7 @@
     gap: 12px;
     height: calc(100% - 68px);
     padding: 12px;
+    overflow: hidden;
 }
 
 .clothes-editor-sidebar,
@@ -66,6 +68,8 @@
     padding: 12px;
     display: flex;
     flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .clothes-editor-sidebar .filters {
@@ -98,10 +102,13 @@
 
 .clothes-editor-sidebar .list {
     flex: 1;
+    min-height: 0;
+    max-height: 100%;
     overflow: auto;
     display: grid;
     gap: 6px;
     margin-bottom: 10px;
+    padding-right: 4px;
 }
 
 .clothes-editor-sidebar .row {
@@ -123,6 +130,8 @@
 
 .clothes-editor-form {
     overflow: auto;
+    min-height: 0;
+    padding-right: 6px;
 }
 
 .clothes-editor-form .form-title {
@@ -170,4 +179,15 @@
     opacity: 0.65;
     font-size: 13px;
     margin-top: 8px;
+}
+
+.clothes-editor-sidebar .list::-webkit-scrollbar,
+.clothes-editor-form::-webkit-scrollbar {
+    width: 8px;
+}
+
+.clothes-editor-sidebar .list::-webkit-scrollbar-thumb,
+.clothes-editor-form::-webkit-scrollbar-thumb {
+    background: rgba(138, 154, 194, 0.45);
+    border-radius: 10px;
 }
