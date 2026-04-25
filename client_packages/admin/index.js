@@ -25,15 +25,23 @@ function captureClothesSnapshot() {
         props: {},
     };
     for (let i = 0; i <= 11; i++) {
+        let drawable = 0;
+        let texture = 0;
+        try { drawable = player.getDrawableVariation(i); } catch (e) {}
+        try { texture = player.getTextureVariation(i); } catch (e) {}
         snapshot.components[i] = {
-            drawable: player.getDrawableVariation(i),
-            texture: player.getTextureVariation(i),
+            drawable: Number.isFinite(drawable) ? drawable : 0,
+            texture: Number.isFinite(texture) ? texture : 0,
         };
     }
     for (let i = 0; i <= 7; i++) {
+        let drawable = -1;
+        let texture = 0;
+        try { drawable = player.getPropIndex(i); } catch (e) {}
+        try { texture = player.getPropTextureIndex(i); } catch (e) {}
         snapshot.props[i] = {
-            drawable: player.getPropIndex(i),
-            texture: player.getPropTextureIndex(i),
+            drawable: Number.isFinite(drawable) ? drawable : -1,
+            texture: Number.isFinite(texture) ? texture : 0,
         };
     }
     return snapshot;
@@ -175,7 +183,9 @@ mp.events.add({
             mp.clothesEditor.snapshot = captureClothesSnapshot();
             mp.clothesEditor.snapshotTaken = true;
         }
-        mp.callCEFV(`window.clothesAdminEditor && window.clothesAdminEditor.open(${rawData});`);
+        const safeData = rawData || '{}';
+        mp.callCEFV(`(function(){ if (window.clothesAdminEditor && window.clothesAdminEditor.open) window.clothesAdminEditor.open(${safeData}); })();`);
+        if (!rawData) mp.events.callRemote('clothes.editor.requestData');
     },
     'clothes.editor.data': (rawData) => {
         mp.callCEFV(`window.clothesAdminEditor && window.clothesAdminEditor.setData(${rawData});`);
@@ -210,6 +220,9 @@ mp.events.add({
     },
     'clothes.editor.save': (rawPayload) => {
         mp.events.callRemote('clothes.editor.save', rawPayload);
+    },
+    'clothes.editor.restore': () => {
+        applyClothesSnapshot(mp.clothesEditor.snapshot);
     },
     'clothes.editor.close': () => {
         applyClothesSnapshot(mp.clothesEditor.snapshot);

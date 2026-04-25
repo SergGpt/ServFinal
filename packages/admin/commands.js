@@ -122,6 +122,15 @@ module.exports = {
             out.error(`Использование: /uiedit [open/close/export]`, player);
         }
     },
+    "/cleditor": {
+        access: 1,
+        description: "Открыть админ-редактор одежды",
+        args: "",
+        handler: (player, args, out) => {
+            mp.events.call('clothes.editor.open', player);
+            out.info(`Редактор одежды открыт`, player);
+        }
+    },
     "/hudedit": {
         access: 4,
         description: "Открыть редактор HUD и экспортировать настройки",

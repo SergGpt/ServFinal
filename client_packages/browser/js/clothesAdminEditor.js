@@ -271,7 +271,7 @@
         },
 
         resetPreview() {
-            mp.trigger('clothes.editor.close');
+            mp.trigger('clothes.editor.restore');
         },
 
         save() {
