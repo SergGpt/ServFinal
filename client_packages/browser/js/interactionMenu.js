@@ -740,7 +740,7 @@ var interactionMenu = new Vue({
                 this.deleteItem("player_ownmenu", "Эфир");
             }
 
-            if ((val >= 8 && val <= 11) || val == 16) { // bands
+            if ((val >= 8 && val <= 11) || val == 16 || val == 21) { // bands
                 this.addItems("player_interaction", {
                     text: "Band",
                     icon: "band.svg"
@@ -769,7 +769,7 @@ var interactionMenu = new Vue({
                 this.deleteItem('player_ownmenu', "Захват биз.");
             }
 
-            if ((val >= 8 && val <= 14) || val == 16 || val == 17) {
+            if ((val >= 8 && val <= 14) || val == 16 || val == 17 || val == 21) {
                 this.addItems("vehicle", {
                     text: "Взломать",
                     icon: "rob.svg"

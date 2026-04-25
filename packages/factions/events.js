@@ -466,6 +466,47 @@ module.exports = {
             notifs.info(rec, `${player.name} изменил ранг авто ${vehName} (${veh.plate})`, factionName);
         });
     },
+    "factions.control.vehicles.returnToGarage": (player, vehId) => {
+        var out = (text) => {
+            notifs.error(player, text);
+        };
+        if (!player.character.factionId) return out(`Вы не состоите в организации`);
+        if (!factions.isLeader(player)) return out(`Вы не лидер`);
+
+        vehId = parseInt(vehId);
+        var veh = mp.vehicles.at(vehId);
+        if (!veh || !veh.db) return out(`Авто #${vehId} не найдено`);
+        if (veh.db.key != 'faction' || veh.db.owner != player.character.factionId) {
+            return out(`Это не транспорт вашей организации`);
+        }
+
+        const occupants = [];
+        mp.players.forEach(p => {
+            if (p.vehicle === veh) occupants.push(p);
+        });
+        occupants.forEach((p, idx) => {
+            p.dimension = 0;
+            p.removeFromVehicle();
+            p.position = new mp.Vector3(player.position.x + 2 + idx, player.position.y, player.position.z);
+        });
+
+        veh.spawned = false;
+        veh.position = new mp.Vector3(0, 0, -100);
+        veh.dimension = 999999;
+        veh.d = 999999;
+        veh.engine = false;
+        veh.setVariable("engine", false);
+        if (veh.db) {
+            veh.db.x = 0;
+            veh.db.y = 0;
+            veh.db.z = -100;
+            veh.db.h = veh.heading;
+            veh.db.dimension = 999999;
+            veh.db.save();
+        }
+
+        notifs.success(player, `${veh.properties?.name || veh.db.modelName} возвращена в гараж`, `Организация`);
+    },
     "factions.control.vehicles.respawn": (player) => {
         var out = (text) => {
             player.call(`selectMenu.notification`, [text]);
@@ -628,13 +669,23 @@ module.exports = {
 
     const faction = factions.getFaction(player.character.factionId);
     const vehicleItems = [];
+    const isVehicleStoredInGarage = (v) => {
+        if (!v) return false;
+        if (v.spawned === false) return true;
+        if (v.dimension === 999999) return true;
+        const x = v.position ? v.position.x : (v.db ? v.db.x : null);
+        const y = v.position ? v.position.y : (v.db ? v.db.y : null);
+        const z = v.position ? v.position.z : (v.db ? v.db.z : null);
+        return x === 0 && y === 0 && z === -100;
+    };
+    const isVehicleInWorld = (v) => !isVehicleStoredInGarage(v);
 
     // Получаем все машины фракции
     mp.vehicles.forEach(v => {
         if (!v.db || v.db.key !== 'faction') return;
         if (v.db.owner !== faction.id) return;
 
-        const isSpawned = v.spawned !== false; // если spawned не false, значит в мире
+        const isSpawned = isVehicleInWorld(v);
         
         vehicleItems.push({
             text: `${v.properties?.name || v.db.modelName} [${v.db.plate}]`,
@@ -665,10 +716,13 @@ module.exports = {
 
     const faction = factions.getFaction(player.character.factionId);
     
+    vehSqlId = parseInt(vehSqlId);
+    if (!vehSqlId) return notifs.error(player, 'Неверный ID машины', header);
+
     // Ищем машину по ID из базы данных
     let veh = null;
     mp.vehicles.forEach(v => {
-        if (v.db && v.db.id === vehSqlId && v.db.key === 'faction') {
+        if (v.db && v.db.id == vehSqlId && v.db.key === 'faction') {
             veh = v;
         }
     });
@@ -691,19 +745,68 @@ module.exports = {
         }
     }
 
-    // Проверяем, не заспавнена ли уже машина
-    if (veh.spawned !== false) {
+    const isVehicleStoredInGarage = () => {
+        if (veh.spawned === false) return true;
+        if (veh.dimension === 999999) return true;
+        const x = veh.position ? veh.position.x : (veh.db ? veh.db.x : null);
+        const y = veh.position ? veh.position.y : (veh.db ? veh.db.y : null);
+        const z = veh.position ? veh.position.z : (veh.db ? veh.db.z : null);
+        return x === 0 && y === 0 && z === -100;
+    };
+    const isVehicleInWorld = !isVehicleStoredInGarage();
+    const hasOccupants = mp.players.toArray().some(p => p && p.vehicle === veh);
+
+    // Если машина "в мире", но в другом измерении и без пассажиров — считаем рассинхроном и возвращаем в гараж
+    if (isVehicleInWorld && veh.dimension !== player.dimension && !hasOccupants) {
+        veh.spawned = false;
+        veh.position = new mp.Vector3(0, 0, -100);
+        veh.dimension = 999999;
+        veh.d = 999999;
+        if (veh.db) {
+            veh.db.x = 0;
+            veh.db.y = 0;
+            veh.db.z = -100;
+            veh.db.h = veh.heading;
+            veh.db.dimension = 999999;
+            veh.db.save();
+        }
+    } else if (isVehicleInWorld) {
+        // Проверяем, не заспавнена ли уже машина в текущем мире
         return notifs.warning(player, 'Машина уже в мире', header);
     }
 
-    // Спавним машину на позиции гаража
+    // Проверяем свободно ли место спавна
     const spawnPos = new mp.Vector3(faction.gX, faction.gY, faction.gZ);
     const spawnRot = faction.gH || 0;
+    const spawnDim = player.dimension;
+    const blocked = mp.vehicles.toArray().some(v => {
+        if (!v || v === veh) return false;
+        if (!mp.vehicles.exists(v)) return false;
+        if (v.dimension !== spawnDim) return false;
+        const dx = v.position.x - spawnPos.x;
+        const dy = v.position.y - spawnPos.y;
+        const dz = v.position.z - spawnPos.z;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz) < 4;
+    });
+    if (blocked) {
+        return notifs.warning(player, 'Точка выдачи занята, освободите место', header);
+    }
 
     veh.position = spawnPos;
-    veh.rotation = new mp.Vector3(0, 0, spawnRot);
-    veh.dimension = 0; // ВАЖНО: всегда dimension 0
+    veh.heading = spawnRot;
+    veh.dimension = spawnDim;
+    veh.d = spawnDim;
     veh.spawned = true;
+    veh.repair();
+    player.putIntoVehicle(veh, 0);
+    if (veh.db) {
+        veh.db.x = spawnPos.x;
+        veh.db.y = spawnPos.y;
+        veh.db.z = spawnPos.z;
+        veh.db.h = spawnRot;
+        veh.db.dimension = spawnDim;
+        veh.db.save();
+    }
 
     notifs.success(player, `${veh.properties?.name || veh.db.modelName} выдана`, header);
     
@@ -736,31 +839,49 @@ module.exports = {
         return notifs.error(player, 'Машина не принадлежит вашей фракции', header);
     }
 
-    // Сохраняем позицию игрока (в dimension 0)
+    // Сохраняем позицию игрока возле гаража
     const playerPos = player.position;
 
-    // Выкидываем всех из машины
+    // Сначала высаживаем всех и оставляем в dimension 0
+    const occupants = [];
     mp.players.forEach(p => {
-        if (p.vehicle === veh) {
-            p.removeFromVehicle();
-            setTimeout(() => {
-                // Телепортируем игрока рядом в СВОЁМ dimension (0)
-                p.position = new mp.Vector3(playerPos.x + 2, playerPos.y, playerPos.z);
-                p.dimension = 0; // ВАЖНО: всегда dimension 0
-            }, 100);
-        }
+        if (p.vehicle === veh) occupants.push(p);
+    });
+    occupants.forEach((p, idx) => {
+        p.dimension = 0;
+        p.removeFromVehicle();
+        p.position = new mp.Vector3(playerPos.x + 2 + idx, playerPos.y, playerPos.z);
     });
 
-    // Паркуем машину после задержки
-    setTimeout(() => {
+    const parkVehicleNow = () => {
         veh.spawned = false;
         
         // Прячем машину под карту в отдельный dimension
         veh.position = new mp.Vector3(0, 0, -100);
         veh.dimension = 999999; // Машина уходит в другой dimension
+        veh.d = 999999;
+        if (veh.db) {
+            veh.db.x = 0;
+            veh.db.y = 0;
+            veh.db.z = -100;
+            veh.db.h = veh.heading;
+            veh.db.dimension = 999999;
+            veh.db.save();
+        }
         
         notifs.success(player, `${veh.properties?.name || veh.db.modelName} припаркована`, header);
-    }, 200);
+    };
+
+    // Ждём пока движок точно отвяжет игроков от авто, и только потом уводим авто в другой dimension
+    const start = Date.now();
+    const waitDetachAndPark = () => {
+        const stillOccupied = occupants.some(p => p && mp.players.exists(p) && p.vehicle === veh);
+        if (!stillOccupied || Date.now() - start > 1000) {
+            return parkVehicleNow();
+        }
+        setTimeout(waitDetachAndPark, 50);
+    };
+    waitDetachAndPark();
 },
 
 

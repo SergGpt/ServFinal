@@ -1223,17 +1223,18 @@ var selectMenu = new Vue({
                 }
                 
                 selectMenu.show = false;
-                mp.events.callRemote('factions.garage.spawn', item.meta.sqlId);
+                mp.trigger('factions.garage.spawn', item.meta.sqlId);
                 return;
             }
             
             if (item.text === "Обновить список") {
-                mp.events.callRemote('factions.garage.menu.request');
+                mp.trigger('factions.garage.menu.request');
                 return;
             }
             
             if (item.text === "Закрыть меню") {
                 selectMenu.show = false;
+                mp.trigger('factions.garage.menu.close');
                 return;
             }
         } 
@@ -2476,12 +2477,23 @@ var selectMenu = new Vue({
                 show(clothesRanks) {
                     var factionId = playerMenu.factionId;
                     if (!factionId) return;
-                    var list = ["government", "lspd", "lssd", "fib", "hospital", "army", "news",
-                        "band", "band", "band", "band",
-                        "mafia", "mafia", "mafia", "army", "band"
-                    ];
-                    if (factionId > list.length) return;
-                    var str = list[factionId - 1];
+                    var str = null;
+                    if (isMafiaFaction(factionId)) str = "mafia";
+                    else if (isBandFaction(factionId)) str = "band";
+                    else {
+                        var baseMap = {
+                            1: "government",
+                            2: "lspd",
+                            3: "lssd",
+                            4: "fib",
+                            5: "hospital",
+                            6: "army",
+                            7: "news",
+                            15: "army"
+                        };
+                        str = baseMap[factionId];
+                    }
+                    if (!str) return;
                     var menu = selectMenu.menus[`${str}Clothes`];
                     if (!menu) return selectMenu.notification = "Формы нет в наличии";
                     var rankNames = selectMenu.menus['factionControlRanks'].ranks.map(x => x.name);
@@ -2538,12 +2550,23 @@ var selectMenu = new Vue({
                 show(itemRanks) {
                     var factionId = playerMenu.factionId;
                     if (!factionId) return;
-                    var list = ["government", "lspd", "lssd", "fib", "hospital", "army", "news",
-                        "band", "band", "band", "band",
-                        "mafia", "mafia", "mafia", "army", "band"
-                    ];
-                    if (factionId > list.length) return;
-                    var str = list[factionId - 1];
+                    var str = null;
+                    if (isMafiaFaction(factionId)) str = "mafia";
+                    else if (isBandFaction(factionId)) str = "band";
+                    else {
+                        var baseMap = {
+                            1: "government",
+                            2: "lspd",
+                            3: "lssd",
+                            4: "fib",
+                            5: "hospital",
+                            6: "army",
+                            7: "news",
+                            15: "army"
+                        };
+                        str = baseMap[factionId];
+                    }
+                    if (!str) return;
                     var menu = selectMenu.menus[`${str}Items`];
                     if (!menu) return selectMenu.notification = "Снаряжения нет в наличии";
                     var rankNames = selectMenu.menus['factionControlRanks'].ranks.map(x => x.name);
@@ -2603,12 +2626,23 @@ var selectMenu = new Vue({
                 show(itemRanks) {
                     var factionId = playerMenu.factionId;
                     if (!factionId) return;
-                    var list = ["government", "lspd", "lssd", "fib", "hospital", "army", "news",
-                        "band", "band", "band", "band",
-                        "mafia", "mafia", "mafia", "army", "band"
-                    ];
-                    if (factionId > list.length) return;
-                    var str = list[factionId - 1];
+                    var str = null;
+                    if (isMafiaFaction(factionId)) str = "mafia";
+                    else if (isBandFaction(factionId)) str = "band";
+                    else {
+                        var baseMap = {
+                            1: "government",
+                            2: "lspd",
+                            3: "lssd",
+                            4: "fib",
+                            5: "hospital",
+                            6: "army",
+                            7: "news",
+                            15: "army"
+                        };
+                        str = baseMap[factionId];
+                    }
+                    if (!str) return;
                     var menu = selectMenu.menus[`${str}Guns`];
                     if (!menu) return selectMenu.notification = "Оружия нет в наличии";
                     var rankNames = selectMenu.menus['factionControlRanks'].ranks.map(x => x.name);
@@ -2668,12 +2702,23 @@ var selectMenu = new Vue({
                 show(itemRanks) {
                     var factionId = playerMenu.factionId;
                     if (!factionId) return;
-                    var list = ["government", "lspd", "lssd", "fib", "hospital", "army", "news",
-                        "band", "band", "band", "band",
-                        "mafia", "mafia", "mafia", "army", "band"
-                    ];
-                    if (factionId > list.length) return;
-                    var str = list[factionId - 1];
+                    var str = null;
+                    if (isMafiaFaction(factionId)) str = "mafia";
+                    else if (isBandFaction(factionId)) str = "band";
+                    else {
+                        var baseMap = {
+                            1: "government",
+                            2: "lspd",
+                            3: "lssd",
+                            4: "fib",
+                            5: "hospital",
+                            6: "army",
+                            7: "news",
+                            15: "army"
+                        };
+                        str = baseMap[factionId];
+                    }
+                    if (!str) return;
                     var menu = selectMenu.menus[`${str}Ammo`];
                     if (!menu) return selectMenu.notification = "Патронов нет в наличии";
                     var rankNames = selectMenu.menus['factionControlRanks'].ranks.map(x => x.name);
