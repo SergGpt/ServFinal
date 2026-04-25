@@ -38,10 +38,12 @@ module.exports = {
         colshape.onEnter = (player) => {
             if (!player || !player.character) return;
             player.rastDumpPointId = dbPoint.id;
+            player.setVariable('insideRastDump', true);
             notifs.info(player, `Свалка металлолома. Используйте /scrapcollect`, `Rast`);
         };
         colshape.onExit = (player) => {
             if (player.rastDumpPointId === dbPoint.id) delete player.rastDumpPointId;
+            player.setVariable('insideRastDump', null);
         };
 
         const labelPos = new mp.Vector3(dbPoint.x, dbPoint.y, dbPoint.z + 0.5);

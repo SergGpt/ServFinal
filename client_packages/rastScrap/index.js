@@ -27,6 +27,12 @@ function stopSparks() {
 mp.events.add({
     "characterInit.done": () => {
         registerGrinderAttachment();
+        mp.keys.bind(69, true, () => { // E
+            if (mp.game.ui.isPauseMenuActive()) return;
+            if (mp.players.local.vehicle) return;
+            if (!mp.players.local.getVariable('insideRastDump')) return;
+            mp.events.callRemote('rast.scrap.collect');
+        });
     },
     "rastScrap.collect.fx.start": (durationMs = 5000) => {
         stopSparks();
