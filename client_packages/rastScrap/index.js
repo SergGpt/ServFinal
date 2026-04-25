@@ -51,7 +51,11 @@ mp.events.add({
 
             const pos = p.position;
             mp.game.streaming.requestNamedPtfxAsset("core");
-            mp.game.graphics.useParticleFxAssetNextCall("core");
+            if (typeof mp.game.graphics.useParticleFxAssetNextCall === "function") {
+                mp.game.graphics.useParticleFxAssetNextCall("core");
+            } else if (typeof mp.game.graphics.setPtfxAssetNextCall === "function") {
+                mp.game.graphics.setPtfxAssetNextCall("core");
+            }
             mp.game.graphics.startParticleFxNonLoopedAtCoord(
                 "ent_amb_sparking_wires",
                 pos.x + 0.2,
