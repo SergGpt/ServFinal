@@ -364,4 +364,13 @@ module.exports = {
             player.setClothes(args[0], args[1], args[2], args[3]);
         }
     },
+    '/cleditor': {
+        args: '',
+        description: 'Открыть UI-редактор таблиц одежды (только для админов).',
+        access: 1,
+        handler: (player, args, out) => {
+            mp.events.call('clothes.editor.open', player);
+            out.info('Редактор одежды открыт', player);
+        }
+    },
 }

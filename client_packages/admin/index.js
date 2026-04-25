@@ -1,5 +1,57 @@
 mp.adminLevel = 0;
 mp.wallhack = false;
+mp.clothesEditor = {
+    snapshot: null,
+    snapshotTaken: false,
+};
+
+const clothesEditorTypeMap = {
+    tops: { kind: 'component', index: 11 },
+    pants: { kind: 'component', index: 4 },
+    shoes: { kind: 'component', index: 6 },
+    bags: { kind: 'component', index: 5 },
+    hats: { kind: 'prop', index: 0 },
+    glasses: { kind: 'prop', index: 1 },
+    ears: { kind: 'prop', index: 2 },
+    watches: { kind: 'prop', index: 6 },
+    bracelets: { kind: 'prop', index: 7 },
+    ties: { kind: 'component', index: 7 },
+};
+
+function captureClothesSnapshot() {
+    const player = mp.players.local;
+    const snapshot = {
+        components: {},
+        props: {},
+    };
+    for (let i = 0; i <= 11; i++) {
+        snapshot.components[i] = {
+            drawable: player.getDrawableVariation(i),
+            texture: player.getTextureVariation(i),
+        };
+    }
+    for (let i = 0; i <= 7; i++) {
+        snapshot.props[i] = {
+            drawable: player.getPropIndex(i),
+            texture: player.getPropTextureIndex(i),
+        };
+    }
+    return snapshot;
+}
+
+function applyClothesSnapshot(snapshot) {
+    if (!snapshot) return;
+    const player = mp.players.local;
+    Object.keys(snapshot.components).forEach((componentId) => {
+        const value = snapshot.components[componentId];
+        player.setComponentVariation(parseInt(componentId), value.drawable, value.texture, 0);
+    });
+    Object.keys(snapshot.props).forEach((propId) => {
+        const value = snapshot.props[propId];
+        if (value.drawable == null || value.drawable < 0) player.clearProp(parseInt(propId));
+        else player.setPropIndex(parseInt(propId), value.drawable, value.texture, true);
+    });
+}
 
 mp.events.add({
     'admin.set': (level) => {
@@ -117,6 +169,52 @@ mp.events.add({
         mp.players.local.setComponentVariation(comp, drawable, texture, 0);
 
         mp.game.graphics.notify(`~g~Cloth set: comp ${comp}, drawable ${drawable}, texture ${texture}`);
+    },
+    'clothes.editor.open': (rawData) => {
+        if (!mp.clothesEditor.snapshotTaken) {
+            mp.clothesEditor.snapshot = captureClothesSnapshot();
+            mp.clothesEditor.snapshotTaken = true;
+        }
+        mp.callCEFV(`window.clothesAdminEditor && window.clothesAdminEditor.open(${rawData});`);
+    },
+    'clothes.editor.data': (rawData) => {
+        mp.callCEFV(`window.clothesAdminEditor && window.clothesAdminEditor.setData(${rawData});`);
+    },
+    'clothes.editor.preview': (rawData) => {
+        let data;
+        try {
+            data = JSON.parse(rawData);
+        } catch (e) {
+            return;
+        }
+        const typeSettings = clothesEditorTypeMap[data.type];
+        if (!typeSettings) return;
+
+        const drawable = parseInt(data.variation) || 0;
+        const texture = parseInt(data.texture) || 0;
+
+        if (typeSettings.kind === 'component') {
+            mp.players.local.setComponentVariation(typeSettings.index, drawable, texture, 0);
+            if (data.type === 'tops') {
+                mp.players.local.setComponentVariation(3, parseInt(data.torso) || 0, parseInt(data.tTexture) || 0, 0);
+                mp.players.local.setComponentVariation(8, parseInt(data.undershirt) || 0, parseInt(data.uTexture) || 0, 0);
+            }
+            return;
+        }
+
+        if (drawable < 0) mp.players.local.clearProp(typeSettings.index);
+        else mp.players.local.setPropIndex(typeSettings.index, drawable, texture, true);
+    },
+    'clothes.editor.requestData': () => {
+        mp.events.callRemote('clothes.editor.requestData');
+    },
+    'clothes.editor.save': (rawPayload) => {
+        mp.events.callRemote('clothes.editor.save', rawPayload);
+    },
+    'clothes.editor.close': () => {
+        applyClothesSnapshot(mp.clothesEditor.snapshot);
+        mp.clothesEditor.snapshot = null;
+        mp.clothesEditor.snapshotTaken = false;
     }
 });
 
