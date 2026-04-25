@@ -9,6 +9,7 @@ mp.clothesEditorCamera = {
     angle: 30,
     distance: 2.2,
     height: 0.95,
+    frameOffset: 0.25,
 };
 
 const clothesEditorTypeMap = {
@@ -81,10 +82,10 @@ function updateClothesEditorCamera() {
 
     state.cam.setCoord(camX, camY, camZ);
 
-    // Немного смещаем точку взгляда вправо, чтобы пед был в левой части экрана.
+    // Смещение кадра относительно окна (чтобы персонаж не перекрывался UI справа).
     const lookRad = (state.angle + 90) * Math.PI / 180.0;
-    const lookX = pos.x + Math.cos(lookRad) * 0.25;
-    const lookY = pos.y + Math.sin(lookRad) * 0.25;
+    const lookX = pos.x + Math.cos(lookRad) * state.frameOffset;
+    const lookY = pos.y + Math.sin(lookRad) * state.frameOffset;
     const lookZ = pos.z + 0.7;
     state.cam.pointAtCoord(lookX, lookY, lookZ);
 }
@@ -97,6 +98,7 @@ function startClothesEditorCamera() {
     state.angle = player.getHeading() + 40;
     state.distance = 2.2;
     state.height = 0.95;
+    state.frameOffset = 0.25;
 
     state.cam = mp.cameras.new('clothes.editor.camera', new mp.Vector3(0, 0, 0), new mp.Vector3(0, 0, 0), 48);
     updateClothesEditorCamera();
@@ -292,8 +294,9 @@ mp.events.add({
         const state = mp.clothesEditorCamera;
         const direction = `${rawDirection || ''}`;
 
-        if (direction === 'left') state.angle -= 10;
-        if (direction === 'right') state.angle += 10;
+        // left/right: сдвиг кадра, а не орбита вокруг персонажа
+        if (direction === 'left') state.frameOffset = Math.min(1.2, state.frameOffset + 0.08);
+        if (direction === 'right') state.frameOffset = Math.max(-1.2, state.frameOffset - 0.08);
         if (direction === 'up') state.height = Math.min(1.7, state.height + 0.08);
         if (direction === 'down') state.height = Math.max(0.2, state.height - 0.08);
         if (direction === 'zoom_in') state.distance = Math.max(1.2, state.distance - 0.15);
@@ -303,6 +306,7 @@ mp.events.add({
             state.angle = player.getHeading() + 40;
             state.distance = 2.2;
             state.height = 0.95;
+            state.frameOffset = 0.25;
         }
         updateClothesEditorCamera();
     }
