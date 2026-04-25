@@ -35,6 +35,10 @@
     const editor = {
         show: false,
         data: {},
+        rows: [],
+        page: 1,
+        pages: 1,
+        total: 0,
         selectedSex: 1,
         selectedType: 'tops',
         selectedId: null,
@@ -95,7 +99,7 @@
                 if (!button) return;
                 const action = button.getAttribute('data-action');
                 if (action === 'close') return this.close();
-                if (action === 'refresh') return mp.trigger('clothes.editor.requestData');
+                if (action === 'refresh') return this.requestPage(1);
                 if (action === 'new') return this.createNew();
                 if (action === 'save') return this.save();
                 if (action === 'preview') return this.previewCurrent();
@@ -106,19 +110,17 @@
                 this.selectedSex = parseInt(event.target.value);
                 this.selectedId = null;
                 this.isNew = false;
-                this.renderList();
-                this.renderForm();
+                this.requestPage(1);
             });
 
             this.root.querySelector('[data-field="type"]').addEventListener('change', (event) => {
                 this.selectedType = event.target.value;
                 this.selectedId = null;
                 this.isNew = false;
-                this.renderList();
-                this.renderForm();
+                this.requestPage(1);
             });
 
-            this.root.querySelector('[data-field="search"]').addEventListener('input', () => this.renderList());
+            this.root.querySelector('[data-field="search"]').addEventListener('input', () => this.requestPage(1));
         },
 
         open(data) {
@@ -126,6 +128,7 @@
             this.show = true;
             this.root.style.display = 'block';
             this.setData(data || {});
+            this.requestPage(1);
         },
 
         close() {
@@ -138,12 +141,33 @@
         },
 
         setData(data) {
-            this.data = data || {};
+            if (data && Array.isArray(data.items)) {
+                this.rows = data.items;
+                this.page = data.page || 1;
+                this.pages = data.pages || 1;
+                this.total = data.total || this.rows.length;
+            } else {
+                this.data = data || {};
+                this.rows = this.getCurrentList();
+            }
             this.renderList();
             this.renderForm();
         },
 
+        requestPage(page) {
+            const search = (this.root && this.root.querySelector('[data-field="search"]'))
+                ? (this.root.querySelector('[data-field="search"]').value || '')
+                : '';
+            mp.trigger('clothes.editor.requestData', JSON.stringify({
+                sex: this.selectedSex,
+                type: this.selectedType,
+                page: page || 1,
+                search,
+            }));
+        },
+
         getCurrentList() {
+            if (Array.isArray(this.rows) && this.rows.length) return this.rows;
             const bySex = this.data[this.selectedSex] || {};
             return bySex[this.selectedType] || [];
         },

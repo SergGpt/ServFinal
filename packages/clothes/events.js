@@ -96,6 +96,46 @@ function sanitizeData(type, payload, isCreate) {
     return result;
 }
 
+function toClientRow(model) {
+    const data = model?.dataValues || model;
+    const row = {};
+    Object.keys(data || {}).forEach((key) => {
+        row[key] = model[key];
+    });
+    return row;
+}
+
+function sendEditorRows(player, options = {}) {
+    const type = options.type || 'tops';
+    const sex = parseInteger(options.sex, 1);
+    const search = `${options.search || ''}`.trim().toLowerCase();
+    const page = Math.max(parseInteger(options.page, 1), 1);
+    const perPage = 200;
+
+    const source = clothes.list?.[sex]?.[type] || [];
+    const filtered = source.filter((entry) => {
+        if (!search) return true;
+        const idMatch = `${entry.id}`.includes(search);
+        const nameMatch = `${entry.name || ''}`.toLowerCase().includes(search);
+        return idMatch || nameMatch;
+    });
+
+    const total = filtered.length;
+    const pages = Math.max(Math.ceil(total / perPage), 1);
+    const safePage = Math.min(page, pages);
+    const offset = (safePage - 1) * perPage;
+    const items = filtered.slice(offset, offset + perPage).map(toClientRow);
+
+    player.call('clothes.editor.rows', [JSON.stringify({
+        sex,
+        type,
+        page: safePage,
+        pages,
+        total,
+        items,
+    })]);
+}
+
 module.exports = {
     "init": async () => {
         await clothes.init();
@@ -110,12 +150,16 @@ module.exports = {
     'clothes.editor.open': (player) => {
         if (!hasClothesEditorAccess(player)) return notifs.error(player, 'Недостаточно прав', 'Одежда');
 
-        player.call('clothes.editor.open', [JSON.stringify(clothes.getClientList())]);
+        player.call('clothes.editor.open');
+        sendEditorRows(player, { sex: 1, type: 'tops', page: 1, search: '' });
     },
-    'clothes.editor.requestData': (player) => {
+    'clothes.editor.fetch': (player, rawQuery) => {
         if (!hasClothesEditorAccess(player)) return;
-
-        player.call('clothes.editor.data', [JSON.stringify(clothes.getClientList())]);
+        let query = {};
+        try {
+            if (rawQuery) query = JSON.parse(rawQuery);
+        } catch (e) {}
+        sendEditorRows(player, query);
     },
     'clothes.editor.save': async (player, rawPayload) => {
         if (!hasClothesEditorAccess(player)) return notifs.error(player, 'Недостаточно прав', 'Одежда');
@@ -165,7 +209,12 @@ module.exports = {
             }
 
             clothes.updateClientList();
-            player.call('clothes.editor.data', [JSON.stringify(clothes.getClientList())]);
+            sendEditorRows(player, {
+                type,
+                sex: payload?.data?.sex != null ? payload.data.sex : 1,
+                page: 1,
+                search: '',
+            });
             notifs.success(player, 'Изменения сохранены', 'Одежда');
         } catch (err) {
             console.log(`[CLOTHES_EDITOR] save error: ${err.message}`);

@@ -185,9 +185,9 @@ mp.events.add({
         }
         const safeData = rawData || '{}';
         mp.callCEFV(`(function(){ if (window.clothesAdminEditor && window.clothesAdminEditor.open) window.clothesAdminEditor.open(${safeData}); })();`);
-        if (!rawData) mp.events.callRemote('clothes.editor.requestData');
+        if (!rawData) mp.events.callRemote('clothes.editor.fetch', JSON.stringify({ sex: 1, type: 'tops', page: 1, search: '' }));
     },
-    'clothes.editor.data': (rawData) => {
+    'clothes.editor.rows': (rawData) => {
         mp.callCEFV(`window.clothesAdminEditor && window.clothesAdminEditor.setData(${rawData});`);
     },
     'clothes.editor.preview': (rawData) => {
@@ -215,8 +215,8 @@ mp.events.add({
         if (drawable < 0) mp.players.local.clearProp(typeSettings.index);
         else mp.players.local.setPropIndex(typeSettings.index, drawable, texture, true);
     },
-    'clothes.editor.requestData': () => {
-        mp.events.callRemote('clothes.editor.requestData');
+    'clothes.editor.requestData': (rawQuery) => {
+        mp.events.callRemote('clothes.editor.fetch', rawQuery || '{}');
     },
     'clothes.editor.save': (rawPayload) => {
         mp.events.callRemote('clothes.editor.save', rawPayload);
