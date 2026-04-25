@@ -18,10 +18,15 @@ function registerGrinderAttachment() {
 }
 
 function stopSparks() {
-    if (sparkInterval) {
+    if (sparkInterval == null) return;
+    try {
         clearInterval(sparkInterval);
-        sparkInterval = null;
+    } catch (e) {
+        try {
+            clearTimeout(sparkInterval);
+        } catch (_) {}
     }
+    sparkInterval = null;
 }
 
 mp.events.add({
