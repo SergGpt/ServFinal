@@ -349,7 +349,26 @@ module.exports = {
         });
         for (var i = 0; i < dbVehicles.length; i++) {
             var veh = dbVehicles[i];
-            this.spawnVehicle(veh, 0);
+            if (veh.key == 'faction') {
+                veh.x = 0;
+                veh.y = 0;
+                veh.z = -100;
+                veh.dimension = 999999;
+                veh.d = 999999;
+                await veh.update({
+                    x: 0,
+                    y: 0,
+                    z: -100,
+                    dimension: 999999
+                });
+            }
+            const spawnedVeh = await this.spawnVehicle(veh, 0);
+            if (veh.key == 'faction') {
+                spawnedVeh.spawned = false;
+                spawnedVeh.position = new mp.Vector3(0, 0, -100);
+                spawnedVeh.dimension = 999999;
+                spawnedVeh.d = 999999;
+            }
         }
         console.log(`[VEHICLES] Загружено транспортных средств: ${i}`);
     },
