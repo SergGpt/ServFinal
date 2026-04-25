@@ -1,21 +1,7 @@
 "use strict";
 
 let sparkInterval = null;
-let attachmentRegistered = false;
-
-function registerGrinderAttachment() {
-    if (attachmentRegistered || !mp.attachmentMngr) return;
-    mp.attachmentMngr.register(
-        "rastGrinder",
-        "sf_prop_grinder_01a",
-        57005,
-        new mp.Vector3(0.12, 0.02, 0.0),
-        new mp.Vector3(90, 0, 0),
-        null,
-        false
-    );
-    attachmentRegistered = true;
-}
+let controlsBlocked = false;
 
 function stopSparks() {
     if (sparkInterval == null) return;
@@ -31,7 +17,6 @@ function stopSparks() {
 
 mp.events.add({
     "characterInit.done": () => {
-        registerGrinderAttachment();
         mp.keys.bind(69, true, () => { // E
             if (mp.game.ui.isPauseMenuActive()) return;
             if (mp.players.local.vehicle) return;
@@ -93,5 +78,13 @@ mp.events.add({
     },
     "rastScrap.collect.fx.stop": () => {
         stopSparks();
+    },
+    "rastScrap.collect.controls": (state) => {
+        controlsBlocked = !!state;
     }
+});
+
+mp.events.add('render', () => {
+    if (!controlsBlocked) return;
+    mp.game.controls.disableAllControlActions(0);
 });

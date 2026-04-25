@@ -430,14 +430,6 @@ mp.inventory = {
 
     // Вспомогательная функция для анимаций
     playItemAnimation(player, itemId, targetBone) {
-        // Scrap Metal: держим перед собой (локти согнуты)
-        if (itemId === 501) {
-            mp.utils.requestAnimDict("anim@heists@box_carry@", () => {
-                player.taskPlayAnim("anim@heists@box_carry@", "idle", 8.0, 0.0, -1, 49, 0.0, false, false, false);
-            });
-            return;
-        }
-
         // Базовая анимация для предмета в руках
         if (targetBone === 28422 || targetBone === 57005) { // правая или левая рука
             player.taskSwapWeapon(true);

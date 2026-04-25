@@ -126,21 +126,21 @@ module.exports = {
         if (!state.ok) return notifs.error(player, state.message, state.header);
 
         player.rastScrapCollecting = true;
-        player.addAttachment('rastGrinder');
-        animations.playAnimation(player, 'amb@world_human_const_drill@male@drill@base', 'base', 8, 49);
-        player.call('rastScrap.collect.fx.start', [5000]);
+        animations.playAnimation(player, 'amb@world_human_welding@male@base', 'base', 8, 49);
+        player.call('rastScrap.collect.controls', [true]);
+        player.call('rastScrap.collect.fx.start', [7000]);
         notifs.info(player, `Сбор металлолома...`, state.header);
 
         setTimeout(async () => {
             if (!player || !mp.players.exists(player)) return;
 
-            player.addAttachment('rastGrinder', true);
             animations.stopAnimation(player);
+            player.call('rastScrap.collect.controls', [false]);
             player.call('rastScrap.collect.fx.stop');
             delete player.rastScrapCollecting;
 
             await this.finishCollect(player, dump);
-        }, 5000);
+        }, 7000);
     },
 
     async createDump(player, radius = 2.0, cooldownSec = 30) {
