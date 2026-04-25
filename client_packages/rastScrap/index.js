@@ -11,8 +11,8 @@ function registerGrinderAttachment() {
         57005,
         new mp.Vector3(0.12, 0.02, 0.0),
         new mp.Vector3(90, 0, 0),
-        0,
-        true
+        null,
+        false
     );
     attachmentRegistered = true;
 }
@@ -56,19 +56,39 @@ mp.events.add({
             } else if (typeof mp.game.graphics.setPtfxAssetNextCall === "function") {
                 mp.game.graphics.setPtfxAssetNextCall("core");
             }
-            mp.game.graphics.startParticleFxNonLoopedAtCoord(
-                "ent_amb_sparking_wires",
-                pos.x + 0.2,
-                pos.y + 0.15,
-                pos.z + 0.8,
-                0.0,
-                0.0,
-                0.0,
-                0.5,
-                false,
-                false,
-                false
-            );
+            try {
+                if (typeof mp.game.graphics.startParticleFxNonLoopedOnPedBone === "function") {
+                    mp.game.graphics.startParticleFxNonLoopedOnPedBone(
+                        "ent_amb_elec_crackle",
+                        p.handle,
+                        0.05,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        57005,
+                        0.6,
+                        false,
+                        false,
+                        false
+                    );
+                } else {
+                    mp.game.graphics.startParticleFxNonLoopedAtCoord(
+                        "ent_amb_elec_crackle",
+                        pos.x + 0.2,
+                        pos.y + 0.15,
+                        pos.z + 0.8,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.6,
+                        false,
+                        false,
+                        false
+                    );
+                }
+            } catch (e) {}
         }, 250);
     },
     "rastScrap.collect.fx.stop": () => {
