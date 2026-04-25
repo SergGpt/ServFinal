@@ -47,7 +47,7 @@ module.exports = {
         };
 
         const labelPos = new mp.Vector3(dbPoint.x, dbPoint.y, dbPoint.z + 0.5);
-        const label = mp.labels.new(`~y~Свалка металлолома`, labelPos, {
+        const label = mp.labels.new(`~y~Свалка металлолома\n~w~/scrapcollect`, labelPos, {
             los: false,
             font: 0,
             drawDistance: 10,
