@@ -67,7 +67,9 @@
                             <button class="ce-btn ce-btn-secondary" data-action="cam-zoom-in">＋</button>
                             <button class="ce-btn ce-btn-secondary" data-action="cam-zoom-out">－</button>
                             <button class="ce-btn ce-btn-secondary" data-action="cam-reset">Камера</button>
-                            <button class="ce-btn ce-btn-secondary" data-action="refresh">Обновить из БД</button>
+                            <button class="ce-btn ce-btn-secondary" data-action="player-left">↺</button>
+                            <button class="ce-btn ce-btn-secondary" data-action="player-right">↻</button>
+                            <button class="ce-btn ce-btn-secondary" data-action="refresh">Обновить БД</button>
                             <button class="ce-btn ce-btn-danger" data-action="close">Закрыть</button>
                         </div>
                     </div>
@@ -113,8 +115,11 @@
                 if (action === 'cam-zoom-in') return mp.trigger('clothes.editor.camera.step', 'zoom_in');
                 if (action === 'cam-zoom-out') return mp.trigger('clothes.editor.camera.step', 'zoom_out');
                 if (action === 'cam-reset') return mp.trigger('clothes.editor.camera.step', 'reset');
-                if (action === 'refresh') return this.requestPage(1);
+                if (action === 'player-left') return mp.trigger('clothes.editor.player.rotate', -15);
+                if (action === 'player-right') return mp.trigger('clothes.editor.player.rotate', 15);
+                if (action === 'refresh') return this.reloadFromDb();
                 if (action === 'new') return this.createNew();
+                if (action === 'delete') return this.deleteCurrent();
                 if (action === 'save') return this.save();
                 if (action === 'preview') return this.previewCurrent();
                 if (action === 'reset') return this.resetPreview();
@@ -176,6 +181,18 @@
                 sex: this.selectedSex,
                 type: this.selectedType,
                 page: page || 1,
+                search,
+            }));
+        },
+
+        reloadFromDb() {
+            const search = (this.root && this.root.querySelector('[data-field="search"]'))
+                ? (this.root.querySelector('[data-field="search"]').value || '')
+                : '';
+            mp.trigger('clothes.editor.reload', JSON.stringify({
+                sex: this.selectedSex,
+                type: this.selectedType,
+                page: 1,
                 search,
             }));
         },
@@ -325,6 +342,16 @@
             mp.trigger('clothes.editor.save', JSON.stringify(payload));
         },
 
+        deleteCurrent() {
+            if (this.isNew || !this.selectedId) return;
+            mp.trigger('clothes.editor.delete', JSON.stringify({
+                type: this.selectedType,
+                id: this.selectedId,
+            }));
+            this.selectedId = null;
+            this.renderForm();
+        },
+
         renderForm() {
             if (!this.root) return;
             const form = this.root.querySelector('[data-form="body"]');
@@ -354,6 +381,7 @@
             actions.innerHTML = `
                 <button class="ce-btn ce-btn-secondary" data-action="preview">Предпросмотр</button>
                 <button class="ce-btn ce-btn-secondary" data-action="reset">Сбросить вид</button>
+                <button class="ce-btn ce-btn-danger" data-action="delete">Удалить запись</button>
                 <button class="ce-btn ce-btn-primary" data-action="save">Сохранить</button>
             `;
             form.appendChild(actions);

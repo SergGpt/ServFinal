@@ -276,8 +276,14 @@ mp.events.add({
     'clothes.editor.requestData': (rawQuery) => {
         mp.events.callRemote('clothes.editor.fetch', rawQuery || '{}');
     },
+    'clothes.editor.reload': (rawQuery) => {
+        mp.events.callRemote('clothes.editor.reload', rawQuery || '{}');
+    },
     'clothes.editor.save': (rawPayload) => {
         mp.events.callRemote('clothes.editor.save', rawPayload);
+    },
+    'clothes.editor.delete': (rawPayload) => {
+        mp.events.callRemote('clothes.editor.delete', rawPayload);
     },
     'clothes.editor.restore': () => {
         applyClothesSnapshot(mp.clothesEditor.snapshot);
@@ -308,6 +314,13 @@ mp.events.add({
             state.height = 0.95;
             state.frameOffset = 0.25;
         }
+        updateClothesEditorCamera();
+    },
+    'clothes.editor.player.rotate': (rawDelta) => {
+        const delta = parseFloat(rawDelta);
+        if (!Number.isFinite(delta)) return;
+        const player = mp.players.local;
+        player.setHeading(player.getHeading() + delta);
         updateClothesEditorCamera();
     }
 });

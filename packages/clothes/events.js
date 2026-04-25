@@ -161,6 +161,61 @@ module.exports = {
         } catch (e) {}
         sendEditorRows(player, query);
     },
+    'clothes.editor.reload': async (player, rawQuery) => {
+        if (!hasClothesEditorAccess(player)) return;
+        let query = {};
+        try {
+            if (rawQuery) query = JSON.parse(rawQuery);
+        } catch (e) {}
+
+        try {
+            await clothes.init();
+            clothes.updateClientList();
+            sendEditorRows(player, query);
+            notifs.success(player, 'Список одежды обновлён из БД', 'Одежда');
+        } catch (err) {
+            console.log(`[CLOTHES_EDITOR] reload error: ${err.message}`);
+            notifs.error(player, 'Не удалось обновить данные из БД', 'Одежда');
+        }
+    },
+    'clothes.editor.delete': async (player, rawPayload) => {
+        if (!hasClothesEditorAccess(player)) return notifs.error(player, 'Недостаточно прав', 'Одежда');
+
+        let payload;
+        try {
+            payload = JSON.parse(rawPayload);
+        } catch (e) {
+            return notifs.error(player, 'Некорректные данные удаления', 'Одежда');
+        }
+
+        const type = payload.type;
+        const id = parseInteger(payload.id, -1);
+        const modelName = TYPE_MODEL_MAP[type];
+        if (id < 0 || !modelName || !db.Models[modelName]) return notifs.error(player, 'Некорректный тип/id', 'Одежда');
+
+        try {
+            const model = await db.Models[modelName].findByPk(id);
+            if (!model) return notifs.error(player, `Запись #${id} не найдена`, 'Одежда');
+            const sex = model.sex;
+
+            await model.destroy();
+            if (clothes.list[sex] && clothes.list[sex][type]) {
+                clothes.list[sex][type] = clothes.list[sex][type].filter(x => x.id !== id);
+            }
+
+            clothes.updateClientList();
+            sendEditorRows(player, {
+                type,
+                sex,
+                page: 1,
+                search: '',
+            });
+            notifs.success(player, `Запись #${id} удалена`, 'Одежда');
+        } catch (err) {
+            console.log(`[CLOTHES_EDITOR] delete error: ${err.message}`);
+            notifs.error(player, 'Ошибка удаления записи', 'Одежда');
+        }
+    },
     'clothes.editor.save': async (player, rawPayload) => {
         if (!hasClothesEditorAccess(player)) return notifs.error(player, 'Недостаточно прав', 'Одежда');
 
