@@ -4,6 +4,12 @@ mp.clothesEditor = {
     snapshot: null,
     snapshotTaken: false,
 };
+mp.clothesEditorCamera = {
+    cam: null,
+    angle: 30,
+    distance: 2.2,
+    height: 0.95,
+};
 
 const clothesEditorTypeMap = {
     tops: { kind: 'component', index: 11 },
@@ -61,6 +67,53 @@ function applyClothesSnapshot(snapshot) {
     });
 }
 
+function updateClothesEditorCamera() {
+    const state = mp.clothesEditorCamera;
+    if (!state.cam) return;
+
+    const player = mp.players.local;
+    const pos = player.position;
+    const rad = state.angle * Math.PI / 180.0;
+
+    const camX = pos.x + Math.cos(rad) * state.distance;
+    const camY = pos.y + Math.sin(rad) * state.distance;
+    const camZ = pos.z + state.height;
+
+    state.cam.setCoord(camX, camY, camZ);
+
+    // Немного смещаем точку взгляда вправо, чтобы пед был в левой части экрана.
+    const lookRad = (state.angle + 90) * Math.PI / 180.0;
+    const lookX = pos.x + Math.cos(lookRad) * 0.25;
+    const lookY = pos.y + Math.sin(lookRad) * 0.25;
+    const lookZ = pos.z + 0.7;
+    state.cam.pointAtCoord(lookX, lookY, lookZ);
+}
+
+function startClothesEditorCamera() {
+    const state = mp.clothesEditorCamera;
+    if (state.cam) return;
+
+    const player = mp.players.local;
+    state.angle = player.getHeading() + 40;
+    state.distance = 2.2;
+    state.height = 0.95;
+
+    state.cam = mp.cameras.new('clothes.editor.camera', new mp.Vector3(0, 0, 0), new mp.Vector3(0, 0, 0), 48);
+    updateClothesEditorCamera();
+    state.cam.setActive(true);
+    mp.game.cam.renderScriptCams(true, false, 250, true, false);
+}
+
+function stopClothesEditorCamera() {
+    const state = mp.clothesEditorCamera;
+    if (!state.cam) return;
+
+    state.cam.setActive(false);
+    mp.game.cam.renderScriptCams(false, false, 250, true, false);
+    state.cam.destroy();
+    state.cam = null;
+}
+
 mp.events.add({
     'admin.set': (level) => {
         mp.adminLevel = level;
@@ -76,6 +129,7 @@ mp.events.add({
         entity.setAlpha(isVanished ? 0 : 255);
     },
     'render': () => {
+        if (mp.clothesEditorCamera.cam) updateClothesEditorCamera();
         let isVanished = mp.players.local.getVariable('isVanished') || false;
         if (isVanished) {
             mp.game.graphics.drawText("INVISIBILITY ON", [0.93, 0.12], {
@@ -180,6 +234,7 @@ mp.events.add({
     },
     'clothes.editor.open': (rawData) => {
         mp.events.call('busy.add', 'clothes.editor', true);
+        startClothesEditorCamera();
         if (!mp.clothesEditor.snapshotTaken) {
             mp.clothesEditor.snapshot = captureClothesSnapshot();
             mp.clothesEditor.snapshotTaken = true;
@@ -227,9 +282,29 @@ mp.events.add({
     },
     'clothes.editor.close': () => {
         mp.events.call('busy.remove', 'clothes.editor');
+        stopClothesEditorCamera();
         applyClothesSnapshot(mp.clothesEditor.snapshot);
         mp.clothesEditor.snapshot = null;
         mp.clothesEditor.snapshotTaken = false;
+    },
+    'clothes.editor.camera.step': (rawDirection) => {
+        if (!mp.clothesEditorCamera.cam) return;
+        const state = mp.clothesEditorCamera;
+        const direction = `${rawDirection || ''}`;
+
+        if (direction === 'left') state.angle -= 10;
+        if (direction === 'right') state.angle += 10;
+        if (direction === 'up') state.height = Math.min(1.7, state.height + 0.08);
+        if (direction === 'down') state.height = Math.max(0.2, state.height - 0.08);
+        if (direction === 'zoom_in') state.distance = Math.max(1.2, state.distance - 0.15);
+        if (direction === 'zoom_out') state.distance = Math.min(4.5, state.distance + 0.15);
+        if (direction === 'reset') {
+            const player = mp.players.local;
+            state.angle = player.getHeading() + 40;
+            state.distance = 2.2;
+            state.height = 0.95;
+        }
+        updateClothesEditorCamera();
     }
 });
 

@@ -60,6 +60,13 @@
                             <div class="subtitle">Редактирование таблиц + предпросмотр на персонаже</div>
                         </div>
                         <div class="actions">
+                            <button class="ce-btn ce-btn-secondary" data-action="cam-left">◀</button>
+                            <button class="ce-btn ce-btn-secondary" data-action="cam-right">▶</button>
+                            <button class="ce-btn ce-btn-secondary" data-action="cam-up">▲</button>
+                            <button class="ce-btn ce-btn-secondary" data-action="cam-down">▼</button>
+                            <button class="ce-btn ce-btn-secondary" data-action="cam-zoom-in">＋</button>
+                            <button class="ce-btn ce-btn-secondary" data-action="cam-zoom-out">－</button>
+                            <button class="ce-btn ce-btn-secondary" data-action="cam-reset">Камера</button>
                             <button class="ce-btn ce-btn-secondary" data-action="refresh">Обновить из БД</button>
                             <button class="ce-btn ce-btn-danger" data-action="close">Закрыть</button>
                         </div>
@@ -99,6 +106,13 @@
                 if (!button) return;
                 const action = button.getAttribute('data-action');
                 if (action === 'close') return this.close();
+                if (action === 'cam-left') return mp.trigger('clothes.editor.camera.step', 'left');
+                if (action === 'cam-right') return mp.trigger('clothes.editor.camera.step', 'right');
+                if (action === 'cam-up') return mp.trigger('clothes.editor.camera.step', 'up');
+                if (action === 'cam-down') return mp.trigger('clothes.editor.camera.step', 'down');
+                if (action === 'cam-zoom-in') return mp.trigger('clothes.editor.camera.step', 'zoom_in');
+                if (action === 'cam-zoom-out') return mp.trigger('clothes.editor.camera.step', 'zoom_out');
+                if (action === 'cam-reset') return mp.trigger('clothes.editor.camera.step', 'reset');
                 if (action === 'refresh') return this.requestPage(1);
                 if (action === 'new') return this.createNew();
                 if (action === 'save') return this.save();
