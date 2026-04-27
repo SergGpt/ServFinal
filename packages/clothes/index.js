@@ -1,19 +1,23 @@
 "use strict";
 
+function createSexBucket() {
+    return {
+        "bracelets": [],
+        "bags": [],
+        "ears": [],
+        "glasses": [],
+        "hats": [],
+        "pants": [],
+        "shoes": [],
+        "ties": [],
+        "tops": [],
+        "watches": [],
+    };
+}
+
 function ensureSex(sex, list) {
     if (!list[sex]) {
-        list[sex] = {
-            "bracelets": [],
-            "bags": [],
-            "ears": [],
-            "glasses": [],
-            "hats": [],
-            "pants": [],
-            "shoes": [],
-            "ties": [],
-            "tops": [],
-            "watches": [],
-        };
+        list[sex] = createSexBucket();
         console.log(`[CLOTHES] Добавлена новая категория sex=${sex}`);
     }
 }
@@ -22,34 +26,20 @@ module.exports = {
     // Список одежды
     list: {
         // жен.
-        "0": {
-            "bracelets": [],
-            "bags": [],
-            "ears": [],
-            "glasses": [],
-            "hats": [],
-            "pants": [],
-            "shoes": [],
-            "ties": [],
-            "tops": [],
-            "watches": [],
-        },
+        "0": createSexBucket(),
         // муж.
-        "1": {
-            "bracelets": [],
-            "bags": [],
-            "ears": [],
-            "glasses": [],
-            "hats": [],
-            "pants": [],
-            "shoes": [],
-            "ties": [],
-            "tops": [],
-            "watches": [],
-        }
+        "1": createSexBucket()
+    },
+
+    resetList() {
+        this.list = {
+            "0": createSexBucket(),
+            "1": createSexBucket(),
+        };
     },
 
     async init() {
+        this.resetList();
         var bracelets = await db.Models.ClothesBracelet.findAll();
         bracelets.forEach(el => {
             ensureSex(el.sex, this.list);
