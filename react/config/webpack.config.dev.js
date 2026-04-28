@@ -310,10 +310,7 @@ module.exports = {
           {
             test: sassRegex,
             exclude: sassModuleRegex,
-            use: getStyleLoaders({ importLoaders: 2 }, {
-                loader: 'sass-loader',
-                options: { implementation: require('sass') }
-              }),
+            use: getStyleLoaders({ importLoaders: 2 }, 'sass-loader'),
           },
           // Adds support for CSS Modules, but using SASS
           // using the extension .module.scss or .module.sass
@@ -325,10 +322,7 @@ module.exports = {
                 modules: true,
                 getLocalIdent: getCSSModuleLocalIdent,
               },
-              {
-                loader: 'sass-loader',
-                options: { implementation: require('sass') }
-              }
+              'sass-loader'
             ),
           },
           // "file" loader makes sure those assets get served by WebpackDevServer.
