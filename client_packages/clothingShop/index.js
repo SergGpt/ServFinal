@@ -734,7 +734,7 @@ function setHeaders(type) {
             img = 'ponsonbys';
             break;
     }
-    ['Main', 'Tops', 'Bags', 'Bracelets', 'Ears', 'Glasses', 'Watches', 'Ties', 'Hats', 'Pants', 'Shoes']
+    ['Main', 'Tops', 'Bags', 'Bracelets', 'Ears', 'Glasses', 'Watches', 'Ties', 'Hats', 'Pants', 'Shoes', 'Shoe']
     .forEach(name => mp.callCEFV(`selectMenu.menus["clothing${name}"].headerImg = '${img}.png'`));
 }
 
@@ -797,6 +797,11 @@ function initSubMenu(key, list) {
     mp.callCEFV(`selectMenu.setItems('clothing${menuName}', ${JSON.stringify(items)});`)
     mp.callCEFV(`selectMenu.menus["clothing${menuName}"].i = 0`);
     mp.callCEFV(`selectMenu.menus["clothing${menuName}"].j = 0`);
+    if (key === 'shoes') {
+        mp.callCEFV(`selectMenu.setItems('clothingShoe', ${JSON.stringify(items)});`);
+        mp.callCEFV(`selectMenu.menus["clothingShoe"].i = 0`);
+        mp.callCEFV(`selectMenu.menus["clothingShoe"].j = 0`);
+    }
 }
 
 function setClothes(group, item, textureIndex) {

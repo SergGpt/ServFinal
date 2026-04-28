@@ -6866,6 +6866,49 @@ var selectMenu = new Vue({
                     }
                 }
             },
+            "clothingShoe": {
+                name: "clothingShoe",
+                header: "Обувь",
+                headerImg: "",
+                items: [],
+                i: 0,
+                j: 0,
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    var e = {
+                        menuName: this.name,
+                        itemName: item.text,
+                        itemIndex: this.i,
+                        itemValue: (item.i != null && item.values) ? item.values[item.i] : null,
+                        valueIndex: item.i,
+                    };
+                    if (eventName == 'onItemFocusChanged') {
+                        if (e.itemName != 'Назад') {
+                            mp.trigger('clothingShop.item.set', 'shoes', e.itemIndex, e.valueIndex);
+                        }
+                    }
+                    if (eventName == 'onItemValueChanged') {
+                        mp.trigger('clothingShop.item.set', 'shoes', e.itemIndex, e.valueIndex);
+                    }
+                    if (eventName == 'onItemSelected') {
+                        if (e.itemName == 'Назад') {
+                            selectMenu.showByName('clothingMain');
+                            selectMenu.menus["clothingShoe"].i = 0;
+                            selectMenu.menus["clothingShoe"].j = 0;
+                            mp.trigger('clothingShop.inputClothes.set');
+                        } else {
+                            selectMenu.loader = true;
+                            mp.trigger('clothingShop.item.buy', 'shoes', e.itemIndex, e.valueIndex);
+                        }
+                    }
+                    if (eventName == 'onBackspacePressed' || eventName == 'onEscapePressed') {
+                        selectMenu.showByName('clothingMain');
+                        selectMenu.menus["clothingShoe"].i = 0;
+                        selectMenu.menus["clothingShoe"].j = 0;
+                        mp.trigger('clothingShop.inputClothes.set');
+                    }
+                }
+            },
             "dump": {
                 name: "dump",
                 header: "Свалка",
