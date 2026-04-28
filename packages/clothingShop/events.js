@@ -89,13 +89,19 @@ module.exports = {
             player.dimension = player.id + 1;
             player.call('clothingShop.player.freeze');
             let list = getClientClothesListForPlayer(player);
+            const cacheShoesCount = Array.isArray(list.shoes) ? list.shoes.length : 0;
+            let directShoesCount = 0;
             if (!Array.isArray(list.shoes) || !list.shoes.length) {
                 try {
                     const shoesDirect = await db.Models.ClothesShoe.findAll();
-                    if (shoesDirect.length) list.shoes = toClientRows(shoesDirect);
+                    directShoesCount = shoesDirect.length;
+                    if (directShoesCount) list.shoes = toClientRows(shoesDirect);
                 } catch (e) {
                     console.log(`[CLOTHINGSHOP] direct shoes load error: ${e.message}`);
                 }
+            }
+            if (!Array.isArray(list.shoes) || !list.shoes.length) {
+                player.call('notifications.push.warning', [`Обувь не найдена (cache: ${cacheShoesCount}, direct: ${directShoesCount})`, 'ClothingShop']);
             }
             for (let key in list) {
                 player.call('clothingShop.list.get', [key, list[key]]);
