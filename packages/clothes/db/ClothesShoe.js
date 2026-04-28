@@ -1,4 +1,37 @@
 module.exports = (sequelize, DataTypes) => {
+    const toClimeArray = (val) => {
+        if (Array.isArray(val)) return val.map(Number).filter(Number.isFinite).slice(0, 2);
+        if (val == null) return [-10, 45];
+
+        if (typeof val === 'number') {
+            if (!Number.isFinite(val)) return [-10, 45];
+            return [val, val];
+        }
+
+        if (typeof val === 'string') {
+            const trimmed = val.trim();
+            if (!trimmed.length) return [-10, 45];
+
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) return parsed.map(Number).filter(Number.isFinite).slice(0, 2);
+                if (Number.isFinite(parsed)) return [parsed, parsed];
+            } catch (e) {
+                // fallback below
+            }
+
+            const fromCsv = trimmed
+                .split(',')
+                .map(v => parseInt(v.trim()))
+                .filter(Number.isFinite)
+                .slice(0, 2);
+            if (fromCsv.length === 2) return fromCsv;
+            if (fromCsv.length === 1) return [fromCsv[0], fromCsv[0]];
+        }
+
+        return [-10, 45];
+    };
+
     const model = sequelize.define("ClothesShoe", {
         id: {
             type: DataTypes.INTEGER(11),
@@ -22,11 +55,11 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false,
             get() {
                 const val = this.getDataValue('clime');
-                return JSON.parse(val);
+                return toClimeArray(val);
             },
             set(val) {
-                if (typeof val === 'object') val = JSON.stringify(val);
-                this.setDataValue('clime', val);
+                const clime = toClimeArray(val);
+                this.setDataValue('clime', JSON.stringify(clime));
             }
         },
         textures: {
