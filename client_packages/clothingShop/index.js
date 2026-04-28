@@ -743,7 +743,9 @@ function initMainMenu() {
     for (let key in clothesList) {
         let sortedList = getSortedList(key);
         if (!clothesInfo[key]) continue;
-        if (sortedList.length > 0) {
+        // Обувь держим всегда доступной в меню, чтобы можно было открыть раздел
+        // даже если сервер вернул пустой/битый список и быстро проверить содержимое.
+        if (sortedList.length > 0 || key === 'shoes') {
             items.push({
                 text: clothesInfo[key].name
             });
