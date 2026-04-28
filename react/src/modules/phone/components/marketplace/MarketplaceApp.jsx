@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import React, {useEffect, useState} from 'react';
 import {closeApp} from '../../actions/apps.actions';
 import {connect} from 'react-redux';
