@@ -760,19 +760,32 @@ function initMainMenu() {
 
 function getSortedList(group) {
     let list = Array.isArray(clothesList[group]) ? clothesList[group] : [];
-    return list.filter(x => x && x.class == shopClass);
+    const normalizedShopClass = parseInt(shopClass);
+    const classFiltered = list.filter(x => {
+        if (!x) return false;
+        const itemClass = parseInt(x.class);
+        if (!Number.isFinite(normalizedShopClass) || !Number.isFinite(itemClass)) return true;
+        return itemClass === normalizedShopClass;
+    });
+
+    // Fallback: если в текущем классе нет записей (или класс магазина/вещи не задан),
+    // показываем все доступные вещи группы, чтобы новые записи из БД не "пропадали" из меню.
+    if (classFiltered.length) return classFiltered;
+    return list.filter(Boolean);
 }
 
 function initSubMenu(key, list) {
     let items = [];
     let menuName = clothesInfo[key].menuName;
     list.forEach((current) => {
+        const textures = Array.isArray(current.textures) && current.textures.length ? current.textures : [0];
         let values = [];
-        for (let i = 0; i < current.textures.length; i++) {
+        for (let i = 0; i < textures.length; i++) {
             values.push(`№${i + 1}`);
         }
+        const itemPrice = parseInt((Number(current.price) || 0) * (Number(priceMultiplier) || 1));
         items.push({
-            text: `${current.name} [$${parseInt(current.price*priceMultiplier)}]`,
+            text: `${current.name} [$${itemPrice}]`,
             values: values
         });
     })
@@ -792,7 +805,8 @@ function setClothes(group, item, textureIndex) {
         player.setComponentVariation(8, item.undershirt, 0, 0);
     }
 
-    let texture = item.textures && item.textures[textureIndex] != null ? item.textures[textureIndex] : 0;
+    const textures = Array.isArray(item.textures) && item.textures.length ? item.textures : [0];
+    let texture = textures[textureIndex] != null ? textures[textureIndex] : 0;
     if (info.component != null) {
         player.setComponentVariation(info.component, item.variation, texture, 0);
     } else {
