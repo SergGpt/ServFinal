@@ -2,6 +2,9 @@ let clothingShop = require('./index.js');
 let money = call('money');
 let inventory = call('inventory');
 let clothes = call('clothes');
+let lastClothesCacheReload = 0;
+
+const CLOTHES_CACHE_RELOAD_INTERVAL = 60 * 1000;
 
 
 function capacityToPockets(capacity) {
@@ -21,14 +24,51 @@ function isValidVector3(data) {
         && Number.isFinite(data.z);
 }
 
+async function ensureFreshClothesCache() {
+    const now = Date.now();
+    if (now - lastClothesCacheReload < CLOTHES_CACHE_RELOAD_INTERVAL) return;
+
+    await clothes.init();
+    clothes.updateClientList();
+    lastClothesCacheReload = now;
+}
+
+function getGenderBuckets(player) {
+    const primarySex = player.character.gender ? '0' : '1';
+    const secondarySex = primarySex === '0' ? '1' : '0';
+    return { primarySex, secondarySex };
+}
+
+function getClientClothesListForPlayer(player) {
+    const all = clothes.getClientList();
+    const { primarySex, secondarySex } = getGenderBuckets(player);
+    const primary = all[primarySex] || {};
+    const secondary = all[secondarySex] || {};
+    const result = {};
+
+    const keys = new Set([...Object.keys(primary), ...Object.keys(secondary)]);
+    keys.forEach((key) => {
+        const primaryList = Array.isArray(primary[key]) ? primary[key] : [];
+        const secondaryList = Array.isArray(secondary[key]) ? secondary[key] : [];
+        result[key] = primaryList.length ? primaryList : secondaryList;
+    });
+
+    return result;
+}
+
 module.exports = {
     "init": async () => {
         await clothingShop.init();
         inited(__dirname);
     },
-    "playerEnterColshape": (player, shape) => {
+    "playerEnterColshape": async (player, shape) => {
         if (!player.character) return;
         if (shape.isClothingShop) {
+            try {
+                await ensureFreshClothesCache();
+            } catch (e) {
+                console.log(`[CLOTHINGSHOP] Не удалось обновить кэш одежды: ${e.message}`);
+            }
 
             let isCuffed = player.getVariable('cuffs') || false;
             if (isCuffed) return;
@@ -39,8 +79,7 @@ module.exports = {
                 mp.events.call('clothingShop.enter', player);
             } else {
                 player.call('clothingShop.player.freeze');
-                let gender = player.character.gender ? '0' : '1';
-                let list = clothes.getClientList()[gender];
+                let list = getClientClothesListForPlayer(player);
                 for (let key in list) {
                     player.call('clothingShop.list.get', [key, list[key]]);
                 }
@@ -87,8 +126,11 @@ module.exports = {
     },
     "clothingShop.item.buy": (player, group, itemId, textureIndex) => {
         let shopId = player.currentClothingShopId;
-        let gender = player.character.gender ? '0' : '1';
-        let list = clothes.getClientList()[gender][group];
+        const all = clothes.getClientList();
+        const { primarySex, secondarySex } = getGenderBuckets(player);
+        const primaryList = all[primarySex]?.[group] || [];
+        const secondaryList = all[secondarySex]?.[group] || [];
+        const list = primaryList.length ? primaryList : secondaryList;
         let item = list.find(x => x.id == itemId);
 
         if (!item) return player.call('clothingShop.item.buy.ans', [1]);
@@ -103,7 +145,7 @@ module.exports = {
         let productsAvailable = clothingShop.getProductsAmount(shopId);
         if (products > productsAvailable) return player.call('clothingShop.item.buy.ans', [6]);
         let params = {
-            sex: parseInt(gender),
+            sex: parseInt(item.sex),
             variation: item.variation,
             texture: (Array.isArray(item.textures) ? item.textures[textureIndex] : null),
             name: item.name
