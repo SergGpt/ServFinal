@@ -110,6 +110,8 @@ module.exports = {
     filename: 'static/js/bundle.js',
     // There are also additional JS chunk files if you use code splitting.
     chunkFilename: 'static/js/[name].chunk.js',
+    // Node 17+ / OpenSSL 3 compatibility (webpack4 default md4 is unsupported)
+    hashFunction: 'sha256',
     // This is the URL that app is served from. We use "/" in development.
     publicPath: publicPath,
     // Point sourcemap entries to original disk location (format as URL on Windows)

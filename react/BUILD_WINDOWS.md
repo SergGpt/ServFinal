@@ -31,3 +31,11 @@ npm run build:verify-marketplace
 - Проект использует `sass` (Dart Sass), поэтому Python/node-gyp для `node-sass` не нужен.
 - Итоговый бандл лежит в `client_packages/browser/build`.
 - Команда `npm run build:verify-marketplace` проверит, что в собранном бандле есть маркеры маркетплейса.
+
+## 5) Если всё ещё есть ошибка OpenSSL
+Для старых webpack-цепочек можно добавить fallback:
+
+```powershell
+$env:NODE_OPTIONS="--openssl-legacy-provider"
+npm run build
+```
