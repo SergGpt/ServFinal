@@ -13,6 +13,7 @@ mp.inventory = {
     waitActionTime: 1000,
     searchPlayer: null,
     searchRadius: 2,
+    clothesHandsItemIds: [1, 2, 6, 7, 8, 9, 10, 11, 12, 14],
 
     enable(enable) {
         mp.callCEFV(`inventory.enable = ${enable}`);
@@ -430,6 +431,14 @@ mp.inventory = {
 
     // Вспомогательная функция для анимаций
     playItemAnimation(player, itemId, targetBone) {
+        // Предметы одежды в руках — поза "держит перед собой" (локти согнуты).
+        if (this.clothesHandsItemIds.includes(itemId)) {
+            mp.utils.requestAnimDict("anim@heists@box_carry@", () => {
+                player.taskPlayAnim("anim@heists@box_carry@", "idle", 8.0, 0.0, -1, 49, 0.0, false, false, false);
+            });
+            return;
+        }
+
         // Scrap Metal: держим перед собой (локти согнуты)
         if (itemId === 501) {
             mp.utils.requestAnimDict("anim@heists@box_carry@", () => {
