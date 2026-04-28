@@ -68,7 +68,14 @@ const getStyleLoaders = (cssOptions, preProcessor) => {
     },
   ];
   if (preProcessor) {
-    loaders.push(require.resolve(preProcessor));
+    if (typeof preProcessor === 'string') {
+      loaders.push(require.resolve(preProcessor));
+    } else {
+      loaders.push({
+        ...preProcessor,
+        loader: require.resolve(preProcessor.loader),
+      });
+    }
   }
   return loaders;
 };

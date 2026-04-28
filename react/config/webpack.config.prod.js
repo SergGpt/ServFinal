@@ -94,12 +94,23 @@ const getStyleLoaders = (cssOptions, preProcessor) => {
     },
   ];
   if (preProcessor) {
-    loaders.push({
-      loader: require.resolve(preProcessor),
-      options: {
-        sourceMap: false,
-      },
-    });
+    if (typeof preProcessor === 'string') {
+      loaders.push({
+        loader: require.resolve(preProcessor),
+        options: {
+          sourceMap: false,
+        },
+      });
+    } else {
+      loaders.push({
+        ...preProcessor,
+        loader: require.resolve(preProcessor.loader),
+        options: {
+          sourceMap: false,
+          ...(preProcessor.options || {}),
+        },
+      });
+    }
   }
   return loaders;
 };
