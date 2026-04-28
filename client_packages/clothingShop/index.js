@@ -760,7 +760,18 @@ function initMainMenu() {
 
 function getSortedList(group) {
     let list = Array.isArray(clothesList[group]) ? clothesList[group] : [];
-    return list.filter(x => x && x.class == shopClass);
+    const normalizedShopClass = parseInt(shopClass);
+    const classFiltered = list.filter(x => {
+        if (!x) return false;
+        const itemClass = parseInt(x.class);
+        if (!Number.isFinite(normalizedShopClass) || !Number.isFinite(itemClass)) return true;
+        return itemClass === normalizedShopClass;
+    });
+
+    // Fallback: если в текущем классе нет записей (или класс магазина/вещи не задан),
+    // показываем все доступные вещи группы, чтобы новые записи из БД не "пропадали" из меню.
+    if (classFiltered.length) return classFiltered;
+    return list.filter(Boolean);
 }
 
 function initSubMenu(key, list) {
