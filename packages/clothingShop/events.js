@@ -2,6 +2,9 @@ let clothingShop = require('./index.js');
 let money = call('money');
 let inventory = call('inventory');
 let clothes = call('clothes');
+let lastClothesCacheReload = 0;
+
+const CLOTHES_CACHE_RELOAD_INTERVAL = 60 * 1000;
 
 
 function capacityToPockets(capacity) {
@@ -21,14 +24,28 @@ function isValidVector3(data) {
         && Number.isFinite(data.z);
 }
 
+async function ensureFreshClothesCache() {
+    const now = Date.now();
+    if (now - lastClothesCacheReload < CLOTHES_CACHE_RELOAD_INTERVAL) return;
+
+    await clothes.init();
+    clothes.updateClientList();
+    lastClothesCacheReload = now;
+}
+
 module.exports = {
     "init": async () => {
         await clothingShop.init();
         inited(__dirname);
     },
-    "playerEnterColshape": (player, shape) => {
+    "playerEnterColshape": async (player, shape) => {
         if (!player.character) return;
         if (shape.isClothingShop) {
+            try {
+                await ensureFreshClothesCache();
+            } catch (e) {
+                console.log(`[CLOTHINGSHOP] Не удалось обновить кэш одежды: ${e.message}`);
+            }
 
             let isCuffed = player.getVariable('cuffs') || false;
             if (isCuffed) return;
