@@ -15,6 +15,18 @@ process.on('unhandledRejection', err => {
 require('../config/env');
 
 
+// Node/OpenSSL compatibility for webpack4 (md4 is unsupported on modern OpenSSL).
+// We fallback md4 hashing requests to sha256 to avoid build crashes on Node 17+.
+(() => {
+  const crypto = require('crypto');
+  const originalCreateHash = crypto.createHash;
+  crypto.createHash = (algorithm, options) => {
+    const normalized = algorithm && algorithm.toLowerCase ? algorithm.toLowerCase() : algorithm;
+    return originalCreateHash(normalized === 'md4' ? 'sha256' : algorithm, options);
+  };
+})();
+
+
 const path = require('path');
 const chalk = require('chalk');
 const fs = require('fs-extra');
