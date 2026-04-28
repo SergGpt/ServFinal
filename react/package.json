@@ -55,7 +55,7 @@
     "redux": "^4.0.1",
     "redux-devtools-extension": "^2.13.8",
     "resolve": "1.8.1",
-    "sass-loader": "7.1.0",
+    "sass-loader": "^10.4.1",
     "style-loader": "0.23.0",
     "styled-components": "^5.1.1",
     "terser-webpack-plugin": "1.1.0",
