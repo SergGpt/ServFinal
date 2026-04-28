@@ -14,6 +14,10 @@ let clothesList = {
     "pants": [],
     "shoes": [],
 }
+let clothesLoadState = {
+    loadedKeys: new Set(),
+    buffer: {}
+};
 let shopClass;
 let priceMultiplier;
 // let currentItem = {
@@ -617,11 +621,33 @@ mp.events.add({
             mp.events.callRemote('clothingShop.enter');
         }
     },
+    'clothingShop.list.getChunk': (key, chunk, partIndex, totalParts) => {
+        if (!clothesList.hasOwnProperty(key)) return;
+        partIndex = parseInt(partIndex) || 0;
+        totalParts = parseInt(totalParts) || 1;
+
+        if (partIndex === 0) clothesLoadState.buffer[key] = [];
+        if (!Array.isArray(clothesLoadState.buffer[key])) clothesLoadState.buffer[key] = [];
+        if (Array.isArray(chunk) && chunk.length) clothesLoadState.buffer[key].push(...chunk);
+
+        if (partIndex >= totalParts - 1) {
+            clothesList[key] = clothesLoadState.buffer[key];
+            clothesLoadState.loadedKeys.add(key);
+        }
+
+        if (clothesLoadState.loadedKeys.size >= Object.keys(clothesList).length) {
+            clothesLoadState.loadedKeys.clear();
+            clothesLoadState.buffer = {};
+            mp.events.callRemote('clothingShop.enter');
+        }
+    },
     'clothingShop.player.freeze': () => {
         mp.callCEFV('loader.show = true');
         mp.utils.disablePlayerMoving(true);
         player.freezePosition(true);
         playerIsFrozen = true;
+        clothesLoadState.loadedKeys.clear();
+        clothesLoadState.buffer = {};
     },
     'clothingShop.item.set': (group, index, textureIndex) => {
         // currentItem.group = group;

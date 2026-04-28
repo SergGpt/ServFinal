@@ -103,8 +103,16 @@ module.exports = {
             if (!Array.isArray(list.shoes) || !list.shoes.length) {
                 player.call('notifications.push.warning', [`Обувь не найдена (cache: ${cacheShoesCount}, direct: ${directShoesCount})`, 'ClothingShop']);
             }
+            const chunkSize = 120;
             for (let key in list) {
-                player.call('clothingShop.list.get', [key, list[key]]);
+                const source = Array.isArray(list[key]) ? list[key] : [];
+                const totalParts = Math.max(1, Math.ceil(source.length / chunkSize));
+                for (let partIndex = 0; partIndex < totalParts; partIndex++) {
+                    const start = partIndex * chunkSize;
+                    const end = start + chunkSize;
+                    const chunk = source.slice(start, end);
+                    player.call('clothingShop.list.getChunk', [key, chunk, partIndex, totalParts]);
+                }
             }
             player.hasValidClothesData = true;
         }
