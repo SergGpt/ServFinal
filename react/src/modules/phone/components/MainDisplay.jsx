@@ -10,6 +10,7 @@ import call_story_icon from '@imgs/phone/callStory.svg';
 import taxi_client_icon from '@imgs/phone/taxi_client.svg';
 import taxi_driver_icon from '@imgs/phone/taxi_driver.svg';
 import news_icon from '@imgs/phone/news.svg';
+import marketplace_icon from '@imgs/phone/marketplace.svg';
 import PhoneAppIcon from "./PhoneAppIcon";
 import HouseApp from "./house/HouseApp";
 import BusinessApp from "./biz/BusinessApp";
@@ -18,6 +19,7 @@ import News from "./news/News";
 import TaxiClient from "./taxi_app/taxi_client/TaxiClient";
 import TaxiDriver from "./taxi_app/taxi_driver/TaxiDriver";
 import CallStory from "./calls/story/CallStory";
+import MarketplaceApp from "./marketplace/MarketplaceApp";
 
 const MainDisplay = ({ addAppAction, info }) => {
     return (
@@ -40,6 +42,12 @@ const MainDisplay = ({ addAppAction, info }) => {
                         app={<News />}
                         name='Новости'
                         image={news_icon}
+                        handleClick={addAppAction}
+                    />
+                    <PhoneAppIcon
+                        app={<MarketplaceApp />}
+                        name='Маркет'
+                        image={marketplace_icon}
                         handleClick={addAppAction}
                     />
                     <PhoneAppIcon

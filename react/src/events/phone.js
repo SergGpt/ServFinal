@@ -95,6 +95,13 @@ export default (myEventEmmiter, dispatch) => {
         });
     });
 
+    myEventEmmiter.on('marketplace.phone.data', (lots) => {
+        dispatch({
+            type: 'PHONE_MARKETPLACE_LOTS',
+            payload: lots
+        });
+    });
+
     myEventEmmiter.on('phone.back', () => {
         dispatch({
             type: 'CLOSE_APP',

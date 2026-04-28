@@ -117,6 +117,7 @@ const initialState = {
     //         ]
     //     }
     // ],
+    marketplaceLots: [],
     // callStory: [
     //     {
     //         number: '323223',
@@ -419,6 +420,12 @@ export default function info(state = initialState, action) {
             }
 
             return newStateAdd;
+
+        case 'PHONE_MARKETPLACE_LOTS':
+            return {
+                ...state,
+                marketplaceLots: Array.isArray(payload) ? payload : []
+            };
 
         case 'DELETE_APP_TO_PHONE':
             const newStateRemove = {...state};
