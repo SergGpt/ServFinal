@@ -431,6 +431,22 @@ mp.inventory = {
 
     // Вспомогательная функция для анимаций
     playItemAnimation(player, itemId, targetBone) {
+        // Видеокамера на плече.
+        if (itemId === 503) {
+            mp.utils.requestAnimDict("amb@world_human_paparazzi@male@base", () => {
+                player.taskPlayAnim("amb@world_human_paparazzi@male@base", "base", 8.0, 0.0, -1, 49, 0.0, false, false, false);
+            });
+            return;
+        }
+
+        // Микрофон в одной руке (согнутая рука у лица).
+        if (itemId === 502) {
+            mp.utils.requestAnimDict("cellphone@", () => {
+                player.taskPlayAnim("cellphone@", "cellphone_call_listen_base", 8.0, 0.0, -1, 49, 0.0, false, false, false);
+            });
+            return;
+        }
+
         // Предметы одежды в руках — поза "держит перед собой" (локти согнуты).
         if (this.clothesHandsItemIds.includes(itemId)) {
             mp.utils.requestAnimDict("anim@heists@box_carry@", () => {
