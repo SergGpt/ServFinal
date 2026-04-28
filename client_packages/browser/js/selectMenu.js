@@ -6415,7 +6415,7 @@ var selectMenu = new Vue({
                             mp.trigger('clothingShop.item.set', 'hats', 0, 0);
                             selectMenu.showByName('clothingHats');
                         }
-                        if (e.itemName == 'Ноги') {
+                        if (e.itemName == 'Ноги' || e.itemName == 'Штаны') {
                             mp.trigger('clothingShop.item.set', 'pants', 0, 0);
                             selectMenu.showByName('clothingPants');
                         }
