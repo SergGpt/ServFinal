@@ -1,0 +1,110 @@
+.marketPlace {
+    .user-info {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+
+        .money-info {
+            display: flex;
+            flex-direction: column;
+            gap: .3703703704vh;
+            align-items: flex-end;
+
+            .row {
+                display: flex;
+                align-items: center;
+                gap: .7407407407vh;
+                height: 1.5740740741vh;
+                color: #101010;
+                font-weight: 500;
+                font-style: normal;
+                font-size: 1.2962962963vh;
+
+                .cents {
+                    opacity: .5;
+                    font-weight: 400;
+                    font-style: normal;
+                    font-size: 1.2962962963vh;
+                }
+
+                &.bank {
+                    svg {
+                        opacity: .25;
+                    }
+                }
+
+                svg {
+                    height: 1.2962962963vh;
+                    max-height: 1.2962962963vh;
+                    min-height: 1.2962962963vh;
+                    width: 1.2962962963vh;
+                    max-width: 1.2962962963vh;
+                    min-width: 1.2962962963vh;
+                }
+            }
+        }
+
+        .create-button {
+            width: 11.4814814815vh;
+            height: 3.8888888889vh;
+            margin-left: 2.7777777778vh;
+
+            button {
+                width: 7.75rem;
+                height: 2.625rem;
+                font-weight: 500;
+                font-style: normal;
+                font-size: .875rem;
+                --color: #fcfcfc;
+                --background-color: #3d82d5;
+                --color-hover: #fcfcfc;
+                --background-color-hover: #346fb5;
+                justify-content: flex-start;
+                gap: .625rem;
+                padding: 0 .9375rem;
+
+                border-radius: .5rem;
+                display: flex;
+                align-items: center;
+                transition: all .2s ease-in-out;
+                color: var(--color);
+                background-color: var(--background-color);
+
+                &:hover {
+                    cursor: pointer;
+                    color: var(--color-hover);
+                    background-color: var(--background-color-hover);
+                }
+
+                svg {
+                    height: .875rem;
+                    max-height: .875rem;
+                    min-height: .875rem;
+                    width: .875rem;
+                    max-width: .875rem;
+                    min-width: .875rem;
+                }
+            }
+        }
+
+        .avatar {
+            margin-left: 1.6666666667vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: .462962963vh;
+
+            img {
+                border-radius: .7407407407vh;
+                height: 3.5185185185vh;
+                max-height: 3.5185185185vh;
+                min-height: 3.5185185185vh;
+                width: 3.5185185185vh;
+                max-width: 3.5185185185vh;
+                min-width: 3.5185185185vh;
+
+                pointer-events: none;
+            }
+        }
+    }
+}

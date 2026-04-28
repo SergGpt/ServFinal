@@ -1,0 +1,244 @@
+.marketPlace {
+    .modal-content {
+        .interaction-buy {
+            &__title {
+                font-weight: 900;
+                font-style: normal;
+                font-size: 1.8518518519vh;
+                color: #101010;
+            }
+
+            &__info {
+                margin-top: 2.962962963vh;
+                display: flex;
+                flex-direction: column;
+                gap: 2.037037037vh;
+
+                .info-row {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.0185185185vh;
+
+                    &__column {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 1.01852vh;
+                    }
+
+                    &__label {
+                        font-weight: 500;
+                        font-style: normal;
+                        font-size: 1.2962962963vh;
+                        color: hsla(0, 0%, 6%, .5);
+                    }
+
+                    &__value {
+                        font-weight: 500;
+                        font-style: normal;
+                        font-size: 1.4814814815vh;
+                        color: #101010;
+
+                        .static-id {
+                            color: hsla(0, 0%, 6%, .5);
+                        }
+                    }
+
+                    &.connection {
+                        justify-content: flex-start !important;
+                        gap: 1rem;
+                    }
+
+                    &.direction-row {
+                        flex-direction: row;
+                        justify-content: space-between;
+                    } 
+
+                    .author-interaction {
+                        &__phone-number {
+                            display: flex;
+                            flex-direction: column;
+                            gap: 0.648148vh;
+                            text-align: left;
+                            width: 9.25926vh;
+                            color: rgb(16, 16, 16);
+
+                            .value {
+                                font-weight: 500;
+                                font-style: normal;
+                                font-size: 1.48148vh;
+                            }
+
+                            .label {
+                                opacity: 0.5;
+                                font-weight: 500;
+                                font-style: normal;
+                                font-size: 1.2963vh;
+                            }
+                        }
+
+                        &__square-button {
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            height: 3.88889vh;
+                            width: 3.88889vh;
+                            font-weight: 500;
+                            font-style: normal;
+                            font-size: 1.2963vh;
+                            border: .0625rem solid rgb(239, 239, 239);
+                            border-radius: 0.740741vh;
+                            background-color: rgb(252, 252, 252);
+                            cursor: pointer;
+                            transition: 0.2s ease-in-out;
+                            --icon-color: #3d82d5;
+
+                            &:hover {
+                                background-color: rgb(61, 130, 213);
+                                border: .0625rem solid rgb(61, 130, 213);
+                                --icon-color: #fcfcfc;
+
+                                .tooltip {
+                                    opacity: 1;
+                                    visibility: visible;
+                                }
+                            }
+
+                            .tooltip {
+                                transition: 0.2s ease-in-out;
+                                visibility: hidden;
+                                opacity: 0;
+                                margin-top: 4.81481vh;
+                                position: absolute;
+                                align-self: flex-start;
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+
+                                &__arrow {
+                                    display: flex;
+
+                                    svg {
+                                        width: 1.2037vh;
+                                        height: 0.555556vh;
+
+                                        path {
+                                            fill: rgb(239, 239, 239) !important;
+                                        }
+                                    }
+                                }
+
+                                &__text {
+                                    background-color: rgb(239, 239, 239);
+                                    padding: 0.648148vh 1.2963vh;
+                                    border-radius: 0.555556vh;
+                                }
+                            }
+
+                            svg {
+                                height: 1.66667vh;
+                                width: 1.66667vh;
+
+                                path {
+                                    transition: 0.2s ease-in-out;
+                                    fill: var(--icon-color);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            &__warning {
+                margin-top: 4.6296296296vh;
+
+                .warning {
+                    &__label {
+                        font-weight: 900;
+                        font-style: normal;
+                        font-size: 1.4814814815vh;
+                        color: #3d82d5;
+                    }
+
+                    &__text {
+                        margin-top: 1.1111111111vh;
+                        line-height: 2.2222222222vh;
+                        font-weight: 500;
+                        font-style: normal;
+                        font-size: 1.2962962963vh;
+                        color: hsla(0, 0%, 6%, .6);
+                    }
+                }
+            }
+
+            &__payment {
+                margin-top: 3.8888888889vh;
+
+                .payment {
+                    &__to-pay {
+                        &__label {
+                            font-weight: 500;
+                            font-style: normal;
+                            font-size: 1.2962962963vh;
+                            color: hsla(0, 0%, 6%, .5);
+                        }
+
+                        &__amount {
+                            margin-top: 1.0185185185vh;
+                            font-weight: 900;
+                            font-style: normal;
+                            font-size: 2.037037037vh;
+                            color: #101010;
+                        }
+                    }
+
+                    &__button {
+                        transition: all .2s ease-in-out;
+                        height: 5.5555555556vh;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 1.1111111111vh;
+                        color: #101010;
+                        font-family: var(--IntegratedFont), sans-serif;
+                        font-weight: 500;
+                        font-style: normal;
+                        font-size: 1.4814814815vh;
+                        background-color: #fcfcfc;
+                        --icon-color: #3d82d5;
+
+                        &:not(:first-child) {
+                            border-left: .0625rem solid rgb(232, 232, 232);
+                        }
+
+                        &:hover {
+                            cursor: pointer;
+                            --icon-color: #fcfcfc;
+                            color: #fcfcfc;
+                            background-color: #3d82d5;
+                        }
+
+                        svg {
+                            height: 1.4814814815vh;
+                            width: 1.4814814815vh;
+
+                            path {
+                                transition: all .2s ease-in-out;
+                                fill: var(--icon-color);
+                            }
+                        }
+
+                        &-container {
+                            margin-top: 3.8888888889vh;
+                            display: grid;
+                            grid-auto-flow: column;
+                            grid-auto-columns: 1fr;
+                            border-radius: .7407407407vh;
+                            border: .0625rem solid #e8e8e8;
+                            overflow: hidden;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

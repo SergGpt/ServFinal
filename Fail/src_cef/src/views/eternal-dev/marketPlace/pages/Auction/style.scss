@@ -1,0 +1,323 @@
+.marketPlace {
+    .auction-card {
+        height: 17.625rem;
+        max-height: 17.625rem;
+        min-height: 17.625rem;
+        background-color: #fff;
+        border: .0625rem solid #e8e8e8;
+        border-radius: .625rem;
+        transition: all .2s ease-in-out;
+
+        &:hover {
+            transition: background-color 0.2s ease-in-out;
+            cursor: pointer;
+
+            .auction-card__header {
+                background-color: rgba(15, 15, 15, 0.2);
+            }
+
+            .favorite-button {
+                visibility: visible;
+                opacity: 1;
+            }
+        }
+
+        &__header {
+            position: relative;
+            transition: 0.2s ease-in-out;
+            height: 11.375rem;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border-top-left-radius: 0.625rem;
+            border-top-right-radius: 0.625rem;
+            border: .0625rem solid rgb(232, 232, 232);
+            background-color: rgba(15, 15, 15, 0.1);
+
+            &-vehicle {
+                .auction-card__header__image {
+                    width: 80% !important;
+                    height: 80% !important;
+                    background-size: contain !important
+                }
+            }
+
+            .favorite-button {
+                visibility: hidden;
+                opacity: 0;
+                z-index: 3;
+                height: 2.5rem;
+                width: 2.5rem;
+                border-radius: 50%;
+                position: absolute;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: 0.2s ease-in-out;
+                background-color: rgba(240, 240, 240, 0.8);
+                top: 0.75rem;
+                right: 0.75rem;
+                cursor: pointer;
+
+                &.active {
+                    visibility: visible;
+                    opacity: 1;
+                    background-color: rgb(61, 130, 213) !important;
+
+                    svg {
+                        opacity: 1;
+
+                        path {
+                            fill: rgb(252, 252, 252) !important;
+                        }
+                    }
+                }
+
+                svg {
+                    transition: 0.2s ease-in-out;
+                    opacity: 0.35;
+                    width: 1rem;
+                    height: 1rem;
+                    pointer-events: none;
+
+                    path {
+                        transition: 0.2s ease-in-out;
+                    }
+                }
+
+                &:not(.active):hover {
+                    background-color: rgb(252, 252, 252) !important;
+                    
+                    svg {
+                        opacity: 1;
+
+                        path {
+                            fill: rgb(61, 130, 213) !important;
+                        }
+                    }
+                }
+            }
+
+            &__badges {
+                z-index: 2;
+                position: absolute;
+                top: 0.75rem;
+                left: 0.75rem;
+                display: flex;
+                gap: 0.25rem;
+
+                .badge {
+                    background-color: rgb(252, 252, 252);
+                    border-radius: 0.25rem;
+                    display: flex;
+                    gap: 0.25rem;
+                    align-items: center;
+                    color: rgb(16, 16, 16);
+                    font-variant-numeric: tabular-nums;
+                    font-family: var(--IntegratedFont), sans-serif;
+                    font-weight: 500;
+                    font-style: normal;
+                    font-size: 0.75rem;
+                    padding: 0.4375rem 0.5rem 0.4375rem 0.4375rem;
+
+                    svg {
+                        height: 0.75rem;
+                        max-height: 0.75rem;
+                        min-height: 0.75rem;
+                        width: 0.75rem;
+                        max-width: 0.75rem;
+                        min-width: 0.75rem;
+                    }
+                }
+            }
+
+            &__image {
+                // box-shadow: rgba(0, 0, 0, 0.1) 0 0 0 62.5rem inset;
+                background-size: cover !important;
+                transition: 0.2s ease-in-out;
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                background-image: var(--background-image);
+                background-position: 50% center;
+                background-repeat: no-repeat;
+
+                transition: all .2s ease-in-out;
+            }
+        }
+
+        &__content {
+            height: 6.25rem;
+            width: 100%;
+            position: relative;
+            padding: 0.875rem 1.125rem;
+            color: rgb(16, 16, 16);
+
+            text-align: left;
+
+            .title {
+                font-weight: 900;
+                font-style: normal;
+                font-size: 0.875rem;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .type {
+                margin-top: 0.4375rem;
+                color: rgba(15, 15, 15, 0.5);
+                font-family: var(--IntegratedFont),sans-serif;
+                font-weight: 500;
+                font-style: normal;
+                font-size: 0.75rem;
+            }
+
+            .price {
+                margin-top: 0.6875rem;
+                opacity: 0.9;
+                color: rgb(16, 16, 16);
+                font-family: var(--IntegratedFont),sans-serif;
+                font-weight: 900;
+                font-style: normal;
+                font-size: 1rem;
+                display: flex;
+                align-items: center;
+            }
+
+            .ad-info {
+                position: absolute;
+                bottom: 1.25rem;
+                right: 1.25rem;
+                display: flex;
+                gap: 0.9375rem;
+                align-items: center;
+
+                &__column {
+                    display: flex;
+                    gap: 0.25rem;
+                    align-items: center;
+                    font-family: var(--IntegratedFont),sans-serif;
+                    font-weight: 500;
+                    font-style: normal;
+                    font-size: 0.75rem;
+                    color: rgba(15, 15, 15, 0.5);
+
+                    svg {
+                        width: 0.8125rem;
+                        max-width: 0.8125rem;
+                        min-width: 0.8125rem;
+                        height: 0.8125rem;
+                        max-height: 0.8125rem;
+                        min-height: 0.8125rem;
+                        opacity: 0.25;
+                    }
+                }
+            }
+        }
+    }
+
+    .business-info {
+        &__stats {
+            margin-top: 2.7777777778vh;
+
+            &__header {
+                display: flex;
+
+                &__tabs {
+                    display: inline-flex;
+                    border-radius: .7407407407vh;
+                    overflow: hidden;
+                    border: .0625rem solid #e8e8e8;
+
+                    .tab {
+                        width: 15.7407407407vh;
+                        height: 3.8888888889vh;
+                        text-align: center;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: hsla(0, 0%, 6%, .5);
+                        font-weight: 500;
+                        font-style: normal;
+                        font-size: 1.2962962963vh;
+                        line-height: 1.5740740741vh;
+                        transition: all .2s ease-in-out;
+
+                        &.selected {
+                            background-color: #e8e8e8;
+                            color: #101010;
+                        }
+                    }
+                }
+
+                &__time {
+                    &-range {
+                        margin-left: auto;
+                        width: 21.2962962963vh;
+                    }
+                }
+            }
+
+            &__container {
+                margin-top: 1.8518518519vh;
+                gap: 1.2037037037vh;
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+
+                .card {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.3888888889vh;
+                    padding: 1.4814814815vh 1.6666666667vh;
+                    border-radius: .5555555556vh;
+                    background-color: #fcfcfc;
+                    border: .0625rem solid #e8e8e8;
+
+                    &__header {
+                        color: #101010;
+                        font-weight: 500;
+                        font-style: normal;
+                        font-size: 1.2962962963vh;
+                        line-height: 1.5740740741vh;
+                    }
+
+                    &__value {
+                        color: #101010;
+                        font-weight: 900;
+                        font-style: normal;
+                        font-size: 1.4814814815vh;
+                        line-height: 1.5740740741vh;
+                        display: flex;
+                        flex-wrap: wrap;
+
+                        &__money {
+                            display: flex;
+                            align-items: center;
+                            font-weight: 900;
+                            font-style: normal;
+                            font-size: 1.4814814815vh;
+
+                            &__dollar-sign {
+                                color: #3d82d5;
+                                margin-right: .5555555556vh;
+                            }
+
+                            &__first {
+                                color: #101010;
+                                white-space: nowrap;
+                            }
+
+                            &__last {
+                                font-weight: 500;
+                                color: hsla(0, 0%, 6%, .5);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

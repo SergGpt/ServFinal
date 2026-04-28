@@ -1,0 +1,365 @@
+.marketPlace {
+    .page-data {
+        &.auction {
+            .content {
+                display: flex;
+                padding: 1.875rem 2.5rem 2.5rem 1.875rem;
+            }
+        }
+
+        .content {
+            .left-side {
+                background-color: #fff;
+                border: .0625rem solid #e8e8e8;
+                border-radius: .5rem 0 0 .5rem;
+                display: flex;
+                flex-direction: column;
+
+                width: 50%;
+                max-width: 50%;
+                min-width: 50%;
+                height: 100%;
+
+                .lot-info {
+                    &__header {
+                        height: 17.5rem;
+                        max-height: 17.5rem;
+                        min-height: 17.5rem;
+                        width: 100%;
+                        border-top-left-radius: .5rem;
+                        position: relative;
+                        background-color: hsla(0, 0%, 6%, .1);
+                        border-bottom: .0625rem solid #e8e8e8;
+                        overflow: hidden;
+                        background-repeat: no-repeat;
+                        background-position: 50%;
+                        background-size: auto 12.5rem;
+
+                        &-house,
+                        &-business {
+                            background-size: cover;
+                        }
+
+                        &__badges {
+                            position: absolute;
+                            top: .9375rem;
+                            left: .9375rem;
+                            display: flex;
+                            gap: .3125rem;
+
+                            .badge {
+                                background-color: #fcfcfc;
+                                border-radius: .25rem;
+                                display: flex;
+                                gap: .4375rem;
+                                align-items: center;
+                                color: #101010;
+                                font-weight: 500;
+                                font-style: normal;
+                                font-size: .8125rem;
+                                line-height: 1rem;
+                                padding: .4375rem .625rem .4375rem .4375rem;
+
+                                svg {
+                                    height: .875rem;
+                                    width: .875rem;
+                                }
+                            }
+                        }
+
+                        .header-button {
+                            z-index: 4;
+                            height: 2.5rem;
+                            width: 2.5rem;
+                            border-radius: 50%;
+                            position: absolute;
+                            visibility: visible;
+                            opacity: 1;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            transition: all .2s ease-in-out;
+                            background-color: hsla(0, 0%, 94%, .8);
+                            top: .9375rem;
+                            right: 1.25rem;
+
+                            cursor: pointer;
+
+                            svg {
+                                transition: all .2s ease-in-out;
+                                opacity: .35;
+                                width: 1rem;
+                                height: 1rem;
+                                pointer-events: none;
+
+                                path {
+                                    transition: all .2s ease-in-out;
+                                }
+                            }
+
+                            &.active {
+                                visibility: visible;
+                                opacity: 1;
+                                background-color: rgb(61, 130, 213) !important;
+            
+                                svg {
+                                    opacity: 1;
+            
+                                    path {
+                                        fill: rgb(252, 252, 252) !important;
+                                    }
+                                }
+                            }
+
+                            &:not(.active):hover {
+                                background-color: #fcfcfc !important;
+
+                                svg {
+                                    opacity: 1;
+
+                                    path {
+                                        fill: #3d82d5 !important;
+                                    }
+                                }
+                            }
+
+                            &.map {
+                                left: 1.25rem;
+                                bottom: 0.9375rem !important;
+                                top: inherit !important;
+                                right: inherit !important;
+    
+                                svg path {
+                                    fill: rgb(16, 16, 16);
+                                }
+                            }
+                        }
+                    }
+
+                    &__container {
+                        padding: 1.875rem;
+                        width: 100%;
+                        height: 100%;
+                        overflow-y: auto;
+                        max-height: 100%;
+                    }
+                }
+            }
+
+            .right-side {
+                width: 50%;
+                max-width: 50%;
+                min-width: 50%;
+                height: 100%;
+
+                background-color: #fcfcfc;
+                border: .0625rem solid #e8e8e8;
+                height: 100%;
+                max-height: 100%;
+                min-height: 100%;
+                border-left: none;
+                border-radius: 0 .5rem .5rem 0;
+                position: relative;
+
+                .lot-broadcast {
+                    &__header {
+                        width: 100%;
+                        height: 3.875rem;
+                        padding: 1.25rem 1.875rem;
+                        border-bottom: .0625rem solid #e8e8e8;
+                        font-weight: 900;
+                        font-style: normal;
+                        font-size: 1.125rem;
+                        line-height: 1.375rem;
+                        color: hsla(0, 0%, 6%, .85);
+                        text-transform: uppercase;                    
+                    }
+
+                    &__container {
+                        width: 100%;
+                        height: calc(100% - 3.875rem);
+                        max-height: calc(100% - 3.875rem);
+                        min-height: calc(100% - 3.875rem);
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+
+                        .messages {
+                            width: 100%;
+                            height: calc(100% - 6.25rem);
+                            max-height: calc(100% - 6.25rem);
+                            min-height: calc(100% - 6.25rem);
+                            padding: 1.5625rem 1.875rem 1.5625rem 1.875rem;
+                            display: inline-flex;
+                            flex-direction: column-reverse;
+                            gap: 1rem;
+                            flex-grow: 0;
+                            overflow-y: auto;
+
+                            &::-webkit-scrollbar {
+                                width: .1875rem;
+                                background-color: #e8e8e8
+                            }
+                            
+                            &::-webkit-scrollbar-thumb {
+                                background-color: rgba(0,0,0,.1)
+                            }
+
+                            .message {
+                                display: inline-flex;
+                                border-radius: .375rem;
+                                position: relative;
+
+                                &:last-child {
+                                    margin-top: auto;
+                                }
+
+                                &-transition {
+                                    transition: all .2s ease-in-out;
+                                }
+
+                                &-setBid {
+                                    background-color: hsla(0, 0%, 94%, .5);
+                                    border: .0625rem solid #e8e8e8;
+                                    padding: .75rem 1.125rem;
+                                    flex-direction: column;
+                                }
+
+                                &-extendTime {
+                                    padding: 0px 1.125rem 0px 0.875rem;
+                                    height: 2.5625rem;
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 0.5rem;
+                                    background-color: rgb(252, 252, 252);
+                                    border: .0625rem solid rgb(232, 232, 232);
+                                    border-radius: 0.375rem;
+                                    font-weight: 500;
+                                    font-style: normal;
+                                    font-size: 0.875rem;
+                                }
+
+                                &-owner {
+                                    border-left: .1875rem solid #3d82d5!important
+                                }
+
+                                &__participant {
+                                    display: flex;
+                                    gap: .375rem;
+
+                                    &__name {
+                                        font-weight: 900;
+                                        font-style: normal;
+                                        font-size: .875rem;
+                                        color: #101010;
+                                    }
+
+                                    &__staticId {
+                                        font-weight: 500;
+                                        font-style: normal;
+                                        font-size: .875rem;
+                                        line-height: 1.25rem;
+                                        color: hsla(0, 0%, 6%, .5);
+                                    }
+                                }
+
+                                &__time {
+                                    font-weight: 500;
+                                    font-style: normal;
+                                    font-size: .75rem;
+                                    line-height: 1.0625rem;
+                                    color: hsla(0, 0%, 6%, .5);
+                                    margin-left: auto;
+                                }
+
+                                &__content {
+                                    margin-top: .4375rem;
+                                    font-weight: 500;
+                                    font-style: normal;
+                                    font-size: .875rem;
+
+                                    .bid {
+                                        font-weight: 500;
+                                        font-style: normal;
+                                        font-size: .875rem;
+                                        color: #101010;
+                                        margin-left: .25rem;
+                                        margin-right: .25rem;
+                                        white-space: nowrap;
+
+                                        &.bold {
+                                            font-weight: 900;
+                                        }
+
+                                        &.blue {
+                                            color: #3d82d5;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        .buttons {
+                            width: 100%;
+                            height: 6.25rem;
+                            padding: 1.5625rem 1.875rem;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            gap: .59375rem;
+                            border-top: .0625rem solid #e8e8e8;
+
+                            .marketPlace-button__lot-bid {
+                                width: 14.25rem;
+                                height: 3.125rem;
+                                font-weight: 500;
+                                font-style: normal;
+                                font-size: .875rem;
+                                --color: #101010;
+                                --background-color: #fcfcfc;
+                                --color-hover: #fcfcfc;
+                                --background-color-hover: #3d82d5;
+                                border-radius: .5rem;
+                                border: .0625rem solid #e8e8e8;
+                                justify-content: flex-start;
+                                align-items: center;
+                                gap: .75rem;
+                                padding: 0 1.0625rem;
+
+                                transition: all .2s ease-in-out;
+                                color: var(--color);
+                                background-color: var(--background-color);
+                                display: flex;
+
+                                &:hover {
+                                    cursor: pointer;
+                                    color: var(--color-hover);
+                                    background-color: var(--background-color-hover);
+
+                                    svg {
+                                        rect {
+                                            fill: #fcfcfc;
+                                        }
+
+                                        path {
+                                            fill: #3d82d5;
+                                        }
+                                    }
+                                }
+
+                                svg {
+                                    width: 1rem;
+                                    height: 1rem;
+
+                                    rect, path {
+                                        transition: all .2s ease-in-out;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

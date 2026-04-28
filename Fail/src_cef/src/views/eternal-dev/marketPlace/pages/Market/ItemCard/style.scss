@@ -1,0 +1,405 @@
+.marketPlace {
+    .container__inner {
+        height: 100%;
+        width: 100%;
+        border-radius: 0.5rem;
+        border: 1px solid rgb(232, 232, 232);
+        background-color: rgb(255, 255, 255);
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 0.35fr 0.65fr;
+        position: relative;
+
+        &.no-right {
+            width: 50%;
+            grid-template-columns: 1fr;
+            overflow: hidden;
+        }
+
+        &__left-side {
+            border-right: 1px solid rgb(232, 232, 232);
+            height: 100%;
+
+            .item-info {
+                &__container {
+                    padding: 1.375rem 1.875rem;
+
+                    .platform-interaction {
+                        margin-top: 2.5625rem;
+
+                        &__text {
+                            font-weight: 500;
+                            font-style: normal;
+                            font-size: 0.875rem;
+
+                            margin-top: 1.25rem;
+                            color: rgba(15, 15, 15, 0.5);
+                            line-height: 1.25rem;
+                        }
+
+                        &__button {
+                            height: 2.625rem;
+                            width: 100%;
+                            padding: 0px 0.9375rem;
+                            display: flex;
+                            align-items: center;
+                            justify-content: flex-start;
+                            gap: 0.625rem;
+                            border-radius: 0.5rem;
+                            transition: 0.2s ease-in-out;
+                            --text-color: hsla(0, 0%, 6%, .5);
+                            --bg-color: #fcfcfc;
+                            --icon-color: hsla(0, 0%, 6%, .25);
+                            --border-color: #e8e8e8;
+                            border: var(--border-color) 1px solid;
+                            color: var(--text-color);
+                            background-color: var(--bg-color);
+
+                            font-weight: 500;
+                            font-style: normal;
+                            font-size: 0.875rem;
+
+                            &.disabled {
+                                opacity: 0.5;
+                                pointer-events: none;
+                            }
+
+                            &.add-lot {
+                                --text-color: #fcfcfc;
+                                --icon-color: #fcfcfc;
+                                --border-color: transparent;
+                                --bg-color: #3d82d5;
+
+                                &:hover:not(.disabled) {
+                                    --text-color: #fcfcfc;
+                                    --icon-color: #fcfcfc;
+                                    --border-color: transparent;
+                                    --bg-color: #346fb5;
+                                }
+                            }
+
+                            &.remove-lot {
+                                --text-color: hsla(0, 0%, 6%, .5);
+                                --icon-color: hsla(0, 0%, 6%, .5);
+                                --border-color: #e8e8e8;
+                                --bg-color: #fcfcfc;
+
+                                &:hover:not(.disabled) {
+                                    --text-color: #fcfcfc;
+                                    --icon-color: #fcfcfc;
+                                    --border-color: transparent;
+                                    --bg-color: #c14242;
+                                }
+                            }
+
+                            svg {
+                                width: 0.875rem;
+                                height: 0.875rem;
+                                
+                                path {
+                                    transition: 0.2s ease-in-out;
+                                    fill: var(--icon-color);
+                                }
+                            }
+                        }
+
+                        &__buttons {
+                            display: grid ;
+                            gap: 0.9375rem;
+                            grid-template-columns: 1fr 1fr;
+
+                            &__text {
+                                font-weight: 500;
+                                font-style: normal;
+                                font-size: 0.875rem;
+                            }
+                        }
+                    }
+
+                    &__title {
+                        font-weight: 900;
+                        font-style: normal;
+                        font-size: 1rem;
+                        color: rgba(15, 15, 15, 0.85);
+                    }
+
+                    &__rows {
+                        margin-top: 1.25rem;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 0.9375rem;
+
+                        .info__row {
+                            width: 100%;
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+
+                            .info__column {
+                                display: flex;
+                                gap: 0.5625rem;
+
+                                &__label {
+                                    font-weight: 500;
+                                    font-style: normal;
+                                    font-size: 0.875rem;
+                                    color: rgba(15, 15, 15, 0.5);
+                                }
+                                &__value {
+                                    font-weight: 900;
+                                    font-style: normal;
+                                    font-size: 0.875rem;
+                                    color: rgb(16, 16, 16);
+                                }
+                            }
+                        }
+                    }
+
+                    &__description {
+                        margin-top: 2rem;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 0.875rem;
+
+                        &__label {
+                            font-weight: 900;
+                            font-style: normal;
+                            font-size: 1rem;
+                            color: rgba(15, 15, 15, 0.9);
+                        }
+
+                        &__value {
+                            font-weight: 500;
+                            font-style: normal;
+                            font-size: 0.875rem;
+                            color: rgba(15, 15, 15, 0.75);
+                        }
+                    }
+                }
+                &__header {
+                    width: 100%;
+                    background-color: rgba(15, 15, 15, 0.1);
+                    height: 17.6875rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    position: relative;
+
+                    &-image {
+                        position: absolute;
+                        width: 80%;
+                        height: 80%;
+                        background-position: 50% center;
+                        background-repeat: no-repeat;
+                        background-size: contain;
+                    }
+
+                    .favorite-button {
+                        z-index: 3;
+                        height: 2.5rem;
+                        width: 2.5rem;
+                        border-radius: 50%;
+                        position: absolute;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        transition: 0.2s ease-in-out;
+                        background-color: rgba(240, 240, 240, 0.8);
+                        top: 0.9375rem;
+                        right: 1.25rem;
+
+                        cursor: pointer;
+
+                        &.active {
+                            visibility: visible;
+                            opacity: 1;
+                            background-color: rgb(61, 130, 213) !important;
+        
+                            svg {
+                                opacity: 1;
+        
+                                path {
+                                    fill: rgb(252, 252, 252) !important;
+                                }
+                            }
+                        }
+
+                        &:not(.active):hover {
+                            background-color: rgb(252, 252, 252) !important;
+
+                            svg {
+                                opacity: 1;
+
+                                path {
+                                    fill: rgb(61, 130, 213) !important;
+                                }
+                            }
+                        }
+                        
+                        svg {
+                            transition: 0.2s ease-in-out;
+                            opacity: 0.35;
+                            width: 1rem;
+                            height: 1rem;
+
+                            path {
+                                transition: 0.2s ease-in-out;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        &__right-side {
+            display: flex;
+            flex-direction: column;
+            right: 0px;
+            width: 65%;
+            position: absolute;
+            height: 100%;
+
+            .lot-list {
+                z-index: 4;
+                background-color: rgb(252, 252, 252);
+                height: 57%;
+                max-height: 57%;
+                min-height: 57%;
+                overflow: hidden;
+                border-bottom: .0625rem solid rgb(232, 232, 232);
+
+                &__table {
+                    height: 100%;
+                    z-index: 2;
+                    display: flex;
+                    flex-direction: column;
+                    background-color: rgb(252, 252, 252);
+                    position: relative;
+                    overflow: hidden;
+
+                    .table__row {
+                        transition: 0.2s ease-in-out;
+                        border-bottom: .0625rem solid rgb(232, 232, 232);
+                        align-items: center;
+                        color: rgb(16, 16, 16);
+                        font-weight: 500;
+                        font-style: normal;
+                        font-size: 0.875rem;
+                        display: grid;
+                        grid-template-columns: 120fr 175fr 105fr 120fr 110fr 150fr 120fr;
+                        height: 2.9375rem;
+                        min-height: 2.9375rem;
+                        max-height: 2.9375rem;
+
+                        &.header {
+                            background-color: rgb(255, 255, 255);
+                            border-bottom: .0625rem solid rgb(232, 232, 232);
+                        }
+
+                        .table-column {
+                            height: 100%;
+                            width: 100%;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 0.3125rem;
+                            text-align: center;
+                            overflow: hidden;
+
+                            &__icon {
+                                width: 0.875rem;
+                                height: 0.875rem;
+                                cursor: pointer;
+
+                                svg {
+                                    transform: rotate(90deg);
+                                    transition: transform 0.2s;
+                                }
+                            }
+                        }
+                    }
+
+                    .table__rows-container {
+                        display: flex;
+                        flex-direction: column;
+                        max-height: 100%;
+                        overflow-y: auto;
+
+                        &::-webkit-scrollbar {
+                            width: 0.1875rem;
+                            background-color: rgb(232, 232, 232);
+                        }
+                        
+                        &::-webkit-scrollbar-thumb {
+                            background-color: rgba(0, 0, 0, 0.1);
+                        }
+
+                        .table__row {
+                            transition: 0.2s ease-in-out;
+                            border-bottom: 1px solid rgb(232, 232, 232);
+                            align-items: center;
+                            color: rgb(16, 16, 16);
+                            font-family: var(--IntegratedFont), sans-serif;
+                            font-weight: 500;
+                            font-style: normal;
+                            font-size: 0.875rem;
+                            display: grid;
+                            grid-template-columns: 120fr 175fr 105fr 120fr 110fr 150fr 120fr;
+                            height: 2.9375rem;
+                            min-height: 2.9375rem;
+                            max-height: 2.9375rem;
+                            z-index: 2;
+                            background-color: rgb(252, 252, 252);
+
+                            &:hover {
+                                background-color: rgb(242, 242, 242);
+                            }
+
+                            &__author {
+                                font-weight: 900;
+                                color: rgb(61, 130, 213);
+
+                                .table-column__button {
+                                    color: rgb(193, 66, 66);
+                                    background: none;
+                                    font-weight: 500;
+
+                                    &:hover {
+                                        color: rgb(252, 252, 252);
+                                        background-color: rgb(193, 66, 66) !important;
+                                    }
+                                }
+                            }
+
+                            .table-column {
+                                height: 100%;
+                                width: 100%;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                gap: 0.3125rem;
+                                text-align: center;
+                                overflow: hidden;
+
+                                &:not(:first-child) {
+                                    border-left: .0625rem solid rgb(232, 232, 232);
+                                }
+
+                                &__button {
+                                    transition: 0.2s ease-in-out;
+                                    cursor: pointer;
+                                    background: none;
+                                   
+                                    &:hover {
+                                        background-color: rgb(232, 232, 232);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

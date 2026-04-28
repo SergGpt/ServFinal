@@ -1,0 +1,81 @@
+{
+  "storage_positions": [
+    {
+      "position": {
+        "x": -826.19,
+        "y": -757.41,
+        "z": 22.31
+      },
+      "range": 25.0,
+      "label_position": {
+        "x": -846.72,
+        "y": -750.43,
+        "z": 24.1
+      }
+    }
+  ],
+  "testdrive_positions": [
+    {
+      "position": {
+        "x": -816.0768,
+        "y": -743.8378,
+        "z": 23.710386
+      },
+      "heading": -170.0
+    }
+  ],
+  "interior_positions": [
+    {
+      "name": "Аукцион",
+      "blip_sprite": 525,
+      "blip_color": 4,
+      "blip_scale": 0.65,
+      "exterior_position": {
+        "x": -827.46,
+        "y": -699.8,
+        "z": 28.05
+      },
+      "interior_position": {
+        "x": -1159.13,
+        "y": -385.77,
+        "z": -162.37
+      },
+      "marker_color": {
+        "Red": 52,
+        "Green": 152,
+        "Blue": 219,
+        "Alpha": 100
+      },
+      "marker_scale": 1.0,
+      "dimension": 3000
+    }
+  ],
+  "auction_positions": [
+    {
+      "position": {
+        "x": -1138.45,
+        "y": -391.86,
+        "z": -162.0
+      },
+      "range": 5.0,
+      "dimension": 3000
+    }
+  ],
+  "app": {
+    "marketPercent": 0.0001,
+    "maxHours": 120,
+    "minHours": 5,
+    "minPriceMultiplier": 0.5,
+    "priceHighLimit": 2500000,
+    "priceLowLimit": 40000,
+    "removeLotPrice": 1000,
+    "servicePercent": 0.01,
+    "timeRuleToAddByBet": 60,
+    "timeAddAuctionByBet": 30,
+    "auctionTime": 12,
+	  "betStep": 100000
+  },
+  "testdrive_time": 300,
+  "need_nearest_autoshop_for_testdrive": true,
+  "storage_slots": 300
+}

@@ -1,0 +1,137 @@
+@font-face {
+    font-family: ProximaNova-Condensed;
+    src: url(./ProximaNovaCond-Regular.ttf);
+    font-weight: 400;
+    font-style: normal
+}
+
+@font-face {
+    font-family: ProximaNova-Condensed;
+    src: url(./ProximaNovaCond-Light.ttf);
+    font-weight: 100;
+    font-style: normal
+}
+
+@font-face {
+    font-family: ProximaNova-Condensed;
+    src: url(./ProximaNovaCond-LightIt.ttf);
+    font-weight: 100;
+    font-style: italic
+}
+
+@font-face {
+    font-family: ProximaNova-Condensed;
+    src: url(./ProximaNovaCond-Semibold.ttf);
+    font-weight: 500;
+    font-style: normal
+}
+
+@font-face {
+    font-family: ProximaNova-ExtraCondensed;
+    src: url(./ProximaNovaExCn-Regular.ttf);
+    font-weight: 400;
+    font-style: normal
+}
+
+@font-face {
+    font-family: ProximaNova-ExtraCondensed;
+    src: url(./ProximaNovaExCn-Light.ttf);
+    font-weight: 100;
+    font-style: normal
+}
+
+@font-face {
+    font-family: ProximaNova-ExtraCondensed;
+    src: url(./ProximaNovaExCn-Semibold.ttf);
+    font-weight: 500;
+    font-style: normal
+}
+
+@font-face {
+    font-family: ProximaNova-ExtraCondensed;
+    src: url(./ProximaNovaExCn-Bold.ttf);
+    font-weight: 900;
+    font-style: normal
+}
+
+@font-face {
+    font-family: ProximaNova;
+    src: url(./ProximaNova-Regular.ttf);
+    font-weight: 400;
+    font-style: normal
+}
+
+@font-face {
+    font-family: ProximaNova;
+    src: url(./ProximaNova-Regular-Italic.ttf);
+    font-weight: 400;
+    font-style: italic
+}
+
+@font-face {
+    font-family: ProximaNova;
+    src: url(./ProximaNova-Semibold.ttf);
+    font-weight: 500
+}
+
+@font-face {
+    font-family: ProximaNova;
+    src: url(./ProximaNova-SemiboldIt.ttf);
+    font-weight: 500;
+    font-style: italic
+}
+
+@font-face {
+    font-family: ProximaNova;
+    src: url(./ProximaNova-Light.ttf);
+    font-weight: 100
+}
+
+@font-face {
+    font-family: ProximaNova;
+    src: url(./ProximaNova-LightItalic.ttf);
+    font-weight: 100;
+    font-style: italic
+}
+
+@font-face {
+    font-family: ProximaNova;
+    src: url(./ProximaNova-Bold.ttf);
+    font-weight: 900;
+    font-style: normal
+}
+
+@font-face {
+    font-family: ProximaNova;
+    src: url(./ProximaNova-BoldItalic.ttf);
+    font-weight: 900;
+    font-style: italic
+}
+
+@font-face {
+    font-family: ProximaNova;
+    src: url(./ProximaNova-Extrabld.ttf);
+    font-weight: 700;
+    font-style: normal
+}
+
+@font-face {
+    font-family: ProximaNova;
+    src: url(./ProximaNova-ExtraBold-Italic.ttf);
+    font-weight: 700;
+    font-style: italic
+}
+
+@font-face {
+    font-family: ProximaNovaBlack;
+    src: url(./ProximaNova-Black.ttf);
+    font-weight: 400;
+    font-style: normal
+}
+
+@font-face {
+    font-family: ProximaNova;
+    src: url(./ProximaNova-Thin.ttf);
+    font-weight: 300;
+    font-style: normal
+}

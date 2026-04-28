@@ -1,0 +1,216 @@
+.marketPlace .page-data.auction {
+    .vehicle-info {
+        position: relative;
+        width: 100%;
+
+        .additional-info {
+            text-align: center;
+            margin-top: 1.85185vh;
+
+            &__date {
+                gap: 0.740741vh;
+            }
+
+            &__second-row {
+                text-align: center;
+                margin-top: 1.38889vh;
+                gap: 1.85185vh;
+                font-weight: 500;
+                font-style: normal;
+                font-size: 1.2963vh;
+                line-height: 1.57407vh;
+                display: flex;
+
+                .column {
+                    display: flex;
+                    gap: 0.740741vh;
+                }
+            }
+
+            &__label {
+                color: rgba(15, 15, 15, 0.5);
+            }
+
+            &__value {
+                color: rgb(16, 16, 16);
+                font-weight: 900;
+            }
+
+            &__counters {
+                margin-left: auto;
+                color: rgba(15, 15, 15, 0.5);
+                display: flex;
+                gap: 1.38889vh;
+
+                .counter {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.555556vh;
+
+                    svg {
+                        opacity: 0.25;
+                        width: 1.2963vh;
+                        height: 1.2963vh;
+                    }
+                }
+            }
+        }
+
+        .title {
+            display: flex;
+            align-items: center;
+            text-transform: uppercase;
+            font-weight: 900;
+            font-style: normal;
+            font-size: 2.03704vh;
+            line-height: 2.5vh;
+
+            .price {
+                white-space: nowrap;
+                margin-left: auto;
+                display: flex;
+                align-items: center;
+                gap: 0.648148vh;
+                text-transform: lowercase;
+
+                &__gray {
+                    font-weight: 500;
+                    font-style: normal;
+                    font-size: 1.2963vh;
+                    color: rgba(15, 15, 15, 0.5);
+                }
+
+                &__second-part {
+                    color: rgb(61, 130, 213);
+                }
+
+                &__arrow-icon {
+                    margin-left: 0.555556vh;
+                    height: 0.925926vh;
+                    width: 0.555556vh;
+                }
+            }
+        }
+
+        .badges {
+            display: flex;
+            gap: 1.85185vh;
+            align-items: center;
+            margin-top: 1.38889vh;
+
+            .gov-price {
+                margin-left: auto;
+                display: flex;
+                gap: 0.740741vh;
+                align-items: center;
+                font-weight: 500;
+                font-style: normal;
+                font-size: 1.48148vh;
+                line-height: 1.85185vh;
+                color: rgb(16, 16, 16);
+
+                &__label {
+                    opacity: 0.5;
+                }
+
+                &__value {
+                    font-weight: 900;
+                }
+            }
+
+            .gas-type {
+                display: flex;
+                align-items: center;
+                gap: 0.740741vh;
+
+                &__icon {
+                    opacity: 0.25;
+                    width: 1.66667vh;
+                    height: 1.66667vh;
+                }
+
+                &__badge {
+                    width: 5.37037vh;
+                    height: 1.85185vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 0.277778vh;
+                    font-weight: 500;
+                    font-style: normal;
+                    font-size: 0.925926vh;
+
+                    &-regular {
+                        background-color: #6b6b6b;
+                        color: #fcfcfc;
+                    }
+
+                    &-premium {
+                        background-color: #c14242;
+                        color: #fff
+                    }
+
+                    &-plus {
+                        background-color: #3d82d5;
+                        color: #fff
+                    }
+
+                    &-diesel {
+                        background-color: #849d63;
+                        color: #fff
+                    }
+
+                    &-electro {
+                        background-color: #00cf92;
+                        color: #fcfcfc
+                    }
+                }
+            }
+
+            .badge {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.648148vh;
+                height: 2.59259vh;
+                padding: 0px 0.648148vh;
+                border-radius: 0.37037vh;
+                background-color: rgb(239, 239, 239);
+                color: rgb(16, 16, 16);
+                font-weight: 900;
+                font-style: normal;
+                font-size: 1.2037vh;
+
+                &.mileage {
+                    padding-right: 0.833333vh;
+                }
+
+                &.kg {
+                    gap: 0.462963vh;
+                    padding-left: 0.925926vh;
+
+                    svg {
+                        path {
+                            fill: rgb(252, 252, 252);
+                        }
+
+                        rect {
+                            fill: rgb(61, 130, 213);
+                            opacity: 1;
+                        }
+                    }
+                }
+
+                svg {
+                    width: 1.2963vh;
+                    height: 1.2963vh;
+                    opacity: 1;
+
+                    path {
+                        fill: rgb(61, 130, 213);
+                    }
+                }
+            }
+        }
+    }
+}

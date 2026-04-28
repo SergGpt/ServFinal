@@ -1,0 +1,142 @@
+.marketPlace .page-data.auction {
+    .house-info {
+        position: relative;
+        width: 100%;
+
+        .title {
+            display: flex;
+            align-items: center;
+            text-transform: uppercase;
+            font-weight: 900;
+            font-style: normal;
+            font-size: 2.03704vh;
+            line-height: 2.5vh;
+
+            .price {
+                white-space: nowrap;
+                margin-left: auto;
+                display: flex;
+                align-items: center;
+
+                &__second-part {
+                    color: rgb(61, 130, 213);
+                }
+
+                &__arrow-icon {
+                    margin-left: 0.555556vh;
+                    height: 0.925926vh;
+                    width: 0.555556vh;
+                }
+            }
+        }
+
+        .badges {
+            display: flex;
+            gap: 0.462963vh;
+            align-items: center;
+            margin-top: 1.38889vh;
+
+            .badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.648148vh;
+                padding: 0.648148vh 0.925926vh 0.648148vh 0.648148vh;
+                border-radius: 0.37037vh;
+                background-color: rgb(239, 239, 239);
+                color: rgb(16, 16, 16);
+                font-weight: 500;
+                font-style: normal;
+                font-size: 1.2037vh;
+                line-height: 1.48148vh;
+
+                svg {
+                    width: 1.2963vh;
+                    height: 1.2963vh;
+                    opacity: 0.5;
+
+                    path {
+                        fill: rgb(16, 16, 16);
+                    }
+                }
+            }
+
+            .gov-price {
+                margin-left: auto;
+                display: flex;
+                gap: 0.740741vh;
+                align-items: center;
+                font-weight: 500;
+                font-style: normal;
+                font-size: 1.48148vh;
+                line-height: 1.85185vh;
+                color: rgb(16, 16, 16);
+
+                &__label {
+                    opacity: 0.5;
+                }
+
+                &__value {
+                    font-weight: 900;
+                }
+            }
+        }
+
+        .additional-info {
+            text-align: center;
+            margin-top: 1.85185vh;
+
+            &__label {
+                color: rgba(15, 15, 15, 0.5);
+            }
+
+            &__value {
+                color: rgb(16, 16, 16);
+                font-weight: 900;
+            }
+
+            &__date {
+                font-weight: 500;
+                font-style: normal;
+                font-size: 1.2963vh;
+                line-height: 1.57407vh;
+                display: flex;
+                gap: 0.740741vh;
+            }
+
+            &__counters {
+                margin-left: auto;
+                color: rgba(15, 15, 15, 0.5);
+                display: flex;
+                gap: 1.38889vh;
+
+                .counter {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.555556vh;
+
+                    svg {
+                        opacity: 0.25;
+                        width: 1.2963vh;
+                        height: 1.2963vh;
+                    }
+                }
+            }
+
+            &__second-row {
+                text-align: center;
+                font-weight: 500;
+                font-style: normal;
+                font-size: 1.2963vh;
+                line-height: 1.85185vh;
+                margin-top: 1.38889vh;
+                display: flex;
+                gap: 1.85185vh;
+
+                .column {
+                    display: flex;
+                    gap: 0.740741vh;
+                }
+            }
+        }
+    }
+}

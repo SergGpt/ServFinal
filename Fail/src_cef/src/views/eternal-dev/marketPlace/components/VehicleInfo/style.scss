@@ -1,0 +1,72 @@
+.marketPlace {
+    .state-info {
+        text-align: left;
+        margin-top: 2.8703703704vh;
+
+        &__title {
+            color: hsla(0, 0%, 6%, .85);
+            font-weight: 900;
+            font-style: normal;
+            font-size: 1.4814814815vh;
+            line-height: 2.037037037vh;
+        }
+
+        &__cards {
+            margin-top: 1.6666666667vh;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: .9259259259vh;
+
+            .card {
+                height: 8.3333333333vh;
+                max-height: 8.3333333333vh;
+                min-height: 8.3333333333vh;
+                width: 100%;
+                min-height: 0;
+                min-width: 0;
+                overflow: hidden;
+                padding: 1.4814814815vh;
+                border-radius: .5555555556vh;
+                background-color: #fcfcfc;
+                border: .0625rem solid #e8e8e8;
+                display: flex;
+                flex-direction: column;
+
+                &__title {
+                    font-weight: 500;
+                    font-style: normal;
+                    font-size: 1.2962962963vh;
+                    color: #101010;
+                    white-space: nowrap;
+                    text-overflow: ellipsis;
+                    overflow: hidden;
+                }
+
+                &__value {
+                    display: flex;
+                    align-items: center;
+                    gap: .7407407407vh;
+                    white-space: nowrap;
+                    font-weight: 900;
+                    font-style: normal;
+                    font-size: 1.4814814815vh;
+                    color: #101010;
+                    margin-top: auto;
+
+                    .vehicle-icon {
+                        display: flex;
+
+                        svg {
+                            height: 1.3888888889vh;
+                            max-height: 1.3888888889vh;
+                            min-height: 1.3888888889vh;
+                            width: 1.3888888889vh;
+                            max-width: 1.3888888889vh;
+                            min-width: 1.3888888889vh;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

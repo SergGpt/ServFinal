@@ -1,0 +1,98 @@
+.marketPlace {
+    .market-modal-container {
+        .market-prolong {
+            &__title {
+                font-weight: 900;
+                font-style: normal;
+                font-size: 1.8518518519vh;
+                color: #101010;
+            }
+
+            &__text {
+                margin-top: 4.8148148148vh;
+                line-height: 1.8518518519vh;
+                font-weight: 500;
+                font-style: normal;
+                font-size: 1.2962962963vh;
+                color: hsla(0, 0%, 6%, .5);
+            }
+
+            &__to-pay {
+                margin-top: 4.537037037vh;
+                display: flex;
+                flex-direction: column;
+                gap: 1.0185185185vh;
+
+                .to-pay {
+                    &__title {
+                        font-weight: 500;
+                        font-style: normal;
+                        font-size: 1.2962962963vh;
+                        color: hsla(0, 0%, 6%, .5);
+                    }
+
+                    &__value {
+                        display: flex;
+                        align-items: center;
+                        justify-content: flex-start;
+                        gap: .75rem;
+                        font-weight: 900;
+                        font-style: normal;
+                        font-size: 2.037037037vh;
+                        color: #101010;
+                    }
+                }
+            }
+
+            &__payment {
+                margin-top: 3.8888888889vh;
+
+                .payment__button {
+                    transition: all .2s ease-in-out;
+                    height: 5.5555555556vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 1.1111111111vh;
+                    color: #101010;
+                    font-weight: 500;
+                    font-style: normal;
+                    font-size: 1.4814814815vh;
+                    background-color: #fcfcfc;
+                    --icon-color: #3d82d5;
+
+                    &:hover {
+                        cursor: pointer;
+                        --icon-color: #fcfcfc;
+                        color: #fcfcfc;
+                        background-color: #3d82d5;
+                    }
+
+                    svg {
+                        height: 1.4814814815vh;
+                        width: 1.4814814815vh;
+
+                        path {
+                            transition: all .2s ease-in-out;
+                            fill: var(--icon-color);
+                        }
+                    }
+
+                    &:not(:first-child) {
+                        border-left: .0625rem solid #e8e8e8;
+                    }
+
+                    &-container {
+                        margin-top: 3.8888888889vh;
+                        display: grid;
+                        grid-auto-flow: column;
+                        grid-auto-columns: 1fr;
+                        border-radius: .7407407407vh;
+                        border: 1px solid #e8e8e8;
+                        overflow: hidden;
+                    }
+                }
+            }
+        }
+    }
+}

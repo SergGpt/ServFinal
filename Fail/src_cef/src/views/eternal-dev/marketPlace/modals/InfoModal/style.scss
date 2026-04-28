@@ -1,0 +1,65 @@
+.marketPlace {
+    .market-modal-container {
+        .market-remove {
+            &__title {
+                font-weight: 900;
+                font-style: normal;
+                font-size: 1.8518518519vh;
+                color: #101010;
+            }
+
+            &__text {
+                margin-top: 3.8888888889vh;
+                line-height: 1.8518518519vh;
+                font-weight: 500;
+                font-style: normal;
+                font-size: 1.2962962963vh;
+                color: hsla(0, 0%, 6%, .5);
+            }
+
+            &__to-pay {
+                margin-top: 2.87037vh;
+                display: flex;
+                flex-direction: column;
+                gap: 1.01852vh;
+
+                .to-pay__label {
+                    font-weight: 500;
+                    font-style: normal;
+                    font-size: 1.2963vh;
+                    color: rgba(15, 15, 15, 0.5);
+                }
+
+                .to-pay__value {
+                    font-weight: 900;
+                    font-style: normal;
+                    font-size: 2.03704vh;
+                    color: rgb(16, 16, 16);
+                }
+            }
+
+            &__button {
+                margin-top: 5.6481481481vh;
+                height: 5.5555555556vh;
+                width: 23.1481481481vh;
+                background-color: #fcfcfc;
+                border: 1px solid #e8e8e8;
+                border-radius: .7407407407vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 500;
+                font-style: normal;
+                font-size: 1.4814814815vh;
+                color: hsla(0, 0%, 6%, .5);
+                transition: all .2s ease-in-out;
+
+                &:hover {
+                    background-color: #c14242;
+                    color: #fcfcfc;
+                    border: none;
+                }
+            }
+        }
+    }
+}

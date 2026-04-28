@@ -1,0 +1,78 @@
+.marketPlace .page-data.auction {
+    .business-info {
+        position: relative;
+        width: 100%;
+
+        .title {
+            display: flex;
+            align-items: center;
+            text-transform: uppercase;
+            font-weight: 900;
+            font-style: normal;
+            font-size: 2.037037037vh;
+            line-height: 2.5vh;
+
+            .price {
+                white-space: nowrap;
+                margin-left: auto;
+                display: flex;
+                align-items: center;
+            }
+        }
+
+        .additional-info {
+            margin-top: 1.3888888889vh;
+            text-align: center;
+
+            &__label {
+                color: hsla(0, 0%, 6%, .5);
+            }
+            
+            &__value {
+                color: #101010;
+                font-weight: 900;
+            }
+
+            &__second-row {
+                text-align: center;
+                line-height: 1.8518518519vh;
+                margin-top: 1.3888888889vh;
+                gap: 1.8518518519vh;
+
+                font-weight: 500;
+                font-style: normal;
+                font-size: 1.2962962963vh;
+                display: flex;
+
+                &.first {
+                    margin-top: 1.8518518519vh;
+                }
+                
+                .column {
+                    display: flex;
+                    gap: .7407407407vh;
+                }
+
+                .gov-price {
+                    margin-left: auto;
+                    display: flex;
+                    gap: .7407407407vh;
+                    align-items: center;
+                    font-weight: 500;
+                    font-style: normal;
+                    font-size: 1.4814814815vh;
+                    line-height: 1.8518518519vh;
+                    color: #101010;
+
+                    &__label {
+                        opacity: .5;
+                    }
+
+                    &__value {
+                        font-weight: 900;
+                    }
+                }
+            }
+        }
+    }
+}
