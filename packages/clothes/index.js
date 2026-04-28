@@ -22,6 +22,43 @@ function ensureSex(sex, list) {
     }
 }
 
+function getShoesUniqueKey(item) {
+    const sex = item.sex != null ? item.sex : '';
+    const variation = item.variation != null ? item.variation : '';
+    const itemClass = item.class != null ? item.class : '';
+    const textures = Array.isArray(item.textures) ? JSON.stringify(item.textures) : String(item.textures || '');
+    return `${sex}|${variation}|${itemClass}|${textures}`;
+}
+
+async function loadShoesFromAllKnownTables() {
+    const shoes = await db.Models.ClothesShoe.findAll();
+    const uniqueKeys = new Set(shoes.map(getShoesUniqueKey));
+
+    // Поддержка старой/альтернативной таблицы с множественным именем.
+    if (db.sequelize && db.sequelize.models && !db.sequelize.models.ClothesShoePlural) {
+        db.sequelize.define("ClothesShoePlural", db.Models.ClothesShoe.rawAttributes, {
+            timestamps: false,
+            tableName: "clothesshoes"
+        });
+    }
+
+    try {
+        if (db.sequelize?.models?.ClothesShoePlural) {
+            const extraShoes = await db.sequelize.models.ClothesShoePlural.findAll();
+            extraShoes.forEach(item => {
+                const key = getShoesUniqueKey(item);
+                if (uniqueKeys.has(key)) return;
+                uniqueKeys.add(key);
+                shoes.push(item);
+            });
+        }
+    } catch (e) {
+        // Если альтернативной таблицы нет — это нормальный сценарий.
+    }
+
+    return shoes;
+}
+
 module.exports = {
     // Список одежды
     list: {
@@ -76,7 +113,7 @@ module.exports = {
             this.list[el.sex]["pants"].push(el);
         });
 
-        var shoes = await db.Models.ClothesShoe.findAll();
+        var shoes = await loadShoesFromAllKnownTables();
         shoes.forEach(el => {
             ensureSex(el.sex, this.list);
             this.list[el.sex]["shoes"].push(el);
