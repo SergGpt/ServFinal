@@ -56,6 +56,18 @@ function getClientClothesListForPlayer(player) {
     return result;
 }
 
+function toClientRows(list) {
+    if (!Array.isArray(list)) return [];
+    return list.map((model) => {
+        const data = model?.dataValues || model || {};
+        const row = {};
+        Object.keys(data).forEach((key) => {
+            row[key] = model[key];
+        });
+        return row;
+    });
+}
+
 module.exports = {
     "init": async () => {
         await clothingShop.init();
@@ -75,16 +87,20 @@ module.exports = {
 
             player.currentClothingShopId = shape.clothingShopId;
             player.dimension = player.id + 1;
-            if (player.hasValidClothesData) {
-                mp.events.call('clothingShop.enter', player);
-            } else {
-                player.call('clothingShop.player.freeze');
-                let list = getClientClothesListForPlayer(player);
-                for (let key in list) {
-                    player.call('clothingShop.list.get', [key, list[key]]);
+            player.call('clothingShop.player.freeze');
+            let list = getClientClothesListForPlayer(player);
+            if (!Array.isArray(list.shoes) || !list.shoes.length) {
+                try {
+                    const shoesDirect = await db.Models.ClothesShoe.findAll();
+                    if (shoesDirect.length) list.shoes = toClientRows(shoesDirect);
+                } catch (e) {
+                    console.log(`[CLOTHINGSHOP] direct shoes load error: ${e.message}`);
                 }
-                player.hasValidClothesData = true;
             }
+            for (let key in list) {
+                player.call('clothingShop.list.get', [key, list[key]]);
+            }
+            player.hasValidClothesData = true;
         }
     },
     "clothingShop.enter": (player) => {
