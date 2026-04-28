@@ -1,16 +1,33 @@
 # React build (Windows)
 
-If `npm install` failed before, do a clean install:
+## 1) Где запускать команды
+Запускайте команды из папки `ServFinall\react`.
+
+Если `pwd`/`Get-Location` уже показывает `...\react`, **не делайте повторно** `cd react`.
+
+## 2) Node.js
+- Рекомендуется Node 18 LTS.
+- Если `nvm` не установлен — это нормально, просто поставьте Node 18 вручную и откройте новый PowerShell.
+
+Проверка:
 
 ```powershell
-cd react
-nvm use 18
-Remove-Item -Recurse -Force node_modules
+node -v
+npm -v
+```
+
+## 3) Чистая установка и сборка
+
+```powershell
+# Вы уже в папке react
+Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
 Remove-Item -Force package-lock.json -ErrorAction SilentlyContinue
 npm install
 npm run build
+npm run build:verify-marketplace
 ```
 
-Notes:
-- The project now uses `sass` (Dart Sass), so Python/node-gyp for `node-sass` is not required.
-- Output bundle is generated into `client_packages/browser/build`.
+## 4) Что важно
+- Проект использует `sass` (Dart Sass), поэтому Python/node-gyp для `node-sass` не нужен.
+- Итоговый бандл лежит в `client_packages/browser/build`.
+- Команда `npm run build:verify-marketplace` проверит, что в собранном бандле есть маркеры маркетплейса.
