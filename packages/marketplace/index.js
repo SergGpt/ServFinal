@@ -11,7 +11,7 @@ let inventory;
 async function lockEntityLot(player, type, targetId) {
     if (type === "item") {
         if (!inventory || typeof inventory.getItem !== "function" || typeof inventory.deleteItem !== "function") return { error: "Система инвентаря недоступна" };
-        const selectedItem = inventory.getItem(targetId);
+        const selectedItem = inventory.getItem(player, targetId);
         if (!selectedItem || selectedItem.ownerId !== player.character.id) return { error: "Выбранный предмет не найден" };
         const payload = { itemId: selectedItem.itemId, params: selectedItem.params };
         inventory.deleteItem(player, selectedItem);
@@ -115,15 +115,15 @@ module.exports = {
 
         if (player && player.inventory && Array.isArray(player.inventory.items) && player.inventory.items.length) {
             options.item = player.inventory.items
-                .filter((it) => it && it.id && it.item)
+                 .filter((it) => it && it.id && it.item && !it.parentId)
                 .map((it) => ({ id: it.id, name: it.item.name || `Предмет #${it.id}` }));
         } else if (player && player.character) {
             const dbItems = await db.Models.CharacterInventory.findAll({
-                where: { playerId: player.character.id },
+                where: { playerId: player.character.id, parentId: null },
                 include: [{ model: db.Models.InventoryItem, as: "item" }]
             });
             options.item = dbItems
-                .filter((it) => it && it.id && it.item)
+                 .filter((it) => it && it.id && it.item && !it.parentId)
                 .map((it) => ({ id: it.id, name: it.item.name || `Предмет #${it.id}` }));
         }
 
