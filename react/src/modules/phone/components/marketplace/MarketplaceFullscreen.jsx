@@ -118,6 +118,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
     const [isSelectorOpen, setSelectorOpen] = useState(false);
     const [isCreateMode, setCreateMode] = useState(false);
     const [createError, setCreateError] = useState('');
+    const [showDebug, setShowDebug] = useState(true);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -229,6 +230,11 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                         <button style={{ border: 'none', borderRadius: 8, background: '#2d2f36', color: '#fff', padding: '10px 16px', cursor: 'pointer' }} onClick={onClose}>
                             Закрыть
                         </button>
+
+                        <button style={{ border: 'none', borderRadius: 8, background: '#7c5cff', color: '#fff', padding: '10px 12px', cursor: 'pointer' }} onClick={() => setShowDebug((v) => !v)}>
+                            {showDebug ? 'Скрыть debug' : 'Показать debug'}
+                        </button>
+
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr', minHeight: 0 }}>
@@ -263,6 +269,14 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                             <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder='Цена' style={{ ...boxStyle, width: '100%', outline: 'none' }} />
                         </div>
                         {createError && <div style={{ color: '#c93434', fontSize: 13, padding: '6px 12px' }}>{createError}</div>}
+
+                        {showDebug && <div style={{ margin: '8px 12px', padding: '10px 12px', background: '#10151f', color: '#cce3ff', borderRadius: 8, fontSize: 12, fontFamily: 'monospace' }}>
+                            <div>DEBUG marketplace</div>
+                            <div>category: {activeCategory} | type: {activeType}</div>
+                            <div>items: {sellOptions.item ? sellOptions.item.length : 0} | vehicles: {sellOptions.vehicle ? sellOptions.vehicle.length : 0} | houses: {sellOptions.house ? sellOptions.house.length : 0} | biz: {sellOptions.biz ? sellOptions.biz.length : 0}</div>
+                            <div>activeOptions: {activeOptions.length} | selectedItemId: {String(selectedItemId || '-')}</div>
+                            <div>createMode: {String(isCreateMode)} | error: {createError || '-'}</div>
+                        </div>}
 
                         <div style={cardsWrap}>
                             {renderLots.map((lot) => (
