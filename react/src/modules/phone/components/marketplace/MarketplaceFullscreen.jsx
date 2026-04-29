@@ -115,6 +115,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
     const [price, setPrice] = useState('');
     const [activeCategory, setActiveCategory] = useState('Аукция');
     const [selectedItemId, setSelectedItemId] = useState('');
+    const [isSelectorOpen, setSelectorOpen] = useState(false);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -147,6 +148,11 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
     const activeOptions = sellOptions[activeType] || [];
     const selectorPlaceholder = activeType === 'item' ? 'Выбрать предмет' : activeType === 'vehicle' ? 'Выбрать транспорт' : activeType === 'house' ? 'Выбрать недвижимость' : activeType === 'biz' ? 'Выбрать бизнес' : 'Выбрать объект';
 
+    useEffect(() => {
+        setSelectorOpen(false);
+        setSelectedItemId('');
+    }, [activeType]);
+
     const onClose = () => {
         if (typeof mp !== 'undefined' && mp.trigger) mp.trigger('marketplace.fullscreen.close');
         closeFullscreen();
@@ -164,6 +170,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
         setDescription('');
         setPrice('');
         setSelectedItemId('');
+        setSelectorOpen(false);
     };
 
     const onBuy = (id) => {
@@ -207,13 +214,30 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
 
                     <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr', minHeight: 0 }}>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr 180px', gap: 10, padding: 12, borderBottom: '1px solid #e2e4e8', background: '#fff' }}>
-                            <select value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)} style={{ ...boxStyle, width: '100%', outline: 'none' }}>
-                                <option value=''>{selectorPlaceholder}</option>
-                                {activeOptions.map((item) => (
-                                    <option key={item.id} value={item.id}>{item.name}</option>
-                                ))}
-                            </select>
-                            {!activeOptions.length && <div style={{ fontSize: 12, color: '#8a9099', display: 'flex', alignItems: 'center' }}>Нет доступных объектов для этой категории</div>}
+                            <div style={{ position: 'relative', width: '100%' }}>
+                                <button
+                                    type='button'
+                                    onClick={() => setSelectorOpen((prev) => !prev)}
+                                    style={{ ...boxStyle, width: '100%', outline: 'none', justifyContent: 'space-between', cursor: 'pointer' }}
+                                >
+                                    <span>{selectedItemId ? ((activeOptions.find((item) => String(item.id) === String(selectedItemId)) || {}).name || selectorPlaceholder) : selectorPlaceholder}</span>
+                                    <span style={{ marginLeft: 8 }}>▾</span>
+                                </button>
+                                {isSelectorOpen && (
+                                    <div style={{ position: 'absolute', top: 44, left: 0, right: 0, maxHeight: 220, overflowY: 'auto', background: '#fff', border: '1px solid #d8dde4', borderRadius: 8, zIndex: 10002 }}>
+                                        {!activeOptions.length && <div style={{ padding: '10px 12px', color: '#8a9099' }}>Нет доступных объектов для этой категории</div>}
+                                        {activeOptions.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                onClick={() => { setSelectedItemId(String(item.id)); setSelectorOpen(false); }}
+                                                style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #eef1f5' }}
+                                            >
+                                                {item.name}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder='Название лота' style={{ ...boxStyle, width: '100%', outline: 'none' }} />
                             <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder='Описание' style={{ ...boxStyle, width: '100%', outline: 'none' }} />
                             <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder='Цена' style={{ ...boxStyle, width: '100%', outline: 'none' }} />
