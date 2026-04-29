@@ -109,11 +109,12 @@ const imgStyle = {
     background: 'linear-gradient(135deg,#b6c3d6,#d5dee8)'
 };
 
-const MarketplaceFullscreen = ({ isOpen, marketplaceLots, closeFullscreen }) => {
+const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeFullscreen }) => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [price, setPrice] = useState('');
     const [activeCategory, setActiveCategory] = useState('Аукция');
+    const [selectedItemId, setSelectedItemId] = useState('');
 
     useEffect(() => {
         if (!isOpen) return;
@@ -133,12 +134,16 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, closeFullscreen }) => 
     if (!isOpen) return null;
 
     const onCreate = () => {
+        const selectedItem = inventoryItems.find((item) => String(item.id) === String(selectedItemId));
+        const finalTitle = (title || '').trim() || (selectedItem ? selectedItem.name : '');
+
         if (typeof mp !== 'undefined' && mp.trigger) {
-            mp.trigger('callRemote', 'marketplace.phone.create', title, description, price);
+            mp.trigger('callRemote', 'marketplace.phone.create', finalTitle, description, price);
         }
         setTitle('');
         setDescription('');
         setPrice('');
+        setSelectedItemId('');
     };
 
     const onBuy = (id) => {
@@ -181,7 +186,13 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, closeFullscreen }) => 
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr', minHeight: 0 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 180px', gap: 10, padding: 12, borderBottom: '1px solid #e2e4e8', background: '#fff' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr 180px', gap: 10, padding: 12, borderBottom: '1px solid #e2e4e8', background: '#fff' }}>
+                            <select value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)} style={{ ...boxStyle, width: '100%', outline: 'none' }}>
+                                <option value=''>Выбрать предмет</option>
+                                {inventoryItems.map((item) => (
+                                    <option key={item.id} value={item.id}>{item.name}</option>
+                                ))}
+                            </select>
                             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder='Название лота' style={{ ...boxStyle, width: '100%', outline: 'none' }} />
                             <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder='Описание' style={{ ...boxStyle, width: '100%', outline: 'none' }} />
                             <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder='Цена' style={{ ...boxStyle, width: '100%', outline: 'none' }} />
@@ -212,7 +223,16 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, closeFullscreen }) => 
 
 const mapStateToProps = (state) => ({
     isOpen: !!(state.info && state.info.marketplaceFullscreen),
-    marketplaceLots: state.info && Array.isArray(state.info.marketplaceLots) ? state.info.marketplaceLots : []
+    marketplaceLots: state.info && Array.isArray(state.info.marketplaceLots) ? state.info.marketplaceLots : [],
+    inventoryItems: state.inventory && Array.isArray(state.inventory.sections)
+        ? state.inventory.sections
+            .flatMap((section) => Array.isArray(section.slots) ? section.slots : [])
+            .filter((slot) => slot && slot.item)
+            .map((slot, index) => ({
+                id: slot.id || `slot-${index}`,
+                name: slot.item.name || 'Без названия'
+            }))
+        : []
 });
 
 const mapDispatchToProps = (dispatch) => ({
