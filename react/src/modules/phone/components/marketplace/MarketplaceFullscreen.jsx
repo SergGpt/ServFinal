@@ -116,6 +116,8 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
     const [activeCategory, setActiveCategory] = useState('Предметы');
     const [selectedItemId, setSelectedItemId] = useState('');
     const [isSelectorOpen, setSelectorOpen] = useState(false);
+    const [isCreateMode, setCreateMode] = useState(false);
+    const [createError, setCreateError] = useState('');
 
     useEffect(() => {
         if (!isOpen) return;
@@ -147,6 +149,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
     useEffect(() => {
         setSelectorOpen(false);
         setSelectedItemId('');
+        setCreateError('');
     }, [activeType]);
 
     if (!isOpen) return null;
@@ -157,17 +160,36 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
     };
 
     const onCreate = () => {
+        if (!isCreateMode) {
+            setCreateMode(true);
+            setCreateError('');
+            if (typeof mp !== 'undefined' && mp.trigger) mp.trigger('callRemote', 'marketplace.phone.open');
+            return;
+        }
+
         const selectedItem = activeOptions.find((item) => String(item.id) === String(selectedItemId));
         const finalTitle = (title || '').trim() || (selectedItem ? selectedItem.name : '');
+        const normalizedPrice = parseInt(String(price || '').replace(/[^\d]/g, ''), 10);
 
+        if (!selectedItemId) {
+            setCreateError('Сначала выберите объект для продажи');
+            return;
+        }
+        if (!Number.isFinite(normalizedPrice) || normalizedPrice < 1) {
+            setCreateError('Укажите корректную цену (минимум 1)');
+            return;
+        }
+
+        setCreateError('');
         if (typeof mp !== 'undefined' && mp.trigger) {
-            mp.trigger('callRemote', 'marketplace.phone.create', finalTitle, description, price, resolveLotType(), selectedItemId);
+            mp.trigger('callRemote', 'marketplace.phone.create', finalTitle, description, normalizedPrice, resolveLotType(), selectedItemId);
         }
         setTitle('');
         setDescription('');
         setPrice('');
         setSelectedItemId('');
         setSelectorOpen(false);
+        setCreateMode(false);
     };
 
     const onBuy = (id) => {
@@ -202,7 +224,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                         <div style={boxStyle}>Сортировка</div>
                         <div />
                         <button style={{ border: 'none', borderRadius: 8, background: '#3a7ed3', color: '#fff', padding: '10px 16px', cursor: 'pointer' }} onClick={onCreate}>
-                            Создать лот
+                            {isCreateMode ? 'Опубликовать' : 'Создать лот'}
                         </button>
                         <button style={{ border: 'none', borderRadius: 8, background: '#2d2f36', color: '#fff', padding: '10px 16px', cursor: 'pointer' }} onClick={onClose}>
                             Закрыть
@@ -210,7 +232,8 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr', minHeight: 0 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr 180px', gap: 10, padding: 12, borderBottom: '1px solid #e2e4e8', background: '#fff' }}>
+                        {isCreateMode && <div style={{ fontSize: 12, color: '#5c6470', padding: '8px 12px 0' }}>Режим продажи: выберите объект и заполните цену, затем нажмите «Опубликовать».</div>}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr 180px', gap: 10, padding: 12, borderBottom: '1px solid #e2e4e8', background: '#fff', opacity: isCreateMode ? 1 : 0.55, pointerEvents: isCreateMode ? 'auto' : 'none' }}>
                             <div style={{ position: 'relative', width: '100%' }}>
                                 <button
                                     type='button'
@@ -239,6 +262,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                             <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder='Описание' style={{ ...boxStyle, width: '100%', outline: 'none' }} />
                             <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder='Цена' style={{ ...boxStyle, width: '100%', outline: 'none' }} />
                         </div>
+                        {createError && <div style={{ color: '#c93434', fontSize: 13, padding: '6px 12px' }}>{createError}</div>}
 
                         <div style={cardsWrap}>
                             {renderLots.map((lot) => (
