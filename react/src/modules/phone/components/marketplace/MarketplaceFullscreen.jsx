@@ -109,7 +109,7 @@ const imgStyle = {
     background: 'linear-gradient(135deg,#b6c3d6,#d5dee8)'
 };
 
-const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeFullscreen }) => {
+const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeFullscreen, characterId }) => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [price, setPrice] = useState('');
@@ -149,6 +149,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeF
 
     const onCreate = () => {
         const selectedItem = inventoryItems.find((item) => String(item.id) === String(selectedItemId));
+        if (!selectedItemId) return;
         const finalTitle = (title || '').trim() || (selectedItem ? selectedItem.name : '');
 
         if (typeof mp !== 'undefined' && mp.trigger) {
@@ -203,7 +204,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeF
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr 180px', gap: 10, padding: 12, borderBottom: '1px solid #e2e4e8', background: '#fff' }}>
                             <select value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)} style={{ ...boxStyle, width: '100%', outline: 'none' }}>
                                 <option value=''>Выбрать предмет</option>
-                                {inventoryItems.filter((item) => item.id).map((item) => (
+                                {inventoryItems.map((item) => (
                                     <option key={item.id} value={item.id}>{item.name}</option>
                                 ))}
                             </select>
@@ -221,7 +222,11 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeF
                                         <div style={{ fontSize: 12, color: '#7a838f', marginTop: 2 }}>{lot.category}</div>
                                         <div style={{ fontSize: 27, fontWeight: 800, color: '#222f3c', marginTop: 8 }}>${lot.price}</div>
                                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                                            <button style={{ border: 'none', borderRadius: 8, background: '#3f8f3f', color: '#fff', padding: '9px 12px', cursor: 'pointer', flex: 1 }} onClick={() => onBuy(lot.id)}>Купить</button>{lot.sellerCharacterId === (typeof mp !== 'undefined' && mp.players && mp.players.local ? mp.players.local.remoteId : -1) && <button style={{ border: 'none', borderRadius: 8, background: '#50545c', color: '#fff', padding: '9px 12px', cursor: 'pointer' }} onClick={() => mp.trigger('callRemote', 'marketplace.phone.remove', lot.id)}>Снять</button>}
+                                            {lot.sellerCharacterId === characterId ? (
+                                                <button style={{ border: 'none', borderRadius: 8, background: '#50545c', color: '#fff', padding: '9px 12px', cursor: 'pointer', flex: 1 }} onClick={() => mp.trigger('callRemote', 'marketplace.phone.remove', lot.id)}>Снять</button>
+                                            ) : (
+                                                <button style={{ border: 'none', borderRadius: 8, background: '#3f8f3f', color: '#fff', padding: '9px 12px', cursor: 'pointer', flex: 1 }} onClick={() => onBuy(lot.id)}>Купить</button>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -243,10 +248,13 @@ const mapStateToProps = (state) => ({
             .flatMap((section) => Array.isArray(section.slots) ? section.slots : [])
             .filter((slot) => slot && slot.item)
             .map((slot, index) => ({
-                id: slot.id || `slot-${index}`,
-                name: slot.item.name || 'Без названия'
+                id: slot.item.id,
+                name: slot.item.name || `Предмет #${index + 1}`
             }))
+            .filter((item) => Number.isFinite(Number(item.id)) && Number(item.id) > 0)
         : []
+    ,
+    characterId: state.info && state.info.id ? state.info.id : 0
 });
 
 const mapDispatchToProps = (dispatch) => ({
