@@ -132,10 +132,6 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
         }));
     }, [marketplaceLots, activeCategory]);
 
-    if (!isOpen) return null;
-
-
-
     const resolveLotType = () => {
         if (activeCategory === 'Транспорт') return 'vehicle';
         if (activeCategory === 'Недвижимость') return 'house';
@@ -152,6 +148,8 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
         setSelectorOpen(false);
         setSelectedItemId('');
     }, [activeType]);
+
+    if (!isOpen) return null;
 
     const onClose = () => {
         if (typeof mp !== 'undefined' && mp.trigger) mp.trigger('marketplace.fullscreen.close');
