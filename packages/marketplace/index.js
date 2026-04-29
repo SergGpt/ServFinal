@@ -146,7 +146,7 @@ module.exports = {
     async sendLots(player) {
         const lots = await this.getActiveLots();
         const sellOptions = await this.getPlayerSellOptions(player);
-        player.call("marketplace.phone.data", [{ lots, sellOptions }]);
+        player.call("marketplace.phone.data", [lots, sellOptions]);
     },
 
     async createLot(player, title, description, price, lotType = "item", lotTargetId = null) {
