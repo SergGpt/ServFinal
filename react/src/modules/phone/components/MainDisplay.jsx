@@ -25,8 +25,9 @@ const MainDisplay = ({ addAppAction, info }) => {
     const houses = Array.isArray(safeInfo.houses) ? safeInfo.houses : [];
     const biz = Array.isArray(safeInfo.biz) ? safeInfo.biz : [];
     const openMarketplace = () => {
-        if (typeof mp !== 'undefined' && mp.trigger) {
-            mp.trigger('callRemote', 'marketplace.phone.open.fullscreen');
+        const rageMp = typeof window !== 'undefined' ? window.mp : null;
+        if (rageMp && rageMp.trigger) {
+            rageMp.trigger('callRemote', 'marketplace.phone.open.fullscreen');
         }
     };
 
