@@ -31,7 +31,9 @@ module.exports = {
 
         const normalizedTitle = (title || "").trim();
         const normalizedDescription = (description || "").trim();
-        const normalizedPrice = parseInt(price);
+        const normalizedPriceRaw = String(price == null ? "" : price).replace(/[^\d]/g, "");
+        const normalizedPrice = parseInt(normalizedPriceRaw);
+        const sellerName = String(player.character.name || `ID ${player.character.id}`).trim().slice(0, 64);
 
         if (!normalizedTitle || normalizedTitle.length > MAX_TITLE_LENGTH) {
             return { ok: false, error: `Название должно быть от 1 до ${MAX_TITLE_LENGTH} символов` };
@@ -45,14 +47,19 @@ module.exports = {
             return { ok: false, error: `Цена должна быть от ${MIN_PRICE} до ${MAX_PRICE}` };
         }
 
-        await db.Models.MarketplaceLot.create({
-            sellerCharacterId: player.character.id,
-            sellerName: player.character.name,
-            title: normalizedTitle,
-            description: normalizedDescription,
-            price: normalizedPrice,
-            status: "active"
-        });
+        try {
+            await db.Models.MarketplaceLot.create({
+                sellerCharacterId: player.character.id,
+                sellerName,
+                title: normalizedTitle,
+                description: normalizedDescription,
+                price: normalizedPrice,
+                status: "active"
+            });
+        } catch (e) {
+            console.log("[marketplace] createLot error:", e && e.message ? e.message : e);
+            return { ok: false, error: "Не удалось создать лот. Проверьте данные и таблицу БД." };
+        }
 
         return { ok: true };
     },
