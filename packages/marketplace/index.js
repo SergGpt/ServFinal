@@ -110,9 +110,35 @@ module.exports = {
         });
     },
 
+    async getPlayerSellOptions(player) {
+        const options = { item: [], vehicle: [], house: [], biz: [] };
+
+        if (player && player.inventory && Array.isArray(player.inventory.items)) {
+            options.item = player.inventory.items
+                .filter((it) => it && it.id && it.item)
+                .map((it) => ({ id: it.id, name: it.item.name || `Предмет #${it.id}` }));
+        }
+
+        const charId = player && player.character ? player.character.id : 0;
+        if (charId) {
+            const [vehicles, houses, bizes] = await Promise.all([
+                db.Models.Vehicle.findAll({ where: { owner: charId }, attributes: ["id", "modelName", "plate"], raw: true }),
+                db.Models.House.findAll({ where: { characterId: charId }, attributes: ["id", "interiorId"], raw: true }),
+                db.Models.Biz.findAll({ where: { characterId: charId }, attributes: ["id", "name"], raw: true })
+            ]);
+
+            options.vehicle = vehicles.map((v) => ({ id: v.id, name: `${v.modelName || "Vehicle"} [${v.plate || "NO-PLATE"}]` }));
+            options.house = houses.map((h) => ({ id: h.id, name: `Дом #${h.id}` }));
+            options.biz = bizes.map((b) => ({ id: b.id, name: b.name || `Бизнес #${b.id}` }));
+        }
+
+        return options;
+    },
+
     async sendLots(player) {
         const lots = await this.getActiveLots();
-        player.call("marketplace.phone.data", [lots]);
+        const sellOptions = await this.getPlayerSellOptions(player);
+        player.call("marketplace.phone.data", [{ lots, sellOptions }]);
     },
 
     async createLot(player, title, description, price, lotType = "item", lotTargetId = null) {

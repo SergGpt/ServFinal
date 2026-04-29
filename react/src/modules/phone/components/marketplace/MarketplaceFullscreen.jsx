@@ -109,7 +109,7 @@ const imgStyle = {
     background: 'linear-gradient(135deg,#b6c3d6,#d5dee8)'
 };
 
-const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeFullscreen, characterId }) => {
+const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFullscreen, characterId }) => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [price, setPrice] = useState('');
@@ -148,7 +148,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeF
     };
 
     const onCreate = () => {
-        const selectedItem = inventoryItems.find((item) => String(item.id) === String(selectedItemId));
+        const selectedItem = (sellOptions[resolveLotType()] || []).find((item) => String(item.id) === String(selectedItemId));
         if (!selectedItemId) return;
         const finalTitle = (title || '').trim() || (selectedItem ? selectedItem.name : '');
 
@@ -204,7 +204,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeF
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr 180px', gap: 10, padding: 12, borderBottom: '1px solid #e2e4e8', background: '#fff' }}>
                             <select value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)} style={{ ...boxStyle, width: '100%', outline: 'none' }}>
                                 <option value=''>Выбрать предмет</option>
-                                {inventoryItems.map((item) => (
+                                {(sellOptions[resolveLotType()] || []).map((item) => (
                                     <option key={item.id} value={item.id}>{item.name}</option>
                                 ))}
                             </select>
@@ -243,17 +243,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeF
 const mapStateToProps = (state) => ({
     isOpen: !!(state.info && state.info.marketplaceFullscreen),
     marketplaceLots: state.info && Array.isArray(state.info.marketplaceLots) ? state.info.marketplaceLots : [],
-    inventoryItems: state.inventory && Array.isArray(state.inventory.sections)
-        ? state.inventory.sections
-            .flatMap((section) => Array.isArray(section.slots) ? section.slots : [])
-            .filter((slot) => slot && slot.item)
-            .map((slot, index) => ({
-                id: slot.item.id,
-                name: slot.item.name || `Предмет #${index + 1}`
-            }))
-            .filter((item) => Number.isFinite(Number(item.id)) && Number(item.id) > 0)
-        : []
-    ,
+    sellOptions: state.info && state.info.marketplaceSellOptions ? state.info.marketplaceSellOptions : { item: [], vehicle: [], house: [], biz: [] },
     characterId: state.info && state.info.id ? state.info.id : 0
 });
 

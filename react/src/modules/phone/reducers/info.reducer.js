@@ -118,6 +118,7 @@ const initialState = {
     //     }
     // ],
     marketplaceLots: [],
+    marketplaceSellOptions: { item: [], vehicle: [], house: [], biz: [] },
     marketplaceFullscreen: false,
     // callStory: [
     //     {
@@ -425,7 +426,8 @@ export default function info(state = initialState, action) {
         case 'PHONE_MARKETPLACE_LOTS':
             return {
                 ...state,
-                marketplaceLots: Array.isArray(payload) ? payload : []
+                marketplaceLots: Array.isArray(payload) ? payload : (payload && Array.isArray(payload.lots) ? payload.lots : []),
+                marketplaceSellOptions: payload && payload.sellOptions ? payload.sellOptions : state.marketplaceSellOptions
             };
 
         case 'PHONE_MARKETPLACE_FULLSCREEN':
