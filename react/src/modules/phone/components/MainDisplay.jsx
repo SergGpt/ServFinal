@@ -19,13 +19,16 @@ import News from "./news/News";
 import TaxiClient from "./taxi_app/taxi_client/TaxiClient";
 import TaxiDriver from "./taxi_app/taxi_driver/TaxiDriver";
 import CallStory from "./calls/story/CallStory";
-import MarketplaceApp from "./marketplace/MarketplaceApp";
-
 const MainDisplay = ({ addAppAction, info }) => {
     const safeInfo = info || {};
     const isDriver = !!safeInfo.isDriver;
     const houses = Array.isArray(safeInfo.houses) ? safeInfo.houses : [];
     const biz = Array.isArray(safeInfo.biz) ? safeInfo.biz : [];
+    const openMarketplace = () => {
+        if (typeof mp !== 'undefined' && mp.trigger) {
+            mp.trigger('callRemote', 'marketplace.phone.open.fullscreen');
+        }
+    };
 
     return (
         <div className={styles.app} style={{ backgroundColor: 'transparent' }}>
@@ -50,10 +53,9 @@ const MainDisplay = ({ addAppAction, info }) => {
                         handleClick={addAppAction}
                     />
                     <PhoneAppIcon
-                        app={<MarketplaceApp />}
                         name='Маркет'
                         image={marketplace_icon}
-                        handleClick={addAppAction}
+                        onClick={openMarketplace}
                     />
                     <PhoneAppIcon
                         app={<TaxiClient />}
