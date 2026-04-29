@@ -128,6 +128,13 @@ module.exports = {
         }
 
         const charId = player && player.character ? player.character.id : 0;
+
+        if (!options.item.length && inventory && typeof inventory.loadCharacterItemsFromDB === "function" && charId) {
+            const invItems = await inventory.loadCharacterItemsFromDB(charId);
+            options.item = (invItems || [])
+                .filter((it) => it && it.id && it.item && !it.parentId)
+                .map((it) => ({ id: it.id, name: it.item.name || `Предмет #${it.id}` }));
+        }
         if (charId) {
             const [vehicles, houses, bizes] = await Promise.all([
                 db.Models.Vehicle.findAll({ where: { owner: charId }, attributes: ["id", "modelName", "plate"], raw: true }),
