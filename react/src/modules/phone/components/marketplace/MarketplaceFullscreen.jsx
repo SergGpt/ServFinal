@@ -142,13 +142,18 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
         return 'item';
     };
 
+
+    const activeType = resolveLotType();
+    const activeOptions = sellOptions[activeType] || [];
+    const selectorPlaceholder = activeType === 'item' ? 'Выбрать предмет' : activeType === 'vehicle' ? 'Выбрать транспорт' : activeType === 'house' ? 'Выбрать недвижимость' : activeType === 'biz' ? 'Выбрать бизнес' : 'Выбрать объект';
+
     const onClose = () => {
         if (typeof mp !== 'undefined' && mp.trigger) mp.trigger('marketplace.fullscreen.close');
         closeFullscreen();
     };
 
     const onCreate = () => {
-        const selectedItem = (sellOptions[resolveLotType()] || []).find((item) => String(item.id) === String(selectedItemId));
+        const selectedItem = activeOptions.find((item) => String(item.id) === String(selectedItemId));
         if (!selectedItemId) return;
         const finalTitle = (title || '').trim() || (selectedItem ? selectedItem.name : '');
 
@@ -203,11 +208,12 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                     <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr', minHeight: 0 }}>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr 180px', gap: 10, padding: 12, borderBottom: '1px solid #e2e4e8', background: '#fff' }}>
                             <select value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)} style={{ ...boxStyle, width: '100%', outline: 'none' }}>
-                                <option value=''>Выбрать предмет</option>
-                                {(sellOptions[resolveLotType()] || []).map((item) => (
+                                <option value=''>{selectorPlaceholder}</option>
+                                {activeOptions.map((item) => (
                                     <option key={item.id} value={item.id}>{item.name}</option>
                                 ))}
                             </select>
+                            {!activeOptions.length && <div style={{ fontSize: 12, color: '#8a9099', display: 'flex', alignItems: 'center' }}>Нет доступных объектов для этой категории</div>}
                             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder='Название лота' style={{ ...boxStyle, width: '100%', outline: 'none' }} />
                             <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder='Описание' style={{ ...boxStyle, width: '100%', outline: 'none' }} />
                             <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder='Цена' style={{ ...boxStyle, width: '100%', outline: 'none' }} />
