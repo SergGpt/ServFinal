@@ -11,6 +11,7 @@ module.exports = {
     "marketplace.phone.open": async (player) => {
         if (!player.phone) return;
         await marketplace.sendLots(player);
+        player.call("phone.show", [false]);
         player.call("marketplace.fullscreen.open", []);
     },
 
@@ -39,6 +40,7 @@ module.exports = {
     "marketplace.phone.open.fullscreen": async (player) => {
         if (!player.phone) return;
         await marketplace.sendLots(player);
+        player.call("phone.show", [false]);
         player.call("marketplace.fullscreen.open", []);
     }
 };
