@@ -113,8 +113,16 @@ module.exports = {
     async getPlayerSellOptions(player) {
         const options = { item: [], vehicle: [], house: [], biz: [] };
 
-        if (player && player.inventory && Array.isArray(player.inventory.items)) {
+        if (player && player.inventory && Array.isArray(player.inventory.items) && player.inventory.items.length) {
             options.item = player.inventory.items
+                .filter((it) => it && it.id && it.item)
+                .map((it) => ({ id: it.id, name: it.item.name || `Предмет #${it.id}` }));
+        } else if (player && player.character) {
+            const dbItems = await db.Models.CharacterInventory.findAll({
+                where: { playerId: player.character.id },
+                include: [{ model: db.Models.InventoryItem, as: "item" }]
+            });
+            options.item = dbItems
                 .filter((it) => it && it.id && it.item)
                 .map((it) => ({ id: it.id, name: it.item.name || `Предмет #${it.id}` }));
         }

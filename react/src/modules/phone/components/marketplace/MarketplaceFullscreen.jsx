@@ -113,7 +113,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [price, setPrice] = useState('');
-    const [activeCategory, setActiveCategory] = useState('Аукция');
+    const [activeCategory, setActiveCategory] = useState('Предметы');
     const [selectedItemId, setSelectedItemId] = useState('');
     const [isSelectorOpen, setSelectorOpen] = useState(false);
 
@@ -158,7 +158,6 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
 
     const onCreate = () => {
         const selectedItem = activeOptions.find((item) => String(item.id) === String(selectedItemId));
-        if (!selectedItemId) return;
         const finalTitle = (title || '').trim() || (selectedItem ? selectedItem.name : '');
 
         if (typeof mp !== 'undefined' && mp.trigger) {
