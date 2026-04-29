@@ -22,6 +22,11 @@ import CallStory from "./calls/story/CallStory";
 import MarketplaceApp from "./marketplace/MarketplaceApp";
 
 const MainDisplay = ({ addAppAction, info }) => {
+    const safeInfo = info || {};
+    const isDriver = !!safeInfo.isDriver;
+    const houses = Array.isArray(safeInfo.houses) ? safeInfo.houses : [];
+    const biz = Array.isArray(safeInfo.biz) ? safeInfo.biz : [];
+
     return (
         <div className={styles.app} style={{ backgroundColor: 'transparent' }}>
             <div className={styles.container}>
@@ -57,7 +62,7 @@ const MainDisplay = ({ addAppAction, info }) => {
                         handleClick={addAppAction}
                     />
                     {
-                        info.isDriver &&
+                        isDriver &&
                         <PhoneAppIcon
                             app={<TaxiDriver />}
                             name='Такси'
@@ -66,7 +71,7 @@ const MainDisplay = ({ addAppAction, info }) => {
                         />
                     }
                     {
-                        info.houses.length > 0 &&
+                        houses.length > 0 &&
                         <PhoneAppIcon
                             app={<HouseApp />}
                             name='Дом'
@@ -75,7 +80,7 @@ const MainDisplay = ({ addAppAction, info }) => {
                         />
                     }
                     {
-                        info.biz.length > 0 &&
+                        biz.length > 0 &&
                         <PhoneAppIcon
                             app={<BusinessApp />}
                             name='Бизнес'

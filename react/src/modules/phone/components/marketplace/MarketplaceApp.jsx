@@ -32,18 +32,24 @@ const MarketplaceApp = ({closeAppAction, marketplaceLots}) => {
     const [price, setPrice] = useState('');
 
     useEffect(() => {
-        mp.trigger('callRemote', 'marketplace.phone.open');
+        if (typeof mp !== 'undefined' && mp.trigger) {
+            mp.trigger('callRemote', 'marketplace.phone.open');
+        }
     }, []);
 
     const onCreate = () => {
-        mp.trigger('callRemote', 'marketplace.phone.create', title, description, price);
+        if (typeof mp !== 'undefined' && mp.trigger) {
+            mp.trigger('callRemote', 'marketplace.phone.create', title, description, price);
+        }
         setTitle('');
         setDescription('');
         setPrice('');
     };
 
     const onBuy = (id) => {
-        mp.trigger('callRemote', 'marketplace.phone.buy', id);
+        if (typeof mp !== 'undefined' && mp.trigger) {
+            mp.trigger('callRemote', 'marketplace.phone.buy', id);
+        }
     };
 
     return (
@@ -79,7 +85,7 @@ const MarketplaceApp = ({closeAppAction, marketplaceLots}) => {
 };
 
 const mapStateToProps = state => ({
-    marketplaceLots: state.info.marketplaceLots || []
+    marketplaceLots: state.info && Array.isArray(state.info.marketplaceLots) ? state.info.marketplaceLots : []
 });
 
 const mapDispatchToProps = dispatch => ({
