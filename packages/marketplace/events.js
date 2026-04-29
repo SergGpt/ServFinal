@@ -11,6 +11,7 @@ module.exports = {
     "marketplace.phone.open": async (player) => {
         if (!player.phone) return;
         await marketplace.sendLots(player);
+        player.call("marketplace.fullscreen.open", []);
     },
 
     "marketplace.phone.create": async (player, title, description, price) => {
