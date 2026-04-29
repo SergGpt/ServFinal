@@ -174,8 +174,13 @@ mp.events.add("phone.show", (state) => {
 });
 
 mp.events.add('marketplace.fullscreen.open', () => {
+    if (!mp.busy.add('marketplace')) return;
     mp.callCEFR('marketplace.fullscreen.open', []);
     hidePhone();
+});
+
+mp.events.add('marketplace.fullscreen.close', () => {
+    mp.busy.remove('marketplace');
 });
 
 let showPhone = () => {

@@ -33,6 +33,19 @@ module.exports = (sequelize, DataTypes) => {
         buyerCharacterId: {
             type: DataTypes.INTEGER(11),
             allowNull: true
+        },
+        lotType: {
+            type: DataTypes.STRING(16),
+            allowNull: false,
+            defaultValue: "item"
+        },
+        lotTargetId: {
+            type: DataTypes.INTEGER(11),
+            allowNull: true
+        },
+        lotPayload: {
+            type: DataTypes.TEXT,
+            allowNull: true
         }
     }, {
         timestamps: true,

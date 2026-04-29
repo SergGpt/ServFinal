@@ -133,12 +133,26 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeF
 
     if (!isOpen) return null;
 
+
+
+    const resolveLotType = () => {
+        if (activeCategory === 'Транспорт') return 'vehicle';
+        if (activeCategory === 'Недвижимость') return 'house';
+        if (activeCategory === 'Бизнесы') return 'biz';
+        return 'item';
+    };
+
+    const onClose = () => {
+        if (typeof mp !== 'undefined' && mp.trigger) mp.trigger('marketplace.fullscreen.close');
+        closeFullscreen();
+    };
+
     const onCreate = () => {
         const selectedItem = inventoryItems.find((item) => String(item.id) === String(selectedItemId));
         const finalTitle = (title || '').trim() || (selectedItem ? selectedItem.name : '');
 
         if (typeof mp !== 'undefined' && mp.trigger) {
-            mp.trigger('callRemote', 'marketplace.phone.create', finalTitle, description, price);
+            mp.trigger('callRemote', 'marketplace.phone.create', finalTitle, description, price, resolveLotType(), selectedItemId);
         }
         setTitle('');
         setDescription('');
@@ -166,7 +180,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeF
                         ))}
                     </div>
                     <div style={{ marginTop: 'auto', padding: 10 }}>
-                        <button style={{ width: '100%', border: 'none', borderRadius: 8, padding: '10px 12px', cursor: 'pointer' }} onClick={closeFullscreen}>
+                        <button style={{ width: '100%', border: 'none', borderRadius: 8, padding: '10px 12px', cursor: 'pointer' }} onClick={onClose}>
                             Выйти
                         </button>
                     </div>
@@ -180,7 +194,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeF
                         <button style={{ border: 'none', borderRadius: 8, background: '#3a7ed3', color: '#fff', padding: '10px 16px', cursor: 'pointer' }} onClick={onCreate}>
                             Создать лот
                         </button>
-                        <button style={{ border: 'none', borderRadius: 8, background: '#2d2f36', color: '#fff', padding: '10px 16px', cursor: 'pointer' }} onClick={closeFullscreen}>
+                        <button style={{ border: 'none', borderRadius: 8, background: '#2d2f36', color: '#fff', padding: '10px 16px', cursor: 'pointer' }} onClick={onClose}>
                             Закрыть
                         </button>
                     </div>
@@ -189,7 +203,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeF
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr 180px', gap: 10, padding: 12, borderBottom: '1px solid #e2e4e8', background: '#fff' }}>
                             <select value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)} style={{ ...boxStyle, width: '100%', outline: 'none' }}>
                                 <option value=''>Выбрать предмет</option>
-                                {inventoryItems.map((item) => (
+                                {inventoryItems.filter((item) => item.id).map((item) => (
                                     <option key={item.id} value={item.id}>{item.name}</option>
                                 ))}
                             </select>
@@ -207,7 +221,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, inventoryItems, closeF
                                         <div style={{ fontSize: 12, color: '#7a838f', marginTop: 2 }}>{lot.category}</div>
                                         <div style={{ fontSize: 27, fontWeight: 800, color: '#222f3c', marginTop: 8 }}>${lot.price}</div>
                                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                                            <button style={{ border: 'none', borderRadius: 8, background: '#3f8f3f', color: '#fff', padding: '9px 12px', cursor: 'pointer', flex: 1 }} onClick={() => onBuy(lot.id)}>Купить</button>
+                                            <button style={{ border: 'none', borderRadius: 8, background: '#3f8f3f', color: '#fff', padding: '9px 12px', cursor: 'pointer', flex: 1 }} onClick={() => onBuy(lot.id)}>Купить</button>{lot.sellerCharacterId === (typeof mp !== 'undefined' && mp.players && mp.players.local ? mp.players.local.remoteId : -1) && <button style={{ border: 'none', borderRadius: 8, background: '#50545c', color: '#fff', padding: '9px 12px', cursor: 'pointer' }} onClick={() => mp.trigger('callRemote', 'marketplace.phone.remove', lot.id)}>Снять</button>}
                                         </div>
                                     </div>
                                 </div>

@@ -6,10 +6,12 @@ const MIN_PRICE = 1;
 const MAX_PRICE = 100000000;
 
 let money;
+let inventory;
 
 module.exports = {
     init() {
         money = call("money");
+        inventory = call("inventory");
     },
 
     async getActiveLots() {
@@ -26,7 +28,7 @@ module.exports = {
         player.call("marketplace.phone.data", [lots]);
     },
 
-    async createLot(player, title, description, price) {
+    async createLot(player, title, description, price, lotType = "item", lotTargetId = null) {
         if (!player || !player.character || !player.phone) return { ok: false, error: "Телефон не активен" };
 
         const normalizedTitle = (title || "").trim();
@@ -47,6 +49,37 @@ module.exports = {
             return { ok: false, error: `Цена должна быть от ${MIN_PRICE} до ${MAX_PRICE}` };
         }
 
+        const normalizedType = String(lotType || "item").trim().toLowerCase();
+        const parsedTargetId = parseInt(lotTargetId);
+
+        if (!["item", "vehicle", "house", "biz"].includes(normalizedType)) {
+            return { ok: false, error: "Неизвестный тип лота" };
+        }
+
+        if (isNaN(parsedTargetId) || parsedTargetId < 1) {
+            return { ok: false, error: "Не выбран предмет/объект для лота" };
+        }
+
+        let lockedPayload = null;
+
+        if (normalizedType === "item") {
+            if (!inventory || typeof inventory.getItem !== "function" || typeof inventory.deleteItem !== "function") {
+                return { ok: false, error: "Система инвентаря недоступна" };
+            }
+
+            const selectedItem = inventory.getItem(parsedTargetId);
+            if (!selectedItem || selectedItem.ownerId !== player.character.id) {
+                return { ok: false, error: "Выбранный предмет не найден" };
+            }
+
+            lockedPayload = {
+                itemId: selectedItem.itemId,
+                params: selectedItem.params
+            };
+
+            inventory.deleteItem(player, selectedItem);
+        }
+
         try {
             await db.Models.MarketplaceLot.create({
                 sellerCharacterId: player.character.id,
@@ -54,9 +87,15 @@ module.exports = {
                 title: normalizedTitle,
                 description: normalizedDescription,
                 price: normalizedPrice,
-                status: "active"
+                status: "active",
+                lotType: normalizedType,
+                lotTargetId: parsedTargetId,
+                lotPayload: lockedPayload ? JSON.stringify(lockedPayload) : null
             });
         } catch (e) {
+            if (lockedPayload && inventory && typeof inventory.addItem === "function") {
+                inventory.addItem(player, lockedPayload.itemId, lockedPayload.params || {}, () => {});
+            }
             console.log("[marketplace] createLot error:", e && e.message ? e.message : e);
             return { ok: false, error: "Не удалось создать лот. Проверьте данные и таблицу БД." };
         }
@@ -81,6 +120,14 @@ module.exports = {
 
         money.addCashById(lot.sellerCharacterId, lot.price, () => {}, `[marketplace] продажа лота #${lot.id}`);
 
+        if (lot.lotType === "item" && lot.lotPayload) {
+            if (!inventory || typeof inventory.addItem !== "function") return { ok: false, error: "Система инвентаря недоступна" };
+            let payload = null;
+            try { payload = JSON.parse(lot.lotPayload); } catch (_) {}
+            if (!payload || !payload.itemId) return { ok: false, error: "Данные лота повреждены" };
+            inventory.addItem(player, payload.itemId, payload.params || {}, () => {});
+        }
+
         await lot.update({
             status: "sold",
             buyerCharacterId: player.character.id
@@ -88,4 +135,24 @@ module.exports = {
 
         return { ok: true, lot };
     }
+};
+
+
+module.exports.removeLot = async function(player, lotId) {
+    if (!player || !player.character) return { ok: false, error: "Игрок не найден" };
+    const id = parseInt(lotId);
+    if (isNaN(id) || id < 1) return { ok: false, error: "Некорректный lotId" };
+    const lot = await db.Models.MarketplaceLot.findOne({ where: { id } });
+    if (!lot || lot.status !== "active") return { ok: false, error: "Лот недоступен" };
+    if (lot.sellerCharacterId !== player.character.id) return { ok: false, error: "Можно снять только свой лот" };
+
+    if (lot.lotType === "item" && lot.lotPayload && inventory && typeof inventory.addItem === "function") {
+        try {
+            const payload = JSON.parse(lot.lotPayload);
+            if (payload && payload.itemId) inventory.addItem(player, payload.itemId, payload.params || {}, () => {});
+        } catch (_) {}
+    }
+
+    await lot.update({ status: "cancelled" });
+    return { ok: true, lot };
 };
