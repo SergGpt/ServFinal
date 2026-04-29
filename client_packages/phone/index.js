@@ -172,6 +172,12 @@ mp.events.add("phone.show", (state) => {
         hidePhone();
     }
 });
+
+mp.events.add('marketplace.fullscreen.open', () => {
+    mp.callCEFR('marketplace.fullscreen.open', []);
+    hidePhone();
+});
+
 let showPhone = () => {
     if (mp.game.ui.isPauseMenuActive()) return;
     if (mp.busy.includes()) return;

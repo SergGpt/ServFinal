@@ -94,12 +94,23 @@ const getStyleLoaders = (cssOptions, preProcessor) => {
     },
   ];
   if (preProcessor) {
-    loaders.push({
-      loader: require.resolve(preProcessor),
-      options: {
-        sourceMap: false,
-      },
-    });
+    if (typeof preProcessor === 'string') {
+      loaders.push({
+        loader: require.resolve(preProcessor),
+        options: {
+          sourceMap: false,
+        },
+      });
+    } else {
+      loaders.push({
+        ...preProcessor,
+        loader: require.resolve(preProcessor.loader),
+        options: {
+          sourceMap: false,
+          ...(preProcessor.options || {}),
+        },
+      });
+    }
   }
   return loaders;
 };
@@ -124,6 +135,8 @@ module.exports = {
     // We don't currently advertise code splitting but Webpack supports it.
     filename: 'js/build.js',
     chunkFilename: '[name].[chunkhash:8].chunk.js',
+    // Node 17+ / OpenSSL 3 compatibility (webpack4 default md4 is unsupported)
+    hashFunction: 'sha256',
     // We inferred the "public path" (such as / or /my-project) from homepage.
     publicPath: publicPath,
     // Point sourcemap entries to original disk location (format as URL on Windows)

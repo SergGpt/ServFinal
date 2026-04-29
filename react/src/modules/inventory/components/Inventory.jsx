@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { connect } from 'react-redux';
 
 import styles from '../styles/inventory.module.scss';
 
@@ -8,9 +8,9 @@ const getItemSize = (item = {}) => ({
     y: Number(item.sizeY || item.height || 1),
 });
 
-const getItemPreview = (item) => item.icon || item.initials || item.name?.[0] || '?';
+const getItemPreview = (item) => item.icon || item.initials || ((item.name && item.name[0]) || '?');
 
-const getSlotWeight = (item) => (item?.weight !== undefined ? `${item.weight.toFixed(2)} кг` : '0.00 кг');
+const getSlotWeight = (item) => (item && item.weight !== undefined ? `${item.weight.toFixed(2)} кг` : '0.00 кг');
 
 const QuickSlot = ({ slot }) => (
     <div className={`${styles.quickSlot} ${slot.item ? styles.quickSlotFilled : ''}`}>
@@ -55,7 +55,7 @@ const GridCell = ({ cell }) => {
 
 const ContainerGrid = ({ section, onHoverItem }) => {
     const cells = useMemo(() => section.slots.map((slot, index) => ({ ...slot, index })), [section.slots]);
-    const totalWeight = section.slots.reduce((acc, slot) => acc + (slot.item?.weight || 0), 0);
+    const totalWeight = section.slots.reduce((acc, slot) => acc + ((slot.item && slot.item.weight) || 0), 0);
 
     return (
         <article className={styles.containerPanel}>
@@ -84,8 +84,15 @@ const EquipmentSlot = ({ slot, className = '' }) => (
     </div>
 );
 
-const Inventory = () => {
-    const { weight, quickSlots, sections, equipment } = useSelector((state) => state.inventory);
+const defaultInventoryState = {
+    weight: { current: 0, max: 0 },
+    quickSlots: [],
+    sections: [],
+    equipment: { leftColumn: [], rightColumn: [], hands: [], stats: [] },
+};
+
+const Inventory = ({ inventory = defaultInventoryState }) => {
+    const { weight, quickSlots, sections, equipment } = inventory;
     const [hoveredItem, setHoveredItem] = useState(null);
 
     return (
@@ -164,4 +171,8 @@ const Inventory = () => {
     );
 };
 
-export default Inventory;
+const mapStateToProps = (state) => ({
+    inventory: state.inventory,
+});
+
+export default connect(mapStateToProps)(Inventory);

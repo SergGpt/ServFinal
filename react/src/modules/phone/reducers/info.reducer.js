@@ -117,6 +117,8 @@ const initialState = {
     //         ]
     //     }
     // ],
+    marketplaceLots: [],
+    marketplaceFullscreen: false,
     // callStory: [
     //     {
     //         number: '323223',
@@ -153,7 +155,7 @@ export default function info(state = initialState, action) {
         case 'SHOW_PHONE':
             phoneIsShow = payload;
 
-            if (!payload && state.incomingCall.state) {
+            if (!payload && state.incomingCall && state.incomingCall.state) {
                 // eslint-disable-next-line no-undef
                 mp.trigger('phone.call.in.ans', 0);
                 phoneIsShow2 = false;
@@ -419,6 +421,18 @@ export default function info(state = initialState, action) {
             }
 
             return newStateAdd;
+
+        case 'PHONE_MARKETPLACE_LOTS':
+            return {
+                ...state,
+                marketplaceLots: Array.isArray(payload) ? payload : []
+            };
+
+        case 'PHONE_MARKETPLACE_FULLSCREEN':
+            return {
+                ...state,
+                marketplaceFullscreen: !!payload
+            };
 
         case 'DELETE_APP_TO_PHONE':
             const newStateRemove = {...state};

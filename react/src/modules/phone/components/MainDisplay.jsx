@@ -10,6 +10,7 @@ import call_story_icon from '@imgs/phone/callStory.svg';
 import taxi_client_icon from '@imgs/phone/taxi_client.svg';
 import taxi_driver_icon from '@imgs/phone/taxi_driver.svg';
 import news_icon from '@imgs/phone/news.svg';
+import marketplace_icon from '@imgs/phone/marketplace.svg';
 import PhoneAppIcon from "./PhoneAppIcon";
 import HouseApp from "./house/HouseApp";
 import BusinessApp from "./biz/BusinessApp";
@@ -18,8 +19,18 @@ import News from "./news/News";
 import TaxiClient from "./taxi_app/taxi_client/TaxiClient";
 import TaxiDriver from "./taxi_app/taxi_driver/TaxiDriver";
 import CallStory from "./calls/story/CallStory";
-
 const MainDisplay = ({ addAppAction, info }) => {
+    const safeInfo = info || {};
+    const isDriver = !!safeInfo.isDriver;
+    const houses = Array.isArray(safeInfo.houses) ? safeInfo.houses : [];
+    const biz = Array.isArray(safeInfo.biz) ? safeInfo.biz : [];
+    const openMarketplace = () => {
+        const rageMp = typeof window !== 'undefined' ? window.mp : null;
+        if (rageMp && rageMp.trigger) {
+            rageMp.trigger('callRemote', 'marketplace.phone.open.fullscreen');
+        }
+    };
+
     return (
         <div className={styles.app} style={{ backgroundColor: 'transparent' }}>
             <div className={styles.container}>
@@ -43,13 +54,18 @@ const MainDisplay = ({ addAppAction, info }) => {
                         handleClick={addAppAction}
                     />
                     <PhoneAppIcon
+                        name='Маркет'
+                        image={marketplace_icon}
+                        onClick={openMarketplace}
+                    />
+                    <PhoneAppIcon
                         app={<TaxiClient />}
                         name='Такси'
                         image={taxi_client_icon}
                         handleClick={addAppAction}
                     />
                     {
-                        info.isDriver &&
+                        isDriver &&
                         <PhoneAppIcon
                             app={<TaxiDriver />}
                             name='Такси'
@@ -58,7 +74,7 @@ const MainDisplay = ({ addAppAction, info }) => {
                         />
                     }
                     {
-                        info.houses.length > 0 &&
+                        houses.length > 0 &&
                         <PhoneAppIcon
                             app={<HouseApp />}
                             name='Дом'
@@ -67,7 +83,7 @@ const MainDisplay = ({ addAppAction, info }) => {
                         />
                     }
                     {
-                        info.biz.length > 0 &&
+                        biz.length > 0 &&
                         <PhoneAppIcon
                             app={<BusinessApp />}
                             name='Бизнес'

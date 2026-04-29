@@ -15,7 +15,20 @@ process.on('unhandledRejection', err => {
 require('../config/env');
 
 
+// Node/OpenSSL compatibility for webpack4 (md4 is unsupported on modern OpenSSL).
+// We fallback md4 hashing requests to sha256 to avoid build crashes on Node 17+.
+(() => {
+  const crypto = require('crypto');
+  const originalCreateHash = crypto.createHash;
+  crypto.createHash = (algorithm, options) => {
+    const normalized = algorithm && algorithm.toLowerCase ? algorithm.toLowerCase() : algorithm;
+    return originalCreateHash(normalized === 'md4' ? 'sha256' : algorithm, options);
+  };
+})();
+
+
 const path = require('path');
+const os = require('os');
 const chalk = require('chalk');
 const fs = require('fs-extra');
 const webpack = require('webpack');
@@ -38,6 +51,30 @@ const WARN_AFTER_BUNDLE_GZIP_SIZE = 512 * 1024;
 const WARN_AFTER_CHUNK_GZIP_SIZE = 1024 * 1024;
 
 const isInteractive = process.stdout.isTTY;
+const buildBackupPath = fs.mkdtempSync(path.join(os.tmpdir(), 'ragemp-cef-build-backup-'));
+let hasBuildBackup = false;
+
+function backupCurrentBuild() {
+  if (!fs.existsSync(paths.appBuild)) return;
+  const files = fs.readdirSync(paths.appBuild);
+  if (!files.length) return;
+
+  fs.copySync(paths.appBuild, buildBackupPath, { dereference: true });
+  hasBuildBackup = true;
+}
+
+function restoreBuildBackup() {
+  if (!hasBuildBackup) return;
+
+  fs.emptyDirSync(paths.appBuild);
+  fs.copySync(buildBackupPath, paths.appBuild, { dereference: true });
+}
+
+function cleanupBuildBackup() {
+  if (fs.existsSync(buildBackupPath)) {
+    fs.removeSync(buildBackupPath);
+  }
+}
 
 // Warn and crash if required files are missing
 if (!checkRequiredFiles([paths.appHtml, paths.appIndexJs])) {
@@ -58,6 +95,7 @@ checkBrowsers(paths.appPath, isInteractive)
     return measureFileSizesBeforeBuild(paths.appBuild);
   })
   .then(previousFileSizes => {
+    backupCurrentBuild();
     // Remove all content but keep the directory so that
     // if you're in it, you don't end up in Trash
     fs.emptyDirSync(paths.appBuild);
@@ -106,14 +144,19 @@ checkBrowsers(paths.appPath, isInteractive)
         buildFolder,
         useYarn
       );
+      cleanupBuildBackup();
     },
     err => {
+      restoreBuildBackup();
+      cleanupBuildBackup();
       console.log(chalk.red('Failed to compile.\n'));
       printBuildError(err);
       process.exit(1);
     }
   )
   .catch(err => {
+    restoreBuildBackup();
+    cleanupBuildBackup();
     if (err && err.message) {
       console.log(err.message);
     }
@@ -172,7 +215,10 @@ function build(previousFileSizes) {
       if (writeStatsJson) {
         return bfj
           .write(paths.appBuild + '/bundle-stats.json', stats.toJson())
-          .then(() => resolve(resolveArgs))
+          .then(() => {
+            cleanupBuildBackup();
+            resolve(resolveArgs);
+          })
           .catch(error => reject(new Error(error)));
       }
 
