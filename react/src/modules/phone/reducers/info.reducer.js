@@ -154,7 +154,7 @@ export default function info(state = initialState, action) {
         case 'SHOW_PHONE':
             phoneIsShow = payload;
 
-            if (!payload && state.incomingCall.state) {
+            if (!payload && state.incomingCall && state.incomingCall.state) {
                 // eslint-disable-next-line no-undef
                 mp.trigger('phone.call.in.ans', 0);
                 phoneIsShow2 = false;
