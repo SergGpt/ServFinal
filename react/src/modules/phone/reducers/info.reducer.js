@@ -118,6 +118,7 @@ const initialState = {
     //     }
     // ],
     marketplaceLots: [],
+    marketplaceFullscreen: false,
     // callStory: [
     //     {
     //         number: '323223',
@@ -425,6 +426,12 @@ export default function info(state = initialState, action) {
             return {
                 ...state,
                 marketplaceLots: Array.isArray(payload) ? payload : []
+            };
+
+        case 'PHONE_MARKETPLACE_FULLSCREEN':
+            return {
+                ...state,
+                marketplaceFullscreen: !!payload
             };
 
         case 'DELETE_APP_TO_PHONE':

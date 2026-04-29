@@ -102,6 +102,13 @@ export default (myEventEmmiter, dispatch) => {
         });
     });
 
+    myEventEmmiter.on('marketplace.fullscreen.open', () => {
+        dispatch({
+            type: 'PHONE_MARKETPLACE_FULLSCREEN',
+            payload: true
+        });
+    });
+
     myEventEmmiter.on('phone.back', () => {
         dispatch({
             type: 'CLOSE_APP',

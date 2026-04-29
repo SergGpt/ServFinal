@@ -33,5 +33,11 @@ module.exports = {
 
         player.call("notifications.push.success", [`Вы купили: ${result.lot.title}`, "Маркетплейс"]);
         await marketplace.sendLots(player);
+    },
+
+    "marketplace.phone.open.fullscreen": async (player) => {
+        if (!player.phone) return;
+        await marketplace.sendLots(player);
+        player.call("marketplace.fullscreen.open", []);
     }
 };
