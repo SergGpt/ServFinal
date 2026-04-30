@@ -3,7 +3,7 @@
 const MAX_TITLE_LENGTH = 64;
 const MAX_DESCRIPTION_LENGTH = 240;
 const MIN_PRICE = 1;
-const MAX_PRICE = 100000000;
+const MAX_PRICE = 10000000;
 
 let money;
 let inventory;
@@ -24,18 +24,6 @@ function uniqueById(list) {
         seen.add(id);
         return true;
     });
-}
-
-function buildMarketplaceDebug(player, data = {}) {
-    const character = player && player.character ? player.character : null;
-    return {
-        at: new Date().toISOString(),
-        playerId: player ? player.id : null,
-        characterId: character ? character.id : null,
-        characterName: character ? character.name : null,
-        phoneActive: !!(player && player.phone),
-        ...data
-    };
 }
 
 async function lockEntityLot(player, type, targetId) {
@@ -142,19 +130,11 @@ module.exports = {
 
     async getPlayerSellOptions(player) {
         const options = { item: [], vehicle: [], house: [], biz: [] };
-        const debug = buildMarketplaceDebug(player, {
-            stage: "getPlayerSellOptions:start",
-            hasInventoryObject: !!(player && player.inventory),
-            hasInventoryItemsArray: !!(player && player.inventory && Array.isArray(player.inventory.items)),
-            inventoryItemsLength: player && player.inventory && Array.isArray(player.inventory.items) ? player.inventory.items.length : null
-        });
 
         if (player && player.inventory && Array.isArray(player.inventory.items) && player.inventory.items.length) {
             options.item = player.inventory.items
                 .map(mapItemToSellOption)
                 .filter(Boolean);
-            debug.itemsSource = "player.inventory.items";
-            debug.itemsSourceCount = options.item.length;
         } else if (player && player.character) {
             const dbItems = await db.Models.CharacterInventory.findAll({
                 where: { playerId: player.character.id },
@@ -163,8 +143,6 @@ module.exports = {
             options.item = dbItems
                 .map(mapItemToSellOption)
                 .filter(Boolean);
-            debug.itemsSource = "db.CharacterInventory";
-            debug.itemsSourceCount = options.item.length;
         }
 
         const charId = Number(player && player.character ? player.character.id : 0) || Number(player && player.characterId ? player.characterId : 0) || 0;
@@ -174,8 +152,6 @@ module.exports = {
             options.item = (invItems || [])
                 .map(mapItemToSellOption)
                 .filter(Boolean);
-            debug.itemsFallbackSource = "inventory.loadCharacterItemsFromDB";
-            debug.itemsFallbackCount = options.item.length;
         }
         if (charId) {
             const [vehiclesFromDb, housesFromDb, bizesFromDb] = await Promise.all([
@@ -195,36 +171,16 @@ module.exports = {
             ]);
             options.house = uniqueById(housesFromDb.map((h) => ({ id: h.id, name: `Дом #${h.id}` })));
             options.biz = uniqueById(bizesFromDb.map((b) => ({ id: b.id, name: b.name || `Бизнес #${b.id}` })));
-            debug.vehicleFromDb = vehiclesFromDb.length;
-            debug.vehicleFromLive = vehiclesLive.length;
-            debug.vehicleFinal = options.vehicle.length;
-            debug.houseFromDb = housesFromDb.length;
-            debug.bizFromDb = bizesFromDb.length;
         }
 
         options.item = uniqueById(options.item);
-        debug.final = {
-            item: options.item.length,
-            vehicle: options.vehicle.length,
-            house: options.house.length,
-            biz: options.biz.length,
-            itemIds: options.item.slice(0, 15).map((x) => x.id),
-            vehicleIds: options.vehicle.slice(0, 15).map((x) => x.id),
-            houseIds: options.house.slice(0, 15).map((x) => x.id),
-            bizIds: options.biz.slice(0, 15).map((x) => x.id)
-        };
-        console.log("[marketplace][sell-options-debug]", JSON.stringify(debug));
-
-        return { options, debug };
+        return options;
     },
 
     async sendLots(player) {
         const lots = await this.getActiveLots();
-        const sellData = await this.getPlayerSellOptions(player);
-        const sellOptions = sellData && sellData.options ? sellData.options : { item: [], vehicle: [], house: [], biz: [] };
-        const debug = sellData && sellData.debug ? sellData.debug : buildMarketplaceDebug(player, { stage: "getPlayerSellOptions:missing" });
+        const sellOptions = await this.getPlayerSellOptions(player);
         player.call("marketplace.phone.data", [lots, sellOptions]);
-        player.call("marketplace.phone.debug", [debug]);
     },
 
     async createLot(player, title, description, price, lotType = "item", lotTargetId = null) {

@@ -119,7 +119,6 @@ const initialState = {
     // ],
     marketplaceLots: [],
     marketplaceSellOptions: { item: [], vehicle: [], house: [], biz: [] },
-    marketplaceDebug: null,
     marketplaceFullscreen: false,
     // callStory: [
     //     {
@@ -195,9 +194,6 @@ export default function info(state = initialState, action) {
             const nextMarketplaceSellOptions = hasAnyMarketplaceOptions(incomingSellOptions)
                 ? incomingSellOptions
                 : state.marketplaceSellOptions;
-            const nextMarketplaceDebug = payload && payload.marketplaceDebug
-                ? payload.marketplaceDebug
-                : state.marketplaceDebug;
             const nextMarketplaceFullscreen = typeof (payload && payload.marketplaceFullscreen) === 'boolean'
                 ? payload.marketplaceFullscreen
                 : state.marketplaceFullscreen;
@@ -206,7 +202,6 @@ export default function info(state = initialState, action) {
                 ...payload,
                 marketplaceLots: nextMarketplaceLots,
                 marketplaceSellOptions: nextMarketplaceSellOptions,
-                marketplaceDebug: nextMarketplaceDebug,
                 marketplaceFullscreen: nextMarketplaceFullscreen,
                 contacts: [
                     ...payload.contacts,
@@ -462,11 +457,6 @@ export default function info(state = initialState, action) {
             return {
                 ...state,
                 marketplaceFullscreen: !!payload
-            };
-        case 'PHONE_MARKETPLACE_DEBUG':
-            return {
-                ...state,
-                marketplaceDebug: payload || null
             };
 
         case 'DELETE_APP_TO_PHONE':

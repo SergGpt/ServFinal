@@ -183,10 +183,6 @@ mp.events.add('marketplace.phone.data', (lots, sellOptions) => {
     mp.callCEFR('marketplace.phone.data', [lots, sellOptions]);
 });
 
-mp.events.add('marketplace.phone.debug', (debugPayload) => {
-    mp.callCEFR('marketplace.phone.debug', [debugPayload]);
-});
-
 mp.events.add('marketplace.fullscreen.close', () => {
     mp.busy.remove('marketplace');
 });
