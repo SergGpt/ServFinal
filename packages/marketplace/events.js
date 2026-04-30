@@ -15,8 +15,8 @@ module.exports = {
         player.call("marketplace.fullscreen.open", []);
     },
 
-    "marketplace.phone.create": async (player, title, description, price) => {
-        const result = await marketplace.createLot(player, title, description, price);
+    "marketplace.phone.create": async (player, title, description, price, lotType, lotTargetId) => {
+        const result = await marketplace.createLot(player, title, description, price, lotType, lotTargetId);
         if (!result.ok) {
             player.call("notifications.push.error", [result.error, "Маркетплейс"]);
             return;
@@ -34,6 +34,17 @@ module.exports = {
         }
 
         player.call("notifications.push.success", [`Вы купили: ${result.lot.title}`, "Маркетплейс"]);
+        await marketplace.sendLots(player);
+    },
+
+    "marketplace.phone.remove": async (player, lotId) => {
+        const result = await marketplace.removeLot(player, lotId);
+        if (!result.ok) {
+            player.call("notifications.push.error", [result.error, "Маркетплейс"]);
+            return;
+        }
+
+        player.call("notifications.push.success", ["Лот снят и возвращен владельцу", "Маркетплейс"]);
         await marketplace.sendLots(player);
     },
 

@@ -6,10 +6,99 @@ const MIN_PRICE = 1;
 const MAX_PRICE = 100000000;
 
 let money;
+let inventory;
+
+async function lockEntityLot(player, type, targetId) {
+    if (type === "item") {
+        if (!inventory || typeof inventory.getItem !== "function" || typeof inventory.deleteItem !== "function") return { error: "Система инвентаря недоступна" };
+        const selectedItem = inventory.getItem(player, targetId);
+        if (!selectedItem || selectedItem.ownerId !== player.character.id) return { error: "Выбранный предмет не найден" };
+        const payload = { itemId: selectedItem.itemId, params: selectedItem.params };
+        inventory.deleteItem(player, selectedItem);
+        return { payload };
+    }
+
+    if (type === "vehicle") {
+        const vehicle = await db.Models.Vehicle.findOne({ where: { id: targetId } });
+        if (!vehicle || vehicle.owner !== player.character.id) return { error: "Транспорт не найден или не принадлежит вам" };
+        await vehicle.update({ owner: 0 });
+        return { payload: { id: vehicle.id, modelName: vehicle.modelName, plate: vehicle.plate } };
+    }
+
+    if (type === "house") {
+        const house = await db.Models.House.findOne({ where: { id: targetId } });
+        if (!house || house.characterId !== player.character.id) return { error: "Недвижимость не найдена или не принадлежит вам" };
+        await house.update({ characterId: null, characterNick: null });
+        return { payload: { id: house.id, interiorId: house.interiorId } };
+    }
+
+    if (type === "biz") {
+        const biz = await db.Models.Biz.findOne({ where: { id: targetId } });
+        if (!biz || biz.characterId !== player.character.id) return { error: "Бизнес не найден или не принадлежит вам" };
+        await biz.update({ characterId: null, characterNick: null });
+        return { payload: { id: biz.id, name: biz.name, type: biz.type } };
+    }
+
+    return { error: "Неизвестный тип лота" };
+}
+
+async function restoreEntityToSeller(player, lot) {
+    if (lot.lotType === "item" && lot.lotPayload && inventory && typeof inventory.addItem === "function") {
+        const payload = JSON.parse(lot.lotPayload);
+        if (payload && payload.itemId) inventory.addItem(player, payload.itemId, payload.params || {}, () => {});
+        return;
+    }
+    if (lot.lotType === "vehicle") {
+        const vehicle = await db.Models.Vehicle.findOne({ where: { id: lot.lotTargetId } });
+        if (vehicle) await vehicle.update({ owner: player.character.id });
+        return;
+    }
+    if (lot.lotType === "house") {
+        const house = await db.Models.House.findOne({ where: { id: lot.lotTargetId } });
+        if (house) await house.update({ characterId: player.character.id, characterNick: player.character.name });
+        return;
+    }
+    if (lot.lotType === "biz") {
+        const biz = await db.Models.Biz.findOne({ where: { id: lot.lotTargetId } });
+        if (biz) await biz.update({ characterId: player.character.id, characterNick: player.character.name });
+    }
+}
+
+async function transferEntityToBuyer(player, lot) {
+    if (lot.lotType === "item" && lot.lotPayload) {
+        if (!inventory || typeof inventory.addItem !== "function") return { ok: false, error: "Система инвентаря недоступна" };
+        let payload = null;
+        try { payload = JSON.parse(lot.lotPayload); } catch (_) {}
+        if (!payload || !payload.itemId) return { ok: false, error: "Данные лота повреждены" };
+        inventory.addItem(player, payload.itemId, payload.params || {}, () => {});
+        return { ok: true };
+    }
+    if (lot.lotType === "vehicle") {
+        const vehicle = await db.Models.Vehicle.findOne({ where: { id: lot.lotTargetId } });
+        if (!vehicle) return { ok: false, error: "Транспорт лота не найден" };
+        await vehicle.update({ owner: player.character.id });
+        return { ok: true };
+    }
+    if (lot.lotType === "house") {
+        const house = await db.Models.House.findOne({ where: { id: lot.lotTargetId } });
+        if (!house) return { ok: false, error: "Недвижимость лота не найдена" };
+        await house.update({ characterId: player.character.id, characterNick: player.character.name });
+        return { ok: true };
+    }
+    if (lot.lotType === "biz") {
+        const biz = await db.Models.Biz.findOne({ where: { id: lot.lotTargetId } });
+        if (!biz) return { ok: false, error: "Бизнес лота не найден" };
+        await biz.update({ characterId: player.character.id, characterNick: player.character.name });
+        return { ok: true };
+    }
+    return { ok: false, error: "Неизвестный тип лота" };
+}
+
 
 module.exports = {
     init() {
         money = call("money");
+        inventory = call("inventory");
     },
 
     async getActiveLots() {
@@ -21,12 +110,53 @@ module.exports = {
         });
     },
 
-    async sendLots(player) {
-        const lots = await this.getActiveLots();
-        player.call("marketplace.phone.data", [lots]);
+    async getPlayerSellOptions(player) {
+        const options = { item: [], vehicle: [], house: [], biz: [] };
+
+        if (player && player.inventory && Array.isArray(player.inventory.items) && player.inventory.items.length) {
+            options.item = player.inventory.items
+                 .filter((it) => it && it.id && it.item && !it.parentId)
+                .map((it) => ({ id: it.id, name: it.item.name || `Предмет #${it.id}` }));
+        } else if (player && player.character) {
+            const dbItems = await db.Models.CharacterInventory.findAll({
+                where: { playerId: player.character.id, parentId: null },
+                include: [{ model: db.Models.InventoryItem, as: "item" }]
+            });
+            options.item = dbItems
+                 .filter((it) => it && it.id && it.item && !it.parentId)
+                .map((it) => ({ id: it.id, name: it.item.name || `Предмет #${it.id}` }));
+        }
+
+        const charId = player && player.character ? player.character.id : 0;
+
+        if (!options.item.length && inventory && typeof inventory.loadCharacterItemsFromDB === "function" && charId) {
+            const invItems = await inventory.loadCharacterItemsFromDB(charId);
+            options.item = (invItems || [])
+                .filter((it) => it && it.id && it.item && !it.parentId)
+                .map((it) => ({ id: it.id, name: it.item.name || `Предмет #${it.id}` }));
+        }
+        if (charId) {
+            const [vehicles, houses, bizes] = await Promise.all([
+                db.Models.Vehicle.findAll({ where: { owner: charId }, attributes: ["id", "modelName", "plate"], raw: true }),
+                db.Models.House.findAll({ where: { characterId: charId }, attributes: ["id", "interiorId"], raw: true }),
+                db.Models.Biz.findAll({ where: { characterId: charId }, attributes: ["id", "name"], raw: true })
+            ]);
+
+            options.vehicle = vehicles.map((v) => ({ id: v.id, name: `${v.modelName || "Vehicle"} [${v.plate || "NO-PLATE"}]` }));
+            options.house = houses.map((h) => ({ id: h.id, name: `Дом #${h.id}` }));
+            options.biz = bizes.map((b) => ({ id: b.id, name: b.name || `Бизнес #${b.id}` }));
+        }
+
+        return options;
     },
 
-    async createLot(player, title, description, price) {
+    async sendLots(player) {
+        const lots = await this.getActiveLots();
+        const sellOptions = await this.getPlayerSellOptions(player);
+        player.call("marketplace.phone.data", [lots, sellOptions]);
+    },
+
+    async createLot(player, title, description, price, lotType = "item", lotTargetId = null) {
         if (!player || !player.character || !player.phone) return { ok: false, error: "Телефон не активен" };
 
         const normalizedTitle = (title || "").trim();
@@ -47,6 +177,22 @@ module.exports = {
             return { ok: false, error: `Цена должна быть от ${MIN_PRICE} до ${MAX_PRICE}` };
         }
 
+        const normalizedType = String(lotType || "item").trim().toLowerCase();
+        const parsedTargetId = parseInt(lotTargetId);
+
+        if (!["item", "vehicle", "house", "biz"].includes(normalizedType)) {
+            return { ok: false, error: "Неизвестный тип лота" };
+        }
+
+        if (isNaN(parsedTargetId) || parsedTargetId < 1) {
+            return { ok: false, error: "Не выбран предмет/объект для лота" };
+        }
+
+        const lockResult = await lockEntityLot(player, normalizedType, parsedTargetId);
+        if (lockResult.error) return { ok: false, error: lockResult.error };
+
+        const lockedPayload = lockResult.payload || null;
+
         try {
             await db.Models.MarketplaceLot.create({
                 sellerCharacterId: player.character.id,
@@ -54,9 +200,15 @@ module.exports = {
                 title: normalizedTitle,
                 description: normalizedDescription,
                 price: normalizedPrice,
-                status: "active"
+                status: "active",
+                lotType: normalizedType,
+                lotTargetId: parsedTargetId,
+                lotPayload: lockedPayload ? JSON.stringify(lockedPayload) : null
             });
         } catch (e) {
+            try {
+                await restoreEntityToSeller(player, { lotType: normalizedType, lotTargetId: parsedTargetId, lotPayload: lockedPayload ? JSON.stringify(lockedPayload) : null });
+            } catch (_) {}
             console.log("[marketplace] createLot error:", e && e.message ? e.message : e);
             return { ok: false, error: "Не удалось создать лот. Проверьте данные и таблицу БД." };
         }
@@ -81,6 +233,9 @@ module.exports = {
 
         money.addCashById(lot.sellerCharacterId, lot.price, () => {}, `[marketplace] продажа лота #${lot.id}`);
 
+        const transferResult = await transferEntityToBuyer(player, lot);
+        if (!transferResult.ok) return transferResult;
+
         await lot.update({
             status: "sold",
             buyerCharacterId: player.character.id
@@ -88,4 +243,19 @@ module.exports = {
 
         return { ok: true, lot };
     }
+};
+
+
+module.exports.removeLot = async function(player, lotId) {
+    if (!player || !player.character) return { ok: false, error: "Игрок не найден" };
+    const id = parseInt(lotId);
+    if (isNaN(id) || id < 1) return { ok: false, error: "Некорректный lotId" };
+    const lot = await db.Models.MarketplaceLot.findOne({ where: { id } });
+    if (!lot || lot.status !== "active") return { ok: false, error: "Лот недоступен" };
+    if (lot.sellerCharacterId !== player.character.id) return { ok: false, error: "Можно снять только свой лот" };
+
+    await restoreEntityToSeller(player, lot);
+
+    await lot.update({ status: "cancelled" });
+    return { ok: true, lot };
 };
