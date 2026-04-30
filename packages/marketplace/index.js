@@ -16,6 +16,16 @@ function mapItemToSellOption(item) {
     return { id: item.id, name: itemName };
 }
 
+function uniqueById(list) {
+    const seen = new Set();
+    return (list || []).filter((entry) => {
+        const id = entry && entry.id;
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+    });
+}
+
 async function lockEntityLot(player, type, targetId) {
     if (type === "item") {
         if (!inventory || typeof inventory.getItem !== "function" || typeof inventory.deleteItem !== "function") return { error: "Система инвентаря недоступна" };
@@ -135,7 +145,7 @@ module.exports = {
                 .filter(Boolean);
         }
 
-        const charId = player && player.character ? player.character.id : 0;
+        const charId = Number(player && player.character ? player.character.id : 0) || Number(player && player.characterId ? player.characterId : 0) || 0;
 
         if (!options.item.length && inventory && typeof inventory.loadCharacterItemsFromDB === "function" && charId) {
             const invItems = await inventory.loadCharacterItemsFromDB(charId);
@@ -144,16 +154,26 @@ module.exports = {
                 .filter(Boolean);
         }
         if (charId) {
-            const [vehicles, houses, bizes] = await Promise.all([
+            const [vehiclesFromDb, housesFromDb, bizesFromDb] = await Promise.all([
                 db.Models.Vehicle.findAll({ where: { owner: charId }, attributes: ["id", "modelName", "plate"], raw: true }),
                 db.Models.House.findAll({ where: { characterId: charId }, attributes: ["id", "interiorId"], raw: true }),
                 db.Models.Biz.findAll({ where: { characterId: charId }, attributes: ["id", "name"], raw: true })
             ]);
 
-            options.vehicle = vehicles.map((v) => ({ id: v.id, name: `${v.modelName || "Vehicle"} [${v.plate || "NO-PLATE"}]` }));
-            options.house = houses.map((h) => ({ id: h.id, name: `Дом #${h.id}` }));
-            options.biz = bizes.map((b) => ({ id: b.id, name: b.name || `Бизнес #${b.id}` }));
+            const vehiclesLive = mp.vehicles
+                .toArray()
+                .filter((v) => v && v.db && Number(v.db.owner) === charId && (v.db.key === "private" || v.db.key === "market"))
+                .map((v) => ({ id: v.db.id, name: `${v.db.modelName || "Vehicle"} [${v.db.plate || "NO-PLATE"}]` }));
+
+            options.vehicle = uniqueById([
+                ...vehiclesFromDb.map((v) => ({ id: v.id, name: `${v.modelName || "Vehicle"} [${v.plate || "NO-PLATE"}]` })),
+                ...vehiclesLive
+            ]);
+            options.house = uniqueById(housesFromDb.map((h) => ({ id: h.id, name: `Дом #${h.id}` })));
+            options.biz = uniqueById(bizesFromDb.map((b) => ({ id: b.id, name: b.name || `Бизнес #${b.id}` })));
         }
+
+        options.item = uniqueById(options.item);
 
         return options;
     },
