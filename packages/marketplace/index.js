@@ -30,7 +30,8 @@ async function lockEntityLot(player, type, targetId) {
     if (type === "item") {
         if (!inventory || typeof inventory.getItem !== "function" || typeof inventory.deleteItem !== "function") return { error: "Система инвентаря недоступна" };
         const selectedItem = inventory.getItem(player, targetId);
-        if (!selectedItem || selectedItem.ownerId !== player.character.id) return { error: "Выбранный предмет не найден" };
+        const itemOwnerId = Number(selectedItem && (selectedItem.playerId != null ? selectedItem.playerId : selectedItem.ownerId));
+        if (!selectedItem || itemOwnerId !== Number(player.character.id)) return { error: "Выбранный предмет не найден" };
         const payload = { itemId: selectedItem.itemId, params: selectedItem.params };
         inventory.deleteItem(player, selectedItem);
         return { payload };
