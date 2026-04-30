@@ -193,16 +193,24 @@ module.exports = {
             .replace(/[^\d]/g, "");
         const normalizedPrice = Number(normalizedPriceRaw);
         const sellerName = String(player.character.name || `ID ${player.character.id}`).trim().slice(0, 64);
+        const debugPayload = {
+            charId: player.character.id,
+            raw: { title, description, price, lotType, lotTargetId },
+            normalized: { normalizedTitle, normalizedDescription, normalizedPriceRaw, normalizedPrice }
+        };
 
         if (!normalizedTitle || normalizedTitle.length > MAX_TITLE_LENGTH) {
+            console.log("[marketplace][createLot][invalid-title]", JSON.stringify(debugPayload));
             return { ok: false, error: `Название должно быть от 1 до ${MAX_TITLE_LENGTH} символов` };
         }
 
         if (normalizedDescription.length > MAX_DESCRIPTION_LENGTH) {
+            console.log("[marketplace][createLot][invalid-description]", JSON.stringify(debugPayload));
             return { ok: false, error: `Описание должно быть не длиннее ${MAX_DESCRIPTION_LENGTH} символов` };
         }
 
         if (isNaN(normalizedPrice) || normalizedPrice < MIN_PRICE || normalizedPrice > MAX_PRICE) {
+            console.log("[marketplace][createLot][invalid-price]", JSON.stringify(debugPayload));
             return { ok: false, error: `Цена должна быть от ${MIN_PRICE} до ${MAX_PRICE}` };
         }
 
@@ -210,15 +218,20 @@ module.exports = {
         const parsedTargetId = parseInt(lotTargetId);
 
         if (!["item", "vehicle", "house", "biz"].includes(normalizedType)) {
+            console.log("[marketplace][createLot][invalid-type]", JSON.stringify({ ...debugPayload, normalizedType }));
             return { ok: false, error: "Неизвестный тип лота" };
         }
 
         if (isNaN(parsedTargetId) || parsedTargetId < 1) {
+            console.log("[marketplace][createLot][invalid-target]", JSON.stringify({ ...debugPayload, parsedTargetId }));
             return { ok: false, error: "Не выбран предмет/объект для лота" };
         }
 
         const lockResult = await lockEntityLot(player, normalizedType, parsedTargetId);
-        if (lockResult.error) return { ok: false, error: lockResult.error };
+        if (lockResult.error) {
+            console.log("[marketplace][createLot][lock-failed]", JSON.stringify({ ...debugPayload, parsedTargetId, normalizedType, lockError: lockResult.error }));
+            return { ok: false, error: lockResult.error };
+        }
 
         const lockedPayload = lockResult.payload || null;
 

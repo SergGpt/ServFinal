@@ -144,6 +144,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
 
     const activeType = resolveLotType();
     const activeOptions = sellOptions[activeType] || [];
+    const normalizedPricePreview = String(price || '').replace(/\s+/g, '').replace(/[^\d]/g, '');
     const selectorPlaceholder = activeType === 'item' ? 'Выбрать предмет' : activeType === 'vehicle' ? 'Выбрать транспорт' : activeType === 'house' ? 'Выбрать недвижимость' : activeType === 'biz' ? 'Выбрать бизнес' : 'Выбрать объект';
 
     useEffect(() => {
@@ -267,6 +268,11 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                             <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder='Цена' style={{ ...boxStyle, width: '100%', outline: 'none' }} />
                         </div>
                         {createError && <div style={{ color: '#c93434', fontSize: 13, padding: '6px 12px' }}>{createError}</div>}
+                        {isCreateMode && (
+                            <div style={{ color: '#6b7280', fontSize: 12, padding: '0 12px 8px' }}>
+                                lotType: {activeType} | selectedId: {selectedItemId || '-'} | rawPrice: {String(price || '-')} | normalizedPrice: {normalizedPricePreview || '-'}
+                            </div>
+                        )}
 
                         <div style={cardsWrap}>
                             {renderLots.map((lot) => (
