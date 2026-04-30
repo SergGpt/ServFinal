@@ -69,7 +69,7 @@ const topBarStyle = {
     background: '#f9f9fb',
     borderBottom: '1px solid #e2e4e8',
     display: 'grid',
-    gridTemplateColumns: '260px 220px 1fr auto auto',
+    gridTemplateColumns: '260px 220px 1fr auto',
     alignItems: 'center',
     gap: 10,
     padding: '10px 12px'
@@ -224,16 +224,18 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, marketpla
                         <div style={boxStyle}>Выбор категории</div>
                         <div style={boxStyle}>Сортировка</div>
                         <div />
-                        <button style={{ border: 'none', borderRadius: 8, background: '#3a7ed3', color: '#fff', padding: '10px 16px', cursor: 'pointer' }} onClick={onCreate}>
-                            {isCreateMode ? 'Опубликовать' : 'Создать лот'}
-                        </button>
-                        <button style={{ border: 'none', borderRadius: 8, background: '#2d2f36', color: '#fff', padding: '10px 16px', cursor: 'pointer' }} onClick={onClose}>
-                            Закрыть
-                        </button>
+                        <div style={{ display: 'flex', gap: 8, justifySelf: 'end' }}>
+                            <button style={{ border: 'none', borderRadius: 8, background: '#3a7ed3', color: '#fff', padding: '10px 16px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={onCreate}>
+                                {isCreateMode ? 'Опубликовать' : 'Создать лот'}
+                            </button>
+                            <button style={{ border: 'none', borderRadius: 8, background: '#2d2f36', color: '#fff', padding: '10px 16px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={onClose}>
+                                Закрыть
+                            </button>
 
-                        <button style={{ border: 'none', borderRadius: 8, background: '#7c5cff', color: '#fff', padding: '10px 12px', cursor: 'pointer' }} onClick={() => setShowDebug((v) => !v)}>
-                            {showDebug ? 'Скрыть debug' : 'Показать debug'}
-                        </button>
+                            <button style={{ border: 'none', borderRadius: 8, background: '#7c5cff', color: '#fff', padding: '10px 12px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => setShowDebug((v) => !v)}>
+                                {showDebug ? 'Скрыть debug' : 'Показать debug'}
+                            </button>
+                        </div>
 
                     </div>
 
