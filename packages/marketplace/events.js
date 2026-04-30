@@ -16,7 +16,18 @@ module.exports = {
     },
 
     "marketplace.phone.create": async (player, title, description, price, lotType, lotTargetId) => {
-        const result = await marketplace.createLot(player, title, description, price, lotType, lotTargetId);
+        let payload = null;
+        if ((description === undefined || description === null) && (price === undefined || price === null) && typeof title === "string") {
+            try { payload = JSON.parse(title); } catch (_) {}
+        }
+
+        const finalTitle = payload && payload.title != null ? payload.title : title;
+        const finalDescription = payload && payload.description != null ? payload.description : description;
+        const finalPrice = payload && payload.price != null ? payload.price : price;
+        const finalLotType = payload && payload.lotType != null ? payload.lotType : lotType;
+        const finalLotTargetId = payload && payload.lotTargetId != null ? payload.lotTargetId : lotTargetId;
+
+        const result = await marketplace.createLot(player, finalTitle, finalDescription, finalPrice, finalLotType, finalLotTargetId);
         if (!result.ok) {
             player.call("notifications.push.error", [result.error, "Маркетплейс"]);
             return;

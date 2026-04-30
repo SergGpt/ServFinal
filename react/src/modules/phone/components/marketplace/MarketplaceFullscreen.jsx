@@ -183,7 +183,13 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
 
         setCreateError('');
         if (typeof mp !== 'undefined' && mp.trigger) {
-            mp.trigger('callRemote', 'marketplace.phone.create', finalTitle, description, normalizedPrice, resolveLotType(), selectedItemId);
+            mp.trigger('callRemote', 'marketplace.phone.create', JSON.stringify({
+                title: finalTitle,
+                description,
+                price: normalizedPrice,
+                lotType: resolveLotType(),
+                lotTargetId: selectedItemId
+            }));
         }
         setTitle('');
         setDescription('');
