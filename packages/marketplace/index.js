@@ -3,7 +3,7 @@
 const MAX_TITLE_LENGTH = 64;
 const MAX_DESCRIPTION_LENGTH = 240;
 const MIN_PRICE = 1;
-const MAX_PRICE = 10000000;
+const MAX_PRICE = 100000000;
 
 let money;
 let inventory;
@@ -188,8 +188,10 @@ module.exports = {
 
         const normalizedTitle = (title || "").trim();
         const normalizedDescription = (description || "").trim();
-        const normalizedPriceRaw = String(price == null ? "" : price).replace(/[^\d]/g, "");
-        const normalizedPrice = parseInt(normalizedPriceRaw);
+        const normalizedPriceRaw = String(price == null ? "" : price)
+            .replace(/\s+/g, "")
+            .replace(/[^\d]/g, "");
+        const normalizedPrice = Number(normalizedPriceRaw);
         const sellerName = String(player.character.name || `ID ${player.character.id}`).trim().slice(0, 64);
 
         if (!normalizedTitle || normalizedTitle.length > MAX_TITLE_LENGTH) {
