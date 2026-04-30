@@ -178,9 +178,21 @@ export default function info(state = initialState, action) {
             };
 
         case 'LOAD_INFO_TO_PHONE':
+            const nextMarketplaceLots = Array.isArray(payload && payload.marketplaceLots)
+                ? payload.marketplaceLots
+                : state.marketplaceLots;
+            const nextMarketplaceSellOptions = payload && payload.marketplaceSellOptions
+                ? payload.marketplaceSellOptions
+                : state.marketplaceSellOptions;
+            const nextMarketplaceFullscreen = typeof (payload && payload.marketplaceFullscreen) === 'boolean'
+                ? payload.marketplaceFullscreen
+                : state.marketplaceFullscreen;
             return {
                 ...state,
                 ...payload,
+                marketplaceLots: nextMarketplaceLots,
+                marketplaceSellOptions: nextMarketplaceSellOptions,
+                marketplaceFullscreen: nextMarketplaceFullscreen,
                 contacts: [
                     ...payload.contacts,
                     {
