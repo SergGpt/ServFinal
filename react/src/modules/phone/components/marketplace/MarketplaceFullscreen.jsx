@@ -109,7 +109,7 @@ const imgStyle = {
     background: 'linear-gradient(135deg,#b6c3d6,#d5dee8)'
 };
 
-const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFullscreen, characterId }) => {
+const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, marketplaceDebug, closeFullscreen, characterId }) => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [price, setPrice] = useState('');
@@ -276,6 +276,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                             <div>items: {sellOptions.item ? sellOptions.item.length : 0} | vehicles: {sellOptions.vehicle ? sellOptions.vehicle.length : 0} | houses: {sellOptions.house ? sellOptions.house.length : 0} | biz: {sellOptions.biz ? sellOptions.biz.length : 0}</div>
                             <div>activeOptions: {activeOptions.length} | selectedItemId: {String(selectedItemId || '-')}</div>
                             <div>createMode: {String(isCreateMode)} | error: {createError || '-'}</div>
+                            <div>serverDebug: {marketplaceDebug ? JSON.stringify(marketplaceDebug) : '-'}</div>
                         </div>}
 
                         <div style={cardsWrap}>
@@ -309,6 +310,7 @@ const mapStateToProps = (state) => ({
     isOpen: !!(state.info && state.info.marketplaceFullscreen),
     marketplaceLots: state.info && Array.isArray(state.info.marketplaceLots) ? state.info.marketplaceLots : [],
     sellOptions: state.info && state.info.marketplaceSellOptions ? state.info.marketplaceSellOptions : { item: [], vehicle: [], house: [], biz: [] },
+    marketplaceDebug: state.info ? state.info.marketplaceDebug : null,
     characterId: state.info && state.info.id ? state.info.id : 0
 });
 

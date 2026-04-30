@@ -101,6 +101,12 @@ export default (myEventEmmiter, dispatch) => {
             payload: { lots, sellOptions }
         });
     });
+    myEventEmmiter.on('marketplace.phone.debug', (debugPayload) => {
+        dispatch({
+            type: 'PHONE_MARKETPLACE_DEBUG',
+            payload: debugPayload
+        });
+    });
 
     myEventEmmiter.on('marketplace.fullscreen.open', () => {
         dispatch({

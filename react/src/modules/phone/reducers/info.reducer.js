@@ -119,6 +119,7 @@ const initialState = {
     // ],
     marketplaceLots: [],
     marketplaceSellOptions: { item: [], vehicle: [], house: [], biz: [] },
+    marketplaceDebug: null,
     marketplaceFullscreen: false,
     // callStory: [
     //     {
@@ -446,6 +447,11 @@ export default function info(state = initialState, action) {
             return {
                 ...state,
                 marketplaceFullscreen: !!payload
+            };
+        case 'PHONE_MARKETPLACE_DEBUG':
+            return {
+                ...state,
+                marketplaceDebug: payload || null
             };
 
         case 'DELETE_APP_TO_PHONE':
