@@ -8,6 +8,14 @@ const MAX_PRICE = 100000000;
 let money;
 let inventory;
 
+function mapItemToSellOption(item) {
+    if (!item || !item.id) return null;
+    const itemName = (item.item && item.item.name)
+        || (inventory && typeof inventory.getName === "function" ? inventory.getName(item.itemId) : null)
+        || `Предмет #${item.id}`;
+    return { id: item.id, name: itemName };
+}
+
 async function lockEntityLot(player, type, targetId) {
     if (type === "item") {
         if (!inventory || typeof inventory.getItem !== "function" || typeof inventory.deleteItem !== "function") return { error: "Система инвентаря недоступна" };
@@ -115,16 +123,16 @@ module.exports = {
 
         if (player && player.inventory && Array.isArray(player.inventory.items) && player.inventory.items.length) {
             options.item = player.inventory.items
-                 .filter((it) => it && it.id && it.item && !it.parentId)
-                .map((it) => ({ id: it.id, name: it.item.name || `Предмет #${it.id}` }));
+                .map(mapItemToSellOption)
+                .filter(Boolean);
         } else if (player && player.character) {
             const dbItems = await db.Models.CharacterInventory.findAll({
-                where: { playerId: player.character.id, parentId: null },
+                where: { playerId: player.character.id },
                 include: [{ model: db.Models.InventoryItem, as: "item" }]
             });
             options.item = dbItems
-                 .filter((it) => it && it.id && it.item && !it.parentId)
-                .map((it) => ({ id: it.id, name: it.item.name || `Предмет #${it.id}` }));
+                .map(mapItemToSellOption)
+                .filter(Boolean);
         }
 
         const charId = player && player.character ? player.character.id : 0;
@@ -132,8 +140,8 @@ module.exports = {
         if (!options.item.length && inventory && typeof inventory.loadCharacterItemsFromDB === "function" && charId) {
             const invItems = await inventory.loadCharacterItemsFromDB(charId);
             options.item = (invItems || [])
-                .filter((it) => it && it.id && it.item && !it.parentId)
-                .map((it) => ({ id: it.id, name: it.item.name || `Предмет #${it.id}` }));
+                .map(mapItemToSellOption)
+                .filter(Boolean);
         }
         if (charId) {
             const [vehicles, houses, bizes] = await Promise.all([
