@@ -282,12 +282,19 @@ module.exports = {
         money.addCashById(lot.sellerCharacterId, lot.price, () => {}, `[marketplace] продажа лота #${lot.id}`);
 
         const transferResult = await transferEntityToBuyer(player, lot);
-        if (!transferResult.ok) return transferResult;
+        if (!transferResult.ok) {
+            money.addCashById(player.character.id, lot.price, () => {}, `[marketplace] возврат за неудачную покупку лота #${lot.id}`);
+            return transferResult;
+        }
 
         await lot.update({
             status: "sold",
             buyerCharacterId: player.character.id
         });
+
+        mp.events.call('vehicles.private.load', player);
+        const sellerPlayer = mp.players.toArray().find((x) => x.character && x.character.id === lot.sellerCharacterId);
+        if (sellerPlayer) mp.events.call('vehicles.private.load', sellerPlayer);
 
         return { ok: true, lot };
     }
