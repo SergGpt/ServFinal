@@ -95,10 +95,10 @@ export default (myEventEmmiter, dispatch) => {
         });
     });
 
-    myEventEmmiter.on('marketplace.phone.data', (lots, sellOptions) => {
+    myEventEmmiter.on('marketplace.phone.data', (lots, sellOptions, viewerCharacterId) => {
         dispatch({
             type: 'PHONE_MARKETPLACE_LOTS',
-            payload: { lots, sellOptions }
+            payload: { lots, sellOptions, viewerCharacterId }
         });
     });
 
