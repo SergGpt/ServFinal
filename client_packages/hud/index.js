@@ -4,12 +4,53 @@ let prevValues = {};
 let ignoreValues = ['cold', 'heat'];
 let hudState = false;
 let playersListState = false;
+const HUD_EDITOR_BUSY = 'hudEditor';
+const HUD_EDITOR_STORAGE_KEY = 'hudEditorLayout';
+let hudEditorState = false;
+let hudEditorAccess = false;
+
+const getStoredHudLayout = () => {
+    if (!mp.storage || !mp.storage.data) return null;
+    const layout = mp.storage.data[HUD_EDITOR_STORAGE_KEY];
+    if (!layout || typeof layout !== "object") return null;
+    return layout;
+};
+
+const applyStoredHudLayout = () => {
+    const layout = getStoredHudLayout();
+    if (!layout) return;
+    mp.callCEFV(`hud.applyLayout(${JSON.stringify(layout)})`);
+};
+
+const setHudEditorState = (state) => {
+    if (!hudEditorAccess && state) return;
+    state = !!state;
+    if (state === hudEditorState) return;
+    hudEditorState = state;
+
+    if (hudEditorState) {
+        if (mp.busy.includes() && !mp.busy.includes(HUD_EDITOR_BUSY)) {
+            hudEditorState = false;
+            return;
+        }
+
+        if (!mp.busy.add(HUD_EDITOR_BUSY, true)) {
+            hudEditorState = false;
+            return;
+        }
+    } else {
+        mp.busy.remove(HUD_EDITOR_BUSY);
+    }
+
+    mp.callCEFV(`hud.setEditorMode(${hudEditorState})`);
+};
 
 mp.events.add('hud.load', () => {
     var anchor = mp.utils.getMinimapAnchor();
     var resolution = mp.game.graphics.getScreenActiveResolution(0, 0);
     mp.callCEFV(`hud.leftWeather = ${resolution.x * (anchor.rightX * 1.1)}`);
     mp.events.call('hud.enable', true);
+    applyStoredHudLayout();
 
     mp.keys.bind(0x74, true, function() { /// Включение/отключение худа на F5
         if (mp.busy.list.includes("carshow")) return;
@@ -26,6 +67,13 @@ mp.events.add('hud.load', () => {
         }
     });
 
+    mp.keys.bind(0x79, true, function() { /// Редактор HUD на F10
+        if (mp.game.ui.isPauseMenuActive()) return;
+        if (!hudEditorAccess) return;
+        if (!hudState) return;
+        mp.events.call('hud.editor.toggle');
+    });
+
     // список игроков на F9
     mp.keys.bind(0x78, true, function() {
         if (mp.game.ui.isPauseMenuActive()) return;
@@ -40,6 +88,7 @@ mp.events.add('hud.load', () => {
 });
 
 mp.events.add('hud.enable', (state) => {
+    if (!state && hudEditorState) setHudEditorState(false);
     mp.callCEFVN({
         "hud.show": state
     });
@@ -107,6 +156,28 @@ mp.events.add('hud.players.list.remove', (id) => {
 
 mp.events.add('hud.players.list.update', (id, data) => {
     mp.callCEFR('players.update', [id, data]);
+});
+
+mp.events.add('hud.editor.toggle', (state = null) => {
+    if (!hudEditorAccess) return;
+    if (state == null) state = !hudEditorState;
+    setHudEditorState(!!state);
+});
+
+mp.events.add('hud.editor.access', (state) => {
+    hudEditorAccess = !!state;
+    if (!hudEditorAccess && hudEditorState) setHudEditorState(false);
+});
+
+mp.events.add('hud.editor.save', (layoutJson) => {
+    if (!layoutJson) return;
+
+    try {
+        const layout = JSON.parse(layoutJson);
+        mp.storage.data[HUD_EDITOR_STORAGE_KEY] = layout;
+    } catch (e) {
+        return;
+    }
 });
 
 mp.events.call('hud.setData', {

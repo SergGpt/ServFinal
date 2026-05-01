@@ -56,8 +56,14 @@
 <body>
     <!-- ************************** VUE JS ************************** -->
     <!-- v-cloak в контейнерах VUE используется для того, что бы решить проблему мерцания UI при запуске -->
-    <div v-cloak="v-cloak" id="hud" v-show="show || playerMenu.show">
-        <div class="panel-right-top">
+    <div v-cloak="v-cloak" id="hud" v-show="show || playerMenu.show" :class="{ 'hud-edit-mode': editor.enabled }">
+        <div
+            class="panel-right-top hud-editor-block"
+            :class="editorBlockClass('rightTop')"
+            :style="editorBlockStyle('rightTop')"
+            :data-editor-title="editorBlockTitle('rightTop')"
+            @mousedown="startDrag('rightTop', $event)"
+        >
             <div class="info-logo">
                 <div>
                     <div class="server block">
@@ -109,7 +115,14 @@
                 </div>
             </div>
         </div>
-        <div v-show="show" class="panel-right-bottom">
+        <div
+            v-show="show"
+            class="panel-right-bottom hud-editor-block"
+            :class="editorBlockClass('rightBottom')"
+            :style="editorBlockStyle('rightBottom')"
+            :data-editor-title="editorBlockTitle('rightBottom')"
+            @mousedown="startDrag('rightBottom', $event)"
+        >
             <div class="money block">
                 <div class="cash">
                     <div class="head text-small">На руках:</div>
@@ -121,7 +134,14 @@
                 </div>
             </div>
         </div>
-        <div v-show="show" class="left-bottom" v-bind:style="{left: leftWeather + 'px'}">
+        <div
+            v-show="show"
+            class="left-bottom hud-editor-block"
+            :class="editorBlockClass('leftBottom')"
+            :style="leftBottomStyle"
+            :data-editor-title="editorBlockTitle('leftBottom')"
+            @mousedown="startDrag('leftBottom', $event)"
+        >
             <div class="temperature text-bold">{{ temperature }}°C</div>
             <div v-show="show" class="wanted" v-if="wanted">
                 <svg
@@ -154,7 +174,14 @@
                 </div>
             </div>
         </div>
-        <div class="arrest" v-if="arrestTime > 0">
+        <div
+            class="arrest hud-editor-block"
+            v-if="arrestTime > 0 || editor.enabled"
+            :class="editorBlockClass('arrest')"
+            :style="editorBlockStyle('arrest')"
+            :data-editor-title="editorBlockTitle('arrest')"
+            @mousedown="startDrag('arrest', $event)"
+        >
                 <div class="img">
                     <img src="img/hud/prisoner.svg" />
                 </div>
@@ -165,6 +192,25 @@
                 <div class="desc">До конца заключения</div>
                 <div class="time">{{ arrestDescription }}</div>
             </div>
+        <div v-if="editor.enabled" class="hud-editor-toolbar">
+            <div class="title text-bold">Режим редактирования HUD</div>
+            <div class="desc text-small">Перетаскивай блоки мышкой, затем сохрани.</div>
+            <div class="block-selector">
+                <button
+                    v-for="block in editor.blocks"
+                    :key="block.key"
+                    :class="{ active: editor.selectedKey === block.key }"
+                    @click="selectEditorBlock(block.key)"
+                >
+                    {{ block.title }}
+                </button>
+            </div>
+            <div class="buttons">
+                <button @click="saveLayout">Сохранить</button>
+                <button @click="resetLayout">Сбросить</button>
+                <button class="danger" @click="closeEditor">Закрыть</button>
+            </div>
+        </div>
     </div>
 
     <div v-cloak="v-cloak" id="prompt" v-if="text" :style="{ opacity: 1 }">
