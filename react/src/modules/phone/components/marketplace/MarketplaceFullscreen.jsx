@@ -13,6 +13,28 @@ const CATEGORIES = [
     'Услуги'
 ];
 
+const CATEGORY_LOT_TYPES = {
+    'Аукция': ['auction'],
+    'Транспорт': ['vehicle'],
+    'Недвижимость': ['house'],
+    'Бизнесы': ['biz'],
+    'Банкомат': ['atm'],
+    'Предметы': ['item'],
+    'Одежда и аксессуары': ['clothes'],
+    'Услуги': ['service']
+};
+
+const LOT_TYPE_LABELS = {
+    item: 'Предметы',
+    clothes: 'Одежда и аксессуары',
+    vehicle: 'Транспорт',
+    house: 'Недвижимость',
+    biz: 'Бизнесы',
+    auction: 'Аукция',
+    atm: 'Банкомат',
+    service: 'Услуги'
+};
+
 const shellStyle = {
     position: 'fixed',
     inset: 0,
@@ -90,16 +112,25 @@ const boxStyle = {
 const cardsWrap = {
     padding: 12,
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-    gap: 10,
-    overflowY: 'auto'
+    gridTemplateColumns: 'repeat(auto-fill, 260px)',
+    gridAutoRows: '340px',
+    alignItems: 'start',
+    alignContent: 'start',
+    justifyContent: 'start',
+    gap: 12,
+    overflowY: 'auto',
+    minHeight: 0
 };
 
 const cardStyle = {
     background: '#fff',
     borderRadius: 10,
     border: '1px solid #e2e4e8',
-    overflow: 'hidden'
+    overflow: 'hidden',
+    width: 260,
+    height: 340,
+    display: 'grid',
+    gridTemplateRows: '140px 1fr'
 };
 
 const imgStyle = {
@@ -126,24 +157,31 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
         }
     }, [isOpen]);
 
-    const renderLots = useMemo(() => {
-        return (marketplaceLots || []).map((lot) => ({
-            ...lot,
-            category: activeCategory,
-            img: lot.image || ''
-        }));
-    }, [marketplaceLots, activeCategory]);
-
     const resolveLotType = () => {
         if (activeCategory === 'Транспорт') return 'vehicle';
         if (activeCategory === 'Недвижимость') return 'house';
         if (activeCategory === 'Бизнесы') return 'biz';
+        if (activeCategory === 'Одежда и аксессуары') return 'clothes';
+        if (activeCategory === 'Услуги') return 'service';
         return 'item';
     };
 
-
     const activeType = resolveLotType();
     const activeOptions = sellOptions[activeType] || [];
+    const normalizedCharacterId = Number(characterId);
+
+    const renderLots = useMemo(() => {
+        const allowedTypes = CATEGORY_LOT_TYPES[activeCategory];
+        return (marketplaceLots || []).filter((lot) => {
+            if (!allowedTypes) return false;
+            return allowedTypes.includes(String(lot.lotType || '').toLowerCase());
+        }).map((lot) => ({
+            ...lot,
+            category: LOT_TYPE_LABELS[String(lot.lotType || '').toLowerCase()] || activeCategory,
+            img: lot.image || ''
+        }));
+    }, [marketplaceLots, activeCategory]);
+
     const normalizedPricePreview = String(price || '').replace(/\s+/g, '').replace(/[^\d]/g, '');
     const selectorPlaceholder = activeType === 'item' ? 'Выбрать предмет' : activeType === 'vehicle' ? 'Выбрать транспорт' : activeType === 'house' ? 'Выбрать недвижимость' : activeType === 'biz' ? 'Выбрать бизнес' : 'Выбрать объект';
 
@@ -202,6 +240,12 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
     const onBuy = (id) => {
         if (typeof mp !== 'undefined' && mp.trigger) {
             mp.trigger('callRemote', 'marketplace.phone.buy', id);
+        }
+    };
+
+    const onCancelLot = (id) => {
+        if (typeof mp !== 'undefined' && mp.trigger) {
+            mp.trigger('callRemote', 'marketplace.phone.remove', id);
         }
     };
 
@@ -284,13 +328,18 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                             {renderLots.map((lot) => (
                                 <div key={lot.id} style={cardStyle}>
                                     {lot.img ? <img src={lot.img} alt='' style={imgStyle} /> : <div style={imgStyle} />}
-                                    <div style={{ padding: 10 }}>
-                                        <div style={{ fontSize: 16, fontWeight: 700, color: '#212a35' }}>{lot.title}</div>
+                                    <div style={{ padding: 10, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                                        <div style={{ fontSize: 16, fontWeight: 700, color: '#212a35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lot.title}>{lot.title}</div>
                                         <div style={{ fontSize: 12, color: '#7a838f', marginTop: 2 }}>{lot.category}</div>
                                         <div style={{ fontSize: 27, fontWeight: 800, color: '#222f3c', marginTop: 8 }}>${lot.price}</div>
-                                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                                            {lot.sellerCharacterId === characterId ? (
-                                                <button style={{ border: 'none', borderRadius: 8, background: '#50545c', color: '#fff', padding: '9px 12px', cursor: 'pointer', flex: 1 }} onClick={() => mp.trigger('callRemote', 'marketplace.phone.remove', lot.id)}>Снять</button>
+                                        {Number(lot.sellerCharacterId) === normalizedCharacterId && (
+                                            <div style={{ fontSize: 12, color: '#8a4b18', marginTop: 4 }}>
+                                                Отмена лота: комиссия ${Math.max(1, Math.floor(Number(lot.price || 0) * 0.01))}
+                                            </div>
+                                        )}
+                                        <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
+                                            {Number(lot.sellerCharacterId) === normalizedCharacterId ? (
+                                                <button style={{ border: 'none', borderRadius: 8, background: '#b64b3f', color: '#fff', padding: '9px 12px', cursor: 'pointer', flex: 1 }} onClick={() => onCancelLot(lot.id)}>Отменить лот</button>
                                             ) : (
                                                 <button style={{ border: 'none', borderRadius: 8, background: '#3f8f3f', color: '#fff', padding: '9px 12px', cursor: 'pointer', flex: 1 }} onClick={() => onBuy(lot.id)}>Купить</button>
                                             )}
