@@ -171,7 +171,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
     const activeType = resolveLotType();
     const activeOptions = sellOptions[activeType] || [];
     const viewerIds = [viewerCharacterId, characterId].map(Number).filter((id) => Number.isFinite(id) && id > 0);
-    const isOwnLot = (lot) => viewerIds.includes(Number(lot.sellerCharacterId));
+    const isOwnLot = (lot) => lot.isOwn === true || viewerIds.includes(Number(lot.sellerCharacterId));
 
     const renderLots = useMemo(() => {
         const allowedTypes = CATEGORY_LOT_TYPES[activeCategory];
@@ -181,7 +181,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
         }).map((lot) => ({
             ...lot,
             category: LOT_TYPE_LABELS[String(lot.lotType || '').toLowerCase()] || activeCategory,
-            img: lot.image || (lot.itemId ? `/img/inventory/items/${lot.itemId}.png` : '')
+            img: lot.preview || lot.image || (lot.itemId ? `/img/inventory/items/${lot.itemId}.png` : '')
         }));
     }, [marketplaceLots, activeCategory]);
 
@@ -329,6 +329,11 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                                         <div style={{ fontSize: 12, color: '#59616b', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lot.sellerName || ''}>
                                             Продавец: {lot.sellerName || `ID ${lot.sellerCharacterId || '-'}`}
                                         </div>
+                                        {lot.itemId && (
+                                            <div style={{ fontSize: 12, color: '#59616b', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`itemId: ${lot.itemId}`}>
+                                                ID предмета: {lot.itemId}
+                                            </div>
+                                        )}
                                         <div style={{ fontSize: 24, fontWeight: 800, color: '#222f3c', marginTop: 6 }}>${lot.price}</div>
                                         {isOwnLot(lot) && (
                                             <div style={{ fontSize: 12, color: '#8a4b18', marginTop: 4 }}>
