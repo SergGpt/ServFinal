@@ -96,6 +96,11 @@ async function transferEntityToBuyer(player, lot) {
         const vehicle = await db.Models.Vehicle.findOne({ where: { id: lot.lotTargetId } });
         if (!vehicle) return { ok: false, error: "Транспорт лота не найден" };
         await vehicle.update({ owner: player.character.id });
+        const liveVehicle = mp.vehicles.toArray().find((x) => x && x.db && x.db.id == lot.lotTargetId);
+        if (liveVehicle) {
+            liveVehicle.db.owner = player.character.id;
+            liveVehicle.owner = player.character.id;
+        }
         return { ok: true };
     }
     if (lot.lotType === "house") {
