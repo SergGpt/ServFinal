@@ -6,6 +6,7 @@ let timer;
 let vehicles;
 let notifications;
 let utils;
+let marketplace;
 
 let carPlaceVehicle = [];
 
@@ -17,6 +18,7 @@ module.exports = {
         vehicles = call("vehicles");
         notifications = call('notifications');
         utils = call('utils');
+        marketplace = call('marketplace');
         housesService.init();
         inited(__dirname);
     },
@@ -135,12 +137,13 @@ module.exports = {
         player.call('house.enter.ans', [player.house.place === 0, pos, rot]);
         player.house.place = place;
     },
-    "house.buy": (player) => {
+    "house.buy": async (player) => {
         if (money == null) return player.call('house.buy.ans', [0, ""]);
         if (player.house.id === -1 || player.house.id == null) return player.call('house.buy.ans', [0, ""]);
         let house = housesService.getHouseById(player.house.id);
         if (house == null) return player.call('house.buy.ans', [0, ""]);
         let info = house.info;
+        if (marketplace && await marketplace.isEntityListed("house", info.id)) return player.call('house.buy.ans', [0, ""]);
         if (info.characterId != null) return player.call('house.buy.ans', [0, ""]);
         if (player.dist(new mp.Vector3(info.pickupX, info.pickupY, info.pickupZ)) > 10) return player.call('house.buy.ans', [0, ""]);
         if (player.character.cash < info.price) return player.call('house.buy.ans', [0, ""]);
@@ -173,7 +176,7 @@ module.exports = {
         info.isOpened = isOpened;
         info.save();
     },
-    "house.sell.toGov": (player, id) => {
+    "house.sell.toGov": async (player, id) => {
         if (money == null) return player.call('house.sell.toGov.ans', [0]);
         if (player == null) return;
         // if (vehicles == null) return player.call('house.sell.toGov.ans', [0]);
@@ -183,6 +186,7 @@ module.exports = {
         let house = housesService.getHouseById(id);
         if (house == null) return player.call('house.sell.toGov.ans', [0]);
         let info = house.info;
+        if (marketplace && await marketplace.isEntityListed("house", info.id)) return player.call('house.sell.toGov.ans', [0]);
         if (player.dist(new mp.Vector3(info.pickupX, info.pickupY, info.pickupZ)) > 10) return player.call('house.sell.toGov.ans', [3]);
         if (info.characterId !== player.character.id) return player.call('house.sell.toGov.ans', [0]);
         housesService.dropHouse(house, true);

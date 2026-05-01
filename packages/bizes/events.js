@@ -5,6 +5,7 @@ let prompt;
 let money;
 let notifications;
 let phone;
+let marketplace;
 
 let bizService = require('./index.js');
 
@@ -15,6 +16,7 @@ module.exports = {
         money = call("money");
         notifications = call('notifications');
         phone = call("phone");
+        marketplace = call("marketplace");
     },
 
     "factions.loaded": async () => {
@@ -141,11 +143,12 @@ module.exports = {
         }
     },
 
-    "biz.buy": (player) => {
+    "biz.buy": async (player) => {
         if (!money || player.biz.at == null) return player.call('biz.buy.ans', [0, ""]);
         let biz = bizService.getBizById(player.biz.at);
         if (!biz) return;
         let info = biz.info;
+        if (marketplace && await marketplace.isEntityListed("biz", info.id)) return player.call('biz.buy.ans', [0, ""]);
         if (bizService.bizesModules[info.type].business.isFactionOwner) return;
         if (info.characterId != null) return player.call('biz.buy.ans', [0, ""]);
         if (player.dist(new mp.Vector3(info.x, info.y, info.z)) > 10) return player.call('biz.buy.ans', [0, ""]);
@@ -173,7 +176,7 @@ module.exports = {
             notifications.info(player, "Оплатите имущество в банке в течение 24 часов, иначе оно будет продано", "Внимание");
         }, `Покупка бизнеса #${info.id} у государства`);
     },
-    "biz.sell.toGov": (player, id) => {
+    "biz.sell.toGov": async (player, id) => {
         if (money == null) return player.call('biz.sell.toGov.ans', [0]);
         if (player == null) return;
         id = parseInt(id);
@@ -181,6 +184,7 @@ module.exports = {
         let biz = bizService.getBizById(id);
         if (biz == null) return player.call('biz.sell.toGov.ans', [0]);
         let info = biz.info;
+        if (marketplace && await marketplace.isEntityListed("biz", info.id)) return player.call('biz.sell.toGov.ans', [0]);
         if (bizService.bizesModules[info.type].business.isFactionOwner) return;
         if (player.dist(new mp.Vector3(info.x, info.y, info.z)) > 10) return player.call('biz.sell.toGov.ans', [3]);
         if (info.characterId !== player.character.id) return player.call('biz.sell.toGov.ans', [0]);

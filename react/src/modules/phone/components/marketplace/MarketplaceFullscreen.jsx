@@ -69,7 +69,7 @@ const topBarStyle = {
     background: '#f9f9fb',
     borderBottom: '1px solid #e2e4e8',
     display: 'grid',
-    gridTemplateColumns: '260px 220px 1fr auto auto',
+    gridTemplateColumns: '260px 220px 1fr auto',
     alignItems: 'center',
     gap: 10,
     padding: '10px 12px'
@@ -118,7 +118,6 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
     const [isSelectorOpen, setSelectorOpen] = useState(false);
     const [isCreateMode, setCreateMode] = useState(false);
     const [createError, setCreateError] = useState('');
-    const [showDebug, setShowDebug] = useState(true);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -145,6 +144,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
 
     const activeType = resolveLotType();
     const activeOptions = sellOptions[activeType] || [];
+    const normalizedPricePreview = String(price || '').replace(/\s+/g, '').replace(/[^\d]/g, '');
     const selectorPlaceholder = activeType === 'item' ? 'Выбрать предмет' : activeType === 'vehicle' ? 'Выбрать транспорт' : activeType === 'house' ? 'Выбрать недвижимость' : activeType === 'biz' ? 'Выбрать бизнес' : 'Выбрать объект';
 
     useEffect(() => {
@@ -183,7 +183,13 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
 
         setCreateError('');
         if (typeof mp !== 'undefined' && mp.trigger) {
-            mp.trigger('callRemote', 'marketplace.phone.create', finalTitle, description, normalizedPrice, resolveLotType(), selectedItemId);
+            mp.trigger('callRemote', 'marketplace.phone.create', JSON.stringify({
+                title: finalTitle,
+                description,
+                price: normalizedPrice,
+                lotType: resolveLotType(),
+                lotTargetId: selectedItemId
+            }));
         }
         setTitle('');
         setDescription('');
@@ -224,16 +230,15 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                         <div style={boxStyle}>Выбор категории</div>
                         <div style={boxStyle}>Сортировка</div>
                         <div />
-                        <button style={{ border: 'none', borderRadius: 8, background: '#3a7ed3', color: '#fff', padding: '10px 16px', cursor: 'pointer' }} onClick={onCreate}>
-                            {isCreateMode ? 'Опубликовать' : 'Создать лот'}
-                        </button>
-                        <button style={{ border: 'none', borderRadius: 8, background: '#2d2f36', color: '#fff', padding: '10px 16px', cursor: 'pointer' }} onClick={onClose}>
-                            Закрыть
-                        </button>
+                        <div style={{ display: 'flex', gap: 8, justifySelf: 'end' }}>
+                            <button style={{ border: 'none', borderRadius: 8, background: '#3a7ed3', color: '#fff', padding: '10px 16px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={onCreate}>
+                                {isCreateMode ? 'Опубликовать' : 'Создать лот'}
+                            </button>
+                            <button style={{ border: 'none', borderRadius: 8, background: '#2d2f36', color: '#fff', padding: '10px 16px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={onClose}>
+                                Закрыть
+                            </button>
 
-                        <button style={{ border: 'none', borderRadius: 8, background: '#7c5cff', color: '#fff', padding: '10px 12px', cursor: 'pointer' }} onClick={() => setShowDebug((v) => !v)}>
-                            {showDebug ? 'Скрыть debug' : 'Показать debug'}
-                        </button>
+                        </div>
 
                     </div>
 
@@ -269,14 +274,11 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                             <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder='Цена' style={{ ...boxStyle, width: '100%', outline: 'none' }} />
                         </div>
                         {createError && <div style={{ color: '#c93434', fontSize: 13, padding: '6px 12px' }}>{createError}</div>}
-
-                        {showDebug && <div style={{ margin: '8px 12px', padding: '10px 12px', background: '#10151f', color: '#cce3ff', borderRadius: 8, fontSize: 12, fontFamily: 'monospace' }}>
-                            <div>DEBUG marketplace</div>
-                            <div>category: {activeCategory} | type: {activeType}</div>
-                            <div>items: {sellOptions.item ? sellOptions.item.length : 0} | vehicles: {sellOptions.vehicle ? sellOptions.vehicle.length : 0} | houses: {sellOptions.house ? sellOptions.house.length : 0} | biz: {sellOptions.biz ? sellOptions.biz.length : 0}</div>
-                            <div>activeOptions: {activeOptions.length} | selectedItemId: {String(selectedItemId || '-')}</div>
-                            <div>createMode: {String(isCreateMode)} | error: {createError || '-'}</div>
-                        </div>}
+                        {isCreateMode && (
+                            <div style={{ color: '#6b7280', fontSize: 12, padding: '0 12px 8px' }}>
+                                lotType: {activeType} | selectedId: {selectedItemId || '-'} | rawPrice: {String(price || '-')} | normalizedPrice: {normalizedPricePreview || '-'}
+                            </div>
+                        )}
 
                         <div style={cardsWrap}>
                             {renderLots.map((lot) => (

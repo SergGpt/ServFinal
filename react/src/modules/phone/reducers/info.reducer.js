@@ -147,6 +147,15 @@ const initialState = {
 let phoneIsShow = false;
 let phoneIsShow2 = false;
 
+const hasAnyMarketplaceOptions = (value) => {
+    if (!value || typeof value !== 'object') return false;
+    const item = Array.isArray(value.item) ? value.item.length : 0;
+    const vehicle = Array.isArray(value.vehicle) ? value.vehicle.length : 0;
+    const house = Array.isArray(value.house) ? value.house.length : 0;
+    const biz = Array.isArray(value.biz) ? value.biz.length : 0;
+    return (item + vehicle + house + biz) > 0;
+};
+
 export default function info(state = initialState, action) {
 
     const {type, payload} = action;
@@ -178,9 +187,22 @@ export default function info(state = initialState, action) {
             };
 
         case 'LOAD_INFO_TO_PHONE':
+            const nextMarketplaceLots = Array.isArray(payload && payload.marketplaceLots)
+                ? payload.marketplaceLots
+                : state.marketplaceLots;
+            const incomingSellOptions = payload && payload.marketplaceSellOptions ? payload.marketplaceSellOptions : null;
+            const nextMarketplaceSellOptions = hasAnyMarketplaceOptions(incomingSellOptions)
+                ? incomingSellOptions
+                : state.marketplaceSellOptions;
+            const nextMarketplaceFullscreen = typeof (payload && payload.marketplaceFullscreen) === 'boolean'
+                ? payload.marketplaceFullscreen
+                : state.marketplaceFullscreen;
             return {
                 ...state,
                 ...payload,
+                marketplaceLots: nextMarketplaceLots,
+                marketplaceSellOptions: nextMarketplaceSellOptions,
+                marketplaceFullscreen: nextMarketplaceFullscreen,
                 contacts: [
                     ...payload.contacts,
                     {
@@ -424,10 +446,11 @@ export default function info(state = initialState, action) {
             return newStateAdd;
 
         case 'PHONE_MARKETPLACE_LOTS':
+            const incomingOptions = payload && payload.sellOptions ? payload.sellOptions : null;
             return {
                 ...state,
                 marketplaceLots: Array.isArray(payload) ? payload : (payload && Array.isArray(payload.lots) ? payload.lots : []),
-                marketplaceSellOptions: payload && payload.sellOptions ? payload.sellOptions : state.marketplaceSellOptions
+                marketplaceSellOptions: hasAnyMarketplaceOptions(incomingOptions) ? incomingOptions : state.marketplaceSellOptions
             };
 
         case 'PHONE_MARKETPLACE_FULLSCREEN':

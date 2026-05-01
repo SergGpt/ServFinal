@@ -179,6 +179,10 @@ mp.events.add('marketplace.fullscreen.open', () => {
     hidePhone();
 });
 
+mp.events.add('marketplace.phone.data', (lots, sellOptions) => {
+    mp.callCEFR('marketplace.phone.data', [lots, sellOptions]);
+});
+
 mp.events.add('marketplace.fullscreen.close', () => {
     mp.busy.remove('marketplace');
 });

@@ -27,6 +27,7 @@ mp.events.add('parkings.blips.init', (data) => {
 mp.events.add('parkings.blips.private.set', (id) => {
     let oldIndex = blips.findIndex(x => x.data.id == id);
     let old = blips[oldIndex];
+    if (!old || !old.data) return;
     let blip = mp.blips.new(267, new mp.Vector3(old.data.x, old.data.y, old.data.z),
         {
             name: "Подземная парковка",
