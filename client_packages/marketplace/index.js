@@ -202,7 +202,7 @@ function publishPreview(lotId, url) {
 }
 
 function takePreviewScreenshot(lotId, entity, cam) {
-    const fileName = `marketplace_lot_${lotId}.jpg`;
+    const fileName = `marketplace_lot_${lotId}.png`;
     const url = `http://screenshots/${fileName}?v=${Date.now()}`;
 
     if (!mp.gui || typeof mp.gui.takeScreenshot !== "function") {
