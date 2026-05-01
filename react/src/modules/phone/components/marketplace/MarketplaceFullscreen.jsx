@@ -136,11 +136,13 @@ const cardStyle = {
 const imgStyle = {
     height: 140,
     width: '100%',
-    objectFit: 'cover',
+    objectFit: 'contain',
+    padding: 16,
+    boxSizing: 'border-box',
     background: 'linear-gradient(135deg,#b6c3d6,#d5dee8)'
 };
 
-const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFullscreen, characterId }) => {
+const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFullscreen, characterId, viewerCharacterId }) => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [price, setPrice] = useState('');
@@ -168,7 +170,8 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
 
     const activeType = resolveLotType();
     const activeOptions = sellOptions[activeType] || [];
-    const normalizedCharacterId = Number(characterId);
+    const viewerIds = [viewerCharacterId, characterId].map(Number).filter((id) => Number.isFinite(id) && id > 0);
+    const isOwnLot = (lot) => viewerIds.includes(Number(lot.sellerCharacterId));
 
     const renderLots = useMemo(() => {
         const allowedTypes = CATEGORY_LOT_TYPES[activeCategory];
@@ -178,7 +181,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
         }).map((lot) => ({
             ...lot,
             category: LOT_TYPE_LABELS[String(lot.lotType || '').toLowerCase()] || activeCategory,
-            img: lot.image || ''
+            img: lot.image || (lot.itemId ? `/img/inventory/items/${lot.itemId}.png` : '')
         }));
     }, [marketplaceLots, activeCategory]);
 
@@ -331,14 +334,17 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                                     <div style={{ padding: 10, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                                         <div style={{ fontSize: 16, fontWeight: 700, color: '#212a35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lot.title}>{lot.title}</div>
                                         <div style={{ fontSize: 12, color: '#7a838f', marginTop: 2 }}>{lot.category}</div>
-                                        <div style={{ fontSize: 27, fontWeight: 800, color: '#222f3c', marginTop: 8 }}>${lot.price}</div>
-                                        {Number(lot.sellerCharacterId) === normalizedCharacterId && (
+                                        <div style={{ fontSize: 12, color: '#59616b', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lot.sellerName || ''}>
+                                            Продавец: {lot.sellerName || `ID ${lot.sellerCharacterId || '-'}`}
+                                        </div>
+                                        <div style={{ fontSize: 24, fontWeight: 800, color: '#222f3c', marginTop: 6 }}>${lot.price}</div>
+                                        {isOwnLot(lot) && (
                                             <div style={{ fontSize: 12, color: '#8a4b18', marginTop: 4 }}>
                                                 Отмена лота: комиссия ${Math.max(1, Math.floor(Number(lot.price || 0) * 0.01))}
                                             </div>
                                         )}
                                         <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
-                                            {Number(lot.sellerCharacterId) === normalizedCharacterId ? (
+                                            {isOwnLot(lot) ? (
                                                 <button style={{ border: 'none', borderRadius: 8, background: '#b64b3f', color: '#fff', padding: '9px 12px', cursor: 'pointer', flex: 1 }} onClick={() => onCancelLot(lot.id)}>Отменить лот</button>
                                             ) : (
                                                 <button style={{ border: 'none', borderRadius: 8, background: '#3f8f3f', color: '#fff', padding: '9px 12px', cursor: 'pointer', flex: 1 }} onClick={() => onBuy(lot.id)}>Купить</button>
@@ -359,8 +365,9 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
 const mapStateToProps = (state) => ({
     isOpen: !!(state.info && state.info.marketplaceFullscreen),
     marketplaceLots: state.info && Array.isArray(state.info.marketplaceLots) ? state.info.marketplaceLots : [],
-    sellOptions: state.info && state.info.marketplaceSellOptions ? state.info.marketplaceSellOptions : { item: [], vehicle: [], house: [], biz: [] },
-    characterId: state.info && state.info.id ? state.info.id : 0
+    sellOptions: state.info && state.info.marketplaceSellOptions ? state.info.marketplaceSellOptions : { item: [], clothes: [], vehicle: [], house: [], biz: [] },
+    characterId: state.info && state.info.id ? state.info.id : 0,
+    viewerCharacterId: state.info && state.info.marketplaceViewerCharacterId ? state.info.marketplaceViewerCharacterId : 0
 });
 
 const mapDispatchToProps = (dispatch) => ({
