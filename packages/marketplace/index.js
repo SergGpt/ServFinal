@@ -40,21 +40,18 @@ async function lockEntityLot(player, type, targetId) {
     if (type === "vehicle") {
         const vehicle = await db.Models.Vehicle.findOne({ where: { id: targetId } });
         if (!vehicle || vehicle.owner !== player.character.id) return { error: "Транспорт не найден или не принадлежит вам" };
-        await vehicle.update({ owner: 0 });
         return { payload: { id: vehicle.id, modelName: vehicle.modelName, plate: vehicle.plate } };
     }
 
     if (type === "house") {
         const house = await db.Models.House.findOne({ where: { id: targetId } });
         if (!house || house.characterId !== player.character.id) return { error: "Недвижимость не найдена или не принадлежит вам" };
-        await house.update({ characterId: null, characterNick: null });
         return { payload: { id: house.id, interiorId: house.interiorId } };
     }
 
     if (type === "biz") {
         const biz = await db.Models.Biz.findOne({ where: { id: targetId } });
         if (!biz || biz.characterId !== player.character.id) return { error: "Бизнес не найден или не принадлежит вам" };
-        await biz.update({ characterId: null, characterNick: null });
         return { payload: { id: biz.id, name: biz.name, type: biz.type } };
     }
 
@@ -120,6 +117,12 @@ async function transferEntityToBuyer(player, lot) {
 
 
 module.exports = {
+    async isEntityListed(type, targetId) {
+        const id = parseInt(targetId);
+        if (isNaN(id) || id < 1) return false;
+        const lot = await db.Models.MarketplaceLot.findOne({ where: { status: "active", lotType: String(type), lotTargetId: id } });
+        return !!lot;
+    },
     init() {
         money = call("money");
         inventory = call("inventory");
@@ -233,6 +236,10 @@ module.exports = {
             return { ok: false, error: "Не выбран предмет/объект для лота" };
         }
 
+        if (await this.isEntityListed(normalizedType, parsedTargetId)) {
+            return { ok: false, error: "Этот объект уже выставлен на маркетплейсе" };
+        }
+
         const lockResult = await lockEntityLot(player, normalizedType, parsedTargetId);
         if (lockResult.error) {
             console.log("[marketplace][createLot][lock-failed]", JSON.stringify({ ...debugPayload, parsedTargetId, normalizedType, lockError: lockResult.error }));
@@ -308,6 +315,12 @@ module.exports.removeLot = async function(player, lotId) {
     const lot = await db.Models.MarketplaceLot.findOne({ where: { id } });
     if (!lot || lot.status !== "active") return { ok: false, error: "Лот недоступен" };
     if (lot.sellerCharacterId !== player.character.id) return { ok: false, error: "Можно снять только свой лот" };
+
+    const cancelFee = Math.max(1, Math.floor(Number(lot.price || 0) * 0.01));
+    const feeRemoved = await new Promise((resolve) => {
+        money.removeCash(player, cancelFee, resolve, `[marketplace] комиссия за отмену лота #${lot.id}`);
+    });
+    if (!feeRemoved) return { ok: false, error: `Для отмены лота нужно оплатить комиссию $${cancelFee}` };
 
     await restoreEntityToSeller(player, lot);
 
