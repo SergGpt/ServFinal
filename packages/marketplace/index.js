@@ -7,6 +7,8 @@ const MAX_PRICE = 100000000;
 
 let money;
 let inventory;
+let houses;
+let bizes;
 
 const INVENTORY_ITEM_IMAGE_BASE = "img/inventory/items";
 const CLOTHING_BODY_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12];
@@ -39,6 +41,13 @@ function getInventoryItemImage(itemId) {
     const id = Number(itemId);
     if (!id) return null;
     return `/${INVENTORY_ITEM_IMAGE_BASE}/${id}.png`;
+}
+
+function getLotPreview(payload, itemId) {
+    if (!payload) return null;
+    if (payload.preview) return payload.preview;
+    if (payload.image) return payload.image;
+    return itemId ? getInventoryItemImage(itemId) : null;
 }
 
 function mapItemToSellOption(item) {
@@ -121,11 +130,27 @@ async function restoreEntityToSeller(player, lot) {
     if (lot.lotType === "house") {
         const house = await db.Models.House.findOne({ where: { id: lot.lotTargetId } });
         if (house) await house.update({ characterId: player.character.id, characterNick: player.character.name });
+        if (houses && typeof houses.getHouseById === "function") {
+            const liveHouse = houses.getHouseById(lot.lotTargetId);
+            if (liveHouse && liveHouse.info) {
+                liveHouse.info.characterId = player.character.id;
+                liveHouse.info.characterNick = player.character.name;
+                if (typeof houses.updateHouse === "function") houses.updateHouse(liveHouse);
+            }
+        }
         return;
     }
     if (lot.lotType === "biz") {
         const biz = await db.Models.Biz.findOne({ where: { id: lot.lotTargetId } });
         if (biz) await biz.update({ characterId: player.character.id, characterNick: player.character.name });
+        if (bizes && typeof bizes.getBizById === "function") {
+            const liveBiz = bizes.getBizById(lot.lotTargetId);
+            if (liveBiz && liveBiz.info) {
+                liveBiz.info.characterId = player.character.id;
+                liveBiz.info.characterNick = player.character.name;
+                if (typeof bizes.setTimer === "function") bizes.setTimer(liveBiz);
+            }
+        }
     }
 }
 
@@ -153,12 +178,47 @@ async function transferEntityToBuyer(player, lot) {
         const house = await db.Models.House.findOne({ where: { id: lot.lotTargetId } });
         if (!house) return { ok: false, error: "Недвижимость лота не найдена" };
         await house.update({ characterId: player.character.id, characterNick: player.character.name });
+        if (houses && typeof houses.getHouseById === "function") {
+            const liveHouse = houses.getHouseById(lot.lotTargetId);
+            if (liveHouse && liveHouse.info) {
+                liveHouse.info.characterId = player.character.id;
+                liveHouse.info.characterNick = player.character.name;
+                if (typeof houses.updateHouse === "function") houses.updateHouse(liveHouse);
+                if (typeof houses.getHouseInfoForApp === "function") {
+                    player.call("phone.app.add", ["house", houses.getHouseInfoForApp(liveHouse)]);
+                }
+            }
+        }
+        mp.events.call('player.house.changed', player);
+        const sellerPlayer = mp.players.toArray().find((x) => x && x.character && Number(x.character.id) === Number(lot.sellerCharacterId));
+        if (sellerPlayer) {
+            mp.events.call('player.house.changed', sellerPlayer);
+            sellerPlayer.call('phone.app.remove', ["house", lot.lotTargetId]);
+        }
         return { ok: true };
     }
     if (lot.lotType === "biz") {
         const biz = await db.Models.Biz.findOne({ where: { id: lot.lotTargetId } });
         if (!biz) return { ok: false, error: "Бизнес лота не найден" };
         await biz.update({ characterId: player.character.id, characterNick: player.character.name });
+        if (bizes && typeof bizes.getBizById === "function") {
+            const liveBiz = bizes.getBizById(lot.lotTargetId);
+            if (liveBiz && liveBiz.info) {
+                liveBiz.info.characterId = player.character.id;
+                liveBiz.info.characterNick = player.character.name;
+                if (typeof bizes.setTimer === "function") bizes.setTimer(liveBiz);
+                if (typeof bizes.getBizInfoForApp === "function") {
+                    const bizInfo = bizes.getBizInfoForApp(liveBiz);
+                    if (bizInfo) player.call("phone.app.add", ["biz", bizInfo]);
+                }
+            }
+        }
+        mp.events.call('player.biz.changed', player);
+        const sellerPlayer = mp.players.toArray().find((x) => x && x.character && Number(x.character.id) === Number(lot.sellerCharacterId));
+        if (sellerPlayer) {
+            mp.events.call('player.biz.changed', sellerPlayer);
+            sellerPlayer.call('phone.app.remove', ["biz", lot.lotTargetId]);
+        }
         return { ok: true };
     }
     return { ok: false, error: "Неизвестный тип лота" };
@@ -176,6 +236,8 @@ module.exports = {
     init() {
         money = call("money");
         inventory = call("inventory");
+        houses = call("houses");
+        bizes = call("bizes");
     },
 
     async getActiveLots() {
@@ -196,7 +258,9 @@ module.exports = {
                 ...lot,
                 lotType,
                 itemId,
-                image: (payload && payload.image) || (itemId ? getInventoryItemImage(itemId) : null)
+                itemParams: payload && payload.params ? payload.params : null,
+                preview: getLotPreview(payload, itemId),
+                image: getLotPreview(payload, itemId)
             };
         });
     },
@@ -253,7 +317,14 @@ module.exports = {
         const lots = await this.getActiveLots();
         const sellOptions = await this.getPlayerSellOptions(player);
         const viewerCharacterId = player && player.character ? player.character.id : 0;
-        player.call("marketplace.phone.data", [lots, sellOptions, viewerCharacterId]);
+        const lotsForPlayer = lots.map((lot) => ({
+            ...lot,
+            isOwn: Number(lot.sellerCharacterId) === Number(viewerCharacterId),
+            sellerCharacterId: Number(lot.sellerCharacterId) === Number(viewerCharacterId)
+                ? viewerCharacterId
+                : lot.sellerCharacterId
+        }));
+        player.call("marketplace.phone.data", [lotsForPlayer, sellOptions, viewerCharacterId]);
     },
 
     async createLot(player, title, description, price, lotType = "item", lotTargetId = null) {
