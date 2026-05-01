@@ -289,7 +289,6 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr', minHeight: 0 }}>
-                        {isCreateMode && <div style={{ fontSize: 12, color: '#5c6470', padding: '8px 12px 0' }}>Режим продажи: выберите объект и заполните цену, затем нажмите «Опубликовать».</div>}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr 180px', gap: 10, padding: 12, borderBottom: '1px solid #e2e4e8', background: '#fff', opacity: isCreateMode ? 1 : 0.55, pointerEvents: isCreateMode ? 'auto' : 'none' }}>
                             <div style={{ position: 'relative', width: '100%' }}>
                                 <button
