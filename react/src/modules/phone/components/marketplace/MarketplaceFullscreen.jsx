@@ -113,7 +113,7 @@ const cardsWrap = {
     padding: 12,
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, 260px)',
-    gridAutoRows: '340px',
+    gridAutoRows: '360px',
     alignItems: 'start',
     alignContent: 'start',
     justifyContent: 'start',
@@ -128,7 +128,7 @@ const cardStyle = {
     border: '1px solid #e2e4e8',
     overflow: 'hidden',
     width: 260,
-    height: 340,
+    height: 360,
     display: 'grid',
     gridTemplateRows: '140px 1fr'
 };
@@ -142,6 +142,17 @@ const imgStyle = {
     background: 'linear-gradient(135deg,#b6c3d6,#d5dee8)'
 };
 
+const placeholderImageStyle = {
+    ...imgStyle,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#5f6d7d',
+    fontSize: 12,
+    fontWeight: 700,
+    textAlign: 'center'
+};
+
 const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFullscreen, characterId, viewerCharacterId }) => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -151,6 +162,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
     const [isSelectorOpen, setSelectorOpen] = useState(false);
     const [isCreateMode, setCreateMode] = useState(false);
     const [createError, setCreateError] = useState('');
+    const [failedImages, setFailedImages] = useState({});
 
     useEffect(() => {
         if (!isOpen) return;
@@ -181,7 +193,8 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
         }).map((lot) => ({
             ...lot,
             category: LOT_TYPE_LABELS[String(lot.lotType || '').toLowerCase()] || activeCategory,
-            img: lot.preview || lot.image || (lot.itemId ? `/img/inventory/items/${lot.itemId}.png` : '')
+            img: lot.imagePath || lot.preview || lot.image || (lot.itemId ? `/img/inventory/items/${lot.itemId}.png` : ''),
+            imageDebug: lot.imageKey || lot.imagePath || lot.preview || lot.image || (lot.itemId ? `img/inventory/items/${lot.itemId}.png` : '')
         }));
     }, [marketplaceLots, activeCategory]);
 
@@ -191,6 +204,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
         setSelectorOpen(false);
         setSelectedItemId('');
         setCreateError('');
+        setFailedImages({});
     }, [activeType]);
 
     if (!isOpen) return null;
@@ -320,9 +334,20 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                         </div>
                         {createError && <div style={{ color: '#c93434', fontSize: 13, padding: '6px 12px' }}>{createError}</div>}
                         <div style={cardsWrap}>
-                            {renderLots.map((lot) => (
+                            {renderLots.map((lot) => {
+                                const imageFailed = lot.img && failedImages[lot.img];
+                                return (
                                 <div key={lot.id} style={cardStyle}>
-                                    {lot.img ? <img src={lot.img} alt='' style={imgStyle} /> : <div style={imgStyle} />}
+                                    {lot.img && !imageFailed ? (
+                                        <img
+                                            src={lot.img}
+                                            alt=''
+                                            style={imgStyle}
+                                            onError={() => setFailedImages((prev) => ({ ...prev, [lot.img]: true }))}
+                                        />
+                                    ) : (
+                                        <div style={placeholderImageStyle}>PNG<br />не найден</div>
+                                    )}
                                     <div style={{ padding: 10, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                                         <div style={{ fontSize: 16, fontWeight: 700, color: '#212a35', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lot.title}>{lot.title}</div>
                                         <div style={{ fontSize: 12, color: '#7a838f', marginTop: 2 }}>{lot.category}</div>
@@ -334,7 +359,12 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                                                 ID предмета: {lot.itemId}
                                             </div>
                                         )}
-                                        <div style={{ fontSize: 24, fontWeight: 800, color: '#222f3c', marginTop: 6 }}>${lot.price}</div>
+                                        {lot.imageDebug && (
+                                            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lot.imageDebug}>
+                                                PNG ищет: {lot.imageDebug}
+                                            </div>
+                                        )}
+                                        <div style={{ fontSize: 24, fontWeight: 800, color: '#222f3c', marginTop: 5 }}>${lot.price}</div>
                                         {isOwnLot(lot) && (
                                             <div style={{ fontSize: 12, color: '#8a4b18', marginTop: 4 }}>
                                                 Отмена лота: комиссия ${Math.max(1, Math.floor(Number(lot.price || 0) * 0.01))}
@@ -349,7 +379,8 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                                         </div>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                             {!renderLots.length && <div style={{ color: '#58606a', padding: 16 }}>Пока нет лотов. Создай первый лот.</div>}
                         </div>
                     </div>
