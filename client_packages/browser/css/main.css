@@ -54,15 +54,27 @@
 #inventory .pockets {
     align-content: flex-start;
     align-items: flex-start;
+    display: grid !important;
     gap: 0 !important;
+    grid-auto-rows: 2.45vh;
+    grid-template-columns: repeat(12, 2.45vh);
+}
+
+#inventory .pockets.unified-pockets {
+    display: block !important;
 }
 
 #inventory .items {
+    display: contents !important;
     margin: 0 !important;
 }
 
 #inventory .items .column {
     border-radius: 0.25vh !important;
+}
+
+#inventory .items .column.ghost {
+    pointer-events: none;
 }
 
 :root {
