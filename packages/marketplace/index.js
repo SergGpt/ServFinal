@@ -11,7 +11,22 @@ let houses;
 let bizes;
 
 const INVENTORY_ITEM_IMAGE_BASE = "img/inventory/items";
+const MARKETPLACE_IMAGE_BASE = "img/marketplace";
 const CLOTHING_BODY_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12];
+const CLOTHING_IMAGE_CATEGORIES = {
+    1: "glasses",
+    2: "undershit",
+    3: "armor",
+    6: "hats",
+    7: "tops",
+    8: "legs",
+    9: "shoes",
+    10: "ears",
+    11: "watches",
+    12: "bracelets",
+    13: "bags",
+    14: "masks"
+};
 
 function getParamsValues(item) {
     const params = {};
@@ -48,6 +63,81 @@ function getLotPreview(payload, itemId) {
     if (payload.preview) return payload.preview;
     if (payload.image) return payload.image;
     return itemId ? getInventoryItemImage(itemId) : null;
+}
+
+function normalizeImageKey(value) {
+    return String(value == null ? "" : value)
+        .trim()
+        .toLowerCase()
+        .replace(/\\/g, "/")
+        .replace(/\s+/g, "_")
+        .replace(/[^a-z0-9_/-]/g, "");
+}
+
+function getParamValue(params, keys, fallback = null) {
+    if (!params) return fallback;
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        if (params[key] != null && params[key] !== "") return params[key];
+    }
+    return fallback;
+}
+
+function getClothesGender(params) {
+    const value = getParamValue(params, ["gender", "sex", "isMale", "male"], "male");
+    if (typeof value === "boolean") return value ? "male" : "female";
+    const normalized = String(value).trim().toLowerCase();
+    if (["0", "false", "female", "f", "woman", "women"].includes(normalized)) return "female";
+    return "male";
+}
+
+function getMarketplaceImageInfo(lot, payload, lotType, itemId) {
+    if (lotType === "vehicle") {
+        const model = normalizeImageKey(
+            (payload && (payload.modelName || payload.model))
+            || String(lot.title || "").split("[")[0]
+        );
+        if (!model) return null;
+        return {
+            path: `/${MARKETPLACE_IMAGE_BASE}/vehicles/${model}.png`,
+            key: `${MARKETPLACE_IMAGE_BASE}/vehicles/${model}.png`
+        };
+    }
+
+    if (lotType === "item") {
+        const itemImage = getInventoryItemImage(itemId);
+        return itemImage ? { path: itemImage, key: `${INVENTORY_ITEM_IMAGE_BASE}/${Number(itemId)}.png` } : null;
+    }
+
+    if (lotType === "clothes") {
+        const params = payload && payload.params ? payload.params : {};
+        const category = CLOTHING_IMAGE_CATEGORIES[Number(itemId)] || "items";
+        const gender = getClothesGender(params);
+        const drawable = Number(getParamValue(params, ["drawable", "drawableId", "drawable_id", "variation", "variationId", "variation_id"], 0)) || 0;
+        const texture = Number(getParamValue(params, ["texture", "textureId", "texture_id", "palette", "paletteId", "palette_id"], 0)) || 0;
+        const key = `${MARKETPLACE_IMAGE_BASE}/clothes/${gender}/${category}/${drawable}_${texture}.png`;
+        return { path: `/${key}`, key };
+    }
+
+    if (lotType === "house") {
+        const houseId = normalizeImageKey((payload && payload.id) || lot.lotTargetId || lot.title);
+        if (!houseId) return null;
+        return {
+            path: `/${MARKETPLACE_IMAGE_BASE}/houses/${houseId}.png`,
+            key: `${MARKETPLACE_IMAGE_BASE}/houses/${houseId}.png`
+        };
+    }
+
+    if (lotType === "biz") {
+        const bizKey = normalizeImageKey((payload && (payload.name || payload.id)) || lot.title || lot.lotTargetId);
+        if (!bizKey) return null;
+        return {
+            path: `/${MARKETPLACE_IMAGE_BASE}/businesses/${bizKey}.png`,
+            key: `${MARKETPLACE_IMAGE_BASE}/businesses/${bizKey}.png`
+        };
+    }
+
+    return null;
 }
 
 function mapItemToSellOption(item) {
@@ -254,13 +344,17 @@ module.exports = {
             const lotType = lot.lotType === "item" && itemId && getClothingItemIds().includes(Number(itemId))
                 ? "clothes"
                 : lot.lotType;
+            const imageInfo = getMarketplaceImageInfo(lot, payload, lotType, itemId);
+            const fallbackPreview = getLotPreview(payload, itemId);
             return {
                 ...lot,
                 lotType,
                 itemId,
                 itemParams: payload && payload.params ? payload.params : null,
-                preview: getLotPreview(payload, itemId),
-                image: getLotPreview(payload, itemId)
+                imagePath: imageInfo ? imageInfo.path : fallbackPreview,
+                imageKey: imageInfo ? imageInfo.key : null,
+                preview: imageInfo ? imageInfo.path : fallbackPreview,
+                image: imageInfo ? imageInfo.path : fallbackPreview
             };
         });
     },
