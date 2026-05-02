@@ -155,12 +155,22 @@ mp.attachmentMngr = {
             };
             this.debug(`register id=${id} model=${model} bone=${boneName}`);
 
-            // Обновляем уже существующие инстансы аттача (если конфиг поменялся на лету)
+            // Обновляем уже существующие инстансы аттача и создаем отложенные аттачи,
+            // если attachmentsData пришел раньше регистрации модели.
             mp.players.forEach((player) => {
-                if (!player.__attachmentObjects || !player.__attachmentObjects.hasOwnProperty(id)) return;
-                this.debug(`reregister live id=${id} entity=${player.remoteId}`);
-                this.removeFor(player, id);
-                this.addFor(player, id);
+                if (!player.__attachmentObjects) player.__attachmentObjects = {};
+
+                if (player.__attachmentObjects.hasOwnProperty(id)) {
+                    this.debug(`reregister live id=${id} entity=${player.remoteId}`);
+                    this.removeFor(player, id);
+                    this.addFor(player, id, "reregister", true);
+                    return;
+                }
+
+                if (player.handle !== 0 && player.__attachments && player.__attachments.indexOf(id) !== -1) {
+                    this.debug(`register spawn pending id=${id} entity=${player.remoteId}`);
+                    this.addFor(player, id, "register_pending", false);
+                }
             });
         } else {
             console.warn(`[ATTACHES] register skipped: model not in cdimage for attachment ${id}`, model);
@@ -270,6 +280,7 @@ mp.events.add("playerStartEnterVehicle", () => {
 });
 
 mp.events.addDataHandler("attachmentsData", (entity, data) => {
+    data = (data == null) ? "" : String(data);
     let newAttachments = (data.length > 0) ? data.split('|').map(att => (parseInt(att, 36) >>> 0)) : [];
 
     if (entity.handle !== 0) {
@@ -311,12 +322,13 @@ mp.events.addDataHandler("attachmentsData", (entity, data) => {
 function InitAttachmentsOnJoin() {
     mp.players.forEach(_player => {
         let data = _player.getVariable("attachmentsData");
+        data = (data == null) ? "" : String(data);
 
-        if (data && data.length > 0) {
-            let atts = data.split('|').map(att => (parseInt(att, 36) >>> 0));
-            _player.__attachments = atts;
-            _player.__attachmentObjects = {};
-        }
+        let atts = (data.length > 0) ? data.split('|').map(att => (parseInt(att, 36) >>> 0)) : [];
+        _player.__attachments = atts;
+        _player.__attachmentObjects = {};
+        if (_player.handle !== 0 && atts.length) mp.attachmentMngr.initFor(_player);
+
         _player.hasAttachment = (name) => {
             if (!_player.__attachmentObjects) return false;
             return _player.__attachmentObjects.hasOwnProperty(mp.game.joaat(name) >>> 0);

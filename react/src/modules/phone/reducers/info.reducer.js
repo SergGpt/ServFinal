@@ -118,7 +118,8 @@ const initialState = {
     //     }
     // ],
     marketplaceLots: [],
-    marketplaceSellOptions: { item: [], vehicle: [], house: [], biz: [] },
+    marketplaceSellOptions: { item: [], clothes: [], vehicle: [], house: [], biz: [] },
+    marketplaceViewerCharacterId: 0,
     marketplaceFullscreen: false,
     // callStory: [
     //     {
@@ -153,7 +154,8 @@ const hasAnyMarketplaceOptions = (value) => {
     const vehicle = Array.isArray(value.vehicle) ? value.vehicle.length : 0;
     const house = Array.isArray(value.house) ? value.house.length : 0;
     const biz = Array.isArray(value.biz) ? value.biz.length : 0;
-    return (item + vehicle + house + biz) > 0;
+    const clothes = Array.isArray(value.clothes) ? value.clothes.length : 0;
+    return (item + clothes + vehicle + house + biz) > 0;
 };
 
 export default function info(state = initialState, action) {
@@ -197,12 +199,16 @@ export default function info(state = initialState, action) {
             const nextMarketplaceFullscreen = typeof (payload && payload.marketplaceFullscreen) === 'boolean'
                 ? payload.marketplaceFullscreen
                 : state.marketplaceFullscreen;
+            const nextMarketplaceViewerCharacterId = payload && payload.marketplaceViewerCharacterId != null
+                ? payload.marketplaceViewerCharacterId
+                : state.marketplaceViewerCharacterId;
             return {
                 ...state,
                 ...payload,
                 marketplaceLots: nextMarketplaceLots,
                 marketplaceSellOptions: nextMarketplaceSellOptions,
                 marketplaceFullscreen: nextMarketplaceFullscreen,
+                marketplaceViewerCharacterId: nextMarketplaceViewerCharacterId,
                 contacts: [
                     ...payload.contacts,
                     {
@@ -450,7 +456,8 @@ export default function info(state = initialState, action) {
             return {
                 ...state,
                 marketplaceLots: Array.isArray(payload) ? payload : (payload && Array.isArray(payload.lots) ? payload.lots : []),
-                marketplaceSellOptions: hasAnyMarketplaceOptions(incomingOptions) ? incomingOptions : state.marketplaceSellOptions
+                marketplaceSellOptions: hasAnyMarketplaceOptions(incomingOptions) ? incomingOptions : state.marketplaceSellOptions,
+                marketplaceViewerCharacterId: payload && payload.viewerCharacterId != null ? payload.viewerCharacterId : state.marketplaceViewerCharacterId
             };
 
         case 'PHONE_MARKETPLACE_FULLSCREEN':
