@@ -113,7 +113,7 @@ const cardsWrap = {
     padding: 12,
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, 260px)',
-    gridAutoRows: '360px',
+    gridAutoRows: '385px',
     alignItems: 'start',
     alignContent: 'start',
     justifyContent: 'start',
@@ -128,7 +128,7 @@ const cardStyle = {
     border: '1px solid #e2e4e8',
     overflow: 'hidden',
     width: 260,
-    height: 360,
+    height: 385,
     display: 'grid',
     gridTemplateRows: '140px 1fr'
 };
@@ -360,7 +360,7 @@ const MarketplaceFullscreen = ({ isOpen, marketplaceLots, sellOptions, closeFull
                                             </div>
                                         )}
                                         {lot.imageDebug && (
-                                            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lot.imageDebug}>
+                                            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3, lineHeight: '13px', whiteSpace: 'normal', wordBreak: 'break-all', overflowWrap: 'anywhere' }} title={lot.imageDebug}>
                                                 PNG ищет: {lot.imageDebug}
                                             </div>
                                         )}
