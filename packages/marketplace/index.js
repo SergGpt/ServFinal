@@ -129,7 +129,8 @@ function getMarketplaceImageInfo(lot, payload, lotType, itemId) {
     }
 
     if (lotType === "biz") {
-        const bizKey = normalizeImageKey((payload && (payload.name || payload.id)) || lot.title || lot.lotTargetId);
+        const bizKey = normalizeImageKey(payload && payload.name)
+            || normalizeImageKey((payload && payload.id) || lot.lotTargetId || lot.title);
         if (!bizKey) return null;
         return {
             path: `/${MARKETPLACE_IMAGE_BASE}/businesses/${bizKey}.png`,
