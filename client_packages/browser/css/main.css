@@ -47,36 +47,6 @@
     display: none !important;
 }
 
-#inventory .playerInventory>.block .container {
-    display: block !important;
-}
-
-#inventory .pockets {
-    align-content: flex-start;
-    align-items: flex-start;
-    display: grid !important;
-    gap: 0 !important;
-    grid-auto-rows: 2.45vh;
-    grid-template-columns: repeat(12, 2.45vh);
-}
-
-#inventory .pockets.unified-pockets {
-    display: block !important;
-}
-
-#inventory .items {
-    display: contents !important;
-    margin: 0 !important;
-}
-
-#inventory .items .column {
-    border-radius: 0.25vh !important;
-}
-
-#inventory .items .column.ghost {
-    pointer-events: none;
-}
-
 :root {
     --gradient-basic: linear-gradient(180deg, #0061CF 0%, #004EA7 100%);
     --gradient-basic-h: linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0) 100%),
