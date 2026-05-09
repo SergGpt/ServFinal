@@ -49,7 +49,7 @@ mp.weapons = {
     getMaxAmmoInClip(weaponhash) {
         weaponhash = this.hashToValid(weaponhash);
         if (mp.players.local.getMaxAmmoInClip) {
-            var playerMaxClip = mp.players.local.getMaxAmmoInClip(weaponhash);
+            var playerMaxClip = mp.players.local.getMaxAmmoInClip(weaponhash, true);
             if (typeof playerMaxClip == 'number' && playerMaxClip > 0) return playerMaxClip;
         }
         return Math.max(0, mp.game.invoke('0xA38DCFFCEA8962FA', mp.players.local.handle, weaponhash, true));
