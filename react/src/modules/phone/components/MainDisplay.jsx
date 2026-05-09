@@ -11,6 +11,7 @@ import taxi_client_icon from '@imgs/phone/taxi_client.svg';
 import taxi_driver_icon from '@imgs/phone/taxi_driver.svg';
 import news_icon from '@imgs/phone/news.svg';
 import marketplace_icon from '@imgs/phone/marketplace.svg';
+import customization_icon from '@imgs/phone/customization.svg';
 import PhoneAppIcon from "./PhoneAppIcon";
 import HouseApp from "./house/HouseApp";
 import BusinessApp from "./biz/BusinessApp";
@@ -19,6 +20,7 @@ import News from "./news/News";
 import TaxiClient from "./taxi_app/taxi_client/TaxiClient";
 import TaxiDriver from "./taxi_app/taxi_driver/TaxiDriver";
 import CallStory from "./calls/story/CallStory";
+import CustomizationApp from "./customization/CustomizationApp";
 const MainDisplay = ({ addAppAction, info }) => {
     const safeInfo = info || {};
     const isDriver = !!safeInfo.isDriver;
@@ -57,6 +59,12 @@ const MainDisplay = ({ addAppAction, info }) => {
                         name='Маркет'
                         image={marketplace_icon}
                         onClick={openMarketplace}
+                    />
+                    <PhoneAppIcon
+                        app={<CustomizationApp />}
+                        name='Кастомизация'
+                        image={customization_icon}
+                        handleClick={addAppAction}
                     />
                     <PhoneAppIcon
                         app={<TaxiClient />}

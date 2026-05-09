@@ -645,3 +645,221 @@
     }
   }
 }
+.customizationApp {
+  color: #ffffff;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #111629 0%, #20264a 52%, #0f1325 100%);
+}
+
+.customizationHeader {
+  padding: 3.5em 1.1em 0.8em 1.1em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  & span {
+    font-size: 1.35em;
+    font-weight: bold;
+  }
+
+  & button {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.14);
+    border: 0;
+    border-radius: 1em;
+    padding: 0.55em 0.9em;
+    font-family: Roboto;
+  }
+}
+
+.customizationMenu,
+.customizationContent {
+  width: 88%;
+  margin-left: 6%;
+}
+
+.customizationHero {
+  margin-top: 1em;
+  border-radius: 1.4em;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 1.2em;
+  box-sizing: border-box;
+  box-shadow: 0 1em 2.5em rgba(0, 0, 0, 0.25);
+
+  & b {
+    display: block;
+    font-size: 1.15em;
+    margin-top: 0.6em;
+  }
+
+  & p {
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.85em;
+    line-height: 1.35em;
+    margin-bottom: 0;
+  }
+}
+
+.customizationHeroIcon {
+  width: 3.8em;
+  height: 3.8em;
+  border-radius: 1.2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8em;
+  background: linear-gradient(135deg, #4776e6, #8e54e9);
+}
+
+.customizationMenu > button {
+  width: 100%;
+  margin-top: 1.2em;
+  border: 0;
+  border-radius: 1.2em;
+  padding: 1em;
+  font-weight: bold;
+  color: #101426;
+  background: #ffd166;
+  font-family: Roboto;
+}
+
+.customizationTabs,
+.skinTypeSwitch,
+.skinControls {
+  display: grid;
+  grid-gap: 0.45em;
+}
+
+.customizationTabs {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.skinTypeSwitch,
+.skinControls {
+  grid-template-columns: 1fr 1fr;
+  margin-top: 0.7em;
+}
+
+.skinControls {
+  grid-template-columns: 1fr 0.7fr 1fr;
+  align-items: center;
+  text-align: center;
+
+  & span {
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.9em;
+  }
+}
+
+.customizationTabs button,
+.skinTypeSwitch button,
+.skinControls button {
+  border: 0;
+  border-radius: 0.9em;
+  padding: 0.65em 0.35em;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.11);
+  font-family: Roboto;
+  font-size: 0.82em;
+}
+
+.activeCustomizationTab {
+  color: #101426 !important;
+  background: #ffffff !important;
+  font-weight: bold;
+}
+
+.skinPreviewCard {
+  margin-top: 0.8em;
+  border-radius: 1.35em;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 1em;
+  box-sizing: border-box;
+
+  & h3 {
+    font-size: 1.05em;
+    margin: 0.8em 0 0.2em 0;
+  }
+
+  & p {
+    margin: 0 0 0.8em 0;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 0.85em;
+  }
+}
+
+.weaponPreview {
+  height: 5.8em;
+  border-radius: 1em;
+  position: relative;
+  overflow: hidden;
+
+  &:after {
+    content: '';
+    position: absolute;
+    width: 76%;
+    height: 1em;
+    left: 12%;
+    top: 42%;
+    border-radius: 1em;
+    background: rgba(255, 255, 255, 0.8);
+    box-shadow: 3.2em 1.1em 0 -0.2em rgba(255, 255, 255, 0.68);
+  }
+}
+
+.armourPreview {
+  width: 5.5em;
+  height: 6.2em;
+  margin: 0 auto;
+  border-radius: 1.4em 1.4em 0.8em 0.8em;
+  background: linear-gradient(135deg, #343a46, #11151f);
+  border: 0.45em solid rgba(255, 255, 255, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8em;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.skinMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 0.8em;
+  padding: 0.45em 0.65em;
+  margin-top: 0.35em;
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.82em;
+}
+
+.customIdeas {
+  margin-top: 0.8em;
+  padding-bottom: 1em;
+}
+
+.customIdeaCard {
+  border-radius: 1em;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 0.85em;
+  margin-bottom: 0.65em;
+
+  & b,
+  & span {
+    display: block;
+  }
+
+  & span {
+    color: #ffd166;
+    margin-top: 0.2em;
+    font-size: 0.78em;
+  }
+
+  & p {
+    color: rgba(255, 255, 255, 0.66);
+    font-size: 0.8em;
+    line-height: 1.3em;
+    margin-bottom: 0;
+  }
+}
