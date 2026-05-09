@@ -31,8 +31,8 @@ const HAND_COMBAT_DEFAULTS = {
 // Меняй значения в attachInfo ниже, чтобы подогнать оружие на спине.
 const BACK_SLOT_DEFAULT_ATTACH_INFO = {
     bone: 24818,
-    pos: [0.18, -0.17, -0.12],
-    rot: [0, 135, 0],
+    pos: [0.01, -0.13, 0],
+    rot: [15.22, 35.36, 0.07],
     anim: 0,
 };
 
@@ -45,9 +45,9 @@ const BACK_SLOT_ATTACHMENT_CONFIGS = [
     { itemId: 46, model: 'w_pi_appistol' },
     { itemId: 47, model: 'w_sb_microsmg' },
     { itemId: 48, model: 'w_sb_smg' },
-    { itemId: 49, model: 'w_sg_sawnoff', attachInfo: { bone: 24818, pos: [0.16, -0.18, -0.10], rot: [0, 135, 0], anim: 0 } },
+    { itemId: 49, model: 'w_sg_sawnoff' },
     { itemId: 50, model: 'w_sb_minismg' },
-    { itemId: 51, model: 'w_ar_bullpuprifle', attachInfo: { bone: 24818, pos: [0.2, -0.15, -0.1], rot: [13, -90, 7], anim: 0 } },
+    { itemId: 51, model: 'w_ar_bullpuprifle' },
     { itemId: 52, model: 'w_ar_assaultrifle_smg' },
     { itemId: 80, model: 'w_pi_heavypistol' },
     { itemId: 84, model: 'w_pi_stungun' },
