@@ -22,12 +22,45 @@ const HAND_COMBAT_DEFAULTS = {
     },
 };
 
+// Слот оружия за спиной.
+//
+// ВАЖНО ДЛЯ НАСТРОЙКИ ПОЗИЦИИ:
+// bone — кость персонажа, к которой крепится предмет. 24818 = SKEL_Spine2 / тело (спина).
+// pos  — координаты предмета относительно кости: [X, Y, Z].
+// rot  — поворот предмета относительно кости: [X, Y, Z].
+// Меняй значения в attachInfo ниже, чтобы подогнать оружие на спине.
+const BACK_SLOT_DEFAULT_ATTACH_INFO = {
+    bone: 24818,
+    pos: [0.01, -0.13, 0],
+    rot: [15.22, 35.36, 0.07],
+    anim: 0,
+};
+
 const BACK_SLOT_ATTACHMENT_CONFIGS = [
-    { itemId: 25, model: 'prop_stat_pack_01', attachInfo: { bone: 57005, pos: [0.1, 0.0, 0.0], rot: [0, 0, 0], anim: 0 } },
-    { itemId: 48, model: 'w_sb_smg', attachInfo: { bone: 57005, pos: [0.05, 0.01, 0.02], rot: [0, 0, 0], anim: 0 } },
-    { itemId: 49, model: 'w_sg_sawnoff', attachInfo: { bone: 57005, pos: [0.05, 0.01, 0.02], rot: [0, 0, 0], anim: 0 } },
-    { itemId: 51, model: 'w_ar_bullpuprifle', attachInfo: { bone: 24818, pos: [0.2, -0.15, -0.1], rot: [13, -90, 7], anim: 0 } },
-    { itemId: 52, model: 'w_ar_assaultrifle_smg', attachInfo: { bone: 24818, pos: [0, 0, 0], rot: [0, 0, 0], anim: 0 } },
+    { itemId: 20, model: 'w_pi_combatpistol' },
+    { itemId: 21, model: 'w_sg_pumpshotgun' },
+    { itemId: 22, model: 'w_ar_carbinerifle' },
+    { itemId: 41, model: 'w_pi_pistol' },
+    { itemId: 44, model: 'w_pi_pistol50' },
+    { itemId: 46, model: 'w_pi_appistol' },
+    { itemId: 47, model: 'w_sb_microsmg' },
+    { itemId: 48, model: 'w_sb_smg' },
+    { itemId: 49, model: 'w_sg_sawnoff' },
+    { itemId: 50, model: 'w_sb_minismg' },
+    { itemId: 51, model: 'w_ar_bullpuprifle' },
+    { itemId: 52, model: 'w_ar_assaultrifle_smg' },
+    { itemId: 80, model: 'w_pi_heavypistol' },
+    { itemId: 84, model: 'w_pi_stungun' },
+    { itemId: 87, model: 'w_sb_assaultsmg' },
+    { itemId: 88, model: 'w_sb_pdw' },
+    { itemId: 89, model: 'w_sb_compactsmg' },
+    { itemId: 90, model: 'w_pi_vintage_pistol' },
+    { itemId: 91, model: 'w_sg_pumpshotgunmk2' },
+    { itemId: 93, model: 'w_pi_pistolmk2' },
+    { itemId: 96, model: 'w_pi_snspistol' },
+    { itemId: 99, model: 'w_ar_carbineriflemk2' },
+    { itemId: 100, model: 'w_ar_advancedrifle' },
+    { itemId: 107, model: 'w_ar_assaultrifle' },
 ];
 const BACK_SLOT_ITEM_IDS = BACK_SLOT_ATTACHMENT_CONFIGS.map(x => x.itemId);
 
@@ -142,7 +175,10 @@ async loadInventoryItemsFromDB() {
     // Опционально: сразу обновить всех игроков (чтобы изменения применялись без рестарта клиента)
     try {
         mp.players.forEach(p => {
-            if (p.character) p.call('inventory.setItemsInfo', [this.clientInventoryItems]);
+            if (p.character) {
+                p.call('inventory.setItemsInfo', [this.clientInventoryItems]);
+                p.call('inventory.registerWeaponAttachments', [this.getWeaponAttachmentConfigs()]);
+            }
         });
     } catch (e) {
         console.error("[INVENTORY] Error broadcasting items to clients:", e);
@@ -150,7 +186,7 @@ async loadInventoryItemsFromDB() {
 },
     applyBackSlotWhitelist() {
         this.bodyList[9] = BACK_SLOT_ITEM_IDS.slice();
-        console.log(`[INVENTORY] Слот за спиной (ручной whitelist): ${this.bodyList[9].join(", ")}`);
+        console.log(`[INVENTORY] Слот оружия за спиной: ${this.bodyList[9].join(", ")}`);
     },
     convertServerInventoryItemsToClient(dbItems) {
         var client = {};
@@ -666,11 +702,14 @@ getWeaponModels() {
     });
 },
 getWeaponAttachmentConfigs() {
-    return BACK_SLOT_ATTACHMENT_CONFIGS.map((entry) => ({
-        itemId: entry.itemId,
-        model: entry.model,
-        attachInfo: entry.attachInfo,
-    }));
+    return BACK_SLOT_ATTACHMENT_CONFIGS.map((entry) => {
+        const item = this.inventoryItems[entry.itemId];
+        return {
+            itemId: entry.itemId,
+            model: entry.model || (item && item.model),
+            attachInfo: entry.attachInfo || BACK_SLOT_DEFAULT_ATTACH_INFO,
+        };
+    }).filter((entry) => entry.model);
 },
 getInventoryItem(itemId) {
     const item = this.inventoryItems[itemId];
@@ -800,7 +839,7 @@ getName(itemId) {
             otherItems[item.itemId](params);
         } else if (this.bodyList[9].includes(item.itemId)) {
             timer.add(() => {
-                player.addAttachment(`weapon_${item.itemId}`, true);
+                player.addAttachment(`weapon_${item.itemId}`, true); // cleanup legacy id, если остался от старого скрипта
                 player.addAttachment(`weapon_back_${item.itemId}`);
             }, 300);
             // this.removeWeapon(player, params.weaponHash);
