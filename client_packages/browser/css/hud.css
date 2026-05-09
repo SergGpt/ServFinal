@@ -306,6 +306,176 @@
     fill: #FFEB35;
 }
 
+
+#hud .aim-ammo {
+    align-items: flex-start;
+    display: flex;
+    gap: .85vh;
+    left: calc(50% - 6.8vh);
+    opacity: .94;
+    perspective: 12vh;
+    position: absolute;
+    top: calc(50% + 3.3vh);
+    transform: rotate(-10deg);
+    transform-origin: right top;
+}
+
+#hud .aim-ammo__model {
+    height: 5.2vh;
+    margin-top: .5vh;
+    position: relative;
+    width: 3.25vh;
+}
+
+#hud .aim-ammo__magazine {
+    background: linear-gradient(135deg, rgba(14, 18, 24, .92), rgba(48, 54, 64, .7));
+    border: .12vh solid rgba(255, 255, 255, .2);
+    border-radius: .45vh .45vh .9vh .9vh;
+    bottom: 0;
+    box-shadow: -.55vh .9vh 1.9vh rgba(0, 0, 0, .42), inset -.55vh 0 1vh rgba(0, 0, 0, .36), inset .4vh 0 .8vh rgba(255, 255, 255, .08);
+    height: 4.7vh;
+    left: .75vh;
+    overflow: hidden;
+    position: absolute;
+    transform: rotateX(10deg) rotateY(-27deg) rotateZ(-7deg);
+    transform-style: preserve-3d;
+    width: 1.8vh;
+}
+
+#hud .aim-ammo__mag-fill {
+    background: linear-gradient(0deg, rgba(255, 235, 53, .95), rgba(255, 235, 53, .42));
+    border-radius: .35vh .35vh .65vh .65vh;
+    bottom: 0;
+    box-shadow: 0 0 1.2vh rgba(255, 235, 53, .38);
+    left: 0;
+    max-height: 100%;
+    min-height: .25vh;
+    position: absolute;
+    transition: height .12s ease-out;
+    width: 100%;
+}
+
+#hud .aim-ammo__mag-shine {
+    background: linear-gradient(90deg, rgba(255, 255, 255, .28), transparent);
+    height: 100%;
+    left: .22vh;
+    opacity: .46;
+    position: absolute;
+    top: 0;
+    width: .35vh;
+}
+
+#hud .aim-ammo__mag-line {
+    background: rgba(255, 255, 255, .2);
+    height: .1vh;
+    left: .28vh;
+    position: relative;
+    top: 1.05vh;
+    width: 1.1vh;
+    z-index: 1;
+}
+
+#hud .aim-ammo__mag-line + .aim-ammo__mag-line {
+    margin-top: .75vh;
+}
+
+#hud .aim-ammo__rounds {
+    bottom: 4.2vh;
+    display: flex;
+    gap: .18vh;
+    left: 1.05vh;
+    position: absolute;
+    transform: rotateZ(-7deg);
+}
+
+#hud .aim-ammo__rounds span {
+    background: linear-gradient(180deg, #fff8b3, #d99d28 62%, #7b5318);
+    border-radius: 1vh;
+    box-shadow: 0 .2vh .35vh rgba(0, 0, 0, .36);
+    height: .78vh;
+    width: .28vh;
+}
+
+#hud .aim-ammo__body {
+    background: linear-gradient(135deg, rgba(8, 12, 18, .72), rgba(23, 27, 36, .46));
+    border: .1vh solid rgba(255, 255, 255, .14);
+    border-radius: .9vh;
+    box-shadow: 0 1vh 2.5vh rgba(0, 0, 0, .34), inset 0 0 1.8vh rgba(255, 255, 255, .035);
+    min-width: 8.5vh;
+    overflow: hidden;
+    padding: .72vh .9vh .66vh;
+    position: relative;
+}
+
+#hud .aim-ammo__body:before {
+    background: radial-gradient(circle, rgba(255, 235, 53, .2), transparent 64%);
+    content: "";
+    height: 5.2vh;
+    position: absolute;
+    right: -2.4vh;
+    top: -2.7vh;
+    width: 5.2vh;
+}
+
+#hud .aim-ammo__label,
+#hud .aim-ammo__meta span {
+    color: rgba(255, 255, 255, .54);
+    font-size: .74vh;
+    font-weight: 700;
+    letter-spacing: .12vh;
+    line-height: 1;
+}
+
+#hud .aim-ammo__value {
+    color: #fff;
+    font-family: DINAlternateBold, Roboto, sans-serif;
+    font-size: 2.55vh;
+    font-weight: 700;
+    line-height: .95;
+    margin: .28vh 0 .42vh;
+    text-shadow: 0 0 1vh rgba(255, 255, 255, .22);
+}
+
+#hud .aim-ammo__value small {
+    color: rgba(255, 255, 255, .54);
+    font-size: 1.15vh;
+    margin-left: .25vh;
+}
+
+#hud .aim-ammo__meta {
+    align-items: center;
+    display: flex;
+    gap: .6vh;
+    justify-content: space-between;
+}
+
+#hud .aim-ammo__meta b {
+    color: #ffeb35;
+    font-size: 1.18vh;
+    line-height: 1;
+    text-shadow: 0 0 .8vh rgba(255, 235, 53, .35);
+}
+
+#hud .aim-ammo.state-low .aim-ammo__mag-fill {
+    background: linear-gradient(0deg, rgba(255, 168, 53, .96), rgba(255, 168, 53, .42));
+    box-shadow: 0 0 1.2vh rgba(255, 168, 53, .38);
+}
+
+#hud .aim-ammo.state-low .aim-ammo__meta b {
+    color: #ffa835;
+}
+
+#hud .aim-ammo.state-empty .aim-ammo__mag-fill {
+    background: linear-gradient(0deg, rgba(255, 78, 78, .9), rgba(255, 78, 78, .32));
+    box-shadow: 0 0 1.2vh rgba(255, 78, 78, .38);
+}
+
+#hud .aim-ammo.state-empty .aim-ammo__value,
+#hud .aim-ammo.state-empty .aim-ammo__meta b {
+    color: #ff6969;
+    text-shadow: 0 0 .8vh rgba(255, 78, 78, .35);
+}
+
 #hud-layout-editor {
     position: fixed;
     left: 50%;
