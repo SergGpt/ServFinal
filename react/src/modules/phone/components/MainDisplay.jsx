@@ -56,15 +56,15 @@ const MainDisplay = ({ addAppAction, info }) => {
                         handleClick={addAppAction}
                     />
                     <PhoneAppIcon
-                        name='Маркет'
-                        image={marketplace_icon}
-                        onClick={openMarketplace}
-                    />
-                    <PhoneAppIcon
                         app={<CustomizationApp />}
                         name='Кастомизация'
                         image={customization_icon}
                         handleClick={addAppAction}
+                    />
+                    <PhoneAppIcon
+                        name='Маркет'
+                        image={marketplace_icon}
+                        onClick={openMarketplace}
                     />
                     <PhoneAppIcon
                         app={<TaxiClient />}
