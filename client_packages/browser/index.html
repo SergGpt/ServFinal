@@ -154,6 +154,18 @@
                 </div>
             </div>
         </div>
+        <div v-show="show && ammoHud.show" class="aim-ammo" :class="{ empty: ammoHud.clip <= 0 }">
+            <div class="aim-ammo__bar"></div>
+            <div class="aim-ammo__body">
+                <div class="aim-ammo__label">МАГАЗИН</div>
+                <div class="aim-ammo__value">{{ ammoHud.clip }}</div>
+                <div class="aim-ammo__divider"></div>
+                <div class="aim-ammo__meta">
+                    <span>ЗАРЯЖЕНО</span>
+                    <b>{{ ammoHud.total }}</b>
+                </div>
+            </div>
+        </div>
         <div class="arrest" v-if="arrestTime > 0">
                 <div class="img">
                     <img src="img/hud/prisoner.svg" />

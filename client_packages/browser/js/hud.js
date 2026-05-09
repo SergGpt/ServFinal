@@ -47,6 +47,12 @@ var hud = new Vue({
         localPos: { x: 0, y: 0 },
         coldTimer: -1,
         heatTimer: -1,
+        ammoHud: {
+            show: false,
+            clip: 0,
+            total: 0,
+            reserve: 0,
+        },
     },
     computed: {
         arrestProgressStyle() {

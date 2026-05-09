@@ -306,6 +306,97 @@
     fill: #FFEB35;
 }
 
+
+#hud .aim-ammo {
+    align-items: center;
+    display: flex;
+    left: calc(50% + 3.8vh);
+    opacity: .96;
+    position: absolute;
+    top: calc(50% + 1.2vh);
+    transform: translateY(-50%);
+}
+
+#hud .aim-ammo__bar {
+    background: linear-gradient(180deg, rgba(255, 235, 53, .15), #ffeb35 48%, rgba(255, 235, 53, .15));
+    border-radius: 10vh;
+    box-shadow: 0 0 1.3vh rgba(255, 235, 53, .42);
+    height: 5.8vh;
+    margin-right: .75vh;
+    width: .28vh;
+}
+
+#hud .aim-ammo__body {
+    background: linear-gradient(135deg, rgba(8, 12, 18, .78), rgba(23, 27, 36, .54));
+    border: .1vh solid rgba(255, 255, 255, .16);
+    border-radius: 1.1vh;
+    box-shadow: 0 1.4vh 3.6vh rgba(0, 0, 0, .42), inset 0 0 2.2vh rgba(255, 255, 255, .04);
+    min-width: 10.6vh;
+    overflow: hidden;
+    padding: .9vh 1.15vh .85vh;
+    position: relative;
+}
+
+#hud .aim-ammo__body:before {
+    background: radial-gradient(circle, rgba(255, 235, 53, .24), transparent 62%);
+    content: "";
+    height: 6vh;
+    position: absolute;
+    right: -2.4vh;
+    top: -2.8vh;
+    width: 6vh;
+}
+
+#hud .aim-ammo__label,
+#hud .aim-ammo__meta span {
+    color: rgba(255, 255, 255, .58);
+    font-size: .82vh;
+    font-weight: 700;
+    letter-spacing: .13vh;
+    line-height: 1;
+}
+
+#hud .aim-ammo__value {
+    color: #fff;
+    font-family: DINAlternateBold, Roboto, sans-serif;
+    font-size: 3.25vh;
+    font-weight: 700;
+    line-height: .95;
+    margin-top: .36vh;
+    text-shadow: 0 0 1.2vh rgba(255, 255, 255, .24);
+}
+
+#hud .aim-ammo__divider {
+    background: linear-gradient(90deg, rgba(255, 255, 255, .2), transparent);
+    height: .1vh;
+    margin: .58vh 0 .55vh;
+}
+
+#hud .aim-ammo__meta {
+    align-items: center;
+    display: flex;
+    gap: .7vh;
+    justify-content: space-between;
+}
+
+#hud .aim-ammo__meta b {
+    color: #ffeb35;
+    font-size: 1.35vh;
+    line-height: 1;
+    text-shadow: 0 0 1vh rgba(255, 235, 53, .35);
+}
+
+#hud .aim-ammo.empty .aim-ammo__bar {
+    background: linear-gradient(180deg, rgba(255, 78, 78, .15), #ff4e4e 48%, rgba(255, 78, 78, .15));
+    box-shadow: 0 0 1.3vh rgba(255, 78, 78, .42);
+}
+
+#hud .aim-ammo.empty .aim-ammo__value,
+#hud .aim-ammo.empty .aim-ammo__meta b {
+    color: #ff6969;
+    text-shadow: 0 0 1vh rgba(255, 78, 78, .35);
+}
+
 #hud-layout-editor {
     position: fixed;
     left: 50%;
