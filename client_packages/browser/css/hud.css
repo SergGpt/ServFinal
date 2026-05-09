@@ -308,19 +308,21 @@
 
 
 #hud .aim-ammo {
-    align-items: flex-end;
+    align-items: flex-start;
     display: flex;
     gap: .85vh;
-    left: 50%;
+    left: calc(50% + 2.4vh);
     opacity: .94;
     perspective: 12vh;
     position: absolute;
-    top: calc(50% + 7.4vh);
-    transform: translateX(-50%);
+    top: calc(50% + 4.6vh);
+    transform: rotate(-6deg);
+    transform-origin: left top;
 }
 
 #hud .aim-ammo__model {
     height: 5.2vh;
+    margin-top: .35vh;
     position: relative;
     width: 3.25vh;
 }
