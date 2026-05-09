@@ -46,16 +46,31 @@ mp.weapons = {
         }
         return Math.max(0, this.getAmmoWeapon(weaponhash));
     },
+    getMaxAmmoInClip(weaponhash) {
+        weaponhash = this.hashToValid(weaponhash);
+        if (mp.players.local.getMaxAmmoInClip) {
+            var playerMaxClip = mp.players.local.getMaxAmmoInClip(weaponhash);
+            if (typeof playerMaxClip == 'number' && playerMaxClip > 0) return playerMaxClip;
+        }
+        return Math.max(0, mp.game.invoke('0xA38DCFFCEA8962FA', mp.players.local.handle, weaponhash, true));
+    },
     getAimAmmoData() {
         var weapon = mp.players.local.weapon;
         if (!weapon || weapon == mp.game.joaat('weapon_unarmed')) return null;
 
         var total = Math.max(0, this.getAmmoWeapon(weapon));
         var clip = Math.min(this.getAmmoInClip(weapon), total);
+        var maxClip = Math.max(clip, this.getMaxAmmoInClip(weapon));
+        var clipPercent = maxClip > 0 ? Math.round(clip / maxClip * 100) : 0;
+        var state = clip <= 0 ? 'empty' : (clipPercent <= 30 ? 'low' : 'ready');
+
         return {
             clip: clip,
             total: total,
             reserve: Math.max(0, total - clip),
+            maxClip: maxClip,
+            clipPercent: Math.clamp(clipPercent, 0, 100),
+            state: state,
         };
     },
     setAimAmmoHud(data) {
@@ -64,6 +79,9 @@ mp.weapons = {
             clip: data.clip,
             total: data.total,
             reserve: data.reserve,
+            maxClip: data.maxClip,
+            clipPercent: data.clipPercent,
+            state: data.state,
         } : { show: false };
 
         var rawData = JSON.stringify(nextData);
@@ -77,6 +95,9 @@ mp.weapons = {
             hudData['ammoHud.clip'] = nextData.clip;
             hudData['ammoHud.total'] = nextData.total;
             hudData['ammoHud.reserve'] = nextData.reserve;
+            hudData['ammoHud.maxClip'] = nextData.maxClip;
+            hudData['ammoHud.clipPercent'] = nextData.clipPercent;
+            hudData['ammoHud.state'] = nextData.state;
         }
         mp.events.call('hud.setData', hudData);
     },

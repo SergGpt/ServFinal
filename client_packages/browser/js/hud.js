@@ -52,6 +52,9 @@ var hud = new Vue({
             clip: 0,
             total: 0,
             reserve: 0,
+            maxClip: 0,
+            clipPercent: 0,
+            state: 'empty',
         },
     },
     computed: {

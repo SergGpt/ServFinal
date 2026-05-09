@@ -154,12 +154,24 @@
                 </div>
             </div>
         </div>
-        <div v-show="show && ammoHud.show" class="aim-ammo" :class="{ empty: ammoHud.clip <= 0 }">
-            <div class="aim-ammo__bar"></div>
+        <div v-show="show && ammoHud.show" class="aim-ammo" :class="[`state-${ammoHud.state}`]">
+            <div class="aim-ammo__model">
+                <div class="aim-ammo__magazine">
+                    <div class="aim-ammo__mag-fill" :style="{ height: ammoHud.clipPercent + '%' }"></div>
+                    <div class="aim-ammo__mag-shine"></div>
+                    <div class="aim-ammo__mag-line"></div>
+                    <div class="aim-ammo__mag-line"></div>
+                    <div class="aim-ammo__mag-line"></div>
+                </div>
+                <div class="aim-ammo__rounds">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
             <div class="aim-ammo__body">
                 <div class="aim-ammo__label">МАГАЗИН</div>
-                <div class="aim-ammo__value">{{ ammoHud.clip }}</div>
-                <div class="aim-ammo__divider"></div>
+                <div class="aim-ammo__value">{{ ammoHud.clip }}<small v-if="ammoHud.maxClip">/{{ ammoHud.maxClip }}</small></div>
                 <div class="aim-ammo__meta">
                     <span>ЗАРЯЖЕНО</span>
                     <b>{{ ammoHud.total }}</b>
