@@ -8,7 +8,7 @@ mp.inventory = {
     handsBlock: false,
     handsBlockForce: false,
     groundItemMarker: {},
-    backSlotWhitelist: [25, 48, 49, 51, 52],
+    backSlotWhitelist: [],
     lastActionTime: 0,
     waitActionTime: 1000,
     searchPlayer: null,
@@ -169,7 +169,6 @@ mp.inventory = {
     },
     registerWeaponAttachments(attachmentsOrList) {
         const attachments = Array.isArray(attachmentsOrList) ? attachmentsOrList : [];
-        const allowedIds = new Set(this.backSlotWhitelist);
         const bodyList = [];
 
         for (let i = 0; i < attachments.length; i++) {
@@ -177,7 +176,7 @@ mp.inventory = {
             if (!entry || typeof entry !== "object") continue;
 
             const itemId = parseInt(entry.itemId, 10);
-            if (!Number.isInteger(itemId) || !allowedIds.has(itemId)) continue;
+            if (!Number.isInteger(itemId)) continue;
 
             const model = entry.model;
             const dbAttach = (entry.attachInfo && typeof entry.attachInfo === "object") ? entry.attachInfo : {};
@@ -201,10 +200,13 @@ mp.inventory = {
                 Array.isArray(dbAttach.rot) ? (parseFloat(dbAttach.rot[2]) || 0) : 0
             );
 
+            // Координаты для правки находятся на сервере в packages/inventory/index.js:
+            // BACK_SLOT_DEFAULT_ATTACH_INFO и отдельные attachInfo в BACK_SLOT_ATTACHMENT_CONFIGS.
             mp.attachmentMngr.register(`weapon_back_${itemId}`, model, bone, pos, rot);
             bodyList.push(itemId);
         }
 
+        this.backSlotWhitelist = bodyList;
         mp.callCEFV(`inventory.setBodyList(9, ${JSON.stringify(bodyList)})`)
     },
     disableControlActions() {
