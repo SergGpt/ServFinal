@@ -34,13 +34,63 @@ mp.attachmentMngr = {
         return -1;
     },
 
+
+    attachObjectFor: function(entity, id, object, attInfo, reason = "init", recreated = false, attempt = 0) {
+        if (!entity || !mp.players.exists(entity) || !entity.__attachmentObjects || entity.__attachmentObjects[id] !== object) return;
+        if (!mp.objects.exists(object)) {
+            delete entity.__attachmentObjects[id];
+            return;
+        }
+
+        const boneIndex = this.resolveBoneIndex(entity, attInfo.boneName);
+        if (entity.handle === 0 || object.handle === 0 || boneIndex === -1) {
+            if (attempt < 30) {
+                setTimeout(() => this.attachObjectFor(entity, id, object, attInfo, reason, recreated, attempt + 1), 50);
+                return;
+            }
+
+            this.debug(`addFor fail id=${id} boneName=${attInfo.boneName} boneIndex=${boneIndex} model=${attInfo.model} recreated=${recreated} reason=${reason} entityHandle=${entity.handle} objectHandle=${object.handle}`);
+            console.warn(`[ATTACHES] Can't attach object ${id}: entity/object/bone is not ready`);
+            delete entity.__attachmentObjects[id];
+            if (mp.objects.exists(object)) object.destroy();
+            return;
+        }
+
+        // Используем старые стабильные флаги attachTo из исходного скрипта
+        object.attachTo(entity.handle,
+            boneIndex,
+            attInfo.offset.x, attInfo.offset.y, attInfo.offset.z,
+            attInfo.rotation.x, attInfo.rotation.y, attInfo.rotation.z,
+            false, false, false, false, 2, true);
+        this.debug(`addFor ok id=${id} model=${attInfo.model} boneName=${attInfo.boneName} boneIndex=${boneIndex} attachMode=boneIndex recreated=${recreated} reason=${reason} pos=(${attInfo.offset.x.toFixed(3)},${attInfo.offset.y.toFixed(3)},${attInfo.offset.z.toFixed(3)}) rot=(${attInfo.rotation.x.toFixed(3)},${attInfo.rotation.y.toFixed(3)},${attInfo.rotation.z.toFixed(3)}) entity=${entity.remoteId}`);
+
+        var a = attInfo.anim;
+        if (a && !entity.vehicle &&
+            !entity.isJumping() && !entity.isShooting() && !entity.isSwimming() && !entity.isFalling()) {
+            entity.clearTasksImmediately();
+            mp.utils.requestAnimDict(a.dict, () => {
+                entity.taskPlayAnim(a.dict, a.name, a.speed, 0, -1, a.flag, 0, false, false, false);
+            });
+        }
+        mp.events.call("attaches.added", entity, id);
+    },
+
     addFor: function(entity, id, reason = "init", recreated = false) {
         if (this.attachments.hasOwnProperty(id)) {
             if (entity && entity.__attachmentObjects && !entity.__attachmentObjects.hasOwnProperty(id)) {
                 let attInfo = this.attachments[id];
+
+                if (!mp.game.streaming.hasModelLoaded(attInfo.model)) {
+                    mp.game.streaming.requestModel(attInfo.model);
+                    setTimeout(() => this.addFor(entity, id, reason, recreated), 50);
+                    return;
+                }
+
                 let object = mp.objects.new(attInfo.model, entity.position, {
                     dimension: entity.dimension
                 });
+                entity.__attachmentObjects[id] = object;
+
                 if (attInfo.lost) {
                     object.lost = attInfo.lost;
                     mp.inventory.hands(entity, null);
@@ -50,33 +100,7 @@ mp.attachmentMngr = {
                     }
                 }
 
-                const boneIndex = this.resolveBoneIndex(entity, attInfo.boneName);
-                if (boneIndex === -1) {
-                    this.debug(`addFor fail id=${id} boneName=${attInfo.boneName} boneIndex=${boneIndex} model=${attInfo.model} recreated=${recreated} reason=${reason} (bone not found)`);
-                    console.warn(`[ATTACHES] Can't resolve bone for attachment ${id}, object destroyed`);
-                    if (mp.objects.exists(object)) object.destroy();
-                    return;
-                }
-
-                // Используем старые стабильные флаги attachTo из исходного скрипта
-                object.attachTo(entity.handle,
-                    boneIndex,
-                    attInfo.offset.x, attInfo.offset.y, attInfo.offset.z,
-                    attInfo.rotation.x, attInfo.rotation.y, attInfo.rotation.z,
-                    false, false, false, false, 2, true);
-                this.debug(`addFor ok id=${id} model=${attInfo.model} boneName=${attInfo.boneName} boneIndex=${boneIndex} attachMode=boneIndex recreated=${recreated} reason=${reason} pos=(${attInfo.offset.x.toFixed(3)},${attInfo.offset.y.toFixed(3)},${attInfo.offset.z.toFixed(3)}) rot=(${attInfo.rotation.x.toFixed(3)},${attInfo.rotation.y.toFixed(3)},${attInfo.rotation.z.toFixed(3)}) entity=${entity.remoteId}`);
-
-                entity.__attachmentObjects[id] = object;
-
-                var a = attInfo.anim;
-                if (a && !entity.vehicle &&
-                    !entity.isJumping() && !entity.isShooting() && !entity.isSwimming() && !entity.isFalling()) {
-                    entity.clearTasksImmediately();
-                    mp.utils.requestAnimDict(a.dict, () => {
-                        entity.taskPlayAnim(a.dict, a.name, a.speed, 0, -1, a.flag, 0, false, false, false);
-                    });
-                }
-                mp.events.call("attaches.added", entity, id);
+                this.attachObjectFor(entity, id, object, attInfo, reason, recreated);
             }
         } else {
             //temp
