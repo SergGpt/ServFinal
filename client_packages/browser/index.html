@@ -786,6 +786,25 @@
         <div class="fishingImage" v-if="isStarted && !isFetch">
             <img src="img/fishing/fish.png"/>
             <p class="fishingWait">Ожидайте, пока рыба клюнет...</p>
+
+            <div class="fishingWaitPanel">
+                <div class="fishingModifiers">
+                    <span v-if="rodQuality">Удочка: {{ rodQuality.label }}</span>
+                    <span v-if="weatherInfo">Погода: {{ weatherInfo.label }}</span>
+                    <span v-if="biteInfo">{{ biteInfo.label }}</span>
+                </div>
+                <p class="fishingBiteHint" v-if="biteInfo">{{ biteInfo.description }}</p>
+
+                <div class="fishingRecords">
+                    <div class="fishingRecordsTitle">Рекорды улова</div>
+                    <div class="fishingRecord" v-if="hasRecords" v-for="(record, index) in records" v-bind:key="record.playerName + record.fishName + index">
+                        <span>#{{ index + 1 }}</span>
+                        <b>{{ record.playerName }}</b>
+                        <em>{{ record.fishName }} — {{ record.weight }} кг</em>
+                    </div>
+                    <div class="fishingRecord fishingRecord_empty" v-if="!hasRecords">Станьте первым рекордсменом этой сессии</div>
+                </div>
+            </div>
         </div>
 
         <div class="fishingGame" v-if="isFetch">
@@ -794,11 +813,6 @@
                     <span class="fishingBadge">Поклёвка</span>
                     <h2>Ловля рыбы</h2>
                     <p>Нажмите на {{ targetCount }} рыбок как можно быстрее. Хлам лучше не трогать — он только крадёт время.</p>
-                    <div class="fishingModifiers">
-                        <span v-if="fishBehavior">{{ fishBehavior.label }}</span>
-                        <span v-if="rodQuality">Удочка: {{ rodQuality.label }}</span>
-                        <span v-if="weatherInfo">Погода: {{ weatherInfo.label }}</span>
-                    </div>
                 </div>
                 <div class="fishingTimer">
                     <b>{{ leftSeconds }}</b>
@@ -829,16 +843,6 @@
                     <img v-if="target.type === 'fish'" src="img/fishing/fish.png"/>
                     <span v-if="target.type === 'junk'">{{ target.icon }}</span>
                 </button>
-            </div>
-
-            <div class="fishingRecords" v-if="!isEnd">
-                <div class="fishingRecordsTitle">Рекорды улова</div>
-                <div class="fishingRecord" v-if="hasRecords" v-for="(record, index) in records" v-bind:key="record.playerName + record.fishName + index">
-                    <span>#{{ index + 1 }}</span>
-                    <b>{{ record.playerName }}</b>
-                    <em>{{ record.fishName }} — {{ record.weight }} кг</em>
-                </div>
-                <div class="fishingRecord fishingRecord_empty" v-if="!hasRecords">Станьте первым рекордсменом этой сессии</div>
             </div>
 
             <div class="fishingResult" v-if="isEnd">

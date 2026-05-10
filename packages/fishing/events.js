@@ -73,10 +73,10 @@ module.exports = {
 
         inventory.updateParam(player, rod, 'health', health - 1);
 
-        player.fishing.fish = fishing.fishes[utils.randomInteger(0, fishing.fishes.length - 1)];
-
         const currentWeather = weather ? weather.getCurrentWeather() : null;
-        const minigame = await fishing.buildMinigameConfig(player.fishing.fish, health, currentWeather);
+        player.fishing.fish = fishing.pickFishForBite(health, currentWeather, depthWeight) || fishing.fishes[utils.randomInteger(0, fishing.fishes.length - 1)];
+        const minigame = await fishing.buildMinigameConfig(player.fishing.fish, health, currentWeather, depthWeight);
+        player.call('fishing.game.waitInfo', [minigame]);
 
         let zone = utils.randomInteger(10, 20);
         let speed = parseInt(health / 5);

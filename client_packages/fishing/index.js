@@ -272,6 +272,10 @@ mp.events.add('fishing.game.enter', () => {
     isEnter = true;
 });
 
+mp.events.add('fishing.game.waitInfo', (minigame = {}) => {
+    mp.callCEFV(`fishing.setWaitInfo(${JSON.stringify(minigame)});`);
+});
+
 mp.events.add('fishing.game.fetch', (speed, zone, weight, name, minigame = {}) => {
     playFetchAnimation(true);
     isFetch = true;

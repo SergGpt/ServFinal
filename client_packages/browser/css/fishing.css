@@ -379,3 +379,32 @@
     grid-template-columns: none;
     text-align: center;
 }
+
+.fishingWaitPanel {
+    background: linear-gradient(135deg, rgba(4, 18, 31, .86), rgba(8, 47, 66, .82));
+    border: .1vh solid rgba(118, 219, 255, .18);
+    border-radius: 1.6vh;
+    box-shadow: 0 1.6vh 4vh rgba(0, 0, 0, .42), inset 0 0 3vh rgba(48, 185, 255, .06);
+    margin: 2vh auto 0;
+    max-width: 58vh;
+    padding: 1.4vh;
+    pointer-events: none;
+}
+
+.fishingWaitPanel .fishingModifiers {
+    justify-content: center;
+    margin-top: 0;
+}
+
+.fishingBiteHint {
+    color: rgba(255, 255, 255, .68);
+    font-size: 1.35vh;
+    line-height: 1.4;
+    margin: 1vh auto 0;
+    max-width: 50vh;
+    text-shadow: none;
+}
+
+.fishingWaitPanel .fishingRecords {
+    margin-top: 1.2vh;
+}

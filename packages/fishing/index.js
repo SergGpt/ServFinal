@@ -100,10 +100,73 @@ module.exports = {
         return effects[icon] || effects.clear;
     },
 
-    getFishBehavior(fish) {
+    getFishAverageWeight(fish) {
         const minWeight = Number(fish && fish.minWeight) || 0;
         const maxWeight = Number(fish && fish.maxWeight) || 0;
-        const avgWeight = (minWeight + maxWeight) / 2;
+        return (minWeight + maxWeight) / 2;
+    },
+
+    getFishSizeGroup(fish) {
+        const avgWeight = this.getFishAverageWeight(fish);
+
+        if (avgWeight > 12) return 'large';
+        if (avgWeight > 4) return 'medium';
+        return 'small';
+    },
+
+    hasGoodBigFishConditions(rodHealth, currentWeather, depthWeight) {
+        const weatherEffect = this.getWeatherEffect(currentWeather);
+        const icon = currentWeather && currentWeather.icon ? currentWeather.icon : 'clear';
+        const goodWeather = weatherEffect.weightBonus >= 0.04 && !['thunderstorm', 'snow'].includes(icon);
+
+        return Number(rodHealth) >= 80 && goodWeather && Number(depthWeight) >= 3;
+    },
+
+    pickFromList(list) {
+        if (!list.length) return null;
+        return list[Math.floor(Math.random() * list.length)];
+    },
+
+    pickFishForBite(rodHealth, currentWeather, depthWeight) {
+        const groups = {
+            small: [],
+            medium: [],
+            large: [],
+        };
+
+        this.fishes.forEach((fish) => {
+            groups[this.getFishSizeGroup(fish)].push(fish);
+        });
+
+        const goodConditions = this.hasGoodBigFishConditions(rodHealth, currentWeather, depthWeight);
+        const roll = Math.random() * 100;
+        let pool = groups.small;
+
+        if (goodConditions) {
+            if (roll >= 80 && groups.large.length) pool = groups.large;
+            else if (roll >= 55 && groups.medium.length) pool = groups.medium;
+        } else if (roll >= 80 && groups.medium.length) {
+            pool = groups.medium;
+        }
+
+        return this.pickFromList(pool) || this.pickFromList(groups.small) || this.pickFromList(groups.medium) || this.pickFromList(groups.large);
+    },
+
+    getBiteInfo(rodHealth, currentWeather, depthWeight) {
+        const goodConditions = this.hasGoodBigFishConditions(rodHealth, currentWeather, depthWeight);
+
+        return {
+            label: goodConditions ? 'Крупная рыба возможна' : 'В основном мелкая рыба',
+            description: goodConditions
+                ? 'Отличная удочка, подходящая погода и глубина повышают шанс крупного улова.'
+                : 'Около 80% поклёвок будет мелкой рыбой. Для крупной нужны отличная удочка, хорошая погода и глубина.',
+            largeChance: goodConditions ? 20 : 0,
+            smallChance: goodConditions ? 55 : 80,
+        };
+    },
+
+    getFishBehavior(fish) {
+        const avgWeight = this.getFishAverageWeight(fish);
 
         if (avgWeight >= 18) {
             return {
@@ -156,7 +219,7 @@ module.exports = {
         };
     },
 
-    async buildMinigameConfig(fish, rodHealth, currentWeather) {
+    async buildMinigameConfig(fish, rodHealth, currentWeather, depthWeight = 0) {
         const behavior = this.getFishBehavior(fish);
         const rodQuality = this.getRodQuality(rodHealth);
         const weatherEffect = this.getWeatherEffect(currentWeather);
@@ -185,6 +248,7 @@ module.exports = {
                 label: weatherEffect.label,
                 icon: currentWeather && currentWeather.icon ? currentWeather.icon : 'clear',
             },
+            bite: this.getBiteInfo(rodHealth, currentWeather, depthWeight),
             records: await this.getRecords(),
         };
     },
