@@ -132,7 +132,9 @@ module.exports = {
 
             inventory.addItem(player, 15, { weight: player.fishing.weight, name: player.fishing.fish.name }, (e) => {
                 if (!e) {
-                    fishing.addRecord(player, player.fishing.fish.name, player.fishing.weight, serverElapsed).catch((err) => console.log(err));
+                    fishing.addRecord(player, player.fishing.fish.name, player.fishing.weight, serverElapsed)
+                        .then((records) => player.call('fishing.records.update', [records]))
+                        .catch((err) => console.log(err));
                     notifs.success(player, `${player.fishing.fish.name} весом ${player.fishing.weight} кг добавлен(a) в инвентарь`, 'Рыбалка');
                     fishing.addJobExp(player);
                 } else {

@@ -287,6 +287,10 @@ mp.events.add('fishing.game.waitInfo', (minigame = {}) => {
     mp.callCEFV(`fishing.setWaitInfo(${JSON.stringify(minigame)});`);
 });
 
+mp.events.add('fishing.records.update', (records = []) => {
+    mp.callCEFV(`fishing.setRecords(${JSON.stringify(records)});`);
+});
+
 mp.events.add('fishing.game.fetch', (speed, zone, weight, name, minigame = {}) => {
     playFetchAnimation(true);
     isFetch = true;

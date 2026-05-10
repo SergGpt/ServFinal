@@ -73,7 +73,10 @@ var fishing = new Vue({
             this.weatherInfo = minigame.weather || null;
             this.biteInfo = minigame.bite || null;
             this.depthInfo = minigame.depth || null;
-            this.records = minigame.records || [];
+            this.setRecords(minigame.records || []);
+        },
+        setRecords(records = []) {
+            this.records = records;
         },
         moveCursor() {
             if (this.direction === 'right') {
