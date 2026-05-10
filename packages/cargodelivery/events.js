@@ -15,9 +15,9 @@ function scheduleInit() {
 }
 
 module.exports = {
-    init: () => {
+    init: async () => {
         const mod = getCargo();
-        if (mod.init()) {
+        if (await mod.init()) {
             inited(__dirname);
         } else {
             scheduleInit();
@@ -45,6 +45,18 @@ module.exports = {
     },
     'cargo.pickup.load': (player) => {
         getCargo().loadCargo(player);
+    },
+    'cargo.admin.route.create': async (player) => {
+        if (!player.character || player.character.admin < 6) return;
+        await getCargo().createAdminRoute(player);
+    },
+    'cargo.admin.route.dropoff.add': async (player, routeId) => {
+        if (!player.character || player.character.admin < 6) return;
+        await getCargo().addAdminDropoff(player, parseInt(routeId));
+    },
+    'cargo.admin.routes.refresh': async (player) => {
+        if (!player.character || player.character.admin < 6) return;
+        await getCargo().showAdminRouteMenu(player);
     },
     playerQuit: (player) => {
         getCargo().cleanupPlayer(player);

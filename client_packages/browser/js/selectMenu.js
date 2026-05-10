@@ -10312,6 +10312,35 @@ var selectMenu = new Vue({
                     }
                 }
             },
+            "cargoRouteAdmin": {
+                name: "cargoRouteAdmin",
+                header: "Маршруты черного рынка",
+                items: [
+                    { text: "Создать маршрут (погрузка тут)" },
+                    { text: "Добавить точку доставки", values: ["Нет маршрутов"] },
+                    { text: "Обновить список" },
+                    { text: "Закрыть" },
+                ],
+                routeIds: [],
+                i: 0,
+                j: 0,
+                handler(eventName) {
+                    var item = this.items[this.i];
+                    var e = {
+                        menuName: this.name,
+                        itemName: item.text,
+                        itemIndex: this.i,
+                        itemValue: (item.i != null && item.values) ? item.values[item.i] : null,
+                        valueIndex: item.i,
+                    };
+                    if (eventName == 'onItemSelected') {
+                        mp.trigger('selectMenu.handler', this.name, eventName, JSON.stringify(e));
+                    }
+                    if (eventName == 'onBackspacePressed' || eventName == 'onEscapePressed') {
+                        selectMenu.show = false;
+                    }
+                }
+            },
         },
         // Уведомление
         notification: null,
