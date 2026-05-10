@@ -1,54 +1,256 @@
 #fishing {
-    text-align: center;
-    margin-top: 5em;
-    position: absolute;
-    width: 60%;
-    margin-left: 20%;
     font-family: Roboto;
+    height: 100vh;
+    left: 0;
+    pointer-events: none;
+    position: absolute;
+    text-align: center;
+    top: 0;
+    width: 100vw;
+    z-index: 50;
 }
 
 .fishingImage {
+    color: #fff;
     font-size: 1.8em;
-    color: white;
+    left: 50%;
+    position: absolute;
+    top: 12vh;
+    transform: translateX(-50%);
 }
 
 .fishingImage img {
+    filter: drop-shadow(0 1.2vh 2.5vh rgba(33, 170, 255, .35));
     width: 5em;
 }
 
 .fishingImage p {
-    margin-top: 0;
     font-weight: 300;
-}
-
-.fishingLine {
-    width: 100%;
-    height: 2.5em;
-    border-radius: 0.3em;
-    background-color: rgba(0, 0, 0, 0.9);
-    position: relative;
-    margin-top: 3em;
-}
-
-.fishingZone {
-    background: linear-gradient(180deg, rgba(64, 163, 255, 0.9) 0%, rgba(28, 91, 255, 0.9) 100%);
-    box-shadow: 0px 0px 25px rgba(48, 132, 252, 0.5);
-    border-radius: 0.3em;
-    height: 100%;
-}
-
-.fishingCursor {
-    background-color: white;
-    width: 0.15em;
-    height: 6em;
-    border-radius: 1em;
-    position: absolute;
-    top: -2em;
+    margin-top: 0;
+    text-shadow: 0 .3vh 1vh rgba(0, 0, 0, .65);
 }
 
 .fishingWait {
-    color: white;
+    color: #fff;
     margin-top: 3em;
+}
+
+.fishingGame {
+    background: linear-gradient(135deg, rgba(4, 18, 31, .92), rgba(8, 47, 66, .9));
+    border: .1vh solid rgba(118, 219, 255, .22);
+    border-radius: 2.2vh;
+    box-shadow: 0 2.8vh 8vh rgba(0, 0, 0, .58), inset 0 0 5vh rgba(48, 185, 255, .08);
+    color: #fff;
+    left: 50%;
+    overflow: hidden;
+    padding: 2.2vh;
+    pointer-events: auto;
+    position: absolute;
+    top: 8vh;
+    transform: translateX(-50%);
+    width: 72vh;
+}
+
+.fishingGame:before {
+    background: radial-gradient(circle, rgba(96, 214, 255, .22), rgba(96, 214, 255, 0) 58%);
+    content: '';
+    height: 24vh;
+    position: absolute;
+    right: -8vh;
+    top: -10vh;
+    width: 24vh;
+}
+
+.fishingGameHeader {
+    align-items: flex-start;
+    display: flex;
+    justify-content: space-between;
+    position: relative;
+    text-align: left;
+    z-index: 1;
+}
+
+.fishingGameHeader h2 {
+    font-size: 3vh;
+    font-weight: 800;
+    letter-spacing: .04em;
+    margin: .65vh 0 .45vh;
+    text-transform: uppercase;
+}
+
+.fishingGameHeader p {
+    color: rgba(255, 255, 255, .72);
+    font-size: 1.45vh;
+    line-height: 1.45;
+    margin: 0;
+    max-width: 46vh;
+}
+
+.fishingBadge {
+    background: linear-gradient(135deg, #5ee7ff, #2b8cff);
+    border-radius: 999px;
+    box-shadow: 0 .8vh 2vh rgba(43, 140, 255, .25);
+    color: #00131c;
+    display: inline-block;
+    font-size: 1.15vh;
+    font-weight: 900;
+    letter-spacing: .12em;
+    padding: .55vh 1.15vh;
+    text-transform: uppercase;
+}
+
+.fishingTimer {
+    align-items: center;
+    background: rgba(255, 255, 255, .08);
+    border: .1vh solid rgba(255, 255, 255, .1);
+    border-radius: 1.4vh;
+    display: flex;
+    flex-direction: column;
+    min-width: 8vh;
+    padding: 1vh;
+}
+
+.fishingTimer b {
+    color: #7de8ff;
+    font-size: 2.7vh;
+    line-height: 1;
+}
+
+.fishingTimer span {
+    color: rgba(255, 255, 255, .52);
+    font-size: 1.05vh;
+    margin-top: .25vh;
+    text-transform: uppercase;
+}
+
+.fishingProgress {
+    margin: 2vh 0 1.4vh;
+    position: relative;
+    z-index: 1;
+}
+
+.fishingProgressInfo {
+    color: rgba(255, 255, 255, .76);
+    display: flex;
+    font-size: 1.35vh;
+    justify-content: space-between;
+    margin-bottom: .75vh;
+}
+
+.fishingProgressLine {
+    background: rgba(255, 255, 255, .08);
+    border-radius: 999px;
+    height: .9vh;
+    overflow: hidden;
+}
+
+.fishingProgressLine div {
+    background: linear-gradient(90deg, #37d7ff, #8dffcf);
+    border-radius: inherit;
+    box-shadow: 0 0 2vh rgba(75, 226, 255, .58);
+    height: 100%;
+    transition: width .18s ease;
+}
+
+.fishingPond {
+    background: radial-gradient(circle at 50% 35%, rgba(107, 225, 255, .2), rgba(0, 56, 84, .3) 42%, rgba(0, 12, 23, .68)), linear-gradient(180deg, rgba(35, 145, 187, .34), rgba(2, 34, 56, .64));
+    border: .1vh solid rgba(126, 221, 255, .18);
+    border-radius: 1.7vh;
+    box-shadow: inset 0 0 4vh rgba(0, 0, 0, .32);
+    height: 43vh;
+    overflow: hidden;
+    position: relative;
+}
+
+.fishingPond:before,
+.fishingPond:after {
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .12), transparent);
+    content: '';
+    height: .16vh;
+    left: -20%;
+    position: absolute;
+    width: 140%;
+}
+
+.fishingPond:before { top: 30%; }
+.fishingPond:after { top: 63%; }
+
+.fishingTarget {
+    align-items: center;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    position: absolute;
+    transition: filter .12s ease, opacity .12s ease, transform .12s ease;
+    z-index: 2;
+}
+
+.fishingTarget:hover {
+    filter: brightness(1.2) drop-shadow(0 0 1.2vh rgba(125, 232, 255, .7));
+}
+
+.fishingTarget_fish {
+    animation: fishingSwim 1.55s ease-in-out infinite alternate;
+}
+
+.fishingTarget_fish img {
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+    width: 100%;
+}
+
+.fishingTarget_junk {
+    animation: fishingFloat 2.2s ease-in-out infinite alternate;
+    background: rgba(5, 14, 21, .48);
+    border: .1vh solid rgba(255, 255, 255, .08);
+    border-radius: 50%;
+    color: rgba(255, 255, 255, .82);
+    font-size: 2.3vh;
+}
+
+.fishingResult {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    min-height: 31vh;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+}
+
+.fishingResultIcon {
+    align-items: center;
+    background: linear-gradient(135deg, rgba(55, 215, 255, .18), rgba(141, 255, 207, .18));
+    border: .1vh solid rgba(126, 221, 255, .25);
+    border-radius: 50%;
+    display: flex;
+    font-size: 5vh;
+    height: 10vh;
+    justify-content: center;
+    margin-bottom: 1.4vh;
+    width: 10vh;
+}
+
+.fishingResultIcon.fail {
+    background: rgba(255, 96, 96, .12);
+    border-color: rgba(255, 96, 96, .25);
+}
+
+.fishingResult h3 {
+    font-size: 2.4vh;
+    margin: 0 0 .8vh;
+    text-transform: uppercase;
+}
+
+.fishingResult p {
+    color: rgba(255, 255, 255, .72);
+    font-size: 1.55vh;
+    margin: 0;
 }
 
 .fishingHelp {
@@ -59,11 +261,12 @@
     color: white;
     font-family: Roboto;
     font-size: 1.5vh;
+    max-width: 32vh;
     padding: 1.3vh 1.85vh;
+    pointer-events: none;
     position: fixed;
     right: 5em;
     bottom: 20em;
-    max-width: 32vh;
     word-break: break-word;
 }
 
@@ -78,4 +281,147 @@
     color: #000;
     font-weight: bold;
     padding: .37vh .5vh;
+}
+
+@keyframes fishingSwim {
+    from { margin-top: -.35vh; }
+    to { margin-top: .35vh; }
+}
+
+@keyframes fishingFloat {
+    from { margin-top: -.2vh; }
+    to { margin-top: .45vh; }
+}
+
+.fishingModifiers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .65vh;
+    margin-top: 1vh;
+}
+
+.fishingModifiers span {
+    background: rgba(125, 232, 255, .11);
+    border: .1vh solid rgba(125, 232, 255, .16);
+    border-radius: 999px;
+    color: rgba(225, 250, 255, .9);
+    font-size: 1.15vh;
+    font-weight: 700;
+    padding: .45vh .9vh;
+}
+
+.fishingTarget_fast {
+    animation-duration: .85s;
+}
+
+.fishingTarget_slow {
+    animation-duration: 2.35s;
+}
+
+.fishingRecords {
+    background: rgba(0, 11, 19, .34);
+    border: .1vh solid rgba(255, 255, 255, .08);
+    border-radius: 1.35vh;
+    display: grid;
+    gap: .55vh;
+    margin-top: 1.2vh;
+    padding: 1vh;
+    position: relative;
+    text-align: left;
+    z-index: 1;
+}
+
+.fishingRecordsTitle {
+    color: #7de8ff;
+    font-size: 1.2vh;
+    font-weight: 900;
+    letter-spacing: .08em;
+    margin-bottom: .25vh;
+    text-transform: uppercase;
+}
+
+.fishingRecord {
+    align-items: center;
+    background: rgba(255, 255, 255, .045);
+    border-radius: .85vh;
+    color: rgba(255, 255, 255, .78);
+    display: grid;
+    font-size: 1.2vh;
+    gap: .7vh;
+    grid-template-columns: 3.3vh 1fr 1.4fr;
+    padding: .65vh .8vh;
+}
+
+.fishingRecord span {
+    color: rgba(125, 232, 255, .9);
+    font-weight: 900;
+}
+
+.fishingRecord b {
+    color: #fff;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fishingRecord em {
+    color: rgba(255, 255, 255, .64);
+    font-style: normal;
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fishingRecord_empty {
+    display: block;
+    grid-template-columns: none;
+    text-align: center;
+}
+
+.fishingWaitPanel {
+    background: linear-gradient(135deg, rgba(4, 18, 31, .86), rgba(8, 47, 66, .82));
+    border: .1vh solid rgba(118, 219, 255, .18);
+    border-radius: 1.6vh;
+    box-shadow: 0 1.6vh 4vh rgba(0, 0, 0, .42), inset 0 0 3vh rgba(48, 185, 255, .06);
+    margin: 2vh auto 0;
+    max-width: 58vh;
+    padding: 1.4vh;
+    pointer-events: none;
+}
+
+.fishingWaitPanel .fishingModifiers {
+    justify-content: center;
+    margin-top: 0;
+}
+
+.fishingBiteHint {
+    color: rgba(255, 255, 255, .68);
+    font-size: 1.35vh;
+    line-height: 1.4;
+    margin: 1vh auto 0;
+    max-width: 50vh;
+    text-shadow: none;
+}
+
+.fishingWaitPanel .fishingRecords {
+    margin-top: 1.2vh;
+}
+
+.fishingRecordsList {
+    display: grid;
+    gap: .55vh 1vh;
+    grid-auto-flow: column;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(23, auto);
+}
+
+.fishingBiteHint b {
+    color: rgba(125, 232, 255, .88);
+    font-weight: 800;
+}
+
+.fishingWaitPanel {
+    max-width: 96vh;
 }

@@ -2,8 +2,10 @@ let money;
 let notifs;
 let inventory;
 let jobs;
+let timer;
 
 const ROD_ID = 5;
+const FISHING_RECORDS_LIMIT = 46;
 
 const port = {
     x: -167.7662,
@@ -12,13 +14,17 @@ const port = {
 };
 
 module.exports = {
-    init() {
+    async init() {
         money = call('money');
         notifs = call('notifications');
         inventory = call('inventory');
         jobs = call('jobs');
-        this.initFishersFromDB();
-        this.initFishesFromDB();
+        timer = call('timer');
+        await this.initFishersFromDB();
+        await this.initFishesFromDB();
+        await this.resetExpiredRecords();
+        await this.loadRecordsFromDB();
+        this.startRecordsResetTimer();
         this.createPortPoint();
     },
 
@@ -27,6 +33,11 @@ module.exports = {
     fishes: [],
 
     fishers: [],
+
+    records: [],
+
+    recordsResetTimer: null,
+    lastRecordsResetKey: null,
 
     colshapes: [],
 
@@ -37,6 +48,348 @@ module.exports = {
 
     getRodId() {
         return ROD_ID;
+    },
+
+    getRodQuality(health = 100) {
+        const safeHealth = Math.max(0, Math.min(100, Number(health) || 0));
+
+        if (safeHealth >= 80) {
+            return {
+                label: 'Отличная',
+                level: 'high',
+                timeBonus: 1400,
+                junkBonus: -2,
+                sizeBonus: 0.45,
+                weightBonus: 0.08,
+            };
+        }
+
+        if (safeHealth >= 45) {
+            return {
+                label: 'Нормальная',
+                level: 'normal',
+                timeBonus: 500,
+                junkBonus: 0,
+                sizeBonus: 0.15,
+                weightBonus: 0.03,
+            };
+        }
+
+        return {
+            label: 'Изношенная',
+            level: 'low',
+            timeBonus: -900,
+            junkBonus: 2,
+            sizeBonus: -0.25,
+            weightBonus: -0.05,
+        };
+    },
+
+    getWeatherEffect(currentWeather) {
+        const icon = currentWeather && currentWeather.icon ? currentWeather.icon : 'clear';
+        const effects = {
+            clear: { label: 'Ясно', timeBonus: 0, junkBonus: 0, biteBonus: 0, weightBonus: 0 },
+            'partly-cloudy': { label: 'Малооблачно', timeBonus: 300, junkBonus: 0, biteBonus: -1, weightBonus: 0.02 },
+            cloudy: { label: 'Облачно', timeBonus: 500, junkBonus: -1, biteBonus: -1, weightBonus: 0.03 },
+            overcast: { label: 'Пасмурно', timeBonus: 700, junkBonus: -1, biteBonus: -2, weightBonus: 0.04 },
+            rain: { label: 'Дождь', timeBonus: 1000, junkBonus: -2, biteBonus: -3, weightBonus: 0.07 },
+            thunderstorm: { label: 'Гроза', timeBonus: -700, junkBonus: 2, biteBonus: -4, weightBonus: 0.12 },
+            snow: { label: 'Снег', timeBonus: -500, junkBonus: 1, biteBonus: 1, weightBonus: 0.05 },
+        };
+
+        return effects[icon] || effects.clear;
+    },
+
+    getFishAverageWeight(fish) {
+        const minWeight = Number(fish && fish.minWeight) || 0;
+        const maxWeight = Number(fish && fish.maxWeight) || 0;
+        return (minWeight + maxWeight) / 2;
+    },
+
+    getFishSizeGroup(fish) {
+        const avgWeight = this.getFishAverageWeight(fish);
+
+        if (avgWeight > 12) return 'large';
+        if (avgWeight > 4) return 'medium';
+        return 'small';
+    },
+
+    getDepthInfo(depthWeight, isBoat = false) {
+        const isDeep = Number(depthWeight) >= 3 && Boolean(isBoat);
+
+        return {
+            label: isDeep ? 'Глубина' : 'Мель у берега',
+            level: isDeep ? 'deep' : 'shallow',
+            description: isDeep
+                ? 'Вы рыбачите с лодки на глубине — крупная рыба может подойти к крючку.'
+                : 'Вы рыбачите у берега/на мели — в основном будет клевать мелкая рыба.',
+        };
+    },
+
+    hasGoodBigFishConditions(rodHealth, currentWeather, depthWeight, isBoat = false) {
+        const weatherEffect = this.getWeatherEffect(currentWeather);
+        const icon = currentWeather && currentWeather.icon ? currentWeather.icon : 'clear';
+        const goodWeather = weatherEffect.weightBonus >= 0.04 && !['thunderstorm', 'snow'].includes(icon);
+
+        return Number(rodHealth) >= 80 && goodWeather && this.getDepthInfo(depthWeight, isBoat).level === 'deep';
+    },
+
+    pickFromList(list) {
+        if (!list.length) return null;
+        return list[Math.floor(Math.random() * list.length)];
+    },
+
+    pickFishForBite(rodHealth, currentWeather, depthWeight, isBoat = false) {
+        const groups = {
+            small: [],
+            medium: [],
+            large: [],
+        };
+
+        this.fishes.forEach((fish) => {
+            groups[this.getFishSizeGroup(fish)].push(fish);
+        });
+
+        const goodConditions = this.hasGoodBigFishConditions(rodHealth, currentWeather, depthWeight, isBoat);
+        const roll = Math.random() * 100;
+        let pool = groups.small;
+
+        if (goodConditions) {
+            if (roll >= 80 && groups.large.length) pool = groups.large;
+            else if (roll >= 55 && groups.medium.length) pool = groups.medium;
+        } else if (roll >= 80 && groups.medium.length) {
+            pool = groups.medium;
+        }
+
+        return this.pickFromList(pool) || this.pickFromList(groups.small) || this.pickFromList(groups.medium) || this.pickFromList(groups.large);
+    },
+
+    getBiteInfo(rodHealth, currentWeather, depthWeight, isBoat = false) {
+        const goodConditions = this.hasGoodBigFishConditions(rodHealth, currentWeather, depthWeight, isBoat);
+
+        return {
+            label: goodConditions ? 'Крупная рыба возможна' : 'В основном мелкая рыба',
+            description: goodConditions
+                ? 'Отличная удочка, подходящая погода и глубина повышают шанс крупного улова.'
+                : 'Около 80% поклёвок будет мелкой рыбой. Для крупной нужны отличная удочка, хорошая погода и глубина с лодки.',
+            largeChance: goodConditions ? 20 : 0,
+            smallChance: goodConditions ? 55 : 80,
+        };
+    },
+
+    getFishBehavior(fish) {
+        const avgWeight = this.getFishAverageWeight(fish);
+
+        if (avgWeight >= 18) {
+            return {
+                type: 'heavy',
+                label: 'Крупная рыба',
+                description: 'Меньше целей, но они крупнее и медленнее.',
+                targetCount: 4,
+                junkCount: 8,
+                timeLimit: 12500,
+                sizeBonus: 0.85,
+                speedClass: 'slow',
+            };
+        }
+
+        if (avgWeight >= 9) {
+            return {
+                type: 'deep',
+                label: 'Глубинная рыба',
+                description: 'Средняя сложность и чуть больше хлама.',
+                targetCount: 5,
+                junkCount: 10,
+                timeLimit: 11800,
+                sizeBonus: 0.2,
+                speedClass: 'normal',
+            };
+        }
+
+        if (avgWeight <= 3) {
+            return {
+                type: 'swift',
+                label: 'Юркая рыба',
+                description: 'Целей больше, они мельче и двигаются быстрее.',
+                targetCount: 6,
+                junkCount: 9,
+                timeLimit: 11000,
+                sizeBonus: -0.35,
+                speedClass: 'fast',
+            };
+        }
+
+        return {
+            type: 'common',
+            label: 'Обычная рыба',
+            description: 'Сбалансированная поклёвка без резких сюрпризов.',
+            targetCount: 5,
+            junkCount: 9,
+            timeLimit: 12000,
+            sizeBonus: 0,
+            speedClass: 'normal',
+        };
+    },
+
+    async buildMinigameConfig(fish, rodHealth, currentWeather, depthWeight = 0, isBoat = false) {
+        const behavior = this.getFishBehavior(fish);
+        const rodQuality = this.getRodQuality(rodHealth);
+        const weatherEffect = this.getWeatherEffect(currentWeather);
+        const timeLimit = Math.max(8500, behavior.timeLimit + rodQuality.timeBonus + weatherEffect.timeBonus);
+        const junkCount = Math.max(5, behavior.junkCount + rodQuality.junkBonus + weatherEffect.junkBonus);
+        const targetSizeBonus = behavior.sizeBonus + rodQuality.sizeBonus;
+        const weightBonus = rodQuality.weightBonus + weatherEffect.weightBonus;
+
+        return {
+            targetCount: behavior.targetCount,
+            junkCount,
+            timeLimit,
+            targetSizeBonus,
+            speedClass: behavior.speedClass,
+            weightBonus,
+            behavior: {
+                type: behavior.type,
+                label: behavior.label,
+                description: behavior.description,
+            },
+            rod: {
+                label: rodQuality.label,
+                level: rodQuality.level,
+            },
+            weather: {
+                label: weatherEffect.label,
+                icon: currentWeather && currentWeather.icon ? currentWeather.icon : 'clear',
+            },
+            bite: this.getBiteInfo(rodHealth, currentWeather, depthWeight, isBoat),
+            depth: this.getDepthInfo(depthWeight, isBoat),
+            records: await this.getRecords(),
+        };
+    },
+
+    getRecordPeriodStart(date = new Date()) {
+        const start = new Date(date);
+        start.setHours(12, 0, 0, 0);
+
+        if (date < start) {
+            start.setDate(start.getDate() - 1);
+        }
+
+        return start;
+    },
+
+    getRecordResetKey(date = new Date()) {
+        const start = this.getRecordPeriodStart(date);
+        return `${start.getFullYear()}-${start.getMonth() + 1}-${start.getDate()}`;
+    },
+
+    formatRecord(record) {
+        return {
+            playerName: record.playerName,
+            fishName: record.fishName,
+            weight: Number(record.weight) || 0,
+            time: Number(record.time) || 0,
+            date: record.caughtAt ? new Date(record.caughtAt).getTime() : Date.now(),
+        };
+    },
+
+    async loadRecordsFromDB() {
+        const records = await db.Models.FishingRecord.findAll({
+            where: {
+                caughtAt: { [Op.gte]: this.getRecordPeriodStart() }
+            },
+            order: [['weight', 'DESC'], ['time', 'ASC']],
+            raw: true
+        });
+
+        const bestByFish = {};
+        records.forEach((record) => {
+            if (!bestByFish[record.fishName]) bestByFish[record.fishName] = record;
+        });
+
+        this.records = Object.values(bestByFish)
+            .map((record) => this.formatRecord(record))
+            .sort((a, b) => b.weight - a.weight || a.time - b.time)
+            .slice(0, FISHING_RECORDS_LIMIT);
+        return this.records;
+    },
+
+    async getRecords() {
+        await this.loadRecordsFromDB();
+        return this.records.slice(0, FISHING_RECORDS_LIMIT);
+    },
+
+    async resetExpiredRecords() {
+        await db.Models.FishingRecord.destroy({
+            where: {
+                caughtAt: { [Op.lt]: this.getRecordPeriodStart() }
+            }
+        });
+    },
+
+    async resetRecords(reason = 'manual') {
+        await db.Models.FishingRecord.destroy({ where: {} });
+        this.records = [];
+        this.lastRecordsResetKey = this.getRecordResetKey();
+        console.log(`[FISHING] Records reset (${reason})`);
+        return this.records;
+    },
+
+    startRecordsResetTimer() {
+        if (this.recordsResetTimer) timer.remove(this.recordsResetTimer);
+
+        this.lastRecordsResetKey = null;
+        this.recordsResetTimer = timer.addInterval(async () => {
+            try {
+                const now = new Date();
+                if (now.getHours() !== 12 || now.getMinutes() !== 0) return;
+
+                const resetKey = this.getRecordResetKey(now);
+                if (this.lastRecordsResetKey === resetKey) return;
+
+                await this.resetExpiredRecords();
+                await this.loadRecordsFromDB();
+                this.lastRecordsResetKey = resetKey;
+                console.log('[FISHING] Records daily reset at 12:00');
+            } catch (e) {
+                console.log(e);
+            }
+        }, 60000);
+    },
+
+    async addRecord(player, fishName, weight, time) {
+        const recordWeight = Number(weight) || 0;
+        const periodStart = this.getRecordPeriodStart();
+        const currentRecord = await db.Models.FishingRecord.findOne({
+            where: {
+                fishName,
+                caughtAt: { [Op.gte]: periodStart }
+            },
+            order: [['weight', 'DESC'], ['time', 'ASC']]
+        });
+
+        if (currentRecord && Number(currentRecord.weight) >= recordWeight) return this.getRecords();
+
+        const payload = {
+            characterId: player && player.character ? player.character.id : null,
+            playerName: player && player.name ? player.name : 'Рыбак',
+            fishName,
+            weight: recordWeight,
+            time: Number(time) || 0,
+            caughtAt: new Date(),
+        };
+
+        if (currentRecord) await currentRecord.update(payload);
+        else await db.Models.FishingRecord.create(payload);
+
+        await db.Models.FishingRecord.destroy({
+            where: {
+                fishName,
+                caughtAt: { [Op.gte]: periodStart },
+                weight: { [Op.lt]: recordWeight }
+            }
+        });
+        await this.resetExpiredRecords();
+        return this.getRecords();
     },
 
     async initFishesFromDB() {
