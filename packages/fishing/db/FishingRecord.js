@@ -35,7 +35,8 @@ module.exports = (sequelize, DataTypes) => {
         timestamps: false,
         indexes: [
             { fields: ["weight"] },
-            { fields: ["caughtAt"] }
+            { fields: ["caughtAt"] },
+            { fields: ["fishName"] }
         ]
     });
 

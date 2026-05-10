@@ -27,6 +27,7 @@ var fishing = new Vue({
         rodQuality: null,
         weatherInfo: null,
         biteInfo: null,
+        depthInfo: null,
         records: [],
         timeLimit: 12000,
         startedAt: null,
@@ -71,6 +72,7 @@ var fishing = new Vue({
             this.rodQuality = minigame.rod || null;
             this.weatherInfo = minigame.weather || null;
             this.biteInfo = minigame.bite || null;
+            this.depthInfo = minigame.depth || null;
             this.records = minigame.records || [];
         },
         moveCursor() {
@@ -111,6 +113,7 @@ var fishing = new Vue({
             this.rodQuality = minigame.rod || null;
             this.weatherInfo = minigame.weather || null;
             this.biteInfo = minigame.bite || null;
+            this.depthInfo = minigame.depth || null;
             this.records = minigame.records || [];
             this.startClickerGame();
         },
@@ -238,6 +241,7 @@ var fishing = new Vue({
             this.rodQuality = null;
             this.weatherInfo = null;
             this.biteInfo = null;
+            this.depthInfo = null;
             this.records = [];
             this.timeLimit = 12000;
             this.startedAt = null;

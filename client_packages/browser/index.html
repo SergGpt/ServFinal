@@ -792,15 +792,18 @@
                     <span v-if="rodQuality">Удочка: {{ rodQuality.label }}</span>
                     <span v-if="weatherInfo">Погода: {{ weatherInfo.label }}</span>
                     <span v-if="biteInfo">{{ biteInfo.label }}</span>
+                    <span v-if="depthInfo">Место: {{ depthInfo.label }}</span>
                 </div>
-                <p class="fishingBiteHint" v-if="biteInfo">{{ biteInfo.description }}</p>
+                <p class="fishingBiteHint" v-if="biteInfo">{{ biteInfo.description }} <b v-if="depthInfo">{{ depthInfo.description }}</b></p>
 
                 <div class="fishingRecords">
                     <div class="fishingRecordsTitle">Рекорды улова</div>
-                    <div class="fishingRecord" v-if="hasRecords" v-for="(record, index) in records" v-bind:key="record.playerName + record.fishName + index">
-                        <span>#{{ index + 1 }}</span>
-                        <b>{{ record.playerName }}</b>
-                        <em>{{ record.fishName }} — {{ record.weight }} кг</em>
+                    <div class="fishingRecordsList" v-if="hasRecords">
+                        <div class="fishingRecord" v-for="(record, index) in records" v-bind:key="record.playerName + record.fishName + index">
+                            <span>#{{ index + 1 }}</span>
+                            <b>{{ record.playerName }}</b>
+                            <em>{{ record.fishName }} — {{ record.weight }} кг</em>
+                        </div>
                     </div>
                     <div class="fishingRecord fishingRecord_empty" v-if="!hasRecords">Станьте первым рекордсменом этой сессии</div>
                 </div>

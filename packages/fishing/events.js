@@ -45,7 +45,7 @@ module.exports = {
         notifs.error(player, "У вас нет удочки", "Ошибка");
         player.call('fishing.game.exit');
     },
-    "fishing.game.start": async (player, depth) => {
+    "fishing.game.start": async (player, depth, isBoat = false) => {
         if (!player.character) return;
         if (!player.fishing) player.fishing = {};
 
@@ -74,8 +74,8 @@ module.exports = {
         inventory.updateParam(player, rod, 'health', health - 1);
 
         const currentWeather = weather ? weather.getCurrentWeather() : null;
-        player.fishing.fish = fishing.pickFishForBite(health, currentWeather, depthWeight) || fishing.fishes[utils.randomInteger(0, fishing.fishes.length - 1)];
-        const minigame = await fishing.buildMinigameConfig(player.fishing.fish, health, currentWeather, depthWeight);
+        player.fishing.fish = fishing.pickFishForBite(health, currentWeather, depthWeight, isBoat) || fishing.fishes[utils.randomInteger(0, fishing.fishes.length - 1)];
+        const minigame = await fishing.buildMinigameConfig(player.fishing.fish, health, currentWeather, depthWeight, isBoat);
         player.call('fishing.game.waitInfo', [minigame]);
 
         let zone = utils.randomInteger(10, 20);

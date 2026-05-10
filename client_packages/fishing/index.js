@@ -69,6 +69,17 @@ let isDead = false;
 let intervalFishing;
 let isIntervalCreated = false;
 
+const isFishingBoat = () => {
+    const vehicle = localPlayer.vehicle;
+    if (!vehicle) return false;
+
+    try {
+        return vehicle.getClass() === 14;
+    } catch (e) {
+        return false;
+    }
+};
+
 const checkConditions = () => {
     return (
         isHaveRod &&
@@ -76,7 +87,7 @@ const checkConditions = () => {
         localPlayer.hands && localPlayer.hands.itemId == 5 &&
         !isEnter &&
         !localPlayer.isSwimming() &&
-        !localPlayer.vehicle &&
+        (!localPlayer.vehicle || isFishingBoat()) &&
         !localPlayer.getVehicleIsTryingToEnter() &&
         !localPlayer.isInAir() &&
         !localPlayer.isJumping() &&
@@ -113,7 +124,7 @@ mp.events.add('render', () => {
                 let water = Math.abs(mp.game.water.getWaterHeight(point.x, point.y, point.z, 0));
                 // debug(`water: ${water} | ground: ${ground}`);
 
-                if (water > 0 && ground < water && ground != 0) {
+                if (water > 0 && (isFishingBoat() || (ground < water && ground != 0))) {
                     isShowPrompt = true;
                     isInZone = true;
                     mp.events.call('fishing.game.menu');
@@ -265,9 +276,9 @@ mp.events.add('fishing.game.enter', () => {
 
     bindButtons(true);
     mp.busy.add('fishing.game', false);
-    playBaseAnimation(true);
-    mp.utils.disablePlayerMoving(true);
-    localPlayer.freezePosition(true);
+    if (!isFishingBoat()) playBaseAnimation(true);
+    if (!isFishingBoat()) mp.utils.disablePlayerMoving(true);
+    if (!isFishingBoat()) localPlayer.freezePosition(true);
     mp.callCEFVN({ "fishing.show": true });
     isEnter = true;
 });
@@ -317,7 +328,7 @@ mp.events.add('fishing.game.exit', () => {
     mp.events.call('prompt.hide');
     playBaseAnimation(false);
     mp.utils.disablePlayerMoving(false);
-    localPlayer.freezePosition(false);
+    if (!isFishingBoat()) localPlayer.freezePosition(false);
     mp.callCEFV(`fishing.clearData()`);
     mp.busy.remove('fishing.clicker');
     mp.callCEFVN({ "fishing.show": false });
@@ -366,7 +377,7 @@ let fishingEnter = () => {
 let fishingStart = () => {
     if (mp.game.ui.isPauseMenuActive()) return;
     if (isEnter && !isStarted) {
-        playWaitAnimation(true);
+        if (!isFishingBoat()) playWaitAnimation(true);
         mp.callCEFVN({ "fishing.isStarted": true });
         let heading = localPlayer.getHeading() + 90;
         let point = {
@@ -382,7 +393,7 @@ let fishingStart = () => {
         } else {
             depth = water - ground;
         }
-        mp.events.callRemote('fishing.game.start', depth);
+        mp.events.callRemote('fishing.game.start', depth, isFishingBoat());
         isStarted = true;
     }
 };

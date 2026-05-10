@@ -5,7 +5,7 @@ let jobs;
 let timer;
 
 const ROD_ID = 5;
-const FISHING_RECORDS_LIMIT = 5;
+const FISHING_RECORDS_LIMIT = 46;
 
 const port = {
     x: -167.7662,
@@ -114,12 +114,24 @@ module.exports = {
         return 'small';
     },
 
-    hasGoodBigFishConditions(rodHealth, currentWeather, depthWeight) {
+    getDepthInfo(depthWeight, isBoat = false) {
+        const isDeep = Number(depthWeight) >= 3 && Boolean(isBoat);
+
+        return {
+            label: isDeep ? 'Глубина' : 'Мель у берега',
+            level: isDeep ? 'deep' : 'shallow',
+            description: isDeep
+                ? 'Вы рыбачите с лодки на глубине — крупная рыба может подойти к крючку.'
+                : 'Вы рыбачите у берега/на мели — в основном будет клевать мелкая рыба.',
+        };
+    },
+
+    hasGoodBigFishConditions(rodHealth, currentWeather, depthWeight, isBoat = false) {
         const weatherEffect = this.getWeatherEffect(currentWeather);
         const icon = currentWeather && currentWeather.icon ? currentWeather.icon : 'clear';
         const goodWeather = weatherEffect.weightBonus >= 0.04 && !['thunderstorm', 'snow'].includes(icon);
 
-        return Number(rodHealth) >= 80 && goodWeather && Number(depthWeight) >= 3;
+        return Number(rodHealth) >= 80 && goodWeather && this.getDepthInfo(depthWeight, isBoat).level === 'deep';
     },
 
     pickFromList(list) {
@@ -127,7 +139,7 @@ module.exports = {
         return list[Math.floor(Math.random() * list.length)];
     },
 
-    pickFishForBite(rodHealth, currentWeather, depthWeight) {
+    pickFishForBite(rodHealth, currentWeather, depthWeight, isBoat = false) {
         const groups = {
             small: [],
             medium: [],
@@ -138,7 +150,7 @@ module.exports = {
             groups[this.getFishSizeGroup(fish)].push(fish);
         });
 
-        const goodConditions = this.hasGoodBigFishConditions(rodHealth, currentWeather, depthWeight);
+        const goodConditions = this.hasGoodBigFishConditions(rodHealth, currentWeather, depthWeight, isBoat);
         const roll = Math.random() * 100;
         let pool = groups.small;
 
@@ -152,14 +164,14 @@ module.exports = {
         return this.pickFromList(pool) || this.pickFromList(groups.small) || this.pickFromList(groups.medium) || this.pickFromList(groups.large);
     },
 
-    getBiteInfo(rodHealth, currentWeather, depthWeight) {
-        const goodConditions = this.hasGoodBigFishConditions(rodHealth, currentWeather, depthWeight);
+    getBiteInfo(rodHealth, currentWeather, depthWeight, isBoat = false) {
+        const goodConditions = this.hasGoodBigFishConditions(rodHealth, currentWeather, depthWeight, isBoat);
 
         return {
             label: goodConditions ? 'Крупная рыба возможна' : 'В основном мелкая рыба',
             description: goodConditions
                 ? 'Отличная удочка, подходящая погода и глубина повышают шанс крупного улова.'
-                : 'Около 80% поклёвок будет мелкой рыбой. Для крупной нужны отличная удочка, хорошая погода и глубина.',
+                : 'Около 80% поклёвок будет мелкой рыбой. Для крупной нужны отличная удочка, хорошая погода и глубина с лодки.',
             largeChance: goodConditions ? 20 : 0,
             smallChance: goodConditions ? 55 : 80,
         };
@@ -219,7 +231,7 @@ module.exports = {
         };
     },
 
-    async buildMinigameConfig(fish, rodHealth, currentWeather, depthWeight = 0) {
+    async buildMinigameConfig(fish, rodHealth, currentWeather, depthWeight = 0, isBoat = false) {
         const behavior = this.getFishBehavior(fish);
         const rodQuality = this.getRodQuality(rodHealth);
         const weatherEffect = this.getWeatherEffect(currentWeather);
@@ -248,7 +260,8 @@ module.exports = {
                 label: weatherEffect.label,
                 icon: currentWeather && currentWeather.icon ? currentWeather.icon : 'clear',
             },
-            bite: this.getBiteInfo(rodHealth, currentWeather, depthWeight),
+            bite: this.getBiteInfo(rodHealth, currentWeather, depthWeight, isBoat),
+            depth: this.getDepthInfo(depthWeight, isBoat),
             records: await this.getRecords(),
         };
     },
@@ -285,11 +298,18 @@ module.exports = {
                 caughtAt: { [Op.gte]: this.getRecordPeriodStart() }
             },
             order: [['weight', 'DESC'], ['time', 'ASC']],
-            limit: FISHING_RECORDS_LIMIT,
             raw: true
         });
 
-        this.records = records.map((record) => this.formatRecord(record));
+        const bestByFish = {};
+        records.forEach((record) => {
+            if (!bestByFish[record.fishName]) bestByFish[record.fishName] = record;
+        });
+
+        this.records = Object.values(bestByFish)
+            .map((record) => this.formatRecord(record))
+            .sort((a, b) => b.weight - a.weight || a.time - b.time)
+            .slice(0, FISHING_RECORDS_LIMIT);
         return this.records;
     },
 
@@ -337,15 +357,37 @@ module.exports = {
     },
 
     async addRecord(player, fishName, weight, time) {
-        await db.Models.FishingRecord.create({
+        const recordWeight = Number(weight) || 0;
+        const periodStart = this.getRecordPeriodStart();
+        const currentRecord = await db.Models.FishingRecord.findOne({
+            where: {
+                fishName,
+                caughtAt: { [Op.gte]: periodStart }
+            },
+            order: [['weight', 'DESC'], ['time', 'ASC']]
+        });
+
+        if (currentRecord && Number(currentRecord.weight) >= recordWeight) return this.getRecords();
+
+        const payload = {
             characterId: player && player.character ? player.character.id : null,
             playerName: player && player.name ? player.name : 'Рыбак',
             fishName,
-            weight: Number(weight) || 0,
+            weight: recordWeight,
             time: Number(time) || 0,
             caughtAt: new Date(),
-        });
+        };
 
+        if (currentRecord) await currentRecord.update(payload);
+        else await db.Models.FishingRecord.create(payload);
+
+        await db.Models.FishingRecord.destroy({
+            where: {
+                fishName,
+                caughtAt: { [Op.gte]: periodStart },
+                weight: { [Op.lt]: recordWeight }
+            }
+        });
         await this.resetExpiredRecords();
         return this.getRecords();
     },

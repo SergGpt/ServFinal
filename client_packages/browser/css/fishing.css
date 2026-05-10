@@ -408,3 +408,20 @@
 .fishingWaitPanel .fishingRecords {
     margin-top: 1.2vh;
 }
+
+.fishingRecordsList {
+    display: grid;
+    gap: .55vh 1vh;
+    grid-auto-flow: column;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(23, auto);
+}
+
+.fishingBiteHint b {
+    color: rgba(125, 232, 255, .88);
+    font-weight: 800;
+}
+
+.fishingWaitPanel {
+    max-width: 96vh;
+}

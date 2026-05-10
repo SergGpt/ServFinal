@@ -8,5 +8,6 @@ CREATE TABLE IF NOT EXISTS `FishingRecords` (
   `caughtAt` DATETIME NOT NULL,
   PRIMARY KEY (`id`),
   KEY `fishing_records_weight` (`weight`),
-  KEY `fishing_records_caught_at` (`caughtAt`)
+  KEY `fishing_records_caught_at` (`caughtAt`),
+  KEY `fishing_records_fish_name` (`fishName`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
