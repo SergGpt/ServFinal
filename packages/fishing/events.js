@@ -76,7 +76,7 @@ module.exports = {
         player.fishing.fish = fishing.fishes[utils.randomInteger(0, fishing.fishes.length - 1)];
 
         const currentWeather = weather ? weather.getCurrentWeather() : null;
-        const minigame = fishing.buildMinigameConfig(player.fishing.fish, health, currentWeather);
+        const minigame = await fishing.buildMinigameConfig(player.fishing.fish, health, currentWeather);
 
         let zone = utils.randomInteger(10, 20);
         let speed = parseInt(health / 5);
@@ -132,7 +132,7 @@ module.exports = {
 
             inventory.addItem(player, 15, { weight: player.fishing.weight, name: player.fishing.fish.name }, (e) => {
                 if (!e) {
-                    fishing.addRecord(player, player.fishing.fish.name, player.fishing.weight, serverElapsed);
+                    fishing.addRecord(player, player.fishing.fish.name, player.fishing.weight, serverElapsed).catch((err) => console.log(err));
                     notifs.success(player, `${player.fishing.fish.name} весом ${player.fishing.weight} кг добавлен(a) в инвентарь`, 'Рыбалка');
                     fishing.addJobExp(player);
                 } else {

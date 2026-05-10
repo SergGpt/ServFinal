@@ -2,6 +2,7 @@ let money;
 let notifs;
 let inventory;
 let jobs;
+let timer;
 
 const ROD_ID = 5;
 const FISHING_RECORDS_LIMIT = 5;
@@ -13,13 +14,17 @@ const port = {
 };
 
 module.exports = {
-    init() {
+    async init() {
         money = call('money');
         notifs = call('notifications');
         inventory = call('inventory');
         jobs = call('jobs');
-        this.initFishersFromDB();
-        this.initFishesFromDB();
+        timer = call('timer');
+        await this.initFishersFromDB();
+        await this.initFishesFromDB();
+        await this.resetExpiredRecords();
+        await this.loadRecordsFromDB();
+        this.startRecordsResetTimer();
         this.createPortPoint();
     },
 
@@ -30,6 +35,9 @@ module.exports = {
     fishers: [],
 
     records: [],
+
+    recordsResetTimer: null,
+    lastRecordsResetKey: null,
 
     colshapes: [],
 
@@ -148,7 +156,7 @@ module.exports = {
         };
     },
 
-    buildMinigameConfig(fish, rodHealth, currentWeather) {
+    async buildMinigameConfig(fish, rodHealth, currentWeather) {
         const behavior = this.getFishBehavior(fish);
         const rodQuality = this.getRodQuality(rodHealth);
         const weatherEffect = this.getWeatherEffect(currentWeather);
@@ -177,26 +185,104 @@ module.exports = {
                 label: weatherEffect.label,
                 icon: currentWeather && currentWeather.icon ? currentWeather.icon : 'clear',
             },
-            records: this.getRecords(),
+            records: await this.getRecords(),
         };
     },
 
-    getRecords() {
+    getRecordPeriodStart(date = new Date()) {
+        const start = new Date(date);
+        start.setHours(12, 0, 0, 0);
+
+        if (date < start) {
+            start.setDate(start.getDate() - 1);
+        }
+
+        return start;
+    },
+
+    getRecordResetKey(date = new Date()) {
+        const start = this.getRecordPeriodStart(date);
+        return `${start.getFullYear()}-${start.getMonth() + 1}-${start.getDate()}`;
+    },
+
+    formatRecord(record) {
+        return {
+            playerName: record.playerName,
+            fishName: record.fishName,
+            weight: Number(record.weight) || 0,
+            time: Number(record.time) || 0,
+            date: record.caughtAt ? new Date(record.caughtAt).getTime() : Date.now(),
+        };
+    },
+
+    async loadRecordsFromDB() {
+        const records = await db.Models.FishingRecord.findAll({
+            where: {
+                caughtAt: { [Op.gte]: this.getRecordPeriodStart() }
+            },
+            order: [['weight', 'DESC'], ['time', 'ASC']],
+            limit: FISHING_RECORDS_LIMIT,
+            raw: true
+        });
+
+        this.records = records.map((record) => this.formatRecord(record));
+        return this.records;
+    },
+
+    async getRecords() {
+        await this.loadRecordsFromDB();
         return this.records.slice(0, FISHING_RECORDS_LIMIT);
     },
 
-    addRecord(player, fishName, weight, time) {
-        const record = {
+    async resetExpiredRecords() {
+        await db.Models.FishingRecord.destroy({
+            where: {
+                caughtAt: { [Op.lt]: this.getRecordPeriodStart() }
+            }
+        });
+    },
+
+    async resetRecords(reason = 'manual') {
+        await db.Models.FishingRecord.destroy({ where: {} });
+        this.records = [];
+        this.lastRecordsResetKey = this.getRecordResetKey();
+        console.log(`[FISHING] Records reset (${reason})`);
+        return this.records;
+    },
+
+    startRecordsResetTimer() {
+        if (this.recordsResetTimer) timer.remove(this.recordsResetTimer);
+
+        this.lastRecordsResetKey = null;
+        this.recordsResetTimer = timer.addInterval(async () => {
+            try {
+                const now = new Date();
+                if (now.getHours() !== 12 || now.getMinutes() !== 0) return;
+
+                const resetKey = this.getRecordResetKey(now);
+                if (this.lastRecordsResetKey === resetKey) return;
+
+                await this.resetExpiredRecords();
+                await this.loadRecordsFromDB();
+                this.lastRecordsResetKey = resetKey;
+                console.log('[FISHING] Records daily reset at 12:00');
+            } catch (e) {
+                console.log(e);
+            }
+        }, 60000);
+    },
+
+    async addRecord(player, fishName, weight, time) {
+        await db.Models.FishingRecord.create({
+            characterId: player && player.character ? player.character.id : null,
             playerName: player && player.name ? player.name : 'Рыбак',
             fishName,
             weight: Number(weight) || 0,
             time: Number(time) || 0,
-            date: Date.now(),
-        };
+            caughtAt: new Date(),
+        });
 
-        this.records.push(record);
-        this.records.sort((a, b) => b.weight - a.weight || a.time - b.time);
-        this.records = this.records.slice(0, FISHING_RECORDS_LIMIT);
+        await this.resetExpiredRecords();
         return this.getRecords();
     },
 
