@@ -275,11 +275,14 @@ mp.events.add('fishing.game.enter', () => {
 mp.events.add('fishing.game.fetch', (speed, zone, weight, name) => {
     playFetchAnimation(true);
     isFetch = true;
+    mp.busy.add('fishing.clicker', true);
     mp.callCEFV(`fishing.fishFetch(${speed},${zone},${weight},"${name}");`);
 });
 
 mp.events.add('fishing.game.end', (result) => {
     playBaseAnimation(true);
+    isFetch = false;
+    mp.busy.remove('fishing.clicker');
     mp.events.callRemote('fishing.game.end', result);
     timeoutEndFishing = mp.timer.add(() => {
         try {
@@ -303,6 +306,7 @@ mp.events.add('fishing.game.exit', () => {
     mp.utils.disablePlayerMoving(false);
     localPlayer.freezePosition(false);
     mp.callCEFV(`fishing.clearData()`);
+    mp.busy.remove('fishing.clicker');
     mp.callCEFVN({ "fishing.show": false });
     mp.busy.remove('fishing.game');
 });
@@ -329,13 +333,11 @@ let bindButtons = (state) => {
     if (state) {
         if (isBinding) return;
         isBinding = true;
-        mp.keys.bind(0x20, true, fishingEnd);
         mp.keys.bind(0x1B, false, fishingExit);
     }
     else {
         if (!isBinding) return;
         isBinding = false;
-        mp.keys.unbind(0x20, true, fishingEnd);
         mp.keys.unbind(0x1B, false, fishingExit);
     }
 };

@@ -783,24 +783,64 @@
     </div>
 
     <div v-cloak="v-cloak" id="fishing" v-if="show">
-        <div class="fishingImage" v-if="isStarted">
+        <div class="fishingImage" v-if="isStarted && !isFetch">
             <img src="img/fishing/fish.png"/>
-            <p class="fishingWait" v-if="isStarted && !isFetch">Ожидайте, пока рыба клюнет...</p>
-            <p v-if="isEnd && success">Поздравляем!<br/><b>Вы поймали {{ fishName }} ({{ weight }} кг)</b></p>
-            <p v-if="isEnd && !success">Не повезло!<br/><b>Рыба сорвалась</b></p>
-            <p v-if="isFetch && !isEnd">Играйте!<br/><b>Остановите курсор в зоне</b></p>
+            <p class="fishingWait">Ожидайте, пока рыба клюнет...</p>
         </div>
-        <div class="fishingLine" v-if="isFetch">
-            <div class="fishingZone" v-bind:style="{ width: zone + '%', marginLeft: ((100 - zone) / 2) + '%' }"></div>
-            <div class="fishingCursor" v-bind:style="{ marginLeft: position + '%' }"></div>
+
+        <div class="fishingGame" v-if="isFetch">
+            <div class="fishingGameHeader">
+                <div>
+                    <span class="fishingBadge">Поклёвка</span>
+                    <h2>Поймайте рыбок</h2>
+                    <p>Нажмите на {{ targetCount }} рыбок как можно быстрее. Хлам лучше не трогать — он только крадёт время.</p>
+                </div>
+                <div class="fishingTimer">
+                    <b>{{ leftSeconds }}</b>
+                    <span>сек.</span>
+                </div>
+            </div>
+
+            <div class="fishingProgress">
+                <div class="fishingProgressInfo">
+                    <span>Поймано: {{ fishClicks }}/{{ targetCount }}</span>
+                    <span>Время: {{ elapsedSeconds }} сек.</span>
+                </div>
+                <div class="fishingProgressLine">
+                    <div v-bind:style="{ width: progressWidth }"></div>
+                </div>
+            </div>
+
+            <div class="fishingPond" v-if="!isEnd">
+                <button
+                    class="fishingTarget"
+                    v-for="target in targets"
+                    v-if="!target.caught"
+                    v-bind:key="target.id"
+                    v-bind:class="['fishingTarget_' + target.type]"
+                    v-bind:style="{ left: target.x + '%', top: target.y + '%', width: target.size + 'vh', height: target.size + 'vh', transform: 'rotate(' + target.rotate + 'deg)', animationDelay: target.delay + 's' }"
+                    @click.stop="clickTarget(target)"
+                >
+                    <img v-if="target.type === 'fish'" src="img/fishing/fish.png"/>
+                    <span v-if="target.type === 'junk'">{{ target.icon }}</span>
+                </button>
+            </div>
+
+            <div class="fishingResult" v-if="isEnd">
+                <div class="fishingResultIcon" v-bind:class="{ fail: !success }">{{ success ? '🐟' : '〰️' }}</div>
+                <h3 v-if="success">Отличный улов!</h3>
+                <h3 v-if="!success">Рыба сорвалась</h3>
+                <p v-if="success">Вы поймали {{ fishName }} весом {{ resultWeight || weight }} кг за {{ elapsedSeconds }} сек.</p>
+                <p v-if="!success">Не хватило скорости: поймано {{ fishClicks }}/{{ targetCount }} рыбок.</p>
+            </div>
         </div>
 
         <div class="fishingHelp">
             <p v-if="!isStarted">
                 <span>ЛКМ</span> Забросить
             </p>
-            <p v-if="isFetch">
-                <span>Space</span> Вытянуть
+            <p v-if="isFetch && !isEnd">
+                <span>ЛКМ</span> Ловить рыбок
             </p>
             <p v-if="!isFetch">
                 <span>Esc</span> Выход

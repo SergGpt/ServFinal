@@ -80,6 +80,8 @@ module.exports = {
 
         player.fishing.timeoutFetch = setTimeout(() => {
             try {
+                player.fishing.fetchStartedAt = Date.now();
+                player.fishing.timeLimit = 12000;
                 player.call('fishing.game.fetch', [speed, zone, player.fishing.weight, player.fishing.fish.name]);
             } catch (e) {
 
@@ -91,9 +93,35 @@ module.exports = {
         if (!player.fishing) player.fishing = {};
 
         let rod = inventory.getItemByItemId(player, fishing.getRodId());
-        let health = inventory.getParam(rod, 'health').value;
+        if (!rod) return player.call('fishing.game.exit');
 
-        if (result) {
+        let healthParam = inventory.getParam(rod, 'health');
+        let health = healthParam ? healthParam.value : 0;
+        let payload = result;
+
+        if (typeof payload === 'string') {
+            try {
+                payload = JSON.parse(payload);
+            } catch (e) {
+                payload = { success: payload === 'true' };
+            }
+        }
+
+        if (typeof payload === 'boolean') payload = { success: payload };
+        if (!payload || typeof payload !== 'object') payload = { success: false };
+
+        const serverElapsed = player.fishing.fetchStartedAt ? Date.now() - player.fishing.fetchStartedAt : Number(payload.time) || 0;
+        const timeLimit = player.fishing.timeLimit || 12000;
+        const fishClicks = Number(payload.fish) || 0;
+        const targetCount = Number(payload.target) || 5;
+        const success = Boolean(payload.success) && fishClicks >= targetCount && serverElapsed <= timeLimit + 1500;
+
+        if (success && player.fishing.fish) {
+            const safeTime = Math.max(1200, Math.min(timeLimit, serverElapsed));
+            const progress = 1 - ((safeTime - 1200) / (timeLimit - 1200));
+            const quality = Math.max(0.75, Math.min(1.35, 0.75 + progress * 0.6));
+            player.fishing.weight = Number((player.fishing.weight * quality).toFixed(1));
+
             inventory.addItem(player, 15, { weight: player.fishing.weight, name: player.fishing.fish.name }, (e) => {
                 if (!e) {
                     notifs.success(player, `${player.fishing.fish.name} весом ${player.fishing.weight} кг добавлен(a) в инвентарь`, 'Рыбалка');
@@ -105,6 +133,8 @@ module.exports = {
         } else {
             notifs.error(player, 'Рыба сорвалась', 'Рыбалка');
         }
+
+        player.fishing.fetchStartedAt = null;
 
         if (health <= 0) {
             inventory.deleteItem(player, rod);
