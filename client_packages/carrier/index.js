@@ -6,10 +6,10 @@ mp.carrier = {
     initStartJob() {
         const pedInfo = {
             model: "s_m_m_cntrybar_01",
-            position: { x: 890.5279, y: -3176.4104, z: 5.9008 },
+            position: { x: -843.0958251953125, y: -2688.698486328125, z: 13.812108993530273 },
             heading: 45.43,
             marker: {
-                x: 889.5941, y: -3175.6851, z: 4.9008,
+                x: -843.0958251953125, y: -2688.698486328125, z: 12.812108993530273,
                 color: [199, 21, 125, 133],
                 radius: 1.5,
                 enterEvent: "carrier.jobshape.enter",
