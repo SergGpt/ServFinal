@@ -61,6 +61,7 @@ module.exports = {
             ]
         });
         phone.loadPhoneOnClient(player);
+        await phone.loadWeaponSkinsOnClient(player);
         mp.events.call(`phoneInit.done`, player);
     },
     'player.faction.changed': (player) => {
@@ -90,6 +91,14 @@ module.exports = {
             }
         }
         player.call('phone.app.remove', ["factionBiz"]);
+    },
+    'phone.customization.weapon.save': async (player, weaponHash, tintId) => {
+        if (!player.character) return;
+        weaponHash = parseInt(weaponHash);
+        tintId = parseInt(tintId);
+        if (isNaN(weaponHash) || isNaN(tintId)) return;
+
+        await phone.saveWeaponSkin(player, weaponHash, tintId);
     },
     /// Покупка телефона
     "phone.buy": async (player) => {
