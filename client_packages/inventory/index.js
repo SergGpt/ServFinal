@@ -14,6 +14,11 @@ mp.inventory = {
     searchPlayer: null,
     searchRadius: 2,
     clothesHandsItemIds: [1, 2, 6, 7, 8, 9, 10, 11, 12, 14],
+    fishingRodItemId: 5,
+    fishingRodAnim: {
+        dict: "amb@world_human_stand_fishing@base",
+        name: "base",
+    },
 
     enable(enable) {
         mp.callCEFV(`inventory.enable = ${enable}`);
@@ -255,12 +260,18 @@ mp.inventory = {
         // Удаляем текущий предмет в руках
         if (player.hands) {
             try {
-                const oldInfo = this.itemsInfo[player.hands.itemId];
+                const oldItemId = player.hands.itemId;
+                const oldInfo = this.itemsInfo[oldItemId];
+
+                if (oldItemId === this.fishingRodItemId) {
+                    this.stopFishingRodAnimation(player);
+                }
+
                 if (oldInfo && oldInfo.attachInfo) {
                     const attachInfo = oldInfo.attachInfo;
                     const oldAnim = attachInfo.anim;
 
-                    if (oldAnim && oldAnim !== 0) {
+                    if (oldItemId !== this.fishingRodItemId && oldAnim && oldAnim !== 0) {
                         const a = this.animData[oldAnim].split(" ");
                         if (mp.players.local.remoteId === player.remoteId) {
                             player.stopAnimTask(a[0], a[1], 3);
@@ -401,7 +412,9 @@ mp.inventory = {
                 );
 
                 // Анимация
-                if (attachInfo.anim && attachInfo.anim !== 0) {
+                if (itemId === this.fishingRodItemId) {
+                    this.playFishingRodAnimation(player);
+                } else if (attachInfo.anim && attachInfo.anim !== 0) {
                     const animName = this.animData[attachInfo.anim];
                     if (animName) {
                         const a = animName.split(" ");
@@ -428,6 +441,26 @@ mp.inventory = {
 
         } catch (e) {
             console.error("Error in attachItemToPlayer:", e);
+        }
+    },
+
+    playFishingRodAnimation(player) {
+        const anim = this.fishingRodAnim;
+
+        player.clearTasksImmediately();
+        mp.utils.requestAnimDict(anim.dict, () => {
+            if (!mp.players.exists(player)) return;
+            player.taskPlayAnim(anim.dict, anim.name, 8.0, 0.0, -1, 49, 0.0, false, false, false);
+        });
+    },
+
+    stopFishingRodAnimation(player) {
+        const anim = this.fishingRodAnim;
+
+        if (mp.players.local.remoteId === player.remoteId) {
+            player.stopAnimTask(anim.dict, anim.name, 3);
+        } else {
+            player.clearTasksImmediately();
         }
     },
 
