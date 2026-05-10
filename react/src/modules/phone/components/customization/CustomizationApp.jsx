@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styles from '../../phone.module.scss';
 
 const standardWeaponSkins = [
@@ -52,6 +52,13 @@ const tabs = [
     { id: 'custom', name: 'Кастом' }
 ];
 
+const triggerClientEvent = (eventName, payload) => {
+    const rageMp = typeof window !== 'undefined' ? window.mp : null;
+    if (!rageMp || !rageMp.trigger) return;
+
+    rageMp.trigger(eventName, JSON.stringify(payload));
+};
+
 const CustomizationApp = () => {
     const [section, setSection] = useState('menu');
     const [tab, setTab] = useState('weapons');
@@ -75,6 +82,28 @@ const CustomizationApp = () => {
         setWeaponType(type);
         setWeaponIndex(0);
     };
+
+    const previewWeaponSkin = () => {
+        triggerClientEvent('phone.customization.weapon.preview', {
+            tintId: selectedWeapon.id,
+            skinType: weaponType,
+            name: selectedWeapon.name
+        });
+    };
+
+    const previewArmourSkin = () => {
+        triggerClientEvent('phone.customization.armour.preview', selectedArmour);
+    };
+
+    useEffect(() => {
+        if (section !== 'skins' || tab !== 'weapons') return;
+        previewWeaponSkin();
+    }, [section, tab, weaponType, weaponIndex]);
+
+    useEffect(() => {
+        if (section !== 'skins' || tab !== 'armour') return;
+        previewArmourSkin();
+    }, [section, tab, armourIndex]);
 
     return (
         <div className={[styles.app, styles.customizationApp].join(' ')}>
@@ -135,6 +164,7 @@ const CustomizationApp = () => {
                                 <span>{weaponIndex + 1}/{weaponSkins.length}</span>
                                 <button onClick={() => cycleWeapon(1)}>След. →</button>
                             </div>
+                            <button className={styles.skinApplyButton} onClick={previewWeaponSkin}>Примерить на оружии</button>
                         </div>
                     )}
 
@@ -155,6 +185,7 @@ const CustomizationApp = () => {
                                 <span>{armourIndex + 1}/{armourSkins.length}</span>
                                 <button onClick={() => cycleArmour(1)}>След. →</button>
                             </div>
+                            <button className={styles.skinApplyButton} onClick={previewArmourSkin}>Примерить бронежилет</button>
                         </div>
                     )}
 

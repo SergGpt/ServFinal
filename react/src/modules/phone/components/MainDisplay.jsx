@@ -38,12 +38,6 @@ const MainDisplay = ({ addAppAction, info }) => {
             <div className={styles.container}>
                 <div className={styles.apps}>
                     <PhoneAppIcon
-                        app={<CustomizationApp />}
-                        name='Кастом'
-                        image={customization_icon}
-                        handleClick={addAppAction}
-                    />
-                    <PhoneAppIcon
                         app={<CallStory />}
                         name='Недавние'
                         image={call_story_icon}
@@ -59,6 +53,12 @@ const MainDisplay = ({ addAppAction, info }) => {
                         app={<News />}
                         name='Новости'
                         image={news_icon}
+                        handleClick={addAppAction}
+                    />
+                    <PhoneAppIcon
+                        app={<CustomizationApp />}
+                        name='Кастомизация'
+                        image={customization_icon}
                         handleClick={addAppAction}
                     />
                     <PhoneAppIcon

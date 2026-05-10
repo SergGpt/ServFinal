@@ -109,8 +109,10 @@
   row-gap: 1.5em;
   margin-top: 25%;
 
-  & img {
-    width: 70%;
+  & .appIcon img {
+    width: 3.35em;
+    height: 3.35em;
+    object-fit: contain;
   }
 }
 
@@ -753,7 +755,8 @@
 
 .customizationTabs button,
 .skinTypeSwitch button,
-.skinControls button {
+.skinControls button,
+.skinApplyButton {
   border: 0;
   border-radius: 0.9em;
   padding: 0.65em 0.35em;
@@ -761,6 +764,14 @@
   background: rgba(255, 255, 255, 0.11);
   font-family: Roboto;
   font-size: 0.82em;
+}
+
+.skinApplyButton {
+  width: 100%;
+  margin-top: 0.65em;
+  color: #101426;
+  background: #ffd166;
+  font-weight: bold;
 }
 
 .activeCustomizationTab {

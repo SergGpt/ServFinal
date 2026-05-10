@@ -187,6 +187,52 @@ mp.events.add('marketplace.fullscreen.close', () => {
     mp.busy.remove('marketplace');
 });
 
+const parseCustomizationPayload = (rawData) => {
+    if (!rawData) return {};
+    if (typeof rawData === 'object') return rawData;
+
+    try {
+        return JSON.parse(rawData);
+    } catch (e) {
+        return {};
+    }
+};
+
+mp.events.add('phone.customization.weapon.preview', (rawData) => {
+    const data = parseCustomizationPayload(rawData);
+    const tintId = parseInt(data.tintId);
+    if (isNaN(tintId)) return;
+
+    const player = mp.players.local;
+    const unarmedHash = mp.game.joaat('weapon_unarmed');
+    let weaponHash = player.weapon || (mp.weapons && mp.weapons.currentWeapon ? mp.weapons.currentWeapon() : 0);
+
+    if ((!weaponHash || weaponHash === unarmedHash) && mp.weapons && mp.weapons.hashes && mp.weapons.hashes.length) {
+        weaponHash = mp.weapons.hashes[0];
+    }
+
+    if (!weaponHash || weaponHash === unarmedHash) {
+        mp.notify.warning('В инвентаре нет оружия для примерки скина', 'Кастомизация');
+        return;
+    }
+
+    if (mp.weapons && mp.weapons.hashToValid) weaponHash = mp.weapons.hashToValid(weaponHash);
+    mp.game.invoke('0x50969B9B89ED5738', player.handle, weaponHash, tintId);
+    mp.notify.info(`Скин оружия: ${tintId}`, 'Кастомизация');
+});
+
+mp.events.add('phone.customization.armour.preview', (rawData) => {
+    const data = parseCustomizationPayload(rawData);
+    const component = parseInt(data.component);
+    const drawable = parseInt(data.drawable);
+    const texture = parseInt(data.texture) || 0;
+
+    if (isNaN(component) || isNaN(drawable)) return;
+
+    mp.players.local.setComponentVariation(component, drawable, texture, 0);
+    mp.notify.info(`Бронежилет: ${drawable}/${texture}`, 'Кастомизация');
+});
+
 let showPhone = () => {
     if (mp.game.ui.isPauseMenuActive()) return;
     if (mp.busy.includes()) return;
