@@ -4,6 +4,7 @@ let inventory;
 let jobs;
 
 const ROD_ID = 5;
+const FISHING_RECORDS_LIMIT = 5;
 
 const port = {
     x: -167.7662,
@@ -28,6 +29,8 @@ module.exports = {
 
     fishers: [],
 
+    records: [],
+
     colshapes: [],
 
     portPriceMultiplier: 1.5,
@@ -37,6 +40,164 @@ module.exports = {
 
     getRodId() {
         return ROD_ID;
+    },
+
+    getRodQuality(health = 100) {
+        const safeHealth = Math.max(0, Math.min(100, Number(health) || 0));
+
+        if (safeHealth >= 80) {
+            return {
+                label: 'Отличная',
+                level: 'high',
+                timeBonus: 1400,
+                junkBonus: -2,
+                sizeBonus: 0.45,
+                weightBonus: 0.08,
+            };
+        }
+
+        if (safeHealth >= 45) {
+            return {
+                label: 'Нормальная',
+                level: 'normal',
+                timeBonus: 500,
+                junkBonus: 0,
+                sizeBonus: 0.15,
+                weightBonus: 0.03,
+            };
+        }
+
+        return {
+            label: 'Изношенная',
+            level: 'low',
+            timeBonus: -900,
+            junkBonus: 2,
+            sizeBonus: -0.25,
+            weightBonus: -0.05,
+        };
+    },
+
+    getWeatherEffect(currentWeather) {
+        const icon = currentWeather && currentWeather.icon ? currentWeather.icon : 'clear';
+        const effects = {
+            clear: { label: 'Ясно', timeBonus: 0, junkBonus: 0, biteBonus: 0, weightBonus: 0 },
+            'partly-cloudy': { label: 'Малооблачно', timeBonus: 300, junkBonus: 0, biteBonus: -1, weightBonus: 0.02 },
+            cloudy: { label: 'Облачно', timeBonus: 500, junkBonus: -1, biteBonus: -1, weightBonus: 0.03 },
+            overcast: { label: 'Пасмурно', timeBonus: 700, junkBonus: -1, biteBonus: -2, weightBonus: 0.04 },
+            rain: { label: 'Дождь', timeBonus: 1000, junkBonus: -2, biteBonus: -3, weightBonus: 0.07 },
+            thunderstorm: { label: 'Гроза', timeBonus: -700, junkBonus: 2, biteBonus: -4, weightBonus: 0.12 },
+            snow: { label: 'Снег', timeBonus: -500, junkBonus: 1, biteBonus: 1, weightBonus: 0.05 },
+        };
+
+        return effects[icon] || effects.clear;
+    },
+
+    getFishBehavior(fish) {
+        const minWeight = Number(fish && fish.minWeight) || 0;
+        const maxWeight = Number(fish && fish.maxWeight) || 0;
+        const avgWeight = (minWeight + maxWeight) / 2;
+
+        if (avgWeight >= 18) {
+            return {
+                type: 'heavy',
+                label: 'Крупная рыба',
+                description: 'Меньше целей, но они крупнее и медленнее.',
+                targetCount: 4,
+                junkCount: 8,
+                timeLimit: 12500,
+                sizeBonus: 0.85,
+                speedClass: 'slow',
+            };
+        }
+
+        if (avgWeight >= 9) {
+            return {
+                type: 'deep',
+                label: 'Глубинная рыба',
+                description: 'Средняя сложность и чуть больше хлама.',
+                targetCount: 5,
+                junkCount: 10,
+                timeLimit: 11800,
+                sizeBonus: 0.2,
+                speedClass: 'normal',
+            };
+        }
+
+        if (avgWeight <= 3) {
+            return {
+                type: 'swift',
+                label: 'Юркая рыба',
+                description: 'Целей больше, они мельче и двигаются быстрее.',
+                targetCount: 6,
+                junkCount: 9,
+                timeLimit: 11000,
+                sizeBonus: -0.35,
+                speedClass: 'fast',
+            };
+        }
+
+        return {
+            type: 'common',
+            label: 'Обычная рыба',
+            description: 'Сбалансированная поклёвка без резких сюрпризов.',
+            targetCount: 5,
+            junkCount: 9,
+            timeLimit: 12000,
+            sizeBonus: 0,
+            speedClass: 'normal',
+        };
+    },
+
+    buildMinigameConfig(fish, rodHealth, currentWeather) {
+        const behavior = this.getFishBehavior(fish);
+        const rodQuality = this.getRodQuality(rodHealth);
+        const weatherEffect = this.getWeatherEffect(currentWeather);
+        const timeLimit = Math.max(8500, behavior.timeLimit + rodQuality.timeBonus + weatherEffect.timeBonus);
+        const junkCount = Math.max(5, behavior.junkCount + rodQuality.junkBonus + weatherEffect.junkBonus);
+        const targetSizeBonus = behavior.sizeBonus + rodQuality.sizeBonus;
+        const weightBonus = rodQuality.weightBonus + weatherEffect.weightBonus;
+
+        return {
+            targetCount: behavior.targetCount,
+            junkCount,
+            timeLimit,
+            targetSizeBonus,
+            speedClass: behavior.speedClass,
+            weightBonus,
+            behavior: {
+                type: behavior.type,
+                label: behavior.label,
+                description: behavior.description,
+            },
+            rod: {
+                label: rodQuality.label,
+                level: rodQuality.level,
+            },
+            weather: {
+                label: weatherEffect.label,
+                icon: currentWeather && currentWeather.icon ? currentWeather.icon : 'clear',
+            },
+            records: this.getRecords(),
+        };
+    },
+
+    getRecords() {
+        return this.records.slice(0, FISHING_RECORDS_LIMIT);
+    },
+
+    addRecord(player, fishName, weight, time) {
+        const record = {
+            playerName: player && player.name ? player.name : 'Рыбак',
+            fishName,
+            weight: Number(weight) || 0,
+            time: Number(time) || 0,
+            date: Date.now(),
+        };
+
+        this.records.push(record);
+        this.records.sort((a, b) => b.weight - a.weight || a.time - b.time);
+        this.records = this.records.slice(0, FISHING_RECORDS_LIMIT);
+        return this.getRecords();
     },
 
     async initFishesFromDB() {

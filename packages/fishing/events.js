@@ -2,12 +2,14 @@ let fishing = require('./index.js');
 let inventory;
 let notifs;
 let utils;
+let weather;
 
 module.exports = {
     "init": async () => {
         inventory = call('inventory');
         notifs = call('notifications');
         utils = call('utils');
+        weather = call('weather');
         await fishing.init();
         inited(__dirname);
     },
@@ -73,16 +75,20 @@ module.exports = {
 
         player.fishing.fish = fishing.fishes[utils.randomInteger(0, fishing.fishes.length - 1)];
 
+        const currentWeather = weather ? weather.getCurrentWeather() : null;
+        const minigame = fishing.buildMinigameConfig(player.fishing.fish, health, currentWeather);
+
         let zone = utils.randomInteger(10, 20);
         let speed = parseInt(health / 5);
         player.fishing.weight = utils.randomFloat(player.fishing.fish.minWeight + depthWeight, player.fishing.fish.maxWeight + depthWeight, 1);
-        let time = utils.randomInteger(5, 15);
+        player.fishing.minigame = minigame;
+        let time = Math.max(3, utils.randomInteger(5, 15) + (weather ? fishing.getWeatherEffect(currentWeather).biteBonus : 0));
 
         player.fishing.timeoutFetch = setTimeout(() => {
             try {
                 player.fishing.fetchStartedAt = Date.now();
-                player.fishing.timeLimit = 12000;
-                player.call('fishing.game.fetch', [speed, zone, player.fishing.weight, player.fishing.fish.name]);
+                player.fishing.timeLimit = minigame.timeLimit;
+                player.call('fishing.game.fetch', [speed, zone, player.fishing.weight, player.fishing.fish.name, minigame]);
             } catch (e) {
 
             }
@@ -111,19 +117,22 @@ module.exports = {
         if (!payload || typeof payload !== 'object') payload = { success: false };
 
         const serverElapsed = player.fishing.fetchStartedAt ? Date.now() - player.fishing.fetchStartedAt : Number(payload.time) || 0;
-        const timeLimit = player.fishing.timeLimit || 12000;
+        const minigame = player.fishing.minigame || {};
+        const timeLimit = player.fishing.timeLimit || minigame.timeLimit || 12000;
         const fishClicks = Number(payload.fish) || 0;
-        const targetCount = Number(payload.target) || 5;
+        const targetCount = minigame.targetCount || Number(payload.target) || 5;
         const success = Boolean(payload.success) && fishClicks >= targetCount && serverElapsed <= timeLimit + 1500;
 
         if (success && player.fishing.fish) {
             const safeTime = Math.max(1200, Math.min(timeLimit, serverElapsed));
             const progress = 1 - ((safeTime - 1200) / (timeLimit - 1200));
             const quality = Math.max(0.75, Math.min(1.35, 0.75 + progress * 0.6));
-            player.fishing.weight = Number((player.fishing.weight * quality).toFixed(1));
+            const weightBonus = Number(minigame.weightBonus) || 0;
+            player.fishing.weight = Number((player.fishing.weight * quality * (1 + weightBonus)).toFixed(1));
 
             inventory.addItem(player, 15, { weight: player.fishing.weight, name: player.fishing.fish.name }, (e) => {
                 if (!e) {
+                    fishing.addRecord(player, player.fishing.fish.name, player.fishing.weight, serverElapsed);
                     notifs.success(player, `${player.fishing.fish.name} весом ${player.fishing.weight} кг добавлен(a) в инвентарь`, 'Рыбалка');
                     fishing.addJobExp(player);
                 } else {
@@ -135,6 +144,7 @@ module.exports = {
         }
 
         player.fishing.fetchStartedAt = null;
+        player.fishing.minigame = null;
 
         if (health <= 0) {
             inventory.deleteItem(player, rod);
@@ -147,6 +157,8 @@ module.exports = {
         if (!player.fishing) player.fishing = {}
 
         clearTimeout(player.fishing.timeoutFetch);
+        player.fishing.fetchStartedAt = null;
+        player.fishing.minigame = null;
     },
     "fishing.rod.buy": (player) => {
         if (!player.character) return;

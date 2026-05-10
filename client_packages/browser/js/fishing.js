@@ -19,6 +19,14 @@ var fishing = new Vue({
         fishClicks: 0,
         junkClicks: 0,
         targetCount: 5,
+        junkCount: 9,
+        targetSizeBonus: 0,
+        fishSpeedClass: 'normal',
+        fishBehavior: null,
+        weightBonus: 0,
+        rodQuality: null,
+        weatherInfo: null,
+        records: [],
         timeLimit: 12000,
         startedAt: null,
         elapsed: 0,
@@ -37,6 +45,9 @@ var fishing = new Vue({
         },
         progressWidth() {
             return `${Math.min(100, (this.fishClicks / this.targetCount) * 100)}%`;
+        },
+        hasRecords() {
+            return this.records && this.records.length > 0;
         }
     },
     watch: {
@@ -64,12 +75,35 @@ var fishing = new Vue({
                 this.position--;
             }
         },
-        fishFetch(speed, zone, weight, name) {
+        fishFetch(payload, zone, weight, name) {
             clearInterval(intervalFishingB);
+
+            if (typeof payload !== 'object') {
+                payload = {
+                    speed: payload,
+                    zone,
+                    weight,
+                    name,
+                    minigame: {},
+                };
+            }
+
+            const minigame = payload.minigame || {};
+
             this.isFetch = true;
-            this.zone = zone;
-            this.weight = weight;
-            this.fishName = name;
+            this.zone = payload.zone;
+            this.weight = payload.weight;
+            this.fishName = payload.name;
+            this.targetCount = minigame.targetCount || 5;
+            this.junkCount = minigame.junkCount || 9;
+            this.timeLimit = minigame.timeLimit || 12000;
+            this.targetSizeBonus = minigame.targetSizeBonus || 0;
+            this.fishSpeedClass = minigame.speedClass || 'normal';
+            this.fishBehavior = minigame.behavior || null;
+            this.weightBonus = minigame.weightBonus || 0;
+            this.rodQuality = minigame.rod || null;
+            this.weatherInfo = minigame.weather || null;
+            this.records = minigame.records || [];
             this.startClickerGame();
         },
         startClickerGame() {
@@ -97,7 +131,7 @@ var fishing = new Vue({
         generateTargets() {
             let items = [];
             let fishCount = this.targetCount;
-            let junkCount = 9;
+            let junkCount = this.junkCount;
 
             for (let i = 0; i < fishCount; i++) {
                 items.push(this.createTarget(i, 'fish'));
@@ -116,9 +150,10 @@ var fishing = new Vue({
                 caught: false,
                 x: 7 + Math.random() * 82,
                 y: 13 + Math.random() * 70,
-                size: type === 'fish' ? 4.3 + Math.random() * 1.2 : 3.5 + Math.random() * 1.1,
+                size: type === 'fish' ? Math.max(3.1, 4.3 + this.targetSizeBonus + Math.random() * 1.2) : 3.5 + Math.random() * 1.1,
                 rotate: -22 + Math.random() * 44,
                 delay: Math.random() * 0.25,
+                speedClass: type === 'fish' ? this.fishSpeedClass : 'junk',
                 icon: this.junkIcons[Math.floor(Math.random() * this.junkIcons.length)],
             };
         },
@@ -155,7 +190,7 @@ var fishing = new Vue({
             this.elapsed = this.startedAt ? Date.now() - this.startedAt : this.elapsed;
             this.success = result && this.fishClicks >= this.targetCount;
             this.resultQuality = this.success ? this.getQuality(this.elapsed) : 0;
-            this.resultWeight = this.success ? (this.weight * this.resultQuality).toFixed(1) : null;
+            this.resultWeight = this.success ? (this.weight * this.resultQuality * (1 + this.weightBonus)).toFixed(1) : null;
 
             mp.trigger('fishing.game.end', JSON.stringify({
                 success: this.success,
@@ -163,6 +198,7 @@ var fishing = new Vue({
                 fish: this.fishClicks,
                 target: this.targetCount,
                 quality: this.resultQuality,
+                junk: this.junkClicks,
             }));
         },
         endFishing() {
@@ -185,6 +221,16 @@ var fishing = new Vue({
             this.targets = [];
             this.fishClicks = 0;
             this.junkClicks = 0;
+            this.targetCount = 5;
+            this.junkCount = 9;
+            this.targetSizeBonus = 0;
+            this.fishSpeedClass = 'normal';
+            this.fishBehavior = null;
+            this.weightBonus = 0;
+            this.rodQuality = null;
+            this.weatherInfo = null;
+            this.records = [];
+            this.timeLimit = 12000;
             this.startedAt = null;
             this.elapsed = 0;
             this.resultQuality = 0;

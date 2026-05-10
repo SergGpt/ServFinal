@@ -272,11 +272,20 @@ mp.events.add('fishing.game.enter', () => {
     isEnter = true;
 });
 
-mp.events.add('fishing.game.fetch', (speed, zone, weight, name) => {
+mp.events.add('fishing.game.fetch', (speed, zone, weight, name, minigame = {}) => {
     playFetchAnimation(true);
     isFetch = true;
     mp.busy.add('fishing.clicker', true);
-    mp.callCEFV(`fishing.fishFetch(${speed},${zone},${weight},"${name}");`);
+
+    const payload = JSON.stringify({
+        speed,
+        zone,
+        weight,
+        name,
+        minigame,
+    });
+
+    mp.callCEFV(`fishing.fishFetch(${payload});`);
 });
 
 mp.events.add('fishing.game.end', (result) => {

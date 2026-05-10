@@ -292,3 +292,90 @@
     from { margin-top: -.2vh; }
     to { margin-top: .45vh; }
 }
+
+.fishingModifiers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .65vh;
+    margin-top: 1vh;
+}
+
+.fishingModifiers span {
+    background: rgba(125, 232, 255, .11);
+    border: .1vh solid rgba(125, 232, 255, .16);
+    border-radius: 999px;
+    color: rgba(225, 250, 255, .9);
+    font-size: 1.15vh;
+    font-weight: 700;
+    padding: .45vh .9vh;
+}
+
+.fishingTarget_fast {
+    animation-duration: .85s;
+}
+
+.fishingTarget_slow {
+    animation-duration: 2.35s;
+}
+
+.fishingRecords {
+    background: rgba(0, 11, 19, .34);
+    border: .1vh solid rgba(255, 255, 255, .08);
+    border-radius: 1.35vh;
+    display: grid;
+    gap: .55vh;
+    margin-top: 1.2vh;
+    padding: 1vh;
+    position: relative;
+    text-align: left;
+    z-index: 1;
+}
+
+.fishingRecordsTitle {
+    color: #7de8ff;
+    font-size: 1.2vh;
+    font-weight: 900;
+    letter-spacing: .08em;
+    margin-bottom: .25vh;
+    text-transform: uppercase;
+}
+
+.fishingRecord {
+    align-items: center;
+    background: rgba(255, 255, 255, .045);
+    border-radius: .85vh;
+    color: rgba(255, 255, 255, .78);
+    display: grid;
+    font-size: 1.2vh;
+    gap: .7vh;
+    grid-template-columns: 3.3vh 1fr 1.4fr;
+    padding: .65vh .8vh;
+}
+
+.fishingRecord span {
+    color: rgba(125, 232, 255, .9);
+    font-weight: 900;
+}
+
+.fishingRecord b {
+    color: #fff;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fishingRecord em {
+    color: rgba(255, 255, 255, .64);
+    font-style: normal;
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fishingRecord_empty {
+    display: block;
+    grid-template-columns: none;
+    text-align: center;
+}
