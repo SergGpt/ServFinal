@@ -187,6 +187,111 @@ mp.events.add('marketplace.fullscreen.close', () => {
     mp.busy.remove('marketplace');
 });
 
+const parseCustomizationPayload = (rawData) => {
+    if (!rawData) return {};
+    if (typeof rawData === 'object') return rawData;
+
+    try {
+        return JSON.parse(rawData);
+    } catch (e) {
+        return {};
+    }
+};
+
+let weaponSkinByHash = {};
+
+const normalizeWeaponHashForSkin = (weaponHash) => {
+    weaponHash = parseInt(weaponHash);
+    if (isNaN(weaponHash)) return null;
+    if (mp.weapons && mp.weapons.hashToValid) weaponHash = mp.weapons.hashToValid(weaponHash);
+
+    return parseInt(weaponHash);
+};
+
+const getPreviewWeaponHash = () => {
+    const player = mp.players.local;
+    const unarmedHash = mp.game.joaat('weapon_unarmed');
+    let weaponHash = player.weapon || (mp.weapons && mp.weapons.currentWeapon ? mp.weapons.currentWeapon() : 0);
+
+    if ((!weaponHash || weaponHash === unarmedHash) && mp.weapons && mp.weapons.hashes && mp.weapons.hashes.length) {
+        weaponHash = mp.weapons.hashes[0];
+    }
+
+    weaponHash = normalizeWeaponHashForSkin(weaponHash);
+    if (!weaponHash || weaponHash === normalizeWeaponHashForSkin(unarmedHash)) return null;
+
+    return weaponHash;
+};
+
+const applyWeaponSkin = (weaponHash, tintId) => {
+    weaponHash = normalizeWeaponHashForSkin(weaponHash);
+    tintId = parseInt(tintId);
+    if (!weaponHash || isNaN(tintId)) return false;
+
+    mp.game.invoke('0x50969B9B89ED5738', mp.players.local.handle, weaponHash, tintId);
+    return true;
+};
+
+const reapplySavedWeaponSkin = (weaponHash, delay = 0) => {
+    weaponHash = normalizeWeaponHashForSkin(weaponHash);
+    if (!weaponHash || weaponSkinByHash[weaponHash] == null) return;
+
+    const apply = () => applyWeaponSkin(weaponHash, weaponSkinByHash[weaponHash]);
+    if (delay > 0) setTimeout(apply, delay);
+    else apply();
+};
+
+mp.events.add('phone.customization.weapon.preview', (rawData) => {
+    const data = parseCustomizationPayload(rawData);
+    const tintId = parseInt(data.tintId);
+    if (isNaN(tintId)) return;
+
+    const weaponHash = getPreviewWeaponHash();
+    if (!weaponHash) {
+        mp.notify.warning('В инвентаре нет оружия для скина', 'Кастомизация');
+        return;
+    }
+
+    weaponSkinByHash[weaponHash] = tintId;
+    applyWeaponSkin(weaponHash, tintId);
+    mp.events.callRemote('phone.customization.weapon.save', weaponHash, tintId);
+    mp.notify.info(`Скин оружия сохранён: ${tintId}`, 'Кастомизация');
+});
+
+mp.events.add('phone.customization.weapon.skins.load', (rawData) => {
+    const skins = parseCustomizationPayload(rawData);
+    weaponSkinByHash = {};
+
+    if (!Array.isArray(skins)) return;
+
+    skins.forEach((skin) => {
+        const weaponHash = normalizeWeaponHashForSkin(skin.weaponHash);
+        const tintId = parseInt(skin.tintId);
+        if (!weaponHash || isNaN(tintId)) return;
+
+        weaponSkinByHash[weaponHash] = tintId;
+        applyWeaponSkin(weaponHash, tintId);
+    });
+});
+
+mp.events.add('phone.customization.weapon.skin.saved', (weaponHash, tintId) => {
+    weaponHash = normalizeWeaponHashForSkin(weaponHash);
+    tintId = parseInt(tintId);
+    if (!weaponHash || isNaN(tintId)) return;
+
+    weaponSkinByHash[weaponHash] = tintId;
+    applyWeaponSkin(weaponHash, tintId);
+});
+
+mp.events.add('playerWeaponChanged', (weaponHash) => {
+    reapplySavedWeaponSkin(weaponHash);
+});
+
+mp.events.add('weapons.giveWeapon', (weaponHash) => {
+    reapplySavedWeaponSkin(weaponHash, 100);
+    reapplySavedWeaponSkin(weaponHash, 500);
+});
+
 let showPhone = () => {
     if (mp.game.ui.isPauseMenuActive()) return;
     if (mp.busy.includes()) return;

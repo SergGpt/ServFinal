@@ -110,6 +110,41 @@ module.exports = {
     addApp(player, appName, info) {
         player.call('phone.app.add', [appName, info]);
     },
+    async loadWeaponSkinsOnClient(player) {
+        if (!player || !player.character) return;
+
+        let skins = await db.Models.CharacterWeaponSkin.findAll({
+            where: {
+                characterId: player.character.id
+            },
+            raw: true
+        });
+
+        player.call('phone.customization.weapon.skins.load', [JSON.stringify(skins)]);
+    },
+    async saveWeaponSkin(player, weaponHash, tintId) {
+        if (!player || !player.character) return null;
+
+        let [skin] = await db.Models.CharacterWeaponSkin.findOrCreate({
+            where: {
+                characterId: player.character.id,
+                weaponHash: weaponHash
+            },
+            defaults: {
+                characterId: player.character.id,
+                weaponHash: weaponHash,
+                tintId: tintId
+            }
+        });
+
+        if (skin.tintId != tintId) {
+            skin.tintId = tintId;
+            await skin.save();
+        }
+
+        player.call('phone.customization.weapon.skin.saved', [weaponHash, tintId]);
+        return skin;
+    },
     // type 0 - пропущенный, 1 - исходящий, 2 - входящий
     async addCall(player, number, type) {
         if (player.phone == null) return;
