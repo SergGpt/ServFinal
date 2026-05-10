@@ -232,6 +232,15 @@ const applyWeaponSkin = (weaponHash, tintId) => {
     return true;
 };
 
+const reapplySavedWeaponSkin = (weaponHash, delay = 0) => {
+    weaponHash = normalizeWeaponHashForSkin(weaponHash);
+    if (!weaponHash || weaponSkinByHash[weaponHash] == null) return;
+
+    const apply = () => applyWeaponSkin(weaponHash, weaponSkinByHash[weaponHash]);
+    if (delay > 0) setTimeout(apply, delay);
+    else apply();
+};
+
 mp.events.add('phone.customization.weapon.preview', (rawData) => {
     const data = parseCustomizationPayload(rawData);
     const tintId = parseInt(data.tintId);
@@ -275,10 +284,12 @@ mp.events.add('phone.customization.weapon.skin.saved', (weaponHash, tintId) => {
 });
 
 mp.events.add('playerWeaponChanged', (weaponHash) => {
-    weaponHash = normalizeWeaponHashForSkin(weaponHash);
-    if (!weaponHash || weaponSkinByHash[weaponHash] == null) return;
+    reapplySavedWeaponSkin(weaponHash);
+});
 
-    applyWeaponSkin(weaponHash, weaponSkinByHash[weaponHash]);
+mp.events.add('weapons.giveWeapon', (weaponHash) => {
+    reapplySavedWeaponSkin(weaponHash, 100);
+    reapplySavedWeaponSkin(weaponHash, 500);
 });
 
 let showPhone = () => {
