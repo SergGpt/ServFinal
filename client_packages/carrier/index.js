@@ -54,7 +54,7 @@ mp.carrier = {
         this.bizOrderBlip.setRoute(true);
     },
 
-    // Проверка: сидим в тягаче с прицепом
+    // Проверка: сидим в нефтевозе oiltanker
     canCollectOil() {
         const veh = mp.players.local.vehicle;
         if (!veh) {
@@ -62,7 +62,7 @@ mp.carrier = {
             return false;
         }
 
-        // отправляем на сервер для проверки привязанных прицепов
+        // отправляем на сервер для проверки модели транспорта
         mp.events.callRemote("carrier.checkOilTanker", veh.remoteId);
         return true;
     }
@@ -71,7 +71,7 @@ mp.carrier = {
 // Сервер вернёт результат, клиент покажет уведомление
 mp.events.add("carrier.checkOilTanker.result", (canCollect) => {
     if (!canCollect) {
-        mp.events.call('notifications.push.error', "Чтобы вести нефть, нужно быть в тягаче с прицепом-тонкером");
+        mp.events.call('notifications.push.error', "Чтобы возить нефть, нужно быть в нефтевозе oiltanker");
     } else {
         mp.events.call('notifications.push.success', "Можно вести нефть");
     }

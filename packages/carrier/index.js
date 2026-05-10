@@ -151,34 +151,15 @@ module.exports = {
     },
 
     /**
-     * Проверка нефтевоза: тягач hauler + прицеп tanker рядом
+     * Проверка нефтевоза: используется одиночная модель oiltanker.
      */
     isOilTanker(veh) {
         if (!veh) return false;
 
-        const haulerHash = mp.joaat("hauler");
-        const tankerHash = mp.joaat("tanker");
+        const oilTankerHash = mp.joaat("oiltanker");
+        const modelName = (veh.db?.modelName || veh.modelName || '').toLowerCase();
 
-        const modelName = veh.db?.modelName || veh.modelName;
-        const modelHash = veh.model;
-
-        // Проверяем тягач
-        if (modelName !== "hauler" && modelHash !== haulerHash) {
-            return false;
-        }
-
-        // Ищем прицепы поблизости
-        const nearbyTrailers = mp.vehicles.toArray().filter(trailer => {
-            const tModelName = trailer.db?.modelName || trailer.modelName;
-            const tModelHash = trailer.model;
-
-            if (tModelName !== "tanker" && tModelHash !== tankerHash) return false;
-
-            const distance = veh.position.subtract(trailer.position).length();
-            return distance < 30.0;
-        });
-
-        return nearbyTrailers.length > 0;
+        return modelName === "oiltanker" || veh.model === oilTankerHash;
     },
 
     checkOilTankerByRemoteId(remoteId) {
