@@ -97,15 +97,22 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
 
   & img {
     width: 65%;
+    display: block;
+    flex: 0 0 auto;
   }
 
   & span {
     display: block;
-    margin-top: 0.25em;
-    line-height: 1.1em;
+    width: 100%;
+    margin-top: 0.35em;
+    line-height: 1.05em;
+    white-space: nowrap;
+    text-align: center;
   }
 
   &:hover img {
@@ -114,13 +121,15 @@
 }
 .apps {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   column-gap: 0.6em;
   row-gap: 1.5em;
   margin-top: 25%;
+  justify-items: center;
+  align-items: start;
 
   & .appIcon {
-    min-height: 4.8em;
+    min-height: 4.85em;
   }
 
   & .appIcon img {

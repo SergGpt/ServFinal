@@ -57,7 +57,7 @@ const MainDisplay = ({ addAppAction, info }) => {
                     />
                     <PhoneAppIcon
                         app={<CustomizationApp />}
-                        name='Кастомизация'
+                        name='Скины'
                         image={customization_icon}
                         handleClick={addAppAction}
                     />
