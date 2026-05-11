@@ -211,6 +211,19 @@ mp.events.add('characterInit.chooseLeft', () => {
     chooseLeft();
 });
 
+async function waitCharacterPreviewFrame() {
+    if (mp.game && typeof mp.game.waitAsync === "function") {
+        await mp.game.waitAsync(0);
+    }
+}
+
+function forcePreviewPedVisible(ped) {
+    if (!ped) return;
+    if (typeof ped.setAlpha === "function") ped.setAlpha(255, false);
+    if (typeof ped.setVisible === "function") ped.setVisible(true, false);
+    if (typeof ped.setCollision === "function") ped.setCollision(false, false);
+}
+
 let createPeds = function() {
     if (peds.length !== 0) return;
     creatorTimer = mp.timer.add(async () => {
@@ -231,9 +244,12 @@ let createPeds = function() {
             mp.players.local.setHeading(pedRotation);
 
             let ped = mp.peds.new(mp.players.local.model, previewPos, pedRotation, mp.players.local.dimension);
+            forcePreviewPedVisible(ped);
+            await waitCharacterPreviewFrame();
+
             mp.players.local.cloneToTarget(ped.handle);
-            if (typeof ped.setAlpha === "function") ped.setAlpha(255, false);
-            if (typeof ped.setVisible === "function") ped.setVisible(true, false);
+            await waitCharacterPreviewFrame();
+            forcePreviewPedVisible(ped);
 
             selectMarkers.push(mp.markers.new(2, new mp.Vector3(x, y, z + 1), 0.2,
             {
@@ -245,7 +261,8 @@ let createPeds = function() {
             }));
             peds.push(ped);
         }
-        mp.players.local.setAlpha(0);
+        mp.players.local.setAlpha(255);
+        if (typeof mp.players.local.setVisible === "function") mp.players.local.setVisible(true, false);
         mp.players.local.position = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 10);
         creatorTimer = null;
     }, 500);
