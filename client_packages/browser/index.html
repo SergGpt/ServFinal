@@ -446,51 +446,6 @@
     </div>
 
 
-    <div v-cloak id="farmUi" v-if="show" class="farm-ui-wrap">
-        <div class="farm-ui-backdrop" v-if="visible" @click="close"></div>
-        <div class="farm-ui" v-if="visible">
-            <div class="farm-ui-head">
-                <div>👨‍🌾 Фермер</div>
-                <button @click="close">✕</button>
-            </div>
-            <div class="farm-ui-tabs">
-                <button :class="{active: tab==='job'}" @click="tab='job'">Работа</button>
-                <button :class="{active: tab==='buy'}" @click="tab='buy'">Покупка семян</button>
-                <button :class="{active: tab==='sell'}" @click="tab='sell'">Продажа</button>
-            </div>
-            <div class="farm-ui-grid">
-                <div class="card"><span>Статус</span><b>{{ info.employed ? 'Работаете' : 'Без работы' }}</b></div>
-                <div class="card"><span>Уровень</span><b>{{ info.level }} / {{ info.maxLevel }}</b></div>
-                <div class="card"><span>Прогресс</span><b>{{ info.progress }}%</b></div>
-                <div class="card"><span>Семена</span><b>{{ info.seeds }}</b></div>
-                <div class="card"><span>Урожай</span><b>{{ info.harvest }}</b></div>
-                <div class="card"><span>Курс</span><b>${{ info.exchangeRate }}</b></div>
-            </div>
-            <div class="farm-ui-body" v-if="tab==='job'">
-                <button class="action" @click="toggleJob">{{ info.employed ? 'Уволиться' : 'Устроиться на работу' }}</button>
-                <p>До следующего уровня осталось: {{ info.toNext }}</p>
-            </div>
-            <div class="farm-ui-body" v-if="tab==='buy'">
-                <div class="seed-list">
-                    <button v-for="seed in info.seedTypes" :key="seed.id" :class="{active:selectedSeed===seed.id}" @click="selectSeed(seed.id)">
-                        {{ seed.name }} · ${{ seed.buyPrice }} · +{{ seed.harvestYield }}
-                    </button>
-                </div>
-                <div class="buy-row">
-                    <button @click="changeAmount(-1)">-</button>
-                    <b>{{ buyAmount }}</b>
-                    <button @click="changeAmount(1)">+</button>
-                    <button class="action" @click="buySeeds">Купить</button>
-                </div>
-            </div>
-            <div class="farm-ui-body" v-if="tab==='sell'">
-                <div class="card wide"><span>Оценка продажи</span><b>${{ info.estimatedReward }}</b></div>
-                <div class="card wide"><span>История цены</span><b>{{ historyLabel }}</b></div>
-                <button class="action" @click="sellHarvest">Продать урожай</button>
-            </div>
-        </div>
-    </div>
-
     <div v-cloak="v-cloak" id="auth" v-if="show">
         <div class="content">
             <img class="logo" src="img/auth/logo.svg" />

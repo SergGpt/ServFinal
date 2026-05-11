@@ -1,0 +1,230 @@
+.farm-job-root {
+    position: fixed;
+    inset: 0;
+    z-index: 2500;
+    font-family: Roboto, Arial, sans-serif;
+    color: #f4fff0;
+}
+
+.farm-job-backdrop {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 65% 25%, rgba(111, 255, 113, 0.14), transparent 32%), rgba(3, 8, 8, 0.72);
+}
+
+.farm-job-window {
+    position: absolute;
+    right: 5.5vh;
+    top: 50%;
+    width: 55vh;
+    transform: translateY(-50%);
+    overflow: hidden;
+    border: 0.1vh solid rgba(157, 255, 134, 0.22);
+    border-radius: 2.4vh;
+    background: linear-gradient(145deg, rgba(16, 32, 26, 0.98), rgba(9, 17, 16, 0.98));
+    box-shadow: 0 2.5vh 7vh rgba(0, 0, 0, 0.58), inset 0 0 0 0.1vh rgba(255, 255, 255, 0.04);
+}
+
+.farm-job-hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 2vh;
+    padding: 2.6vh;
+    background: linear-gradient(135deg, rgba(84, 164, 64, 0.46), rgba(28, 67, 44, 0.08)), radial-gradient(circle at 18% 20%, rgba(255, 205, 74, 0.25), transparent 33%);
+}
+
+.farm-job-hero span,
+.farm-job-kicker {
+    font-size: 1.15vh;
+    font-weight: 800;
+    letter-spacing: 0.22vh;
+    color: #a8ff87;
+    text-transform: uppercase;
+}
+
+.farm-job-hero h2,
+.farm-job-intro h3 {
+    margin: 0.45vh 0;
+    font-weight: 900;
+}
+
+.farm-job-hero h2 {
+    font-size: 4vh;
+}
+
+.farm-job-hero p,
+.farm-job-intro p,
+.farm-job-progress p {
+    margin: 0;
+    color: rgba(244, 255, 240, 0.72);
+    font-size: 1.35vh;
+    line-height: 1.45;
+}
+
+.farm-job-hero button {
+    width: 3.2vh;
+    height: 3.2vh;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    cursor: pointer;
+    font-size: 2.4vh;
+}
+
+.farm-job-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1vh;
+    padding: 1.5vh 2vh 0;
+}
+
+.farm-job-stat,
+.farm-job-section,
+.farm-job-sell-card {
+    border: 0.1vh solid rgba(168, 255, 135, 0.14);
+    background: rgba(255, 255, 255, 0.045);
+    border-radius: 1.3vh;
+}
+
+.farm-job-stat {
+    padding: 1vh;
+}
+
+.farm-job-stat span,
+.farm-job-sell-card span {
+    display: block;
+    margin-bottom: 0.35vh;
+    color: rgba(244, 255, 240, 0.58);
+    font-size: 1.1vh;
+}
+
+.farm-job-stat b,
+.farm-job-sell-card b {
+    font-size: 1.65vh;
+}
+
+.farm-job-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1vh;
+    padding: 1.4vh 2vh;
+}
+
+.farm-job-tabs button,
+.farm-job-seeds button,
+.farm-job-buybar button,
+.farm-job-primary {
+    border: 0;
+    border-radius: 1.1vh;
+    color: #f4fff0;
+    cursor: pointer;
+    transition: transform 0.14s ease, background 0.14s ease;
+}
+
+.farm-job-tabs button {
+    padding: 1vh;
+    background: rgba(255, 255, 255, 0.065);
+    font-weight: 800;
+}
+
+.farm-job-tabs button.active,
+.farm-job-primary {
+    background: linear-gradient(135deg, #a8e063, #56ab2f);
+    color: #071407;
+}
+
+.farm-job-section {
+    margin: 0 2vh 2vh;
+    padding: 1.5vh;
+}
+
+.farm-job-progress div {
+    height: 0.75vh;
+    margin: 1.3vh 0 0.7vh;
+    overflow: hidden;
+    border-radius: 2vh;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.farm-job-progress span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #ffcf5a, #81db57);
+}
+
+.farm-job-primary {
+    width: 100%;
+    margin-top: 1.5vh;
+    padding: 1.15vh;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.farm-job-seeds {
+    display: grid;
+    gap: 0.9vh;
+}
+
+.farm-job-seeds button {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.25vh 1vh;
+    padding: 1vh;
+    text-align: left;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.farm-job-seeds button.active {
+    background: rgba(112, 210, 83, 0.27);
+    outline: 0.1vh solid rgba(168, 255, 135, 0.28);
+}
+
+.farm-job-seeds span {
+    font-weight: 900;
+}
+
+.farm-job-seeds small {
+    color: rgba(244, 255, 240, 0.56);
+}
+
+.farm-job-buybar {
+    display: grid;
+    grid-template-columns: 4vh 1fr 4vh 2.2fr;
+    align-items: center;
+    gap: 0.8vh;
+    margin-top: 1.2vh;
+}
+
+.farm-job-buybar button:not(.farm-job-primary) {
+    height: 4vh;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 2vh;
+}
+
+.farm-job-buybar strong {
+    text-align: center;
+    font-size: 1.9vh;
+}
+
+.farm-job-sell {
+    display: grid;
+    gap: 1vh;
+}
+
+.farm-job-sell-card {
+    padding: 1.1vh;
+}
+
+.farm-job-sell-card.muted b {
+    font-size: 1.25vh;
+    color: rgba(244, 255, 240, 0.78);
+}
+
+.farm-job-tabs button:hover,
+.farm-job-seeds button:hover,
+.farm-job-buybar button:hover,
+.farm-job-primary:hover {
+    transform: translateY(-0.1vh);
+}

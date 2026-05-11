@@ -11,6 +11,7 @@ import Bank from './modules/bank';
 import Players from './modules/players';
 import Inventory from './modules/inventory';
 import MarketplaceFullscreen from './modules/phone/components/marketplace/MarketplaceFullscreen';
+import FarmJob from './modules/farmJob';
 import ErrorBoundary from './Error';
 
 class MainContainer extends Component {
@@ -32,6 +33,7 @@ class MainContainer extends Component {
                 { forms.players && <ErrorBoundary><Players /> </ErrorBoundary>}
                 { forms.inventory && <ErrorBoundary><Inventory /></ErrorBoundary> }
                 <ErrorBoundary><MarketplaceFullscreen /></ErrorBoundary>
+                <ErrorBoundary><FarmJob /></ErrorBoundary>
             </Fragment>
         );
     }
