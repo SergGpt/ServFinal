@@ -105,6 +105,55 @@ function sendCameraDebug(type, index = currentCharacter) {
     });
 }
 
+function safeEntityDebugValue(callback, fallback = null) {
+    try {
+        const value = callback();
+        return value == null ? fallback : value;
+    }
+    catch (e) {
+        return fallback;
+    }
+}
+
+function getEntityVisibilityDebug(entity) {
+    if (!entity) {
+        return { exists: false };
+    }
+
+    const handle = entity.handle;
+    const position = entity.position ? debugVector(entity.position) : null;
+    const entityApi = mp.game && mp.game.entity ? mp.game.entity : null;
+
+    return {
+        exists: handle ? safeEntityDebugValue(() => entityApi && typeof entityApi.doesEntityExist === "function"
+            ? entityApi.doesEntityExist(handle)
+            : true, true) : false,
+        handle: handle || null,
+        position,
+        alpha: handle ? safeEntityDebugValue(() => entityApi && typeof entityApi.getEntityAlpha === "function"
+            ? entityApi.getEntityAlpha(handle)
+            : null) : null,
+        visible: handle ? safeEntityDebugValue(() => entityApi && typeof entityApi.isEntityVisible === "function"
+            ? entityApi.isEntityVisible(handle)
+            : null) : null,
+        onScreen: handle ? safeEntityDebugValue(() => entityApi && typeof entityApi.isEntityOnScreen === "function"
+            ? entityApi.isEntityOnScreen(handle)
+            : null) : null,
+        occluded: handle ? safeEntityDebugValue(() => entityApi && typeof entityApi.isEntityOccluded === "function"
+            ? entityApi.isEntityOccluded(handle)
+            : null) : null
+    };
+}
+
+function sendPreviewPedVisibilityDebug(ped, index, stage) {
+    sendSelectionDebug("ped.visibility", {
+        index,
+        stage,
+        name: charInfos[index] ? charInfos[index].name : null,
+        visibility: getEntityVisibilityDebug(ped)
+    });
+}
+
 async function preloadCharacterSelectionScene() {
     if (!mp.game.streaming) return;
 
@@ -284,12 +333,14 @@ function forcePreviewPedVisible(ped) {
     if (typeof ped.setCollision === "function") ped.setCollision(false, false);
 }
 
-function schedulePreviewPedVisible(ped) {
+function schedulePreviewPedVisible(ped, index) {
     mp.timer.add(() => {
         forcePreviewPedVisible(ped);
+        sendPreviewPedVisibilityDebug(ped, index, "visible.timer.250");
     }, 250);
     mp.timer.add(() => {
         forcePreviewPedVisible(ped);
+        sendPreviewPedVisibilityDebug(ped, index, "visible.timer.1000");
     }, 1000);
 }
 
@@ -321,12 +372,14 @@ let createPeds = function() {
 
             let ped = mp.peds.new(mp.players.local.model, previewPos, pedRotation, selectionDimension);
             forcePreviewPedVisible(ped);
+            sendPreviewPedVisibilityDebug(ped, i, "created");
             await waitCharacterPreviewFrame();
 
             mp.players.local.cloneToTarget(ped.handle);
             await waitCharacterPreviewFrame();
             forcePreviewPedVisible(ped);
-            schedulePreviewPedVisible(ped);
+            sendPreviewPedVisibilityDebug(ped, i, "cloned");
+            schedulePreviewPedVisible(ped, i);
 
             selectMarkers.push(mp.markers.new(2, new mp.Vector3(x, y, z + 1), 0.2,
             {

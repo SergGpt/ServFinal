@@ -59,6 +59,13 @@ module.exports = {
             return;
         }
 
+        if (type === "ped.visibility") {
+            const visibility = payload.visibility || {};
+            const pos = visibility.position || {};
+            console.log(`[characterInit][selectionDebug] ${playerName}: ped #${payload.index} (${payload.name || "empty"}) visibility ${payload.stage}, exists=${visibility.exists}, visible=${visibility.visible}, alpha=${visibility.alpha}, onScreen=${visibility.onScreen}, occluded=${visibility.occluded}, handle=${visibility.handle}, pos x=${pos.x}, y=${pos.y}, z=${pos.z}, dim=${dimension}`);
+            return;
+        }
+
         if (type === "camera.create" || type === "camera.tp" || type === "camera.move") {
             const camera = payload.camera || {};
             const lookAt = payload.lookAt || {};
