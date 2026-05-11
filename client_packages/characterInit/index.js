@@ -37,45 +37,79 @@ let isBinding = false;
 let creatorTimer = null;
 let slotsNumber;
 
+const selectionStreamPos = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 1.0);
+const selectionLookPos = new mp.Vector3(
+    camPos[0] + camDist * sinCamRot,
+    camPos[1] + camDist * cosCamRot,
+    camPos[2] + camPosZDelta
+);
+const selectionLoadRadius = 90.0;
+const selectionLoadTimeout = 3000;
+
+async function preloadCharacterSelectionScene() {
+    if (!mp.game.streaming) return;
+
+    if (typeof mp.game.streaming.clearFocus === "function") mp.game.streaming.clearFocus();
+    if (typeof mp.game.streaming.clearHdArea === "function") mp.game.streaming.clearHdArea();
+
+    if (typeof mp.game.streaming.setFocusPosAndVel === "function") {
+        mp.game.streaming.setFocusPosAndVel(selectionLookPos.x, selectionLookPos.y, selectionLookPos.z, 0.0, 0.0, 0.0);
+    }
+    if (typeof mp.game.streaming.setHdArea === "function") {
+        mp.game.streaming.setHdArea(selectionLookPos.x, selectionLookPos.y, selectionLookPos.z, selectionLoadRadius);
+    }
+    if (typeof mp.game.streaming.requestCollisionAtCoord === "function") {
+        mp.game.streaming.requestCollisionAtCoord(camPos[0], camPos[1], camPos[2]);
+        mp.game.streaming.requestCollisionAtCoord(selectionLookPos.x, selectionLookPos.y, selectionLookPos.z);
+    }
+    if (typeof mp.game.streaming.loadScene === "function") {
+        mp.game.streaming.loadScene(selectionLookPos.x, selectionLookPos.y, selectionLookPos.z);
+    }
+    if (typeof mp.game.streaming.newLoadSceneStartSphere !== "function"
+        || typeof mp.game.streaming.isNewLoadSceneLoaded !== "function"
+        || typeof mp.game.waitAsync !== "function") {
+        return;
+    }
+
+    mp.game.streaming.newLoadSceneStartSphere(selectionLookPos.x, selectionLookPos.y, selectionLookPos.z, selectionLoadRadius, 0);
+    const startedAt = Date.now();
+
+    while (!mp.game.streaming.isNewLoadSceneLoaded() && Date.now() - startedAt < selectionLoadTimeout) {
+        await mp.game.waitAsync(0);
+    }
+
+    if (typeof mp.game.streaming.newLoadSceneStop === "function") mp.game.streaming.newLoadSceneStop();
+}
+
 function restoreCharacterSelectionPlayer() {
     const player = mp.players.local;
-    const streamPos = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 1.0);
 
     player.setAlpha(255);
     if (typeof player.setVisible === "function") player.setVisible(true, false);
     if (typeof player.setCollision === "function") player.setCollision(true, true);
     player.freezePosition(true);
-    player.position = streamPos;
+    player.position = selectionStreamPos;
 
     mp.events.callRemote('time.sync.request');
-
-    if (mp.game.streaming && typeof mp.game.streaming.clearFocus === "function") mp.game.streaming.clearFocus();
-    if (mp.game.streaming && typeof mp.game.streaming.clearHdArea === "function") mp.game.streaming.clearHdArea();
-    if (mp.game.streaming && typeof mp.game.streaming.requestCollisionAtCoord === "function") {
-        mp.game.streaming.requestCollisionAtCoord(camPos[0], camPos[1], camPos[2]);
-        mp.game.streaming.requestCollisionAtCoord(
-            camPos[0] + camDist * sinCamRot,
-            camPos[1] + camDist * cosCamRot,
-            camPos[2] + camPosZDelta
-        );
-    }
 }
 
 function hideCharacterSelectionPlayer() {
     const player = mp.players.local;
 
     player.setAlpha(0);
-    player.position = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 10);
+    player.position = selectionStreamPos;
+    player.freezePosition(true);
 }
 
-mp.events.add('characterInit.init', (characters, accountInfo) => {
+mp.events.add('characterInit.init', async (characters, accountInfo) => {
     restoreCharacterSelectionPlayer();
+    await preloadCharacterSelectionScene();
     mp.gui.cursor.show(true, true);
     currentCharacter = 0;
     charClothes = [];
     charInfos = [];
+    charNum = characters ? characters.length : 0;
     if (characters != null) {
-        charNum = characters.length;
         for (let i = 0; i < characters.length; i++) {
             charInfos.push(characters[i].charInfo);
             charClothes.push(characters[i].charClothes);
@@ -138,6 +172,8 @@ mp.events.add("characterInit.done", () => {
     mp.utils.disablePlayerMoving(false);
 
     mp.utils.cam.destroy();
+    if (mp.game.streaming && typeof mp.game.streaming.clearFocus === "function") mp.game.streaming.clearFocus();
+    if (mp.game.streaming && typeof mp.game.streaming.clearHdArea === "function") mp.game.streaming.clearHdArea();
 
     for (let i = 0; i < selectMarkers.length; i++) {
         selectMarkers[i].destroy();
