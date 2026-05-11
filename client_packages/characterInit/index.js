@@ -38,58 +38,22 @@ let isBinding = false;
 
 let creatorTimer = null;
 let slotsNumber;
-let selectionStreamingActive = false;
-
-const selectionAnchorOffsetZ = -8.0;
-
-function getSelectionAnchorPosition() {
-    return new mp.Vector3(camPos[0], camPos[1], camPos[2] + selectionAnchorOffsetZ);
-}
-
-function setLocalPlayerSelectionAnchor(hidden = true) {
-    const player = mp.players.local;
-    const anchor = getSelectionAnchorPosition();
-
-    player.setCoords(anchor.x, anchor.y, anchor.z, false, false, false, false);
-    player.freezePosition(true);
-    player.setAlpha(hidden ? 0 : 255);
-    if (typeof player.setVisible === "function") player.setVisible(!hidden, false);
-    if (typeof player.setCollision === "function") player.setCollision(false, false);
-}
-
-function updateSelectionStreamingAnchor() {
-    if (!selectionStreamingActive) return;
-
-    const anchor = getSelectionAnchorPosition();
-    setLocalPlayerSelectionAnchor();
-
-    if (!mp.game.streaming) return;
-    if (typeof mp.game.streaming.setFocusPosAndVel === "function") {
-        mp.game.streaming.setFocusPosAndVel(camPos[0], camPos[1], camPos[2], 0.0, 0.0, 0.0);
-    }
-    if (typeof mp.game.streaming.setHdArea === "function") {
-        mp.game.streaming.setHdArea(camPos[0], camPos[1], camPos[2], 90.0);
-    }
-    if (typeof mp.game.streaming.requestCollisionAtCoord === "function") {
-        mp.game.streaming.requestCollisionAtCoord(anchor.x, anchor.y, anchor.z);
-        mp.game.streaming.requestCollisionAtCoord(camPos[0], camPos[1], camPos[2]);
-    }
-}
-
-function startSelectionStreamingAnchor() {
-    selectionStreamingActive = true;
-    updateSelectionStreamingAnchor();
-}
-
 function stopSelectionStreamingAnchor() {
-    selectionStreamingActive = false;
     if (mp.game.streaming && typeof mp.game.streaming.clearFocus === "function") mp.game.streaming.clearFocus();
     if (mp.game.streaming && typeof mp.game.streaming.clearHdArea === "function") mp.game.streaming.clearHdArea();
 }
 
-mp.events.add('render', updateSelectionStreamingAnchor);
-mp.events.add('characterInit.selectionAnchor.stop', stopSelectionStreamingAnchor);
+function restoreLocalPlayerForSelection() {
+    const player = mp.players.local;
 
+    player.position = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 10);
+    player.freezePosition(true);
+    player.setAlpha(255);
+    if (typeof player.setVisible === "function") player.setVisible(true, false);
+    if (typeof player.setCollision === "function") player.setCollision(false, false);
+}
+
+mp.events.add('characterInit.selectionAnchor.stop', stopSelectionStreamingAnchor);
 
 mp.events.add('characterInit.init', (characters, accountInfo) => {
     stopSelectionStreamingAnchor();
@@ -97,7 +61,7 @@ mp.events.add('characterInit.init', (characters, accountInfo) => {
     charInfos = [];
     charNum = 0;
     currentCharacter = 0;
-    setLocalPlayerSelectionAnchor(false);
+    restoreLocalPlayerForSelection();
     mp.gui.cursor.show(true, true);
     if (characters != null) {
         charNum = characters.length;
@@ -238,21 +202,6 @@ async function waitFreemodeModel(modelHash) {
     }
 }
 
-function prepareLocalPlayerForPreviewClone(previewPos) {
-    const player = mp.players.local;
-
-    player.setCoords(previewPos.x, previewPos.y, previewPos.z, false, false, false, false);
-    player.setHeading(pedRotation);
-    player.freezePosition(true);
-    player.setAlpha(255);
-    if (typeof player.setVisible === "function") player.setVisible(true, false);
-    if (typeof player.setCollision === "function") player.setCollision(false, false);
-}
-
-function hideLocalPlayerAfterPreviewClone() {
-    setLocalPlayerSelectionAnchor(true);
-}
-
 function getPreviewPedPosition(index) {
     let x = (camPos[0] + index * pedDist * sinPedRot) + camDist * sinCamRot;
     let y = (camPos[1] + index * pedDist * cosPedRot) + camDist * cosCamRot;
@@ -288,7 +237,6 @@ let createPeds = function() {
         for (let i = 0; i < charNum; i++) {
             let previewPos = getPreviewPedPosition(i);
             requestPreviewScene(previewPos);
-            prepareLocalPlayerForPreviewClone(previewPos);
 
             // Как было в main: внешний вид сначала полностью применяется к локальному игроку
             // из данных БД, затем cloneToTarget копирует уже готового персонажа в preview ped.
@@ -315,8 +263,7 @@ let createPeds = function() {
             }));
             peds.push(ped);
         }
-        hideLocalPlayerAfterPreviewClone();
-        startSelectionStreamingAnchor();
+        restoreLocalPlayerForSelection();
         creatorTimer = null;
     }, 500);
 };
