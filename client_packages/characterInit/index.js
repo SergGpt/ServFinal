@@ -41,7 +41,7 @@ function restoreCharacterSelectionPlayer() {
     const player = mp.players.local;
     const streamPos = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 1.0);
 
-    player.setAlpha(255);
+    player.setAlpha(255, false);
     if (typeof player.setVisible === "function") player.setVisible(true, false);
     if (typeof player.setCollision === "function") player.setCollision(true, true);
     player.freezePosition(true);
@@ -64,7 +64,7 @@ function restoreCharacterSelectionPlayer() {
 function hideCharacterSelectionPlayer() {
     const player = mp.players.local;
 
-    player.setAlpha(0);
+    player.setAlpha(0, false);
     player.position = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 10);
 }
 
@@ -123,13 +123,13 @@ mp.events.add('characterInit.init', (characters, accountInfo) => {
         mp.callCEFV(`characterInfo.show = true;`);
     }
 
-    //mp.players.local.setAlpha(0);
+    //mp.players.local.setAlpha(0, false);
     mp.events.call("godmode.set", false);
 });
 
 mp.events.add("characterInit.done", () => {
     mp.gui.cursor.show(false, false);
-    mp.players.local.setAlpha(255);
+    mp.players.local.setAlpha(255, false);
     if (typeof mp.players.local.setVisible === "function") mp.players.local.setVisible(true, false);
     if (typeof mp.players.local.setCollision === "function") mp.players.local.setCollision(true, true);
     mp.players.local.freezePosition(false);
@@ -199,7 +199,7 @@ let createPeds = function() {
     }
     creatorTimer = mp.timer.add(async () => {
         for (let i = 0; i < charNum; i++) {
-            mp.players.local.setAlpha(255);
+            mp.players.local.setAlpha(255, false);
             setCharCustom(i);
             setCharClothes(i);
             setCharTattoos(i);
@@ -209,7 +209,7 @@ let createPeds = function() {
             let z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
             let ped = mp.peds.new(mp.players.local.model, new mp.Vector3(x, y, z), pedRotation, mp.players.local.dimension);
             mp.players.local.cloneToTarget(ped.handle);
-            if (typeof ped.setAlpha === "function") ped.setAlpha(255);
+            if (typeof ped.setAlpha === "function") ped.setAlpha(255, false);
             if (typeof ped.setVisible === "function") ped.setVisible(true, false);
 
             selectMarkers.push(mp.markers.new(2, new mp.Vector3(x, y, z + 1), 0.2,

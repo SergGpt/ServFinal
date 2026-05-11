@@ -2,36 +2,52 @@
 
 let authCam = null;
 let authCamStartedAt = 0;
+let authFadeState = "in";
 const AUTH_PLAYER_HIDDEN_POS = new mp.Vector3(-871.583, -3367.291, 93.112);
-const AUTH_FLYOVER_ONE_WAY_DURATION = 180000;
 const AUTH_NIGHT_HOUR = 1;
 const AUTH_NIGHT_MINUTE = 15;
-const AUTH_LOOK_AHEAD_PROGRESS = 0.018;
+const AUTH_LOOK_AHEAD_PROGRESS = 0.025;
+const AUTH_FADE_TRANSITION = 3600;
 
-// Камера идет по точкам из зомби-зон ниже к земле. Маршрут специально длинный:
-// северные пустынные зоны -> город -> порт, чтобы показать атмосферу мода без резких углов.
-const AUTH_FLYOVER_POINTS = [
-    new mp.Vector3(216.0445, 3154.8665, 58.8),
-    new mp.Vector3(231.1114, 3303.8716, 53.8),
-    new mp.Vector3(192.5752, 3409.8379, 67.0),
-    new mp.Vector3(105.7694, 3567.0481, 59.2),
-    new mp.Vector3(147.1333, 3705.1941, 65.9),
-    new mp.Vector3(-144.5374, 3891.7219, 83.5),
-    new mp.Vector3(530.2566, 3507.5793, 55.0),
-    new mp.Vector3(1398.8704, 745.3566, 132.0),
-    new mp.Vector3(1258.8607, 567.9809, 106.0),
-    new mp.Vector3(1099.4325, 403.8053, 123.0),
-    new mp.Vector3(937.1478, 525.5155, 151.5),
-    new mp.Vector3(494.4601, 40.9830, 110.0),
-    new mp.Vector3(434.5064, -81.5190, 97.0),
-    new mp.Vector3(327.8577, -329.5411, 75.0),
-    new mp.Vector3(303.4270, -451.1534, 68.0),
-    new mp.Vector3(745.2211, -2493.5164, 40.0),
-    new mp.Vector3(737.8945, -2534.5581, 35.5),
-    new mp.Vector3(737.2746, -2601.2014, 33.0),
-    new mp.Vector3(741.9315, -2810.2654, 24.0),
-    new mp.Vector3(743.7536, -2923.2144, 22.0),
-    new mp.Vector3(857.1192, -3163.0862, 37.0)
+// Дальний маршрут разбит на сцены. Между сценами камера затемняется и переносится,
+// чтобы не лететь через всю карту, горы и дома.
+const AUTH_FLYOVER_CHAPTERS = [
+    {
+        duration: 110000,
+        points: [
+            new mp.Vector3(216.0445, 3154.8665, 58.8),
+            new mp.Vector3(231.1114, 3303.8716, 53.8),
+            new mp.Vector3(192.5752, 3409.8379, 67.0),
+            new mp.Vector3(105.7694, 3567.0481, 59.2),
+            new mp.Vector3(147.1333, 3705.1941, 65.9),
+            new mp.Vector3(-144.5374, 3891.7219, 83.5),
+            new mp.Vector3(530.2566, 3507.5793, 55.0)
+        ]
+    },
+    {
+        duration: 125000,
+        points: [
+            new mp.Vector3(1398.8704, 745.3566, 132.0),
+            new mp.Vector3(1258.8607, 567.9809, 106.0),
+            new mp.Vector3(1099.4325, 403.8053, 123.0),
+            new mp.Vector3(937.1478, 525.5155, 151.5),
+            new mp.Vector3(494.4601, 40.9830, 110.0),
+            new mp.Vector3(434.5064, -81.5190, 97.0),
+            new mp.Vector3(327.8577, -329.5411, 75.0),
+            new mp.Vector3(303.4270, -451.1534, 68.0)
+        ]
+    },
+    {
+        duration: 95000,
+        points: [
+            new mp.Vector3(745.2211, -2493.5164, 40.0),
+            new mp.Vector3(737.8945, -2534.5581, 35.5),
+            new mp.Vector3(737.2746, -2601.2014, 33.0),
+            new mp.Vector3(741.9315, -2810.2654, 24.0),
+            new mp.Vector3(743.7536, -2923.2144, 22.0),
+            new mp.Vector3(857.1192, -3163.0862, 37.0)
+        ]
+    }
 ];
 
 function clamp(value, min, max) {
@@ -61,57 +77,103 @@ function catmullRom(p0, p1, p2, p3, t) {
     );
 }
 
-const AUTH_FLYOVER_SEGMENTS = AUTH_FLYOVER_POINTS.slice(0, -1).map((point, index) => ({
-    index,
-    length: distanceBetween(point, AUTH_FLYOVER_POINTS[index + 1])
-}));
-const AUTH_FLYOVER_DISTANCE = AUTH_FLYOVER_SEGMENTS.reduce((sum, segment) => sum + segment.length, 0.0);
+function buildRoute(points) {
+    const segments = points.slice(0, -1).map((point, index) => ({
+        index,
+        length: distanceBetween(point, points[index + 1])
+    }));
 
-function getPingPongRouteState(elapsed) {
-    const cycleDuration = AUTH_FLYOVER_ONE_WAY_DURATION * 2;
-    const cycleProgress = (elapsed % cycleDuration) / AUTH_FLYOVER_ONE_WAY_DURATION;
-
-    if (cycleProgress <= 1.0) {
-        return { progress: cycleProgress, direction: 1.0 };
-    }
-
-    return { progress: 2.0 - cycleProgress, direction: -1.0 };
+    return {
+        points,
+        segments,
+        distance: segments.reduce((sum, segment) => sum + segment.length, 0.0)
+    };
 }
 
-function getRoutePosition(progress) {
-    let distance = clamp(progress, 0.0, 1.0) * AUTH_FLYOVER_DISTANCE;
+const AUTH_FLYOVER_ROUTES = AUTH_FLYOVER_CHAPTERS.map((chapter) => ({
+    duration: chapter.duration,
+    route: buildRoute(chapter.points)
+}));
+const AUTH_FLYOVER_CYCLE_DURATION = AUTH_FLYOVER_ROUTES.reduce((sum, chapter) => sum + chapter.duration + AUTH_FADE_TRANSITION, 0);
 
-    for (let i = 0; i < AUTH_FLYOVER_SEGMENTS.length; i++) {
-        const segment = AUTH_FLYOVER_SEGMENTS[i];
+function getAuthChapterState(elapsed) {
+    let cycleTime = elapsed % AUTH_FLYOVER_CYCLE_DURATION;
 
-        if (distance > segment.length && i !== AUTH_FLYOVER_SEGMENTS.length - 1) {
+    for (let i = 0; i < AUTH_FLYOVER_ROUTES.length; i++) {
+        const chapter = AUTH_FLYOVER_ROUTES[i];
+
+        if (cycleTime < chapter.duration) {
+            return {
+                chapterIndex: i,
+                progress: cycleTime / chapter.duration,
+                transitioning: false
+            };
+        }
+
+        cycleTime -= chapter.duration;
+
+        if (cycleTime < AUTH_FADE_TRANSITION) {
+            return {
+                chapterIndex: i,
+                nextChapterIndex: (i + 1) % AUTH_FLYOVER_ROUTES.length,
+                progress: cycleTime / AUTH_FADE_TRANSITION,
+                transitioning: true
+            };
+        }
+
+        cycleTime -= AUTH_FADE_TRANSITION;
+    }
+
+    return { chapterIndex: 0, progress: 0.0, transitioning: false };
+}
+
+function getRoutePosition(route, progress) {
+    let distance = clamp(progress, 0.0, 1.0) * route.distance;
+
+    for (let i = 0; i < route.segments.length; i++) {
+        const segment = route.segments[i];
+
+        if (distance > segment.length && i !== route.segments.length - 1) {
             distance -= segment.length;
             continue;
         }
 
         const t = segment.length === 0.0 ? 0.0 : clamp(distance / segment.length, 0.0, 1.0);
         const p1Index = segment.index;
-        const p0 = AUTH_FLYOVER_POINTS[Math.max(p1Index - 1, 0)];
-        const p1 = AUTH_FLYOVER_POINTS[p1Index];
-        const p2 = AUTH_FLYOVER_POINTS[p1Index + 1];
-        const p3 = AUTH_FLYOVER_POINTS[Math.min(p1Index + 2, AUTH_FLYOVER_POINTS.length - 1)];
+        const p0 = route.points[Math.max(p1Index - 1, 0)];
+        const p1 = route.points[p1Index];
+        const p2 = route.points[p1Index + 1];
+        const p3 = route.points[Math.min(p1Index + 2, route.points.length - 1)];
 
         return catmullRom(p0, p1, p2, p3, t);
     }
 
-    return AUTH_FLYOVER_POINTS[AUTH_FLYOVER_POINTS.length - 1];
+    return route.points[route.points.length - 1];
 }
 
-function getRouteFrame(progress, direction) {
-    const pos = getRoutePosition(progress);
-    const lookProgress = clamp(progress + direction * AUTH_LOOK_AHEAD_PROGRESS, 0.0, 1.0);
-    const look = getRoutePosition(lookProgress);
+function getRouteFrame(chapterIndex, progress) {
+    const route = AUTH_FLYOVER_ROUTES[chapterIndex].route;
+    const pos = getRoutePosition(route, progress);
+    const look = getRoutePosition(route, clamp(progress + AUTH_LOOK_AHEAD_PROGRESS, 0.0, 1.0));
 
     return {
         pos,
         look: new mp.Vector3(look.x, look.y, look.z - 7.0),
         fov: lerp(42.0, 47.0, Math.sin(progress * Math.PI))
     };
+}
+
+function setAuthFade(out) {
+    const nextState = out ? "out" : "in";
+
+    if (authFadeState === nextState) return;
+    authFadeState = nextState;
+
+    if (out && mp.game.cam && typeof mp.game.cam.doScreenFadeOut === "function") {
+        mp.game.cam.doScreenFadeOut(parseInt(AUTH_FADE_TRANSITION / 2));
+    } else if (!out && mp.game.cam && typeof mp.game.cam.doScreenFadeIn === "function") {
+        mp.game.cam.doScreenFadeIn(parseInt(AUTH_FADE_TRANSITION / 2));
+    }
 }
 
 function applyAuthNight() {
@@ -123,7 +185,6 @@ function applyAuthNight() {
 function restoreServerTime() {
     mp.events.callRemote('time.sync.request');
 }
-
 function updateAuthStreamingAnchor(pos, look) {
     const player = mp.players.local;
     const anchor = new mp.Vector3(pos.x, pos.y, pos.z - 8.0);
@@ -131,7 +192,7 @@ function updateAuthStreamingAnchor(pos, look) {
     // Главный фикс мыла/LOD: локальный персонаж остается невидимым, но физически идет
     // вместе с камерой и заставляет клиент стримить HD-текстуры вокруг пролета.
     player.position = anchor;
-    player.setAlpha(0);
+    player.setAlpha(0, false);
     player.freezePosition(true);
 
     if (typeof player.setCollision === "function") player.setCollision(false, false);
@@ -157,6 +218,7 @@ function resetAuthCamera(restoreTime = true) {
         authCam = null;
     }
 
+    setAuthFade(false);
     clearAuthStreamingAnchor();
     mp.game.cam.renderScriptCams(false, false, 0, true, false);
     mp.game.cam.destroyAllCams(true);
@@ -164,7 +226,7 @@ function resetAuthCamera(restoreTime = true) {
 }
 
 function startAuthFlyover() {
-    const firstFrame = getRouteFrame(0.0, 1.0);
+    const firstFrame = getRouteFrame(0, 0.0);
 
     authCamStartedAt = Date.now();
     authCam = mp.cameras.new("authCam", firstFrame.pos, new mp.Vector3(0, 0, 0), firstFrame.fov);
@@ -179,9 +241,12 @@ function updateAuthFlyoverFrame() {
 
     applyAuthNight();
 
-    const routeState = getPingPongRouteState(Date.now() - authCamStartedAt);
-    const frame = getRouteFrame(routeState.progress, routeState.direction);
+    const chapterState = getAuthChapterState(Date.now() - authCamStartedAt);
+    const frame = chapterState.transitioning
+        ? getRouteFrame(chapterState.progress < 0.5 ? chapterState.chapterIndex : chapterState.nextChapterIndex, chapterState.progress < 0.5 ? 1.0 : 0.0)
+        : getRouteFrame(chapterState.chapterIndex, chapterState.progress);
 
+    setAuthFade(chapterState.transitioning && chapterState.progress < 0.55);
     authCam.setCoord(frame.pos.x, frame.pos.y, frame.pos.z);
     authCam.pointAtCoord(frame.look.x, frame.look.y, frame.look.z);
     if (typeof authCam.setFov === "function") authCam.setFov(frame.fov);
@@ -194,7 +259,7 @@ function prepareHiddenAuthPlayer() {
     const player = mp.players.local;
 
     player.freezePosition(true);
-    player.setAlpha(0);
+    player.setAlpha(0, false);
     if (typeof player.setCollision === "function") player.setCollision(false, false);
 }
 
@@ -212,7 +277,7 @@ function restoreAuthPlayer(showCharacter, unfreeze, restorePosition) {
         targetPosition.z,
         false, false, false, false
     );
-    player.setAlpha(showCharacter ? 255 : 0);
+    player.setAlpha(showCharacter ? 255 : 0, false);
     if (typeof player.setVisible === "function") player.setVisible(true, false);
     if (typeof player.setCollision === "function") player.setCollision(true, true);
     player.freezePosition(!unfreeze);
