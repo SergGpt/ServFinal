@@ -58,6 +58,22 @@ mp.events.add({
                 mp.events.call("moonshine.setup.action", "close");
             }
         }
+
+
+        if (menuName === "cargoRouteAdmin" && eventName === "onItemSelected") {
+            if (e.itemName === "Создать маршрут (погрузка тут)") {
+                mp.events.callRemote("cargo.admin.route.create");
+            } else if (e.itemName === "Добавить точку доставки") {
+                if (!e.itemValue || e.itemValue === "Нет маршрутов") return mp.events.call("selectMenu.notification", "Сначала создайте маршрут");
+                const match = e.itemValue.match(/^#(\d+)/);
+                if (!match) return mp.events.call("selectMenu.notification", "Маршрут не выбран");
+                mp.events.callRemote("cargo.admin.route.dropoff.add", parseInt(match[1]));
+            } else if (e.itemName === "Обновить список") {
+                mp.events.callRemote("cargo.admin.routes.refresh");
+            } else if (e.itemName === "Закрыть") {
+                mp.events.call("selectMenu.hide");
+            }
+        }
         
         // TODO: Обработка других событий меню...
     },

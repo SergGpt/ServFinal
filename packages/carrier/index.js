@@ -7,7 +7,7 @@ let utils = call('utils');
 
 module.exports = {
     // Места
-    loadPos: new mp.Vector3(895.5589599609375, -3182.19091796875, -7.099202632904053),
+    loadPos: new mp.Vector3(-840.8328857421875, -2690.138671875, 13.812108993530273),
     cropUnloadPos: new mp.Vector3(85.55198669433594, 6331.1318359375, 30.225765228271484),
 
     // Настройки
@@ -33,7 +33,7 @@ module.exports = {
     createLoadMarker() {
         const pos = this.loadPos;
         const marker = mp.markers.new(1, pos, 15, { color: [255,187,0,70] });
-        const colshape = mp.colshapes.newSphere(pos.x, pos.y, pos.z + 9, 10);
+        const colshape = mp.colshapes.newSphere(pos.x, pos.y, pos.z + 2, 10);
 
         colshape.onEnter = (player) => {
             if (player.character.job != 4) return notifs.error(player, "Отказано в доступе", "Склад");
@@ -151,34 +151,15 @@ module.exports = {
     },
 
     /**
-     * Проверка нефтевоза: тягач hauler + прицеп tanker рядом
+     * Проверка нефтевоза: используется одиночная модель oiltanker.
      */
     isOilTanker(veh) {
         if (!veh) return false;
 
-        const haulerHash = mp.joaat("hauler");
-        const tankerHash = mp.joaat("tanker");
+        const oilTankerHash = mp.joaat("oiltanker");
+        const modelName = (veh.db?.modelName || veh.modelName || '').toLowerCase();
 
-        const modelName = veh.db?.modelName || veh.modelName;
-        const modelHash = veh.model;
-
-        // Проверяем тягач
-        if (modelName !== "hauler" && modelHash !== haulerHash) {
-            return false;
-        }
-
-        // Ищем прицепы поблизости
-        const nearbyTrailers = mp.vehicles.toArray().filter(trailer => {
-            const tModelName = trailer.db?.modelName || trailer.modelName;
-            const tModelHash = trailer.model;
-
-            if (tModelName !== "tanker" && tModelHash !== tankerHash) return false;
-
-            const distance = veh.position.subtract(trailer.position).length();
-            return distance < 30.0;
-        });
-
-        return nearbyTrailers.length > 0;
+        return modelName === "oiltanker" || veh.model === oilTankerHash;
     },
 
     checkOilTankerByRemoteId(remoteId) {

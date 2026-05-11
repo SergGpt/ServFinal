@@ -46,7 +46,7 @@ function openBoardTerminal() {
         `Обновление: <span>${timeLabel}</span> | Маршрутов: <span>${boardData.routesCount || 0}</span>`;
 
     mp.callCEFV(`acceptWindow.name = 'cargo_board';`);
-    mp.callCEFV(`acceptWindow.header = 'Терминал грузоперевозок';`);
+    mp.callCEFV(`acceptWindow.header = 'Черный рынок грузоперевозок';`);
     mp.callCEFV(`acceptWindow.text = '${text.replace(/'/g, "\\'")}';`);
     mp.callCEFV(`acceptWindow.leftWord = '${boardData.hasActiveContract ? 'Контракт активен' : 'Взять контракт'}';`);
     mp.callCEFV(`acceptWindow.rightWord = 'Закрыть';`);
@@ -73,17 +73,41 @@ function openRentTerminal() {
 mp.events.add('characterInit.done', () => {
     mp.events.call('NPC.create', {
         model: 's_m_m_dockwork_01',
-        position: { x: 600.2911376953125, y: -3010.956298828125, z: 6.045215606689453 },
+        position: { x: -739.9175415039062, y: -2562.908447265625, z: 13.955526351928711 },
         heading: 90,
         defaultScenario: 'WORLD_HUMAN_CLIPBOARD',
     });
 
     mp.events.call('NPC.create', {
         model: 's_m_m_dockwork_01',
-        position: { x: 590.1309814453125, y: -3029.9951171875, z: 6.0692925453186035 },
+        position: { x: -748.768798828125, y: -2565.418701171875, z: 13.89966106414795 },
         heading: 90,
         defaultScenario: 'WORLD_HUMAN_STAND_IMPATIENT',
     });
+});
+
+
+mp.events.add('cargo.admin.routes.show', (json) => {
+    let data = { routes: [] };
+    try {
+        data = typeof json === 'string' ? JSON.parse(json) : json;
+    } catch (e) {
+        data = { routes: [] };
+    }
+
+    const routeValues = data.routes.length
+        ? data.routes.map(route => `#${route.id} | ${route.pickupName} | точек: ${route.dropoffCount} | $${route.reward}`)
+        : ['Нет маршрутов'];
+    const routeIds = data.routes.map(route => route.id);
+
+    mp.callCEFV(`selectMenu.setItems('cargoRouteAdmin', ${JSON.stringify([
+        { text: 'Создать маршрут (погрузка тут)' },
+        { text: 'Добавить точку доставки', values: routeValues, routeIds },
+        { text: 'Обновить список' },
+        { text: 'Закрыть' },
+    ])})`);
+    mp.callCEFV(`selectMenu.setProp('cargoRouteAdmin', 'routeIds', ${JSON.stringify(routeIds)})`);
+    mp.events.call('selectMenu.show', 'cargoRouteAdmin');
 });
 
 mp.events.add('cargo.board.state', (state) => {

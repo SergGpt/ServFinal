@@ -4,14 +4,11 @@ let notifs;
 let money;
 let vehiclesModule;
 
-const BOARD_POS = new mp.Vector3(600.2911376953125, -3010.956298828125, 6.045215606689453);
-const RENT_POS = new mp.Vector3(590.1309814453125, -3029.9951171875, 6.0692925453186035);
-const RENT_SPAWN_POS = new mp.Vector3(567.0397338867188, -3025.351806640625, 6.045413970947266);
-const SHOWCASE_MULES = [
-    { x: 590.13, y: -3029.99, z: 6.07, h: 269 },
-    { x: 590.13, y: -3023.99, z: 6.07, h: 269 },
-    { x: 590.13, y: -3017.99, z: 6.07, h: 269 },
-];
+const BOARD_POS = new mp.Vector3(-739.9175415039062, -2562.908447265625, 13.955526351928711);
+const RENT_POS = new mp.Vector3(-748.768798828125, -2565.418701171875, 13.89966106414795);
+const RENT_SPAWN_POS = new mp.Vector3(-747.4849243164062, -2572.3525390625, 13.857550621032715);
+const RENT_SPAWN_HEADING = 180;
+const SHOWCASE_MULES = [];
 const PICKUP_RADIUS = 6;
 const DROP_RADIUS = 8;
 
@@ -19,34 +16,13 @@ const CONTRACT_DEPOSIT_K = 0.1;
 const MULE_RENT_COST = 1000;
 const DELIVERY_SECONDS = 30 * 60;
 const CONTRACT_REFRESH_SECONDS = 20 * 60;
+const CARGO_JOB_ID = 4;
 const CARGO_JOB_OWNER_ID = 13;
 const RENT_SECONDS = 2 * 60 * 60;
 const RENT_WARN_SECONDS = [10 * 60, 5 * 60, 60];
 const RENT_DESTROY_DELAY_SECONDS = 2 * 60;
 
-// Полный список маршрутов (для разнообразия)
-const CARGO_ROUTES = [
-    { pickup: { x: 919.26, y: -1256.17, z: 25.53, name: 'Склад Ла-Меса' }, dropoff: { x: -428.89, y: -2786.82, z: 5.00, name: 'Терминал Elysian' }, reward: 15000 },
-    { pickup: { x: 2686.91, y: 3514.26, z: 52.71, name: 'Промзона Сэнди' }, dropoff: { x: 68.23, y: 6308.42, z: 31.22, name: 'Палето порт' }, reward: 22000 },
-    { pickup: { x: -513.40, y: -2901.55, z: 5.00, name: 'Док №4' }, dropoff: { x: 1708.07, y: 4940.75, z: 42.07, name: 'Склад Грейпсид' }, reward: 26000 },
-    { pickup: { x: 2767.53, y: 1379.72, z: 24.52, name: 'Логистический двор Ron' }, dropoff: { x: -98.56, y: -2521.48, z: 6.00, name: 'Порт LS' }, reward: 30000 },
-    { pickup: { x: 1241.66, y: -3179.65, z: 6.02, name: 'Терминал Buccaneer Way' }, dropoff: { x: 2559.67, y: 4669.78, z: 34.08, name: 'Промбаза Кэссиди' }, reward: 28500 },
-    { pickup: { x: -552.27, y: 5348.70, z: 74.74, name: 'Лесопилка Палето' }, dropoff: { x: 826.57, y: -2159.35, z: 29.62, name: 'Индастриал LS' }, reward: 27500 },
-    { pickup: { x: 1714.29, y: 4783.29, z: 41.98, name: 'Склад Грейпсид' }, dropoff: { x: -248.21, y: 6063.57, z: 31.46, name: 'Рынок Палето' }, reward: 16500 },
-    { pickup: { x: 1190.42, y: -3102.10, z: 5.54, name: 'Портовой ангар A1' }, dropoff: { x: 2533.29, y: 2588.45, z: 37.95, name: 'Объездная Harmony' }, reward: 24500 },
-    { pickup: { x: 152.54, y: 6374.86, z: 31.37, name: 'Северный терминал' }, dropoff: { x: -1155.29, y: -2031.58, z: 13.16, name: 'Аэропорт грузовой' }, reward: 31500 },
-    { pickup: { x: -42.65, y: -1086.83, z: 26.42, name: 'Автохаб Downtown' }, dropoff: { x: 2722.94, y: 3452.11, z: 55.71, name: 'Песчаный склад' }, reward: 26500 },
-    { pickup: { x: 1961.54, y: 5176.09, z: 47.64, name: 'Хоздвор Мон-Чиллиад' }, dropoff: { x: -318.51, y: -1535.55, z: 27.54, name: 'Промсклад Дэвис' }, reward: 30500 },
-    { pickup: { x: 94.88, y: -2689.96, z: 6.01, name: 'Контейнерный двор' }, dropoff: { x: 1204.28, y: 1853.49, z: 78.94, name: 'Винодельня' }, reward: 23500 },
-    { pickup: { x: 2677.18, y: 1452.61, z: 24.50, name: 'Склад Route 68' }, dropoff: { x: -724.38, y: -935.47, z: 19.01, name: 'Топливная база LS' }, reward: 29500 },
-    { pickup: { x: -586.27, y: -1777.20, z: 23.18, name: 'Склад Бэнни' }, dropoff: { x: 225.49, y: 1173.03, z: 225.46, name: 'Резервуары Татавиам' }, reward: 25500 },
-    { pickup: { x: -2961.45, y: 419.53, z: 15.24, name: 'Берег Чумаш' }, dropoff: { x: 1132.18, y: -1302.19, z: 34.74, name: 'Центральный госпиталь склад' }, reward: 32000 },
-    { pickup: { x: 382.11, y: 3584.22, z: 33.29, name: 'Склад Grand Senora' }, dropoff: { x: -1078.09, y: -1678.10, z: 4.58, name: 'Лодочный терминал' }, reward: 27000 },
-    { pickup: { x: 1728.47, y: 6408.01, z: 35.04, name: 'Логцентр Палето' }, dropoff: { x: 997.90, y: -1868.23, z: 31.04, name: 'Промзона Ла-Меса' }, reward: 34000 },
-    { pickup: { x: -1229.92, y: -329.23, z: 37.79, name: 'Деловой док Del Perro' }, dropoff: { x: 2885.79, y: 4382.25, z: 50.30, name: 'Ветряки Рон-Альтернатс' }, reward: 33500 },
-    { pickup: { x: 172.71, y: -3199.28, z: 5.79, name: 'Морской склад B4' }, dropoff: { x: -2070.88, y: -317.56, z: 13.31, name: 'Северный Chumash depot' }, reward: 31000 },
-    { pickup: { x: 2570.88, y: 320.49, z: 108.46, name: 'Паллеты East Joshua' }, dropoff: { x: -146.78, y: -1698.40, z: 32.87, name: 'Склад Бенсон Докс' }, reward: 28000 },
-];
+let cargoRoutes = [];
 
 const sessions = new Map();
 const boardState = {
@@ -87,18 +63,123 @@ function resolveVehicleProperties(modelName) {
     }
 }
 
-function cloneContractData(template) {
+function parseDropoffs(raw) {
+    try {
+        const points = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        return Array.isArray(points) ? points : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function routeToContractData(route) {
+    if (!route) return null;
+    const dropoffs = parseDropoffs(route.dropoffs);
     return {
+        routeId: route.id,
+        pickup: {
+            x: route.pickupX,
+            y: route.pickupY,
+            z: route.pickupZ,
+            name: route.pickupName,
+        },
+        dropoffs: dropoffs.map((point, index) => ({
+            x: point.x,
+            y: point.y,
+            z: point.z,
+            name: point.name || `Точка доставки #${index + 1}`,
+        })),
+        reward: route.reward,
+        deposit: Math.ceil(route.reward * CONTRACT_DEPOSIT_K),
+    };
+}
+
+function cloneContractData(template) {
+    if (!template) return null;
+    return {
+        routeId: template.routeId,
         pickup: { ...template.pickup },
-        dropoff: { ...template.dropoff },
+        dropoffs: template.dropoffs.map(point => ({ ...point })),
         reward: template.reward,
         deposit: Math.ceil(template.reward * CONTRACT_DEPOSIT_K),
     };
 }
 
 function getCurrentBoardContract() {
-    const route = CARGO_ROUTES[boardState.routeIndex] || CARGO_ROUTES[0];
-    return cloneContractData(route);
+    const route = cargoRoutes[boardState.routeIndex] || cargoRoutes[0];
+    return cloneContractData(routeToContractData(route));
+}
+
+function getCurrentDropoff(session) {
+    if (!session || !session.contract || !session.contract.dropoffs.length) return null;
+    return session.contract.dropoffs[session.currentDropoffIndex || 0];
+}
+
+
+async function loadRoutesFromDB() {
+    const rows = await db.Models.CargoDeliveryRoute.findAll({
+        where: { isActive: 1 },
+        order: [['id', 'ASC']]
+    });
+    cargoRoutes = rows.filter(route => parseDropoffs(route.dropoffs).length > 0);
+    if (boardState.routeIndex >= cargoRoutes.length) boardState.routeIndex = 0;
+}
+
+function isCargoWorker(player) {
+    return !!(player && player.character && player.character.job == CARGO_JOB_ID);
+}
+
+function getRouteSummary(route) {
+    const dropoffs = parseDropoffs(route.dropoffs);
+    return {
+        id: route.id,
+        pickupName: route.pickupName,
+        reward: route.reward,
+        isActive: route.isActive,
+        dropoffCount: dropoffs.length,
+    };
+}
+
+async function createRouteFromPlayer(player) {
+    const pos = player.position;
+    const route = await db.Models.CargoDeliveryRoute.create({
+        pickupName: `Погрузка #${Date.now()}`,
+        pickupX: pos.x,
+        pickupY: pos.y,
+        pickupZ: pos.z,
+        dropoffs: '[]',
+        reward: 15000,
+        isActive: 1,
+    });
+    await loadRoutesFromDB();
+    return route;
+}
+
+async function addDropoffFromPlayer(routeId, player) {
+    const route = await db.Models.CargoDeliveryRoute.findByPk(routeId);
+    if (!route) return null;
+
+    const pos = player.position;
+    const dropoffs = parseDropoffs(route.dropoffs);
+    dropoffs.push({
+        x: pos.x,
+        y: pos.y,
+        z: pos.z,
+        name: `Доставка #${dropoffs.length + 1}`,
+    });
+    route.dropoffs = JSON.stringify(dropoffs);
+    await route.save();
+    await loadRoutesFromDB();
+    return route;
+}
+
+async function setRouteReward(routeId, reward) {
+    const route = await db.Models.CargoDeliveryRoute.findByPk(routeId);
+    if (!route) return null;
+    route.reward = reward;
+    await route.save();
+    await loadRoutesFromDB();
+    return route;
 }
 
 function getSession(player) {
@@ -120,6 +201,7 @@ function getSession(player) {
             rentWarnTimers: [],
             rentExpireTimer: null,
             rentDestroyTimer: null,
+            currentDropoffIndex: 0,
         });
     }
     return sessions.get(player.id);
@@ -221,6 +303,7 @@ function clearSessionProgress(player, reason = null) {
     session.deliveryEndsAt = null;
     session.startBodyHealth = 1000;
     session.pickupInside = false;
+    session.currentDropoffIndex = 0;
 
     player.call('cargo.pickup.zone.state', [false]);
     player.call('cargo.delivery.clear', [reason]);
@@ -235,32 +318,49 @@ function updateBoardData(player) {
     if (!session) return;
 
     const active = session.contract || getCurrentBoardContract();
+    if (!active) {
+        player.call('cargo.board.data', [JSON.stringify({
+            pickupName: '-',
+            dropoffName: '-',
+            reward: 0,
+            deposit: 0,
+            hasActiveContract: !!session.contract,
+            hasRentedVehicle: !!session.rentedVehicle,
+            cargoLoaded: !!session.cargoLoaded,
+            refreshInSeconds: secondsToRefresh(),
+            routesCount: 0,
+        })]);
+        return;
+    }
+
+    const nextDropoff = session.contract ? getCurrentDropoff(session) : active.dropoffs[0];
     player.call('cargo.board.data', [JSON.stringify({
         pickupName: active.pickup.name,
-        dropoffName: active.dropoff.name,
+        dropoffName: nextDropoff ? nextDropoff.name : '-',
         reward: active.reward,
         deposit: active.deposit,
         hasActiveContract: !!session.contract,
         hasRentedVehicle: !!session.rentedVehicle,
         cargoLoaded: !!session.cargoLoaded,
         refreshInSeconds: secondsToRefresh(),
-        routesCount: CARGO_ROUTES.length,
+        routesCount: cargoRoutes.length,
+        dropoffCount: active.dropoffs.length,
     })]);
 }
 
 function updateBoardsForAllPlayers() {
     mp.players.forEach((player) => {
-        if (!player.character) return;
+        if (!isCargoWorker(player)) return;
         updateBoardData(player);
     });
 }
 
 function rotateBoardContract(notifyPlayers = false) {
     const old = boardState.routeIndex;
-    if (CARGO_ROUTES.length <= 1) boardState.routeIndex = 0;
+    if (cargoRoutes.length <= 1) boardState.routeIndex = 0;
     else {
         do {
-            boardState.routeIndex = Math.floor(Math.random() * CARGO_ROUTES.length);
+            boardState.routeIndex = Math.floor(Math.random() * cargoRoutes.length);
         } while (boardState.routeIndex === old);
     }
     boardState.nextRefreshAt = Date.now() + CONTRACT_REFRESH_SECONDS * 1000;
@@ -268,10 +368,10 @@ function rotateBoardContract(notifyPlayers = false) {
 
     if (notifyPlayers) {
         mp.players.forEach((player) => {
-            if (!player.character) return;
+            if (!isCargoWorker(player)) return;
             const session = getSession(player);
             if (session && session.contract) return;
-            notifs.info(player, 'На доске появился новый контракт на грузоперевозку', 'Грузоперевозка');
+            notifs.info(player, 'На черном рынке появился новый контракт на грузоперевозку', 'Черный рынок');
         });
     }
 }
@@ -281,7 +381,8 @@ function createDeliveryColshape(player) {
     if (!session || !session.contract) return;
 
     clearColshape(session.dropoffColshape);
-    const target = session.contract.dropoff;
+    const target = getCurrentDropoff(session);
+    if (!target) return;
     const shape = mp.colshapes.newSphere(target.x, target.y, target.z, DROP_RADIUS);
     shape.ownerId = player.id;
     session.dropoffColshape = shape;
@@ -312,16 +413,17 @@ module.exports = {
     rentLabel: null,
     showcaseVehicles: [],
 
-    init() {
+    async init() {
         if (!ensureModules()) return false;
+        await loadRoutesFromDB();
 
-        mp.blips.new(478, BOARD_POS, { name: 'Доска контрактов', color: 5, shortRange: true, scale: 0.9 });
+        mp.blips.new(478, BOARD_POS, { name: 'Черный рынок', color: 5, shortRange: true, scale: 0.9 });
         mp.blips.new(67, RENT_POS, { name: 'Аренда Mule', color: 3, shortRange: true, scale: 0.9 });
 
         this.boardMarker = mp.markers.new(1, new mp.Vector3(BOARD_POS.x, BOARD_POS.y, BOARD_POS.z - 1), 1.3, { color: [61, 161, 255, 120] });
         this.rentMarker = mp.markers.new(1, new mp.Vector3(RENT_POS.x, RENT_POS.y, RENT_POS.z - 1), 1.6, { color: [90, 220, 110, 120] });
 
-        this.boardLabel = mp.labels.new('~w~Доска контрактов\n~g~Нажмите E', new mp.Vector3(BOARD_POS.x, BOARD_POS.y, BOARD_POS.z + 1.05), {
+        this.boardLabel = mp.labels.new('~w~Черный рынок\n~g~Нажмите E', new mp.Vector3(BOARD_POS.x, BOARD_POS.y, BOARD_POS.z + 1.05), {
             los: false,
             drawDistance: 15,
             dimension: 0,
@@ -353,7 +455,7 @@ module.exports = {
         if (boardState.timer) clearInterval(boardState.timer);
         boardState.timer = setInterval(() => rotateBoardContract(true), CONTRACT_REFRESH_SECONDS * 1000);
 
-        console.log(`[CARGO DELIVERY] Маршрутов загружено: ${CARGO_ROUTES.length}. Обновление доски: ${CONTRACT_REFRESH_SECONDS / 60} минут.`);
+        console.log(`[CARGO DELIVERY] Маршрутов загружено из БД: ${cargoRoutes.length}. Обновление черного рынка: ${CONTRACT_REFRESH_SECONDS / 60} минут.`);
         return true;
     },
 
@@ -390,6 +492,7 @@ module.exports = {
         if (session.contract) return notifs.error(player, 'У вас уже есть активный контракт', 'Грузоперевозка');
 
         const contract = getCurrentBoardContract();
+        if (!contract || !contract.dropoffs.length) return notifs.error(player, 'На черном рынке нет доступных контрактов', 'Черный рынок');
         money.removeCash(player, contract.deposit, (result) => {
             if (!result) return notifs.error(player, 'Недостаточно наличных для покупки контракта', 'Грузоперевозка');
 
@@ -412,7 +515,7 @@ module.exports = {
     rentMule(player) {
         if (!ensureModules()) return;
         const session = getSession(player);
-        if (!session || !session.contract) return notifs.error(player, 'Сначала возьмите контракт на доске', 'Грузоперевозка');
+        if (!session || !session.contract) return notifs.error(player, 'Сначала возьмите контракт на черном рынке', 'Грузоперевозка');
         if (session.rentedVehicle && mp.vehicles.exists(session.rentedVehicle) && !session.rentedVehicle.cargoRentExpired) {
             return notifs.error(player, 'У вас уже арендован Mule', 'Грузоперевозка');
         }
@@ -423,7 +526,7 @@ module.exports = {
             let veh = findNearestFreeJobMule(player);
             if (!veh) {
                 veh = mp.vehicles.new(mp.joaat('mule'), RENT_SPAWN_POS, {
-                    heading: 269,
+                    heading: RENT_SPAWN_HEADING,
                     numberPlate: 'CARGO',
                     locked: false,
                     engine: false,
@@ -500,6 +603,17 @@ module.exports = {
             if (!session.cargoLoaded) return;
             if (!isPlayerInRentedMule(player, session)) return;
 
+            const totalDropoffs = session.contract.dropoffs.length;
+            session.currentDropoffIndex = (session.currentDropoffIndex || 0) + 1;
+            clearColshape(session.dropoffColshape);
+            session.dropoffColshape = null;
+
+            if (session.currentDropoffIndex < totalDropoffs) {
+                createDeliveryColshape(player);
+                updateBoardData(player);
+                return notifs.info(player, `Точка доставки выполнена (${session.currentDropoffIndex}/${totalDropoffs}). Езжайте к следующей точке.`, 'Грузоперевозка');
+            }
+
             const vehicle = session.rentedVehicle;
             const currentHealth = Math.max(0, vehicle.bodyHealth || 0);
             const healthFactor = Math.max(0.35, Math.min(1, currentHealth / session.startBodyHealth));
@@ -549,6 +663,35 @@ module.exports = {
         updateBoardData(player);
     },
 
+
+
+    async showAdminRouteMenu(player) {
+        await loadRoutesFromDB();
+        const allRoutes = await db.Models.CargoDeliveryRoute.findAll({ order: [['id', 'ASC']] });
+        player.call('cargo.admin.routes.show', [JSON.stringify({
+            routes: allRoutes.map(getRouteSummary),
+        })]);
+    },
+
+    async createAdminRoute(player) {
+        const route = await createRouteFromPlayer(player);
+        notifs.success(player, `Маршрут #${route.id} создан. Позиция игрока сохранена как точка погрузки.`, 'Маршруты грузов');
+        await this.showAdminRouteMenu(player);
+    },
+
+    async addAdminDropoff(player, routeId) {
+        const route = await addDropoffFromPlayer(routeId, player);
+        if (!route) return notifs.error(player, 'Маршрут не найден', 'Маршруты грузов');
+        notifs.success(player, `Точка доставки добавлена в маршрут #${route.id}.`, 'Маршруты грузов');
+        await this.showAdminRouteMenu(player);
+    },
+
+    async setAdminReward(player, routeId, reward) {
+        if (isNaN(reward) || reward <= 0) return notifs.error(player, 'Неверная награда', 'Маршруты грузов');
+        const route = await setRouteReward(routeId, reward);
+        if (!route) return notifs.error(player, 'Маршрут не найден', 'Маршруты грузов');
+        notifs.success(player, `Награда маршрута #${route.id} установлена: $${route.reward}.`, 'Маршруты грузов');
+    },
 
     canUseJobVehicle(player, vehicle) {
         if (!player || !player.character || !vehicle) return false;
