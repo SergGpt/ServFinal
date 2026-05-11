@@ -47,6 +47,8 @@ function restoreCharacterSelectionPlayer() {
     player.freezePosition(true);
     player.position = streamPos;
 
+    mp.events.callRemote('time.sync.request');
+
     if (mp.game.streaming && typeof mp.game.streaming.clearFocus === "function") mp.game.streaming.clearFocus();
     if (mp.game.streaming && typeof mp.game.streaming.clearHdArea === "function") mp.game.streaming.clearHdArea();
     if (mp.game.streaming && typeof mp.game.streaming.requestCollisionAtCoord === "function") {

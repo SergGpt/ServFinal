@@ -46,3 +46,9 @@ mp.events.add("characterInit.done", () => {
     mp.time.startMinuteTimer();
     mp.time.initBinds();
 });
+
+mp.events.add("time.sync", (hour, minute) => {
+    if (mp.game.time && typeof mp.game.time.setClockTime === "function") {
+        mp.game.time.setClockTime(hour, minute, 0);
+    }
+});
