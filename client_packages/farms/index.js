@@ -24,6 +24,7 @@ const FARM_INTERACT_RADIUS = 6.0;
 const FARM_HARVEST_RADIUS = 1.0;
 const FARM_PLANT_ANIM = { dict: "amb@world_human_gardener_plant@male@idle_a", name: "idle_b", duration: 1800 };
 const FARM_HARVEST_ANIM = { dict: "amb@world_human_gardener_plant@male@idle_a", name: "idle_b", duration: 1400 };
+const FARM_NPC_HEADING = 127.4;
 const READY_STAGE_FALLBACK_MS = 60 * 1000;
 const OVERRIPE_STAGE_FALLBACK_MS = 45 * 1000;
 const FARMS_CLIENT_DEBUG = true;
@@ -215,11 +216,11 @@ function openFarmMenu(data) {
         const added = mp.busy.add("farms.ui");
         farmUiBusyActive = added !== false ? true : mp.busy.includes("farms.ui");
     }
-    mp.callCEFV(`farmUi.open(${JSON.stringify(data || {})})`);
+    mp.callCEFR("farms.ui.open", [data || {}]);
 }
 
 function closeFarmMenu() {
-    mp.callCEFV("if (farmUi && farmUi.visible) farmUi.close()");
+    mp.callCEFR("farms.ui.close", []);
 }
 
 function handleFarmUiClosed() {
@@ -253,7 +254,7 @@ function createFarmNpc(position) {
         farmNpc = null;
     }
     const pos = new mp.Vector3(Number(position.x), Number(position.y), Number(position.z));
-    farmNpc = mp.peds.new(mp.game.joaat("a_m_m_farmer_01"), pos, 40.0, 0);
+    farmNpc = mp.peds.new(mp.game.joaat("a_m_m_farmer_01"), pos, Number(position.heading) || FARM_NPC_HEADING, 0);
     if (farmNpc) {
         farmNpc.defaultScenario = "WORLD_HUMAN_STAND_IMPATIENT";
         try {
@@ -648,7 +649,7 @@ mp.events.add({
     "farms.menu.update": (data) => {
         data = parsePayload(data, {});
         updateKnownSeeds(data);
-        mp.callCEFV(`farmUi.update(${JSON.stringify(data)})`);
+        mp.callCEFR("farms.ui.update", [data]);
     },
     "farms.menu.hide": () => {
         closeFarmMenu();

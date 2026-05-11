@@ -8,6 +8,8 @@ let inventory = call("inventory");
 
 const JOB_ID = 5;
 const FIELD_CENTER = { x: 2050.4384765625, y: 4920.4482421875, z: 40.96115493774414 };
+const FARM_NPC_POSITION = { x: 2022.5968017578125, y: 4981.7646484375, z: 41.17500305175781, heading: 127.4 };
+const FARM_MENU_MARKER_POSITION = { x: 2020.3804931640625, y: 4979.85400390625, z: 40.36048889160156 };
 const PLOT_GRID_SIZE = 10;
 const PLOT_SPACING = 1.5;
 const HARVEST_INTERACT_RADIUS = 4.0;
@@ -56,7 +58,8 @@ module.exports = {
     minProcessTime: 10 * 1000,
     harvestsPerLevel: 100,
     maxLevel: 20,
-    farmMenuPos: null,
+    farmMenuPos: new mp.Vector3(FARM_MENU_MARKER_POSITION.x, FARM_MENU_MARKER_POSITION.y, FARM_MENU_MARKER_POSITION.z),
+    farmNpcPos: Object.assign({}, FARM_NPC_POSITION),
     fieldCenter: new mp.Vector3(FIELD_CENTER.x, FIELD_CENTER.y, FIELD_CENTER.z),
     plotsData: [],
     seedTypes: [
@@ -287,7 +290,8 @@ module.exports = {
             const model = await db.Models.FarmZone.findOne({ where: { id: 1 } });
             if (!model) {
                 this.plantZone = null;
-                this.farmMenuPos = null;
+                this.farmMenuPos = new mp.Vector3(FARM_MENU_MARKER_POSITION.x, FARM_MENU_MARKER_POSITION.y, FARM_MENU_MARKER_POSITION.z);
+                this.farmNpcPos = Object.assign({}, FARM_NPC_POSITION);
                 this.plotsData = [];
                 this.plots = [];
                 this.debugLog("farm_zones: запись id=1 не найдена");
@@ -346,11 +350,8 @@ module.exports = {
             }
             if (this.farmZoneColumns && this.farmZoneColumns.has("minZ")) this.plantZone.minZ = model.minZ;
             if (this.farmZoneColumns && this.farmZoneColumns.has("maxZ")) this.plantZone.maxZ = model.maxZ;
-            if (this.farmZoneColumns && this.farmZoneColumns.has("npcX") && model.npcX != null) {
-                this.farmMenuPos = new mp.Vector3(model.npcX, model.npcY, model.npcZ);
-            } else {
-                this.farmMenuPos = null;
-            }
+            this.farmMenuPos = new mp.Vector3(FARM_MENU_MARKER_POSITION.x, FARM_MENU_MARKER_POSITION.y, FARM_MENU_MARKER_POSITION.z);
+            this.farmNpcPos = Object.assign({}, FARM_NPC_POSITION);
             if (this.farmZoneColumns && this.farmZoneColumns.has("plotState") && model.plotState) {
                 try {
                     const parsed = JSON.parse(model.plotState);
@@ -395,9 +396,9 @@ module.exports = {
             if (this.farmZoneColumns && this.farmZoneColumns.has("minZ")) payload.minZ = this.plantZone ? this.plantZone.minZ : null;
             if (this.farmZoneColumns && this.farmZoneColumns.has("maxZ")) payload.maxZ = this.plantZone ? this.plantZone.maxZ : null;
             if (this.farmZoneColumns && this.farmZoneColumns.has("npcX")) {
-                payload.npcX = this.farmMenuPos ? this.farmMenuPos.x : null;
-                payload.npcY = this.farmMenuPos ? this.farmMenuPos.y : null;
-                payload.npcZ = this.farmMenuPos ? this.farmMenuPos.z : null;
+                payload.npcX = this.farmNpcPos ? this.farmNpcPos.x : null;
+                payload.npcY = this.farmNpcPos ? this.farmNpcPos.y : null;
+                payload.npcZ = this.farmNpcPos ? this.farmNpcPos.z : null;
             }
             if (this.farmZoneColumns && this.farmZoneColumns.has("plotState")) {
                 payload.plotState = JSON.stringify(this.serializeRuntimePlotState());
@@ -462,8 +463,12 @@ module.exports = {
 
     setFarmMenuPosition(pos) {
         if (!pos) return;
-        this.farmMenuPos = new mp.Vector3(parseFloat(pos.x) || 0, parseFloat(pos.y) || 0, parseFloat(pos.z) || 0);
-        this.createFarmMenuZone();
+        this.farmNpcPos = {
+            x: parseFloat(pos.x) || FARM_NPC_POSITION.x,
+            y: parseFloat(pos.y) || FARM_NPC_POSITION.y,
+            z: parseFloat(pos.z) || FARM_NPC_POSITION.z,
+            heading: Number(pos.heading) || FARM_NPC_POSITION.heading,
+        };
         this.broadcastPlantZone();
     },
 
@@ -476,7 +481,7 @@ module.exports = {
             plotPoints: this.plotsData.map((p) => ({ x: p.x, y: p.y, z: p.z })),
             minZ: z.minZ,
             maxZ: z.maxZ,
-            npcPos: this.farmMenuPos ? { x: this.farmMenuPos.x, y: this.farmMenuPos.y, z: this.farmMenuPos.z } : null,
+            npcPos: this.farmNpcPos ? { x: this.farmNpcPos.x, y: this.farmNpcPos.y, z: this.farmNpcPos.z, heading: this.farmNpcPos.heading } : null,
         };
         if (target) return target.call("farms.zone.sync", [payload]);
         mp.players.forEach(player => {
@@ -728,11 +733,7 @@ module.exports = {
         if (player.farmJob) delete player.farmJob;
         player.call("farms.reset");
         player.call("farms.menu.hide");
-        if (player.farmAtMenuZone) {
-            player.call("farms.employment.show");
-        } else {
-            player.call("farms.employment.hide");
-        }
+        player.call("farms.employment.hide");
     },
 
     cleanupPlayer(player) {
@@ -1202,7 +1203,7 @@ module.exports = {
         this.broadcastPlantZone(player);
         if (!this.isFarmer(player)) {
             this.sendMenuUpdate(player);
-            player.call("farms.employment.show");
+            player.call("farms.employment.hide");
             return;
         }
         this.syncPlotsForPlayer(player);
