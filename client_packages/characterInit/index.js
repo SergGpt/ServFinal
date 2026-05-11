@@ -38,10 +38,61 @@ let isBinding = false;
 
 let creatorTimer = null;
 let slotsNumber;
+let selectionStreamingActive = false;
+
+const selectionAnchorOffsetZ = -8.0;
+
+function getSelectionAnchorPosition() {
+    return new mp.Vector3(camPos[0], camPos[1], camPos[2] + selectionAnchorOffsetZ);
+}
+
+function setLocalPlayerSelectionAnchor() {
+    const player = mp.players.local;
+    const anchor = getSelectionAnchorPosition();
+
+    player.setCoords(anchor.x, anchor.y, anchor.z, false, false, false, false);
+    player.freezePosition(true);
+    player.setAlpha(0);
+    if (typeof player.setVisible === "function") player.setVisible(false, false);
+    if (typeof player.setCollision === "function") player.setCollision(false, false);
+}
+
+function updateSelectionStreamingAnchor() {
+    if (!selectionStreamingActive) return;
+
+    const anchor = getSelectionAnchorPosition();
+    setLocalPlayerSelectionAnchor();
+
+    if (!mp.game.streaming) return;
+    if (typeof mp.game.streaming.setFocusPosAndVel === "function") {
+        mp.game.streaming.setFocusPosAndVel(camPos[0], camPos[1], camPos[2], 0.0, 0.0, 0.0);
+    }
+    if (typeof mp.game.streaming.setHdArea === "function") {
+        mp.game.streaming.setHdArea(camPos[0], camPos[1], camPos[2], 90.0);
+    }
+    if (typeof mp.game.streaming.requestCollisionAtCoord === "function") {
+        mp.game.streaming.requestCollisionAtCoord(anchor.x, anchor.y, anchor.z);
+        mp.game.streaming.requestCollisionAtCoord(camPos[0], camPos[1], camPos[2]);
+    }
+}
+
+function startSelectionStreamingAnchor() {
+    selectionStreamingActive = true;
+    updateSelectionStreamingAnchor();
+}
+
+function stopSelectionStreamingAnchor() {
+    selectionStreamingActive = false;
+    if (mp.game.streaming && typeof mp.game.streaming.clearFocus === "function") mp.game.streaming.clearFocus();
+    if (mp.game.streaming && typeof mp.game.streaming.clearHdArea === "function") mp.game.streaming.clearHdArea();
+}
+
+mp.events.add('render', updateSelectionStreamingAnchor);
 
 
 mp.events.add('characterInit.init', (characters, accountInfo) => {
-    mp.players.local.position = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 10);
+    stopSelectionStreamingAnchor();
+    mp.players.local.position = getSelectionAnchorPosition();
     mp.gui.cursor.show(true, true);
     currentCharacter = 0;
     if (characters != null) {
@@ -99,7 +150,11 @@ mp.events.add('characterInit.init', (characters, accountInfo) => {
 });
 
 mp.events.add("characterInit.done", () => {
+    stopSelectionStreamingAnchor();
     mp.gui.cursor.show(false, false);
+    mp.players.local.setAlpha(255);
+    if (typeof mp.players.local.setVisible === "function") mp.players.local.setVisible(true, false);
+    if (typeof mp.players.local.setCollision === "function") mp.players.local.setCollision(true, true);
     mp.players.local.freezePosition(false);
     mp.game.ui.displayRadar(true);
     mp.game.ui.displayHud(true);
@@ -184,6 +239,9 @@ function requestPreviewScene(position) {
     if (typeof mp.game.streaming.setFocusPosAndVel === "function") {
         mp.game.streaming.setFocusPosAndVel(position.x, position.y, position.z, 0.0, 0.0, 0.0);
     }
+    if (typeof mp.game.streaming.setHdArea === "function") {
+        mp.game.streaming.setHdArea(position.x, position.y, position.z, 90.0);
+    }
     if (typeof mp.game.streaming.requestCollisionAtCoord === "function") {
         mp.game.streaming.requestCollisionAtCoord(position.x, position.y, position.z);
     }
@@ -220,6 +278,7 @@ let createPeds = function() {
             }));
             peds.push(ped);
         }
+        startSelectionStreamingAnchor();
         creatorTimer = null;
     }, 500);
 };
