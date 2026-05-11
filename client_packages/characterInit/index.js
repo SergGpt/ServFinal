@@ -13,7 +13,9 @@ let currentCharacter = 0;
 
 /// ИЗМЕНЯТЬ ДАННЫЕ НАСТРОЙКИ ДЛЯ УСТАНОВКИ ПЕДОВ
 /// Начальная координата камеры
-const camPos = [-1209.9, -2511.3, 14.5];//[-222.94, 6584.72, 8];//[1220.15, 195.36, 80.5];//[-1828.8, -870.1, 3.1];
+// LSIA position (-1209.9, -2511.3, 14.5) can stream a large plane LOD after auth flyover.
+// Keep selection away from airport props so loaded flyover assets cannot cover preview peds.
+const camPos = [1220.15, 195.36, 80.5];//[-1209.9, -2511.3, 14.5];//[-222.94, 6584.72, 8];//[-1828.8, -870.1, 3.1];
 /// На сколько ниже камера смотрит, чем находится
 const camPosZDelta = -0.4;
 /// Расстояние от камеры до текущего педа
