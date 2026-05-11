@@ -45,6 +45,65 @@ const selectionLookPos = new mp.Vector3(
 );
 const selectionLoadRadius = 90.0;
 const selectionLoadTimeout = 3000;
+const selectionDebugEvent = "characterInit.selection.debug";
+
+function roundDebugNumber(value) {
+    return Math.round(value * 100) / 100;
+}
+
+function debugVector(vector) {
+    return {
+        x: roundDebugNumber(vector.x),
+        y: roundDebugNumber(vector.y),
+        z: roundDebugNumber(vector.z)
+    };
+}
+
+function getSelectionPedPosition(index) {
+    const x = (camPos[0] + index * pedDist * sinPedRot) + camDist * sinCamRot;
+    const y = (camPos[1] + index * pedDist * cosPedRot) + camDist * cosCamRot;
+    const z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
+
+    return new mp.Vector3(x, y, z);
+}
+
+function getSelectionCameraFrame(index = currentCharacter) {
+    const position = new mp.Vector3(
+        camPos[0] + index * pedDist * sinPedRot,
+        camPos[1] + index * pedDist * cosPedRot,
+        camPos[2]
+    );
+    const lookAt = new mp.Vector3(
+        position.x + camDist * sinCamRot,
+        position.y + camDist * cosCamRot,
+        camPos[2] + camPosZDelta
+    );
+
+    return { position, lookAt, fov: 60 };
+}
+
+function sendSelectionDebug(type, payload) {
+    try {
+        let data = payload || {};
+        data.type = type;
+        data.dimension = selectionDimension;
+        mp.events.callRemote(selectionDebugEvent, JSON.stringify(data));
+    }
+    catch (e) {
+        console.log(`[characterInit] selection debug failed: ${e.message}`);
+    }
+}
+
+function sendCameraDebug(type, index = currentCharacter) {
+    const frame = getSelectionCameraFrame(index);
+
+    sendSelectionDebug(type, {
+        index,
+        camera: debugVector(frame.position),
+        lookAt: debugVector(frame.lookAt),
+        fov: frame.fov
+    });
+}
 
 async function preloadCharacterSelectionScene() {
     if (!mp.game.streaming) return;
@@ -86,7 +145,6 @@ mp.events.add('characterInit.init', async (characters, accountInfo) => {
     mp.players.local.setAlpha(255);
     if (typeof mp.players.local.setVisible === "function") mp.players.local.setVisible(true, false);
     if (typeof mp.players.local.setCollision === "function") mp.players.local.setCollision(true, true);
-    mp.players.local.dimension = selectionDimension;
     mp.players.local.position = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 10);
     mp.events.callRemote('time.sync.request');
     await preloadCharacterSelectionScene();
@@ -120,7 +178,9 @@ mp.events.add('characterInit.init', async (characters, accountInfo) => {
     setInfo();
 
     if (characters != null) {
-        mp.utils.cam.create(camPos[0], camPos[1], camPos[2], camPos[0] + camDist * sinCamRot, camPos[1] + camDist * cosCamRot, camPos[2] + camPosZDelta, 60);
+        const frame = getSelectionCameraFrame(0);
+        mp.utils.cam.create(frame.position.x, frame.position.y, frame.position.z, frame.lookAt.x, frame.lookAt.y, frame.lookAt.z, frame.fov);
+        sendCameraDebug("camera.create", 0);
         slotsNumber = accountInfo.slots;
         mp.callCEFV(`characterInfo.slots = ${accountInfo.slots}`);
         mp.callCEFV(`characterInfo.coins = ${accountInfo.coins}`);
@@ -134,12 +194,9 @@ mp.events.add('characterInit.init', async (characters, accountInfo) => {
 
     }
     else {
-        mp.utils.cam.tpTo(camPos[0] + currentCharacter * pedDist * sinPedRot,
-            camPos[1] + currentCharacter * pedDist * cosPedRot,
-            camPos[2],
-            (camPos[0] + currentCharacter * pedDist * sinPedRot) + camDist * sinCamRot,
-            (camPos[1] + currentCharacter * pedDist * cosPedRot) + camDist * cosCamRot,
-            camPos[2] + camPosZDelta, 60);
+        const frame = getSelectionCameraFrame(currentCharacter);
+        mp.utils.cam.tpTo(frame.position.x, frame.position.y, frame.position.z, frame.lookAt.x, frame.lookAt.y, frame.lookAt.z, frame.fov);
+        sendCameraDebug("camera.tp", currentCharacter);
         mp.callCEFV(`characterInfo.show = true;`);
     }
 
@@ -222,7 +279,6 @@ async function waitCharacterPreviewFrame() {
 
 function forcePreviewPedVisible(ped) {
     if (!ped) return;
-    ped.dimension = selectionDimension;
     if (typeof ped.setAlpha === "function") ped.setAlpha(255, false);
     if (typeof ped.setVisible === "function") ped.setVisible(true, false);
     if (typeof ped.setCollision === "function") ped.setCollision(false, false);
@@ -245,15 +301,21 @@ let createPeds = function() {
             setCharClothes(i);
             setCharTattoos(i);
 
-            let x = (camPos[0] + i * pedDist * sinPedRot) + camDist * sinCamRot;
-            let y = (camPos[1] + i * pedDist * cosPedRot) + camDist * cosCamRot;
-            let z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
-            let previewPos = new mp.Vector3(x, y, z);
+            let previewPos = getSelectionPedPosition(i);
+            let x = previewPos.x;
+            let y = previewPos.y;
+            let z = previewPos.z;
+
+            sendSelectionDebug("ped.place", {
+                index: i,
+                name: charInfos[i] ? charInfos[i].name : null,
+                position: debugVector(previewPos),
+                heading: pedRotation
+            });
 
             mp.players.local.setAlpha(255);
             if (typeof mp.players.local.setVisible === "function") mp.players.local.setVisible(true, false);
             if (typeof mp.players.local.setCollision === "function") mp.players.local.setCollision(false, false);
-            mp.players.local.dimension = selectionDimension;
             mp.players.local.position = previewPos;
             mp.players.local.setHeading(pedRotation);
 
@@ -278,7 +340,6 @@ let createPeds = function() {
         }
         mp.players.local.setAlpha(255);
         if (typeof mp.players.local.setVisible === "function") mp.players.local.setVisible(true, false);
-        mp.players.local.dimension = selectionDimension;
         mp.players.local.position = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 10);
         creatorTimer = null;
     }, 500);
@@ -327,14 +388,16 @@ let chooseLeft = function() {
     currentCharacter--;
     updateMarkers();
     mp.callCEFV(`characterInfo.i = ${currentCharacter};`);
+    const frame = getSelectionCameraFrame(currentCharacter);
     mp.utils.cam.moveTo(
-        camPos[0] + currentCharacter * pedDist * sinPedRot,
-        camPos[1] + currentCharacter * pedDist * cosPedRot,
-        camPos[2],
-        (camPos[0] + currentCharacter * pedDist * sinPedRot) + camDist * sinCamRot,
-        (camPos[1] + currentCharacter * pedDist * cosPedRot) + camDist * cosCamRot,
-        camPos[2] + camPosZDelta,
+        frame.position.x,
+        frame.position.y,
+        frame.position.z,
+        frame.lookAt.x,
+        frame.lookAt.y,
+        frame.lookAt.z,
         500);
+    sendCameraDebug("camera.move", currentCharacter);
 };
 
 let chooseRight = function() {
@@ -343,14 +406,16 @@ let chooseRight = function() {
     currentCharacter++;
     updateMarkers();
     mp.callCEFV(`characterInfo.i = ${currentCharacter};`);
+    const frame = getSelectionCameraFrame(currentCharacter);
     mp.utils.cam.moveTo(
-        camPos[0] + currentCharacter * pedDist * sinPedRot,
-        camPos[1] + currentCharacter * pedDist * cosPedRot,
-        camPos[2],
-        (camPos[0] + currentCharacter * pedDist * sinPedRot) + camDist * sinCamRot,
-        (camPos[1] + currentCharacter * pedDist * cosPedRot) + camDist * cosCamRot,
-        camPos[2] + camPosZDelta,
+        frame.position.x,
+        frame.position.y,
+        frame.position.z,
+        frame.lookAt.x,
+        frame.lookAt.y,
+        frame.lookAt.z,
         500);
+    sendCameraDebug("camera.move", currentCharacter);
 };
 
 let choose = function() {

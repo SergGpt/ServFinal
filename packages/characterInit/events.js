@@ -35,6 +35,39 @@ module.exports = {
             costThirdSlot: characterInit.costThirdSlot,
         }]);
     },
+
+    "characterInit.selection.debug": (player, data) => {
+        let payload;
+
+        try {
+            payload = typeof data === "string" ? JSON.parse(data) : data;
+        }
+        catch (e) {
+            console.log(`[characterInit][selectionDebug] ${player.name || player.id}: invalid payload`);
+            return;
+        }
+
+        if (!payload || typeof payload !== "object") return;
+
+        const playerName = player.name || `id:${player.id}`;
+        const type = payload.type || "unknown";
+        const dimension = payload.dimension == null ? "unknown" : payload.dimension;
+
+        if (type === "ped.place") {
+            const pos = payload.position || {};
+            console.log(`[characterInit][selectionDebug] ${playerName}: ped #${payload.index} (${payload.name || "empty"}) placed at x=${pos.x}, y=${pos.y}, z=${pos.z}, h=${payload.heading}, dim=${dimension}`);
+            return;
+        }
+
+        if (type === "camera.create" || type === "camera.tp" || type === "camera.move") {
+            const camera = payload.camera || {};
+            const lookAt = payload.lookAt || {};
+            console.log(`[characterInit][selectionDebug] ${playerName}: ${type} char #${payload.index}, camera x=${camera.x}, y=${camera.y}, z=${camera.z} -> lookAt x=${lookAt.x}, y=${lookAt.y}, z=${lookAt.z}, fov=${payload.fov}, dim=${dimension}`);
+            return;
+        }
+
+        console.log(`[characterInit][selectionDebug] ${playerName}: ${JSON.stringify(payload).slice(0, 500)}`);
+    },
     "characterInit.choose": (player, charnumber) => {
         if (charnumber == null || isNaN(charnumber)) return player.call('characterInit.choose.ans', [0]);
         if (charnumber < 0 || charnumber > 2) return player.call('characterInit.choose.ans', [0]);
