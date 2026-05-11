@@ -8,6 +8,8 @@ const AUTH_NIGHT_HOUR = 1;
 const AUTH_NIGHT_MINUTE = 15;
 const AUTH_LOOK_AHEAD_PROGRESS = 0.025;
 const AUTH_FADE_TRANSITION = 3600;
+const AUTH_STREAMING_ANCHOR_BACK_DISTANCE = 8.0;
+const AUTH_STREAMING_ANCHOR_DOWN_OFFSET = 2.0;
 
 // Дальний маршрут разбит на сцены. Между сценами камера затемняется и переносится,
 // чтобы не лететь через всю карту, горы и дома.
@@ -185,20 +187,36 @@ function applyAuthNight() {
 function restoreServerTime() {
     mp.events.callRemote('time.sync.request');
 }
+
+function getAuthStreamingAnchorPosition(pos, look) {
+    const forwardX = look.x - pos.x;
+    const forwardY = look.y - pos.y;
+    const length = Math.sqrt(forwardX * forwardX + forwardY * forwardY) || 1.0;
+
+    // Ставим локального игрока не невидимым, а живым streaming anchor позади камеры.
+    // Так он не попадает в кадр, но не оставляет player в hidden/alpha=0 состоянии,
+    // которое потом ломает cloneToTarget в выборе персонажа.
+    return new mp.Vector3(
+        pos.x - (forwardX / length) * AUTH_STREAMING_ANCHOR_BACK_DISTANCE,
+        pos.y - (forwardY / length) * AUTH_STREAMING_ANCHOR_BACK_DISTANCE,
+        pos.z - AUTH_STREAMING_ANCHOR_DOWN_OFFSET
+    );
+}
+
 function updateAuthStreamingAnchor(pos, look) {
     const player = mp.players.local;
-    const anchor = new mp.Vector3(pos.x, pos.y, pos.z - 8.0);
+    const anchor = getAuthStreamingAnchorPosition(pos, look);
 
-    // Главный фикс мыла/LOD: локальный персонаж остается невидимым, но физически идет
-    // вместе с камерой и заставляет клиент стримить HD-текстуры вокруг пролета.
     player.position = anchor;
-    player.setAlpha(0);
+    player.setAlpha(255);
+    if (typeof player.setVisible === "function") player.setVisible(true, false);
     player.freezePosition(true);
 
     if (typeof player.setCollision === "function") player.setCollision(false, false);
     if (mp.game.streaming && typeof mp.game.streaming.requestCollisionAtCoord === "function") {
         mp.game.streaming.requestCollisionAtCoord(pos.x, pos.y, pos.z);
         mp.game.streaming.requestCollisionAtCoord(look.x, look.y, look.z);
+        mp.game.streaming.requestCollisionAtCoord(anchor.x, anchor.y, anchor.z);
     }
 }
 
@@ -259,7 +277,8 @@ function prepareHiddenAuthPlayer() {
     const player = mp.players.local;
 
     player.freezePosition(true);
-    player.setAlpha(0);
+    player.setAlpha(255);
+    if (typeof player.setVisible === "function") player.setVisible(true, false);
     if (typeof player.setCollision === "function") player.setCollision(false, false);
 }
 
@@ -277,7 +296,7 @@ function restoreAuthPlayer(showCharacter, unfreeze, restorePosition) {
         targetPosition.z,
         false, false, false, false
     );
-    player.setAlpha(showCharacter ? 255 : 0);
+    player.setAlpha(255);
     if (typeof player.setVisible === "function") player.setVisible(true, false);
     if (typeof player.setCollision === "function") player.setCollision(true, true);
     player.freezePosition(!unfreeze);
