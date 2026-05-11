@@ -192,7 +192,7 @@ function updateAuthStreamingAnchor(pos, look) {
     // Главный фикс мыла/LOD: локальный персонаж остается невидимым, но физически идет
     // вместе с камерой и заставляет клиент стримить HD-текстуры вокруг пролета.
     player.position = anchor;
-    player.setAlpha(0, false);
+    player.setAlpha(0);
     player.freezePosition(true);
 
     if (typeof player.setCollision === "function") player.setCollision(false, false);
@@ -259,7 +259,7 @@ function prepareHiddenAuthPlayer() {
     const player = mp.players.local;
 
     player.freezePosition(true);
-    player.setAlpha(0, false);
+    player.setAlpha(0);
     if (typeof player.setCollision === "function") player.setCollision(false, false);
 }
 
@@ -277,7 +277,7 @@ function restoreAuthPlayer(showCharacter, unfreeze, restorePosition) {
         targetPosition.z,
         false, false, false, false
     );
-    player.setAlpha(showCharacter ? 255 : 0, false);
+    player.setAlpha(showCharacter ? 255 : 0);
     if (typeof player.setVisible === "function") player.setVisible(true, false);
     if (typeof player.setCollision === "function") player.setCollision(true, true);
     player.freezePosition(!unfreeze);
