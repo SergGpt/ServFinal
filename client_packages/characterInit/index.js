@@ -85,7 +85,6 @@ mp.events.add('characterInit.init', (characters, accountInfo) => {
         isBinding = true;
     }
 
-    requestPreviewScene(new mp.Vector3(camPos[0], camPos[1], camPos[2]));
     createPeds();
     setInfo();
 
@@ -202,52 +201,18 @@ async function waitFreemodeModel(modelHash) {
     }
 }
 
-function getPreviewPedPosition(index) {
-    let x = (camPos[0] + index * pedDist * sinPedRot) + camDist * sinCamRot;
-    let y = (camPos[1] + index * pedDist * cosPedRot) + camDist * cosCamRot;
-    let z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
-
-    // Если коллизия сцены выбора ещё не загружена, groundZ может вернуть 0,
-    // и cloned ped уйдёт под карту. В таком случае держим высоту около камеры.
-    if (!z || z < camPos[2] - 20) z = camPos[2] - 1;
-
-    return new mp.Vector3(x, y, z);
-}
-
-function requestPreviewScene(position) {
-    if (!mp.game.streaming) return;
-
-    if (typeof mp.game.streaming.setFocusPosAndVel === "function") {
-        mp.game.streaming.setFocusPosAndVel(position.x, position.y, position.z, 0.0, 0.0, 0.0);
-    }
-    if (typeof mp.game.streaming.setHdArea === "function") {
-        mp.game.streaming.setHdArea(position.x, position.y, position.z, 90.0);
-    }
-    if (typeof mp.game.streaming.requestCollisionAtCoord === "function") {
-        mp.game.streaming.requestCollisionAtCoord(position.x, position.y, position.z);
-    }
-    if (typeof mp.game.streaming.loadScene === "function") {
-        mp.game.streaming.loadScene(position.x, position.y, position.z);
-    }
-}
-
 let createPeds = function() {
     if (peds.length !== 0) return;
     creatorTimer = mp.timer.add(async () => {
         for (let i = 0; i < charNum; i++) {
-            let previewPos = getPreviewPedPosition(i);
-            requestPreviewScene(previewPos);
-
-            // Как было в main: внешний вид сначала полностью применяется к локальному игроку
-            // из данных БД, затем cloneToTarget копирует уже готового персонажа в preview ped.
             await setCharCustom(i);
             setCharClothes(i);
             setCharTattoos(i);
 
-            let x = previewPos.x;
-            let y = previewPos.y;
-            let z = previewPos.z;
-            let ped = mp.peds.new(mp.players.local.model, previewPos, pedRotation, mp.players.local.dimension);
+            let x = (camPos[0] + i * pedDist * sinPedRot) + camDist * sinCamRot;
+            let y = (camPos[1] + i * pedDist * cosPedRot) + camDist * cosCamRot;
+            let z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
+            let ped = mp.peds.new(mp.players.local.model, new mp.Vector3(x, y, z), pedRotation, mp.players.local.dimension);
             await waitCharacterPreviewFrame();
             mp.players.local.cloneToTarget(ped.handle);
             if (typeof ped.setVisible === "function") ped.setVisible(true, false);
@@ -272,10 +237,9 @@ let updateMarkers = function() {
     for (let i = 0; i < selectMarkers.length; i++) {
         selectMarkers[i].destroy();
 
-        let previewPos = getPreviewPedPosition(i);
-        let x = previewPos.x;
-        let y = previewPos.y;
-        let z = previewPos.z;
+        let x = (camPos[0] + i * pedDist * sinPedRot) + camDist * sinCamRot;
+        let y = (camPos[1] + i * pedDist * cosPedRot) + camDist * cosCamRot;
+        let z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
 
         selectMarkers[i] = mp.markers.new(2, new mp.Vector3(x, y, z + 1),
             0.2, {
