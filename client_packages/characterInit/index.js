@@ -14,7 +14,7 @@ let currentCharacter = 0;
 /// ИЗМЕНЯТЬ ДАННЫЕ НАСТРОЙКИ ДЛЯ УСТАНОВКИ ПЕДОВ
 /// Начальная координата камеры
 // LSIA position (-1209.9, -2511.3, 14.5) can stream a large plane LOD after auth flyover.
-// Keep selection away from airport props so loaded flyover assets cannot cover preview peds.
+// Keep selection away from airport props, but keep local cloned preview peds exactly as before.
 const camPos = [1220.15, 195.36, 80.5];//[-1209.9, -2511.3, 14.5];//[-222.94, 6584.72, 8];//[-1828.8, -870.1, 3.1];
 /// На сколько ниже камера смотрит, чем находится
 const camPosZDelta = -0.4;
@@ -66,6 +66,7 @@ mp.events.add('characterInit.init', (characters, accountInfo) => {
         isBinding = true;
     }
 
+    requestPreviewScene(new mp.Vector3(camPos[0], camPos[1], camPos[2]));
     createPeds();
     setInfo();
 
@@ -159,18 +160,54 @@ mp.events.add('characterInit.chooseLeft', () => {
     chooseLeft();
 });
 
+async function waitCharacterPreviewFrame() {
+    if (mp.game && typeof mp.game.waitAsync === "function") {
+        await mp.game.waitAsync(0);
+    }
+}
+
+function getPreviewPedPosition(index) {
+    let x = (camPos[0] + index * pedDist * sinPedRot) + camDist * sinCamRot;
+    let y = (camPos[1] + index * pedDist * cosPedRot) + camDist * cosCamRot;
+    let z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
+
+    // If collision is not loaded at the new non-airport selection scene, groundZ can return 0
+    // and cloned peds spawn underground. Fall back near the configured camera height.
+    if (!z || z < camPos[2] - 20) z = camPos[2] - 1;
+
+    return new mp.Vector3(x, y, z);
+}
+
+function requestPreviewScene(position) {
+    if (!mp.game.streaming) return;
+
+    if (typeof mp.game.streaming.setFocusPosAndVel === "function") {
+        mp.game.streaming.setFocusPosAndVel(position.x, position.y, position.z, 0.0, 0.0, 0.0);
+    }
+    if (typeof mp.game.streaming.requestCollisionAtCoord === "function") {
+        mp.game.streaming.requestCollisionAtCoord(position.x, position.y, position.z);
+    }
+    if (typeof mp.game.streaming.loadScene === "function") {
+        mp.game.streaming.loadScene(position.x, position.y, position.z);
+    }
+}
+
 let createPeds = function() {
     if (peds.length !== 0) return;
     creatorTimer = mp.timer.add(async () => {
         for (let i = 0; i < charNum; i++) {
             setCharCustom(i);
+            await waitCharacterPreviewFrame();
             setCharClothes(i);
             setCharTattoos(i);
 
-            let x = (camPos[0] + i * pedDist * sinPedRot) + camDist * sinCamRot;
-            let y = (camPos[1] + i * pedDist * cosPedRot) + camDist * cosCamRot;
-            let z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
-            let ped = mp.peds.new(mp.players.local.model, new mp.Vector3(x, y, z), pedRotation, mp.players.local.dimension);
+            let previewPos = getPreviewPedPosition(i);
+            requestPreviewScene(previewPos);
+            let x = previewPos.x;
+            let y = previewPos.y;
+            let z = previewPos.z;
+            let ped = mp.peds.new(mp.players.local.model, previewPos, pedRotation, mp.players.local.dimension);
+            await waitCharacterPreviewFrame();
             mp.players.local.cloneToTarget(ped.handle);
 
             selectMarkers.push(mp.markers.new(2, new mp.Vector3(x, y, z + 1), 0.2,
@@ -191,9 +228,10 @@ let updateMarkers = function() {
     for (let i = 0; i < selectMarkers.length; i++) {
         selectMarkers[i].destroy();
 
-        let x = (camPos[0] + i * pedDist * sinPedRot) + camDist * sinCamRot;
-        let y = (camPos[1] + i * pedDist * cosPedRot) + camDist * cosCamRot;
-        let z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
+        let previewPos = getPreviewPedPosition(i);
+        let x = previewPos.x;
+        let y = previewPos.y;
+        let z = previewPos.z;
 
         selectMarkers[i] = mp.markers.new(2, new mp.Vector3(x, y, z + 1),
             0.2, {
