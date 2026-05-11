@@ -222,7 +222,15 @@ let createPeds = function() {
             let x = (camPos[0] + i * pedDist * sinPedRot) + camDist * sinCamRot;
             let y = (camPos[1] + i * pedDist * cosPedRot) + camDist * cosCamRot;
             let z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
-            let ped = mp.peds.new(mp.players.local.model, new mp.Vector3(x, y, z), pedRotation, mp.players.local.dimension);
+            let previewPos = new mp.Vector3(x, y, z);
+
+            mp.players.local.setAlpha(255);
+            if (typeof mp.players.local.setVisible === "function") mp.players.local.setVisible(true, false);
+            if (typeof mp.players.local.setCollision === "function") mp.players.local.setCollision(false, false);
+            mp.players.local.position = previewPos;
+            mp.players.local.setHeading(pedRotation);
+
+            let ped = mp.peds.new(mp.players.local.model, previewPos, pedRotation, mp.players.local.dimension);
             mp.players.local.cloneToTarget(ped.handle);
             if (typeof ped.setAlpha === "function") ped.setAlpha(255, false);
             if (typeof ped.setVisible === "function") ped.setVisible(true, false);
@@ -237,6 +245,8 @@ let createPeds = function() {
             }));
             peds.push(ped);
         }
+        mp.players.local.setAlpha(0);
+        mp.players.local.position = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 10);
         creatorTimer = null;
     }, 500);
 };
