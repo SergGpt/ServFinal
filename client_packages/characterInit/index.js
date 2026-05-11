@@ -139,7 +139,11 @@ async function preloadCharacterSelectionScene() {
 
 
 mp.events.add('characterInit.init', async (characters, accountInfo) => {
-    selectionDimension = mp.players.local.dimension;
+    selectionDimension = accountInfo && accountInfo.selectionDimension != null ? accountInfo.selectionDimension : mp.players.local.dimension;
+    sendSelectionDebug("client.dimension", {
+        localDimension: mp.players.local.dimension,
+        serverSelectionDimension: selectionDimension
+    });
     mp.players.local.setAlpha(255);
     if (typeof mp.players.local.setVisible === "function") mp.players.local.setVisible(true, false);
     if (typeof mp.players.local.setCollision === "function") mp.players.local.setCollision(true, true);

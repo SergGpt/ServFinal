@@ -9,6 +9,7 @@ let donate;
 
 const freemodeCharacters = [mp.joaat("mp_m_freemode_01"), mp.joaat("mp_f_freemode_01")];
 const selectionCamPos = [-1209.9, -2511.3, 14.5];
+const selectionPlayerPos = new mp.Vector3(selectionCamPos[0], selectionCamPos[1], selectionCamPos[2] - 10);
 const selectionCamDist = 2.5;
 const selectionPedDist = 2.5;
 const selectionPedsRotation = 70;
@@ -167,6 +168,8 @@ module.exports = {
 
         if (!player.characterInit) player.characterInit = { created: false };
         player.dimension = player.id + 1000;
+        player.position = selectionPlayerPos;
+        console.log(`[characterInit][selectionDebug] ${player.name || player.id}: moved player to selection streamer anchor ${formatSelectionPosition(selectionPlayerPos)}, dim=${player.dimension}`);
         createSelectionPreviewPeds(player, charInfos);
 
         player.call('characterInit.init', [charInfos, {
@@ -175,6 +178,7 @@ module.exports = {
             costSecondSlot: characterInit.costSecondSlot,
             timeForSecondSlot: characterInit.timeForSecondSlot,
             costThirdSlot: characterInit.costThirdSlot,
+            selectionDimension: player.dimension,
         }]);
     },
 
@@ -194,6 +198,11 @@ module.exports = {
         const playerName = player.name || `id:${player.id}`;
         const type = payload.type || "unknown";
         const dimension = payload.dimension == null ? "unknown" : payload.dimension;
+
+        if (type === "client.dimension") {
+            console.log(`[characterInit][selectionDebug] ${playerName}: client localDimension=${payload.localDimension}, serverSelectionDimension=${payload.serverSelectionDimension}, currentServerDimension=${player.dimension}`);
+            return;
+        }
 
         if (type === "marker.place") {
             const pos = payload.position || {};
