@@ -62,7 +62,28 @@ module.exports = {
         if (type === "ped.visibility") {
             const visibility = payload.visibility || {};
             const pos = visibility.position || {};
-            console.log(`[characterInit][selectionDebug] ${playerName}: ped #${payload.index} (${payload.name || "empty"}) visibility ${payload.stage}, exists=${visibility.exists}, visible=${visibility.visible}, alpha=${visibility.alpha}, onScreen=${visibility.onScreen}, occluded=${visibility.occluded}, handle=${visibility.handle}, pos x=${pos.x}, y=${pos.y}, z=${pos.z}, dim=${dimension}`);
+            console.log(`[characterInit][selectionDebug] ${playerName}: ped #${payload.index} (${payload.name || "empty"}) visibility ${payload.stage}, exists=${visibility.exists}, collectionExists=${visibility.collectionExists}, nativeExists=${visibility.nativeExists}, visible=${visibility.visible}, alpha=${visibility.alpha}, onScreen=${visibility.onScreen}, occluded=${visibility.occluded}, handle=${visibility.handle}, pos x=${pos.x}, y=${pos.y}, z=${pos.z}, dim=${dimension}`);
+            return;
+        }
+
+        if (type === "ped.handle") {
+            const visibility = payload.visibility || {};
+            console.log(`[characterInit][selectionDebug] ${playerName}: ped #${payload.index} (${payload.name || "empty"}) handle mode=${payload.mode || "unknown"}, ready=${payload.ready}, waitedMs=${payload.waitedMs}, collectionExists=${visibility.collectionExists}, nativeExists=${visibility.nativeExists}, handle=${visibility.handle}, dim=${dimension}`);
+            return;
+        }
+
+        if (type === "ped.create.error") {
+            console.log(`[characterInit][selectionDebug] ${playerName}: ped #${payload.index} (${payload.name || "empty"}) create error mode=${payload.mode || "unknown"}, message=${payload.message}, dim=${dimension}`);
+            return;
+        }
+
+        if (type === "ped.retry") {
+            console.log(`[characterInit][selectionDebug] ${playerName}: ped #${payload.index} (${payload.name || "empty"}) retry reason=${payload.reason}, dim=${dimension}`);
+            return;
+        }
+
+        if (type === "ped.model") {
+            console.log(`[characterInit][selectionDebug] ${playerName}: ped model ${payload.model} loaded=${payload.loaded}, reason=${payload.reason || "none"}, dim=${dimension}`);
             return;
         }
 
