@@ -13,7 +13,7 @@ const AUTH_FADE_TRANSITION = 3600;
 // чтобы не лететь через всю карту, горы и дома.
 const AUTH_FLYOVER_CHAPTERS = [
     {
-        duration: 110000,
+        duration: 120000,
         points: [
             new mp.Vector3(216.0445, 3154.8665, 58.8),
             new mp.Vector3(231.1114, 3303.8716, 53.8),
@@ -25,7 +25,7 @@ const AUTH_FLYOVER_CHAPTERS = [
         ]
     },
     {
-        duration: 125000,
+        duration: 137000,
         points: [
             new mp.Vector3(1398.8704, 745.3566, 132.0),
             new mp.Vector3(1258.8607, 567.9809, 106.0),
@@ -38,7 +38,7 @@ const AUTH_FLYOVER_CHAPTERS = [
         ]
     },
     {
-        duration: 95000,
+        duration: 104000,
         points: [
             new mp.Vector3(745.2211, -2493.5164, 40.0),
             new mp.Vector3(737.8945, -2534.5581, 35.5),
