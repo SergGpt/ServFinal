@@ -2,30 +2,39 @@
 
 let authCam = null;
 let authCamTimer = null;
+let lastAuthCameraStreamRequest = 0;
 
-function updateAuthCameraStreamingFocus(position, lookAt) {
+const AUTH_CAMERA_STREAM_REQUEST_INTERVAL = 350;
+
+function requestAuthCameraScene(position, lookAt, force = false) {
     if (!mp.game.streaming) return;
 
-    // Безопасный LOD-фикс: двигаем только streaming focus камеры,
-    // НЕ трогаем mp.players.local.position/alpha/visible.
-    if (typeof mp.game.streaming.setFocusPosAndVel === "function") {
-        mp.game.streaming.setFocusPosAndVel(position.x, position.y, position.z, 0.0, 0.0, 0.0);
-    }
-    if (typeof mp.game.streaming.setHdArea === "function") {
-        mp.game.streaming.setHdArea(position.x, position.y, position.z, 90.0);
-    }
+    const now = Date.now();
+    if (!force && now - lastAuthCameraStreamRequest < AUTH_CAMERA_STREAM_REQUEST_INTERVAL) return;
+    lastAuthCameraStreamRequest = now;
+
+    // Максимально безопасный вариант: только одноразовые requests вокруг камеры.
+    // Не используем setFocusPosAndVel/setFocusArea/setHdArea и не двигаем игрока,
+    // чтобы не оставить persistent streaming override перед выбором персонажа.
     if (typeof mp.game.streaming.requestCollisionAtCoord === "function") {
         mp.game.streaming.requestCollisionAtCoord(position.x, position.y, position.z);
         mp.game.streaming.requestCollisionAtCoord(lookAt.x, lookAt.y, lookAt.z);
+    }
+    if (typeof mp.game.streaming.requestAdditionalCollisionAtCoord === "function") {
+        mp.game.streaming.requestAdditionalCollisionAtCoord(position.x, position.y, position.z);
+        mp.game.streaming.requestAdditionalCollisionAtCoord(lookAt.x, lookAt.y, lookAt.z);
     }
     if (typeof mp.game.streaming.loadScene === "function") {
         mp.game.streaming.loadScene(position.x, position.y, position.z);
     }
 }
 
-function clearAuthCameraStreamingFocus() {
+function clearAuthCameraStreamingState() {
+    lastAuthCameraStreamRequest = 0;
     if (!mp.game.streaming) return;
 
+    // На случай если старый клиент/прошлая версия уже выставляла focus/HD area,
+    // чистим при выходе из auth. В новой логике эти persistent методы не ставятся.
     if (typeof mp.game.streaming.clearFocus === "function") mp.game.streaming.clearFocus();
     if (typeof mp.game.streaming.clearHdArea === "function") mp.game.streaming.clearHdArea();
     if (typeof mp.game.streaming.newLoadSceneStop === "function") mp.game.streaming.newLoadSceneStop();
@@ -66,7 +75,7 @@ mp.events.add('auth.init', () => {
     authCam = mp.cameras.new("authCam", startPos, new mp.Vector3(0,0,0), 50);
     authCam.pointAtCoord(lookAt.x, lookAt.y, lookAt.z);
     authCam.setActive(true);
-    updateAuthCameraStreamingFocus(startPos, lookAt);
+    requestAuthCameraScene(startPos, lookAt, true);
     mp.game.cam.renderScriptCams(true, false, 2000, true, false);
 
     authCamTimer = setInterval(() => {
@@ -98,7 +107,7 @@ mp.events.add('auth.init', () => {
         const camPosition = new mp.Vector3(x, y, z);
         authCam.setCoord(x, y, z);
         authCam.pointAtCoord(lookAt.x, lookAt.y, lookAt.z);
-        updateAuthCameraStreamingFocus(camPosition, lookAt);
+        requestAuthCameraScene(camPosition, lookAt);
     }, 0);
 
     mp.callCEFV(`auth.show = true;`);
@@ -118,7 +127,7 @@ mp.events.add('auth.destroy', () => {
         authCam.destroy();
         authCam = null;
     }
-    clearAuthCameraStreamingFocus();
+    clearAuthCameraStreamingState();
 
     // 🔥 ПОЛНОЕ ВОССТАНОВЛЕНИЕ КАМЕРЫ (3 строки!)
     mp.game.cam.renderScriptCams(false, false, 0, true, false);
@@ -145,7 +154,7 @@ mp.events.add('character.select', () => {
     const player = mp.players.local;
 
     player.setAlpha(255);
-    clearAuthCameraStreamingFocus();
+    clearAuthCameraStreamingState();
 
     // 🔥 ПОЛНОЕ ВОССТАНОВЛЕНИЕ КАМЕРЫ (3 строки!)
     mp.game.cam.renderScriptCams(false, false, 0, true, false);
@@ -169,7 +178,7 @@ mp.events.add('playerSpawn', (pos) => {
     const player = mp.players.local;
 
     player.setAlpha(255);
-    clearAuthCameraStreamingFocus();
+    clearAuthCameraStreamingState();
 
     // 🔥 ПОЛНОЕ ВОССТАНОВЛЕНИЕ КАМЕРЫ (3 строки!)
     mp.game.cam.renderScriptCams(false, false, 0, true, false);
