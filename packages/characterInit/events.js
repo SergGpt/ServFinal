@@ -7,144 +7,6 @@ let utils = call("utils");
 let inventory;
 let donate;
 
-const freemodeCharacters = [mp.joaat("mp_m_freemode_01"), mp.joaat("mp_f_freemode_01")];
-const selectionCamPos = [-1209.9, -2511.3, 14.5];
-const selectionPlayerPos = new mp.Vector3(selectionCamPos[0], selectionCamPos[1], selectionCamPos[2] - 10);
-const selectionCamDist = 2.5;
-const selectionPedDist = 2.5;
-const selectionPedsRotation = 70;
-const selectionPedRotation = 260;
-const selectionCamRotation = 300;
-const selectionPreviewZ = 13.95;
-const selectionSinCamRot = Math.sin(selectionCamRotation * Math.PI / 180);
-const selectionCosCamRot = Math.cos(selectionCamRotation * Math.PI / 180);
-const selectionSinPedRot = Math.sin((selectionPedsRotation - 90) * Math.PI / 180);
-const selectionCosPedRot = Math.cos((selectionPedsRotation - 90) * Math.PI / 180);
-
-function roundSelectionDebug(value) {
-    return Math.round(value * 100) / 100;
-}
-
-function getSelectionPreviewPosition(index) {
-    return new mp.Vector3(
-        (selectionCamPos[0] + index * selectionPedDist * selectionSinPedRot) + selectionCamDist * selectionSinCamRot,
-        (selectionCamPos[1] + index * selectionPedDist * selectionCosPedRot) + selectionCamDist * selectionCosCamRot,
-        selectionPreviewZ
-    );
-}
-
-function formatSelectionPosition(position) {
-    return `x=${roundSelectionDebug(position.x)}, y=${roundSelectionDebug(position.y)}, z=${roundSelectionDebug(position.z)}`;
-}
-
-function getPedDebugId(ped) {
-    if (!ped) return "null";
-    if (ped.id != null) return ped.id;
-    if (ped.remoteId != null) return ped.remoteId;
-    return "unknown";
-}
-
-function safePedCall(ped, method, args) {
-    if (!ped || typeof ped[method] !== "function") return false;
-
-    try {
-        ped[method](...args);
-        return true;
-    }
-    catch (e) {
-        return false;
-    }
-}
-
-function safePedAssign(ped, key, value) {
-    if (!ped) return false;
-
-    try {
-        ped[key] = value;
-        return true;
-    }
-    catch (e) {
-        return false;
-    }
-}
-
-function applySelectionPreviewPedView(ped, characterData) {
-    if (!ped || !characterData) return;
-
-    const info = characterData.charInfo || {};
-    const clothes = characterData.charClothes || {};
-
-    safePedCall(ped, "setClothes", [2, info.hair || 0, 0, 2]);
-
-    if (Array.isArray(clothes.clothes)) {
-        clothes.clothes.forEach(item => {
-            safePedCall(ped, "setClothes", [item[0], item[1], item[2], 0]);
-        });
-    }
-
-    if (Array.isArray(clothes.props)) {
-        clothes.props.forEach(item => {
-            safePedCall(ped, "setProp", [item[0], item[1], item[2]]);
-        });
-    }
-}
-
-function destroySelectionPreviewPeds(player, reason = "unknown") {
-    if (!player.characterInit || !Array.isArray(player.characterInit.previewPeds)) return;
-
-    player.characterInit.previewPeds.forEach((ped) => {
-        if (!ped) return;
-
-        try {
-            if (typeof ped.destroy === "function") ped.destroy();
-        }
-        catch (e) {
-            console.log(`[characterInit][selectionDebug] ${player.name || player.id}: failed to destroy server preview ped id=${getPedDebugId(ped)}, reason=${reason}, error=${e.message}`);
-        }
-    });
-
-    player.characterInit.previewPeds = [];
-    console.log(`[characterInit][selectionDebug] ${player.name || player.id}: destroyed server preview peds, reason=${reason}`);
-}
-
-function createSelectionPreviewPeds(player, charInfos) {
-    if (!player.characterInit) player.characterInit = { created: false };
-
-    destroySelectionPreviewPeds(player, "recreate");
-    player.characterInit.previewPeds = [];
-
-    for (let i = 0; i < charInfos.length; i++) {
-        const info = charInfos[i].charInfo || {};
-        const gender = info.gender === 1 ? 1 : 0;
-        const model = freemodeCharacters[gender];
-        const position = getSelectionPreviewPosition(i);
-        let ped;
-
-        try {
-            ped = mp.peds.new(model, position, {
-                heading: selectionPedRotation,
-                dimension: player.dimension,
-                dynamic: true,
-                invincible: true,
-            });
-        }
-        catch (e) {
-            console.log(`[characterInit][selectionDebug] ${player.name || player.id}: failed to create server preview ped #${i}, model=${model}, name=${info.name || "empty"}, ${formatSelectionPosition(position)}, dim=${player.dimension}, error=${e.message}`);
-            continue;
-        }
-
-        safePedAssign(ped, "dimension", player.dimension);
-        safePedAssign(ped, "heading", selectionPedRotation);
-        safePedAssign(ped, "alpha", 255);
-        safePedAssign(ped, "visible", true);
-
-        applySelectionPreviewPedView(ped, charInfos[i]);
-        player.characterInit.previewPeds.push(ped);
-
-        console.log(`[characterInit][selectionDebug] ${player.name || player.id}: server preview ped #${i} id=${getPedDebugId(ped)}, model=${model}, name=${info.name || "empty"}, ${formatSelectionPosition(position)}, h=${selectionPedRotation}, dim=${player.dimension}`);
-    }
-}
-
 module.exports = {
     "init": () => {
         admin = call('admin');
@@ -165,106 +27,22 @@ module.exports = {
             player.account.slots = 2;
             await player.account.save();
         }
-
-        if (!player.characterInit) player.characterInit = { created: false };
-        player.dimension = player.id + 1000;
-        player.position = selectionPlayerPos;
-        console.log(`[characterInit][selectionDebug] ${player.name || player.id}: moved player to selection streamer anchor ${formatSelectionPosition(selectionPlayerPos)}, dim=${player.dimension}`);
-        createSelectionPreviewPeds(player, charInfos);
-
         player.call('characterInit.init', [charInfos, {
             slots: player.account.slots,
             coins: player.account.donate,
             costSecondSlot: characterInit.costSecondSlot,
             timeForSecondSlot: characterInit.timeForSecondSlot,
             costThirdSlot: characterInit.costThirdSlot,
-            selectionDimension: player.dimension,
         }]);
-    },
-
-    "characterInit.selection.debug": (player, data) => {
-        let payload;
-
-        try {
-            payload = typeof data === "string" ? JSON.parse(data) : data;
-        }
-        catch (e) {
-            console.log(`[characterInit][selectionDebug] ${player.name || player.id}: invalid payload`);
-            return;
-        }
-
-        if (!payload || typeof payload !== "object") return;
-
-        const playerName = player.name || `id:${player.id}`;
-        const type = payload.type || "unknown";
-        const dimension = payload.dimension == null ? "unknown" : payload.dimension;
-
-        if (type === "client.dimension") {
-            console.log(`[characterInit][selectionDebug] ${playerName}: client localDimension=${payload.localDimension}, serverSelectionDimension=${payload.serverSelectionDimension}, currentServerDimension=${player.dimension}`);
-            return;
-        }
-
-        if (type === "marker.place") {
-            const pos = payload.position || {};
-            const marker = payload.marker || {};
-            console.log(`[characterInit][selectionDebug] ${playerName}: marker #${payload.index} (${payload.name || "empty"}) pedPos x=${pos.x}, y=${pos.y}, z=${pos.z}, marker x=${marker.x}, y=${marker.y}, z=${marker.z}, dim=${dimension}`);
-            return;
-        }
-
-        if (type === "ped.place") {
-            const pos = payload.position || {};
-            console.log(`[characterInit][selectionDebug] ${playerName}: ped #${payload.index} (${payload.name || "empty"}) placed at x=${pos.x}, y=${pos.y}, z=${pos.z}, h=${payload.heading}, dim=${dimension}`);
-            return;
-        }
-
-        if (type === "ped.visibility") {
-            const visibility = payload.visibility || {};
-            const pos = visibility.position || {};
-            console.log(`[characterInit][selectionDebug] ${playerName}: ped #${payload.index} (${payload.name || "empty"}) visibility ${payload.stage}, exists=${visibility.exists}, collectionExists=${visibility.collectionExists}, nativeExists=${visibility.nativeExists}, visible=${visibility.visible}, alpha=${visibility.alpha}, onScreen=${visibility.onScreen}, occluded=${visibility.occluded}, handle=${visibility.handle}, pos x=${pos.x}, y=${pos.y}, z=${pos.z}, dim=${dimension}`);
-            return;
-        }
-
-        if (type === "ped.handle") {
-            const visibility = payload.visibility || {};
-            console.log(`[characterInit][selectionDebug] ${playerName}: ped #${payload.index} (${payload.name || "empty"}) handle mode=${payload.mode || "unknown"}, ready=${payload.ready}, waitedMs=${payload.waitedMs}, collectionExists=${visibility.collectionExists}, nativeExists=${visibility.nativeExists}, handle=${visibility.handle}, dim=${dimension}`);
-            return;
-        }
-
-        if (type === "ped.create.error") {
-            console.log(`[characterInit][selectionDebug] ${playerName}: ped #${payload.index} (${payload.name || "empty"}) create error mode=${payload.mode || "unknown"}, message=${payload.message}, dim=${dimension}`);
-            return;
-        }
-
-        if (type === "ped.retry") {
-            console.log(`[characterInit][selectionDebug] ${playerName}: ped #${payload.index} (${payload.name || "empty"}) retry reason=${payload.reason}, dim=${dimension}`);
-            return;
-        }
-
-        if (type === "ped.model") {
-            console.log(`[characterInit][selectionDebug] ${playerName}: ped model ${payload.model} loaded=${payload.loaded}, reason=${payload.reason || "none"}, dim=${dimension}`);
-            return;
-        }
-
-        if (type === "camera.create" || type === "camera.tp" || type === "camera.move") {
-            const camera = payload.camera || {};
-            const lookAt = payload.lookAt || {};
-            console.log(`[characterInit][selectionDebug] ${playerName}: ${type} char #${payload.index}, camera x=${camera.x}, y=${camera.y}, z=${camera.z} -> lookAt x=${lookAt.x}, y=${lookAt.y}, z=${lookAt.z}, fov=${payload.fov}, dim=${dimension}`);
-            return;
-        }
-
-        console.log(`[characterInit][selectionDebug] ${playerName}: ${JSON.stringify(payload).slice(0, 500)}`);
     },
     "characterInit.choose": (player, charnumber) => {
         if (charnumber == null || isNaN(charnumber)) return player.call('characterInit.choose.ans', [0]);
         if (charnumber < 0 || charnumber > 2) return player.call('characterInit.choose.ans', [0]);
 
-        destroySelectionPreviewPeds(player, "choose");
-
         if (player.characters[charnumber]) {
             player.character = player.characters[charnumber];
             player.name = player.character.name;
             delete player.characters;
-            player.dimension = 0;
             characterInit.applyCharacter(player);
 
             player.call('characterInit.choose.ans', [1]);
@@ -357,7 +135,6 @@ module.exports = {
     },
     /// Разморозка игрока после выбора персоонажа
     "characterInit.done": (player) => {
-        destroySelectionPreviewPeds(player, "done");
         player.call('characterInit.done');
         player.authTime = Date.now();
 
@@ -378,7 +155,6 @@ module.exports = {
         }
     },
     "playerQuit": (player) => {
-        destroySelectionPreviewPeds(player, "quit");
         if (!player.character) return;
 
         var minutes = parseInt((Date.now() - player.authTime) / 1000 / 60);
