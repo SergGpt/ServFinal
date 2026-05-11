@@ -1,10 +1,9 @@
 "use strict";
 
 let authCam = null;
-let authCamTimer = null;
 let authCamStartedAt = 0;
 const AUTH_PLAYER_HIDDEN_POS = new mp.Vector3(-871.583, -3367.291, 93.112);
-const AUTH_FLYOVER_DURATION = 92000;
+const AUTH_FLYOVER_ONE_WAY_DURATION = 92000;
 
 // Низкий маршрут над городом: камера летит по точкам игрока, но держится чуть выше,
 // чтобы было видно завалы/улицы, а не только карту с высоты самолета.
@@ -24,9 +23,12 @@ function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
-function smoothStep(t) {
-    t = clamp(t, 0.0, 1.0);
-    return t * t * (3.0 - 2.0 * t);
+function distanceBetween(a, b) {
+    const x = b.x - a.x;
+    const y = b.y - a.y;
+    const z = b.z - a.z;
+
+    return Math.sqrt(x * x + y * y + z * z);
 }
 
 function lerp(a, b, t) {
@@ -41,18 +43,45 @@ function lerpVector(a, b, t) {
     );
 }
 
-function getRouteFrame(progress) {
-    const maxIndex = AUTH_FLYOVER_POINTS.length - 1;
-    const scaledProgress = clamp(progress, 0.0, 0.999999) * maxIndex;
-    const index = Math.floor(scaledProgress);
-    const t = smoothStep(scaledProgress - index);
-    const current = AUTH_FLYOVER_POINTS[index];
-    const next = AUTH_FLYOVER_POINTS[Math.min(index + 1, maxIndex)];
+const AUTH_FLYOVER_SEGMENTS = AUTH_FLYOVER_POINTS.slice(0, -1).map((point, index) => ({
+    from: point,
+    to: AUTH_FLYOVER_POINTS[index + 1],
+    length: distanceBetween(point.pos, AUTH_FLYOVER_POINTS[index + 1].pos)
+}));
+const AUTH_FLYOVER_DISTANCE = AUTH_FLYOVER_SEGMENTS.reduce((sum, segment) => sum + segment.length, 0.0);
 
+function getPingPongProgress(elapsed) {
+    const cycleDuration = AUTH_FLYOVER_ONE_WAY_DURATION * 2;
+    const cycleProgress = (elapsed % cycleDuration) / AUTH_FLYOVER_ONE_WAY_DURATION;
+
+    return cycleProgress <= 1.0 ? cycleProgress : 2.0 - cycleProgress;
+}
+
+function getRouteFrame(progress) {
+    let distance = clamp(progress, 0.0, 1.0) * AUTH_FLYOVER_DISTANCE;
+
+    for (let i = 0; i < AUTH_FLYOVER_SEGMENTS.length; i++) {
+        const segment = AUTH_FLYOVER_SEGMENTS[i];
+
+        if (distance > segment.length && i !== AUTH_FLYOVER_SEGMENTS.length - 1) {
+            distance -= segment.length;
+            continue;
+        }
+
+        const t = segment.length === 0.0 ? 0.0 : clamp(distance / segment.length, 0.0, 1.0);
+
+        return {
+            pos: lerpVector(segment.from.pos, segment.to.pos, t),
+            look: lerpVector(segment.from.look, segment.to.look, t),
+            fov: lerp(segment.from.fov, segment.to.fov, t)
+        };
+    }
+
+    const lastPoint = AUTH_FLYOVER_POINTS[AUTH_FLYOVER_POINTS.length - 1];
     return {
-        pos: lerpVector(current.pos, next.pos, t),
-        look: lerpVector(current.look, next.look, t),
-        fov: lerp(current.fov, next.fov, t)
+        pos: lastPoint.pos,
+        look: lastPoint.look,
+        fov: lastPoint.fov
     };
 }
 
@@ -67,16 +96,9 @@ function updateAuthStreamingAnchor(pos, look) {
     player.freezePosition(true);
 
     if (typeof player.setCollision === "function") player.setCollision(false, false);
-    if (typeof player.setVisible === "function") player.setVisible(false, false);
     if (mp.game.streaming && typeof mp.game.streaming.requestCollisionAtCoord === "function") {
         mp.game.streaming.requestCollisionAtCoord(pos.x, pos.y, pos.z);
         mp.game.streaming.requestCollisionAtCoord(look.x, look.y, look.z);
-    }
-    if (mp.game.streaming && typeof mp.game.streaming.setFocusArea === "function") {
-        mp.game.streaming.setFocusArea(pos.x, pos.y, pos.z, 0.0, 0.0, 0.0);
-    }
-    if (mp.game.streaming && typeof mp.game.streaming.setHdArea === "function") {
-        mp.game.streaming.setHdArea(pos.x, pos.y, pos.z, 160.0);
     }
 }
 
@@ -90,11 +112,6 @@ function clearAuthStreamingAnchor() {
 }
 
 function resetAuthCamera() {
-    if (authCamTimer) {
-        clearInterval(authCamTimer);
-        authCamTimer = null;
-    }
-
     if (authCam) {
         mp.game.cam.renderScriptCams(false, false, 1000, true, false);
         authCam.destroy();
@@ -115,33 +132,27 @@ function startAuthFlyover() {
     authCam.setActive(true);
     updateAuthStreamingAnchor(firstFrame.pos, firstFrame.look);
     mp.game.cam.renderScriptCams(true, false, 2000, true, false);
-
-    authCamTimer = setInterval(() => {
-        if (!authCam) return;
-
-        const elapsed = (Date.now() - authCamStartedAt) % AUTH_FLYOVER_DURATION;
-        const progress = elapsed / AUTH_FLYOVER_DURATION;
-        const frame = getRouteFrame(progress);
-        const horrorDrift = Math.sin(progress * Math.PI * 16.0) * 1.35;
-        const breathing = Math.sin(progress * Math.PI * 4.0) * 0.9;
-        const pos = new mp.Vector3(frame.pos.x, frame.pos.y, frame.pos.z + breathing);
-        const look = new mp.Vector3(frame.look.x, frame.look.y, frame.look.z + horrorDrift);
-
-        authCam.setCoord(pos.x, pos.y, pos.z);
-        authCam.pointAtCoord(look.x, look.y, look.z);
-        if (typeof authCam.setFov === "function") {
-            authCam.setFov(frame.fov + Math.sin(progress * Math.PI * 8.0) * 1.2);
-        }
-        updateAuthStreamingAnchor(pos, look);
-    }, 33);
 }
+
+function updateAuthFlyoverFrame() {
+    if (!authCam) return;
+
+    const progress = getPingPongProgress(Date.now() - authCamStartedAt);
+    const frame = getRouteFrame(progress);
+
+    authCam.setCoord(frame.pos.x, frame.pos.y, frame.pos.z);
+    authCam.pointAtCoord(frame.look.x, frame.look.y, frame.look.z);
+    if (typeof authCam.setFov === "function") authCam.setFov(frame.fov);
+    updateAuthStreamingAnchor(frame.pos, frame.look);
+}
+
+mp.events.add('render', updateAuthFlyoverFrame);
 
 function prepareHiddenAuthPlayer() {
     const player = mp.players.local;
 
     player.freezePosition(true);
     player.setAlpha(0);
-    if (typeof player.setVisible === "function") player.setVisible(false, false);
     if (typeof player.setCollision === "function") player.setCollision(false, false);
 }
 
@@ -160,7 +171,7 @@ function restoreAuthPlayer(showCharacter, unfreeze, restorePosition) {
         false, false, false, false
     );
     player.setAlpha(showCharacter ? 255 : 0);
-    if (typeof player.setVisible === "function") player.setVisible(showCharacter, false);
+    if (typeof player.setVisible === "function") player.setVisible(true, false);
     if (typeof player.setCollision === "function") player.setCollision(true, true);
     player.freezePosition(!unfreeze);
 }
