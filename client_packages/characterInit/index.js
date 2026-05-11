@@ -38,15 +38,73 @@ let isBinding = false;
 
 let creatorTimer = null;
 let slotsNumber;
+
+const selectionAnchorBackDistance = 4.0;
+const selectionAnchorDownOffset = 1.2;
 function stopSelectionStreamingAnchor() {
     if (mp.game.streaming && typeof mp.game.streaming.clearFocus === "function") mp.game.streaming.clearFocus();
     if (mp.game.streaming && typeof mp.game.streaming.clearHdArea === "function") mp.game.streaming.clearHdArea();
 }
 
-function restoreLocalPlayerForSelection() {
-    const player = mp.players.local;
+function getSelectionCameraPosition(index = currentCharacter) {
+    return new mp.Vector3(
+        camPos[0] + index * pedDist * sinPedRot,
+        camPos[1] + index * pedDist * cosPedRot,
+        camPos[2]
+    );
+}
 
-    player.position = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 10);
+function getSelectionLookPosition(index = currentCharacter) {
+    const cameraPosition = getSelectionCameraPosition(index);
+
+    return new mp.Vector3(
+        cameraPosition.x + camDist * sinCamRot,
+        cameraPosition.y + camDist * cosCamRot,
+        cameraPosition.z + camPosZDelta
+    );
+}
+
+function getSelectionAnchorPosition(index = currentCharacter) {
+    const cameraPosition = getSelectionCameraPosition(index);
+    const lookPosition = getSelectionLookPosition(index);
+    const forwardX = lookPosition.x - cameraPosition.x;
+    const forwardY = lookPosition.y - cameraPosition.y;
+    const length = Math.sqrt(forwardX * forwardX + forwardY * forwardY) || 1.0;
+
+    return new mp.Vector3(
+        cameraPosition.x - (forwardX / length) * selectionAnchorBackDistance,
+        cameraPosition.y - (forwardY / length) * selectionAnchorBackDistance,
+        cameraPosition.z - selectionAnchorDownOffset
+    );
+}
+
+function requestSelectionScene(index = currentCharacter) {
+    if (!mp.game.streaming) return;
+
+    const cameraPosition = getSelectionCameraPosition(index);
+    const lookPosition = getSelectionLookPosition(index);
+    const anchorPosition = getSelectionAnchorPosition(index);
+
+    if (typeof mp.game.streaming.setHdArea === "function") {
+        mp.game.streaming.setHdArea(cameraPosition.x, cameraPosition.y, cameraPosition.z, 90.0);
+    }
+    if (typeof mp.game.streaming.requestCollisionAtCoord === "function") {
+        mp.game.streaming.requestCollisionAtCoord(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+        mp.game.streaming.requestCollisionAtCoord(lookPosition.x, lookPosition.y, lookPosition.z);
+        mp.game.streaming.requestCollisionAtCoord(anchorPosition.x, anchorPosition.y, anchorPosition.z);
+    }
+    if (typeof mp.game.streaming.loadScene === "function") {
+        mp.game.streaming.loadScene(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+        mp.game.streaming.loadScene(lookPosition.x, lookPosition.y, lookPosition.z);
+    }
+}
+
+function restoreLocalPlayerForSelection(index = currentCharacter) {
+    const player = mp.players.local;
+    const anchorPosition = getSelectionAnchorPosition(index);
+
+    requestSelectionScene(index);
+    player.setCoords(anchorPosition.x, anchorPosition.y, anchorPosition.z, false, false, false, false);
     player.freezePosition(true);
     player.setAlpha(255);
     if (typeof player.setVisible === "function") player.setVisible(true, false);
@@ -205,6 +263,7 @@ let createPeds = function() {
     if (peds.length !== 0) return;
     creatorTimer = mp.timer.add(async () => {
         for (let i = 0; i < charNum; i++) {
+            restoreLocalPlayerForSelection(currentCharacter);
             await setCharCustom(i);
             setCharClothes(i);
             setCharTattoos(i);
@@ -284,6 +343,7 @@ let chooseLeft = function() {
         (camPos[1] + currentCharacter * pedDist * cosPedRot) + camDist * cosCamRot,
         camPos[2] + camPosZDelta,
         500);
+    restoreLocalPlayerForSelection(currentCharacter);
 };
 
 let chooseRight = function() {
@@ -300,6 +360,7 @@ let chooseRight = function() {
         (camPos[1] + currentCharacter * pedDist * cosPedRot) + camDist * cosCamRot,
         camPos[2] + camPosZDelta,
         500);
+    restoreLocalPlayerForSelection(currentCharacter);
 };
 
 let choose = function() {
