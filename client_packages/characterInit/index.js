@@ -469,12 +469,16 @@ async function applyCharacterPreviewToEntity(entity, indexPed) {
         const appearance = charInfos[indexPed].Appearances[i];
         if (!appearance) continue;
 
-        // У PedMp и PlayerMp разные сигнатуры setHeadOverlay в типах RAGE.
-        // Сначала ставим overlay, потом отдельно его цвет — так внешний вид
-        // корректно применяется и к локальному игроку-источнику, и к preview ped.
-        entity.setHeadOverlay(i, appearance.value, appearance.opacity);
-        if (typeof entity.setHeadOverlayColor === "function") {
-            entity.setHeadOverlayColor(i, 1, colorForOverlayIdx(i, indexPed), 0);
+        // У PedMp и PlayerMp разные сигнатуры setHeadOverlay в RAGE MP:
+        // PlayerMp принимает цвет прямо в setHeadOverlay, PedMp — через setHeadOverlayColor.
+        // Поэтому нельзя вызывать один вариант для обеих entity: клиент падает по count args.
+        if (entity === mp.players.local) {
+            entity.setHeadOverlay(i, appearance.value, appearance.opacity, colorForOverlayIdx(i, indexPed), 0);
+        } else {
+            entity.setHeadOverlay(i, appearance.value, appearance.opacity);
+            if (typeof entity.setHeadOverlayColor === "function") {
+                entity.setHeadOverlayColor(i, 1, colorForOverlayIdx(i, indexPed), 0);
+            }
         }
     }
     for (let i = 0; i < 20; i++) {
