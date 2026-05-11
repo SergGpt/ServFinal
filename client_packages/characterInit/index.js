@@ -290,18 +290,22 @@ let createPeds = function() {
             requestPreviewScene(previewPos);
             prepareLocalPlayerForPreviewClone(previewPos);
 
-            await setCharCustom(i);
-            setCharClothes(i);
-            setCharTattoos(i);
+            await applyCharacterPreviewToEntity(mp.players.local, i);
             await waitCharacterPreviewFrame();
 
             let x = previewPos.x;
             let y = previewPos.y;
             let z = previewPos.z;
-            let ped = mp.peds.new(mp.players.local.model, previewPos, pedRotation, mp.players.local.dimension);
+            let ped = mp.peds.new(freemodeCharacters[charInfos[i].gender], previewPos, pedRotation, mp.players.local.dimension);
             await waitCharacterPreviewFrame();
             mp.players.local.cloneToTarget(ped.handle);
             await waitCharacterPreviewFrame();
+
+            // cloneToTarget может скопировать старое/серверное состояние локального игрока.
+            // Поэтому после клона обязательно наносим на preview ped внешний вид именно
+            // выбранного персонажа из БД: лицо, волосы, одежду, props и татуировки.
+            await applyCharacterPreviewToEntity(ped, i);
+            ped.setHeading(pedRotation);
             if (typeof ped.setVisible === "function") ped.setVisible(true, false);
             if (typeof ped.setAlpha === "function") ped.setAlpha(255, false);
 
@@ -403,36 +407,44 @@ let choose = function() {
     }
 };
 
-let setCharClothes = function(indexPed) {
+let setCharClothes = function(entity, indexPed) {
     if (charClothes.length <= indexPed) return;
-    mp.utils.clearAllView(mp.players.local, charInfos[indexPed].hair); // раздеваем игрока полностью
-    let clothes = charClothes[indexPed].clothes;
-    let props = charClothes[indexPed].props;
+    mp.utils.clearAllView(entity, charInfos[indexPed].hair); // раздеваем ped полностью перед одеждой из БД
+    let clothes = charClothes[indexPed].clothes || [];
+    let props = charClothes[indexPed].props || [];
     for (let i = 0; i < clothes.length; i++) {
-        mp.players.local.setComponentVariation(clothes[i][0], clothes[i][1], clothes[i][2], 0);
+        entity.setComponentVariation(clothes[i][0], clothes[i][1], clothes[i][2], 0);
     }
-    for (let i = 0; i < props.length; i++) {
-        mp.players.local.setPropIndex(props[i][0], props[i][1], props[i][2], false);
+    if (typeof entity.setPropIndex === "function") {
+        for (let i = 0; i < props.length; i++) {
+            entity.setPropIndex(props[i][0], props[i][1], props[i][2], false);
+        }
     }
 };
 
-let setCharTattoos = function(indexPed) {
+let setCharTattoos = function(entity, indexPed) {
     if (charInfos.length <= indexPed) return;
-    if (typeof mp.players.local.clearDecorations === "function") mp.players.local.clearDecorations();
+    if (typeof entity.clearDecorations === "function") entity.clearDecorations();
 
-    let tattoos = charInfos[indexPed].tattoos;
+    let tattoos = charInfos[indexPed].tattoos || [];
     tattoos.forEach((tattoo) => {
-        mp.players.local.setDecoration(mp.game.joaat(tattoo.collection), mp.game.joaat(tattoo.hashName));
+        if (typeof entity.setDecoration === "function") {
+            entity.setDecoration(mp.game.joaat(tattoo.collection), mp.game.joaat(tattoo.hashName));
+        }
     });
 };
 
-let setCharCustom = async function (indexPed) {
+async function applyCharacterPreviewToEntity(entity, indexPed) {
     if (charInfos.length <= indexPed) return;
     const modelHash = freemodeCharacters[charInfos[indexPed].gender];
     await waitFreemodeModel(modelHash);
-    mp.players.local.model = modelHash;
-    await waitCharacterPreviewFrame();
-    mp.players.local.setHeadBlendData(
+
+    if (entity === mp.players.local) {
+        mp.players.local.model = modelHash;
+        await waitCharacterPreviewFrame();
+    }
+
+    entity.setHeadBlendData(
         // shape
         charInfos[indexPed].mother,
         charInfos[indexPed].father,
@@ -450,18 +462,30 @@ let setCharCustom = async function (indexPed) {
 
         false
     );
-    mp.players.local.setComponentVariation(2, charInfos[indexPed].hair, 0, 2);
-    mp.players.local.setHairColor(charInfos[indexPed].hairColor, charInfos[indexPed].hairHighlightColor);
-    mp.players.local.setEyeColor(charInfos[indexPed].eyeColor);
+    entity.setComponentVariation(2, charInfos[indexPed].hair, 0, 2);
+    entity.setHairColor(charInfos[indexPed].hairColor, charInfos[indexPed].hairHighlightColor);
+    entity.setEyeColor(charInfos[indexPed].eyeColor);
     for (let i = 0; i < 10; i++) {
-        mp.players.local.setHeadOverlay(i, charInfos[indexPed].Appearances[i].value,
-            charInfos[indexPed].Appearances[i].opacity, colorForOverlayIdx(i, indexPed), 0);
+        const appearance = charInfos[indexPed].Appearances[i];
+        if (!appearance) continue;
 
+        // У PedMp и PlayerMp разные сигнатуры setHeadOverlay в типах RAGE.
+        // Сначала ставим overlay, потом отдельно его цвет — так внешний вид
+        // корректно применяется и к локальному игроку-источнику, и к preview ped.
+        entity.setHeadOverlay(i, appearance.value, appearance.opacity);
+        if (typeof entity.setHeadOverlayColor === "function") {
+            entity.setHeadOverlayColor(i, 1, colorForOverlayIdx(i, indexPed), 0);
+        }
     }
     for (let i = 0; i < 20; i++) {
-        mp.players.local.setFaceFeature(i, charInfos[indexPed].Features[i].value);
+        if (!charInfos[indexPed].Features[i]) continue;
+        entity.setFaceFeature(i, charInfos[indexPed].Features[i].value);
     }
-};
+
+    setCharClothes(entity, indexPed);
+    setCharTattoos(entity, indexPed);
+}
+
 
 let colorForOverlayIdx = function(index, indexPed) {
     let color;
