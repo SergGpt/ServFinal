@@ -36,9 +36,7 @@ let isBinding = false;
 
 let creatorTimer = null;
 let slotsNumber;
-let selectionPreviewEnabled = false;
 
-const selectionStreamPos = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 1.0);
 const selectionLookPos = new mp.Vector3(
     camPos[0] + camDist * sinCamRot,
     camPos[1] + camDist * cosCamRot,
@@ -46,14 +44,12 @@ const selectionLookPos = new mp.Vector3(
 );
 const selectionLoadRadius = 90.0;
 const selectionLoadTimeout = 3000;
-const selectionPreviewZ = camPos[2] - 1.0;
 
 async function preloadCharacterSelectionScene() {
     if (!mp.game.streaming) return;
 
     if (typeof mp.game.streaming.clearFocus === "function") mp.game.streaming.clearFocus();
     if (typeof mp.game.streaming.clearHdArea === "function") mp.game.streaming.clearHdArea();
-
     if (typeof mp.game.streaming.setFocusPosAndVel === "function") {
         mp.game.streaming.setFocusPosAndVel(selectionLookPos.x, selectionLookPos.y, selectionLookPos.z, 0.0, 0.0, 0.0);
     }
@@ -83,67 +79,20 @@ async function preloadCharacterSelectionScene() {
     if (typeof mp.game.streaming.newLoadSceneStop === "function") mp.game.streaming.newLoadSceneStop();
 }
 
-function restoreCharacterSelectionPlayer() {
-    const player = mp.players.local;
-
-    player.setAlpha(255);
-    if (typeof player.setVisible === "function") player.setVisible(true, false);
-    if (typeof player.setCollision === "function") player.setCollision(true, true);
-    player.freezePosition(true);
-    player.position = selectionStreamPos;
-
-    mp.events.callRemote('time.sync.request');
-}
-
-function hideCharacterSelectionPlayer() {
-    const player = mp.players.local;
-
-    if (selectionPreviewEnabled) {
-        showLocalCharacterPreview(currentCharacter);
-        return;
-    }
-
-    player.setAlpha(0);
-    player.position = selectionStreamPos;
-    player.freezePosition(true);
-}
-
-function getCharacterPreviewPosition(index) {
-    const x = (camPos[0] + index * pedDist * sinPedRot) + camDist * sinCamRot;
-    const y = (camPos[1] + index * pedDist * cosPedRot) + camDist * cosCamRot;
-
-    // Не используем getGroundZFor3dCoord для preview: после auth-пролета коллизия
-    // может еще не дать корректную высоту и вернуть 0, из-за чего персонаж уходит под землю.
-    return new mp.Vector3(x, y, selectionPreviewZ);
-}
-
-function showLocalCharacterPreview(index) {
-    if (charInfos.length <= index) return;
-
-    const player = mp.players.local;
-    const position = getCharacterPreviewPosition(index);
-
-    player.setAlpha(255);
-    if (typeof player.setVisible === "function") player.setVisible(true, false);
-    if (typeof player.setCollision === "function") player.setCollision(false, false);
-    setCharCustom(index);
-    setCharClothes(index);
-    setCharTattoos(index);
-    player.position = position;
-    player.setHeading(pedRotation);
-    player.freezePosition(true);
-}
 
 mp.events.add('characterInit.init', async (characters, accountInfo) => {
-    restoreCharacterSelectionPlayer();
+    mp.players.local.setAlpha(255);
+    if (typeof mp.players.local.setVisible === "function") mp.players.local.setVisible(true, false);
+    if (typeof mp.players.local.setCollision === "function") mp.players.local.setCollision(true, true);
+    mp.players.local.position = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 10);
+    mp.events.callRemote('time.sync.request');
     await preloadCharacterSelectionScene();
     mp.gui.cursor.show(true, true);
     currentCharacter = 0;
     charClothes = [];
     charInfos = [];
-    charNum = characters ? characters.length : 0;
-    selectionPreviewEnabled = charNum > 0;
     if (characters != null) {
+        charNum = characters.length;
         for (let i = 0; i < characters.length; i++) {
             charInfos.push(characters[i].charInfo);
             charClothes.push(characters[i].charClothes);
@@ -169,7 +118,6 @@ mp.events.add('characterInit.init', async (characters, accountInfo) => {
 
     if (characters != null) {
         mp.utils.cam.create(camPos[0], camPos[1], camPos[2], camPos[0] + camDist * sinCamRot, camPos[1] + camDist * cosCamRot, camPos[2] + camPosZDelta, 60);
-        showLocalCharacterPreview(currentCharacter);
         slotsNumber = accountInfo.slots;
         mp.callCEFV(`characterInfo.slots = ${accountInfo.slots}`);
         mp.callCEFV(`characterInfo.coins = ${accountInfo.coins}`);
@@ -206,7 +154,6 @@ mp.events.add("characterInit.done", () => {
     mp.game.ui.displayHud(true);
     mp.utils.disablePlayerMoving(false);
 
-    selectionPreviewEnabled = false;
     mp.utils.cam.destroy();
     if (mp.game.streaming && typeof mp.game.streaming.clearFocus === "function") mp.game.streaming.clearFocus();
     if (mp.game.streaming && typeof mp.game.streaming.clearHdArea === "function") mp.game.streaming.clearHdArea();
@@ -265,24 +212,22 @@ mp.events.add('characterInit.chooseLeft', () => {
 });
 
 let createPeds = function() {
-    if (peds.length !== 0) {
-        showLocalCharacterPreview(currentCharacter);
-        return;
-    }
+    if (peds.length !== 0) return;
     creatorTimer = mp.timer.add(async () => {
         for (let i = 0; i < charNum; i++) {
-            mp.players.local.setAlpha(255);
             setCharCustom(i);
             setCharClothes(i);
             setCharTattoos(i);
 
-            const position = getCharacterPreviewPosition(i);
-            let ped = mp.peds.new(mp.players.local.model, position, pedRotation, mp.players.local.dimension);
+            let x = (camPos[0] + i * pedDist * sinPedRot) + camDist * sinCamRot;
+            let y = (camPos[1] + i * pedDist * cosPedRot) + camDist * cosCamRot;
+            let z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
+            let ped = mp.peds.new(mp.players.local.model, new mp.Vector3(x, y, z), pedRotation, mp.players.local.dimension);
             mp.players.local.cloneToTarget(ped.handle);
-            if (typeof ped.setAlpha === "function") ped.setAlpha(i === currentCharacter ? 255 : 0, false);
-            if (typeof ped.setVisible === "function") ped.setVisible(i === currentCharacter, false);
+            if (typeof ped.setAlpha === "function") ped.setAlpha(255, false);
+            if (typeof ped.setVisible === "function") ped.setVisible(true, false);
 
-            selectMarkers.push(mp.markers.new(2, new mp.Vector3(position.x, position.y, position.z + 1), 0.2,
+            selectMarkers.push(mp.markers.new(2, new mp.Vector3(x, y, z + 1), 0.2,
             {
                 direction: 0,
                 rotation: new mp.Vector3(0, 180, 0),
@@ -292,23 +237,19 @@ let createPeds = function() {
             }));
             peds.push(ped);
         }
-        showLocalCharacterPreview(currentCharacter);
         creatorTimer = null;
     }, 500);
 };
 
 let updateMarkers = function() {
-    for (let i = 0; i < peds.length; i++) {
-        if (typeof peds[i].setAlpha === "function") peds[i].setAlpha(i === currentCharacter ? 255 : 0, false);
-        if (typeof peds[i].setVisible === "function") peds[i].setVisible(i === currentCharacter, false);
-    }
-
     for (let i = 0; i < selectMarkers.length; i++) {
         selectMarkers[i].destroy();
 
-        const position = getCharacterPreviewPosition(i);
+        let x = (camPos[0] + i * pedDist * sinPedRot) + camDist * sinCamRot;
+        let y = (camPos[1] + i * pedDist * cosPedRot) + camDist * cosCamRot;
+        let z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
 
-        selectMarkers[i] = mp.markers.new(2, new mp.Vector3(position.x, position.y, position.z + 1),
+        selectMarkers[i] = mp.markers.new(2, new mp.Vector3(x, y, z + 1),
             0.2, {
             direction: 0,
             rotation: new mp.Vector3(0, 180, 0),
@@ -342,7 +283,6 @@ let chooseLeft = function() {
     if (currentCharacter <= 0) return;
     currentCharacter--;
     updateMarkers();
-    showLocalCharacterPreview(currentCharacter);
     mp.callCEFV(`characterInfo.i = ${currentCharacter};`);
     mp.utils.cam.moveTo(
         camPos[0] + currentCharacter * pedDist * sinPedRot,
@@ -359,7 +299,6 @@ let chooseRight = function() {
     if (currentCharacter >= charNum || currentCharacter >= 2) return;
     currentCharacter++;
     updateMarkers();
-    showLocalCharacterPreview(currentCharacter);
     mp.callCEFV(`characterInfo.i = ${currentCharacter};`);
     mp.utils.cam.moveTo(
         camPos[0] + currentCharacter * pedDist * sinPedRot,
