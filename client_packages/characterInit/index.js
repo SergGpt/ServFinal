@@ -13,8 +13,6 @@ let currentCharacter = 0;
 
 /// ИЗМЕНЯТЬ ДАННЫЕ НАСТРОЙКИ ДЛЯ УСТАНОВКИ ПЕДОВ
 /// Начальная координата камеры
-// Исходная позиция выбора персонажа в аэропорту. Не переносим её: под неё рассчитаны
-// камера, маркеры и preview-клоны персонажей.
 const camPos = [-1209.9, -2511.3, 14.5];//[-222.94, 6584.72, 8];//[1220.15, 195.36, 80.5];//[-1828.8, -870.1, 3.1];
 /// На сколько ниже камера смотрит, чем находится
 const camPosZDelta = -0.4;
@@ -39,88 +37,11 @@ let isBinding = false;
 let creatorTimer = null;
 let slotsNumber;
 
-const selectionAnchorBackDistance = 4.0;
-const selectionAnchorDownOffset = 1.2;
-function stopSelectionStreamingAnchor() {
-    if (mp.game.streaming && typeof mp.game.streaming.clearFocus === "function") mp.game.streaming.clearFocus();
-    if (mp.game.streaming && typeof mp.game.streaming.clearHdArea === "function") mp.game.streaming.clearHdArea();
-}
-
-function getSelectionCameraPosition(index = currentCharacter) {
-    return new mp.Vector3(
-        camPos[0] + index * pedDist * sinPedRot,
-        camPos[1] + index * pedDist * cosPedRot,
-        camPos[2]
-    );
-}
-
-function getSelectionLookPosition(index = currentCharacter) {
-    const cameraPosition = getSelectionCameraPosition(index);
-
-    return new mp.Vector3(
-        cameraPosition.x + camDist * sinCamRot,
-        cameraPosition.y + camDist * cosCamRot,
-        cameraPosition.z + camPosZDelta
-    );
-}
-
-function getSelectionAnchorPosition(index = currentCharacter) {
-    const cameraPosition = getSelectionCameraPosition(index);
-    const lookPosition = getSelectionLookPosition(index);
-    const forwardX = lookPosition.x - cameraPosition.x;
-    const forwardY = lookPosition.y - cameraPosition.y;
-    const length = Math.sqrt(forwardX * forwardX + forwardY * forwardY) || 1.0;
-
-    return new mp.Vector3(
-        cameraPosition.x - (forwardX / length) * selectionAnchorBackDistance,
-        cameraPosition.y - (forwardY / length) * selectionAnchorBackDistance,
-        cameraPosition.z - selectionAnchorDownOffset
-    );
-}
-
-function requestSelectionScene(index = currentCharacter) {
-    if (!mp.game.streaming) return;
-
-    const cameraPosition = getSelectionCameraPosition(index);
-    const lookPosition = getSelectionLookPosition(index);
-    const anchorPosition = getSelectionAnchorPosition(index);
-
-    if (typeof mp.game.streaming.setHdArea === "function") {
-        mp.game.streaming.setHdArea(cameraPosition.x, cameraPosition.y, cameraPosition.z, 90.0);
-    }
-    if (typeof mp.game.streaming.requestCollisionAtCoord === "function") {
-        mp.game.streaming.requestCollisionAtCoord(cameraPosition.x, cameraPosition.y, cameraPosition.z);
-        mp.game.streaming.requestCollisionAtCoord(lookPosition.x, lookPosition.y, lookPosition.z);
-        mp.game.streaming.requestCollisionAtCoord(anchorPosition.x, anchorPosition.y, anchorPosition.z);
-    }
-    if (typeof mp.game.streaming.loadScene === "function") {
-        mp.game.streaming.loadScene(cameraPosition.x, cameraPosition.y, cameraPosition.z);
-        mp.game.streaming.loadScene(lookPosition.x, lookPosition.y, lookPosition.z);
-    }
-}
-
-function restoreLocalPlayerForSelection(index = currentCharacter) {
-    const player = mp.players.local;
-    const anchorPosition = getSelectionAnchorPosition(index);
-
-    requestSelectionScene(index);
-    player.setCoords(anchorPosition.x, anchorPosition.y, anchorPosition.z, false, false, false, false);
-    player.freezePosition(true);
-    player.setAlpha(255);
-    if (typeof player.setVisible === "function") player.setVisible(true, false);
-    if (typeof player.setCollision === "function") player.setCollision(false, false);
-}
-
-mp.events.add('characterInit.selectionAnchor.stop', stopSelectionStreamingAnchor);
 
 mp.events.add('characterInit.init', (characters, accountInfo) => {
-    stopSelectionStreamingAnchor();
-    charClothes = [];
-    charInfos = [];
-    charNum = 0;
-    currentCharacter = 0;
-    restoreLocalPlayerForSelection();
+    mp.players.local.position = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 10);
     mp.gui.cursor.show(true, true);
+    currentCharacter = 0;
     if (characters != null) {
         charNum = characters.length;
         for (let i = 0; i < characters.length; i++) {
@@ -175,11 +96,7 @@ mp.events.add('characterInit.init', (characters, accountInfo) => {
 });
 
 mp.events.add("characterInit.done", () => {
-    stopSelectionStreamingAnchor();
     mp.gui.cursor.show(false, false);
-    mp.players.local.setAlpha(255);
-    if (typeof mp.players.local.setVisible === "function") mp.players.local.setVisible(true, false);
-    if (typeof mp.players.local.setCollision === "function") mp.players.local.setCollision(true, true);
     mp.players.local.freezePosition(false);
     mp.game.ui.displayRadar(true);
     mp.game.ui.displayHud(true);
@@ -240,31 +157,11 @@ mp.events.add('characterInit.chooseLeft', () => {
     chooseLeft();
 });
 
-async function waitCharacterPreviewFrame() {
-    if (mp.game && typeof mp.game.waitAsync === "function") {
-        await mp.game.waitAsync(0);
-    }
-}
-
-async function waitFreemodeModel(modelHash) {
-    if (!mp.game.streaming || typeof mp.game.streaming.requestModel !== "function") return;
-
-    if (typeof mp.game.streaming.hasModelLoaded === "function" && !mp.game.streaming.hasModelLoaded(modelHash)) {
-        mp.game.streaming.requestModel(modelHash);
-    }
-
-    for (let i = 0; i < 30; i++) {
-        if (typeof mp.game.streaming.hasModelLoaded !== "function" || mp.game.streaming.hasModelLoaded(modelHash)) return;
-        await waitCharacterPreviewFrame();
-    }
-}
-
 let createPeds = function() {
     if (peds.length !== 0) return;
     creatorTimer = mp.timer.add(async () => {
         for (let i = 0; i < charNum; i++) {
-            restoreLocalPlayerForSelection(currentCharacter);
-            await setCharCustom(i);
+            setCharCustom(i);
             setCharClothes(i);
             setCharTattoos(i);
 
@@ -272,10 +169,7 @@ let createPeds = function() {
             let y = (camPos[1] + i * pedDist * cosPedRot) + camDist * cosCamRot;
             let z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
             let ped = mp.peds.new(mp.players.local.model, new mp.Vector3(x, y, z), pedRotation, mp.players.local.dimension);
-            await waitCharacterPreviewFrame();
             mp.players.local.cloneToTarget(ped.handle);
-            if (typeof ped.setVisible === "function") ped.setVisible(true, false);
-            if (typeof ped.setAlpha === "function") ped.setAlpha(255, false);
 
             selectMarkers.push(mp.markers.new(2, new mp.Vector3(x, y, z + 1), 0.2,
             {
@@ -287,7 +181,6 @@ let createPeds = function() {
             }));
             peds.push(ped);
         }
-        restoreLocalPlayerForSelection();
         creatorTimer = null;
     }, 500);
 };
@@ -343,7 +236,6 @@ let chooseLeft = function() {
         (camPos[1] + currentCharacter * pedDist * cosPedRot) + camDist * cosCamRot,
         camPos[2] + camPosZDelta,
         500);
-    restoreLocalPlayerForSelection(currentCharacter);
 };
 
 let chooseRight = function() {
@@ -360,7 +252,6 @@ let chooseRight = function() {
         (camPos[1] + currentCharacter * pedDist * cosPedRot) + camDist * cosCamRot,
         camPos[2] + camPosZDelta,
         500);
-    restoreLocalPlayerForSelection(currentCharacter);
 };
 
 let choose = function() {
@@ -378,8 +269,8 @@ let choose = function() {
 let setCharClothes = function(indexPed) {
     if (charClothes.length <= indexPed) return;
     mp.utils.clearAllView(mp.players.local, charInfos[indexPed].hair); // раздеваем игрока полностью
-    let clothes = charClothes[indexPed].clothes || [];
-    let props = charClothes[indexPed].props || [];
+    let clothes = charClothes[indexPed].clothes;
+    let props = charClothes[indexPed].props;
     for (let i = 0; i < clothes.length; i++) {
         mp.players.local.setComponentVariation(clothes[i][0], clothes[i][1], clothes[i][2], 0);
     }
@@ -390,20 +281,15 @@ let setCharClothes = function(indexPed) {
 
 let setCharTattoos = function(indexPed) {
     if (charInfos.length <= indexPed) return;
-    if (typeof mp.players.local.clearDecorations === "function") mp.players.local.clearDecorations();
-
-    let tattoos = charInfos[indexPed].tattoos || [];
+    let tattoos = charInfos[indexPed].tattoos;
     tattoos.forEach((tattoo) => {
         mp.players.local.setDecoration(mp.game.joaat(tattoo.collection), mp.game.joaat(tattoo.hashName));
     });
 };
 
-let setCharCustom = async function (indexPed) {
+let setCharCustom = function (indexPed) {
     if (charInfos.length <= indexPed) return;
-    const modelHash = freemodeCharacters[charInfos[indexPed].gender];
-    await waitFreemodeModel(modelHash);
-    mp.players.local.model = modelHash;
-    await waitCharacterPreviewFrame();
+    mp.players.local.model = freemodeCharacters[charInfos[indexPed].gender];
     mp.players.local.setHeadBlendData(
         // shape
         charInfos[indexPed].mother,
@@ -426,15 +312,11 @@ let setCharCustom = async function (indexPed) {
     mp.players.local.setHairColor(charInfos[indexPed].hairColor, charInfos[indexPed].hairHighlightColor);
     mp.players.local.setEyeColor(charInfos[indexPed].eyeColor);
     for (let i = 0; i < 10; i++) {
-        const appearance = charInfos[indexPed].Appearances[i];
-        if (!appearance) continue;
-
-        mp.players.local.setHeadOverlay(i, appearance.value,
-            appearance.opacity, colorForOverlayIdx(i, indexPed), 0);
+        mp.players.local.setHeadOverlay(i, charInfos[indexPed].Appearances[i].value,
+            charInfos[indexPed].Appearances[i].opacity, colorForOverlayIdx(i, indexPed), 0);
 
     }
     for (let i = 0; i < 20; i++) {
-        if (!charInfos[indexPed].Features[i]) continue;
         mp.players.local.setFaceFeature(i, charInfos[indexPed].Features[i].value);
     }
 };

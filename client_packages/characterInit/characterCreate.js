@@ -97,26 +97,6 @@ function colorForOverlayIdx(index) {
     return color;
 }
 
-function requestCreatorScene() {
-    if (!mp.game.streaming) return;
-
-    if (typeof mp.game.streaming.clearFocus === "function") mp.game.streaming.clearFocus();
-    if (typeof mp.game.streaming.clearHdArea === "function") mp.game.streaming.clearHdArea();
-    if (typeof mp.game.streaming.requestCollisionAtCoord === "function") {
-        mp.game.streaming.requestCollisionAtCoord(creatorPlayerPos.x, creatorPlayerPos.y, creatorPlayerPos.z);
-    }
-    if (typeof mp.game.streaming.loadScene === "function") {
-        mp.game.streaming.loadScene(creatorPlayerPos.x, creatorPlayerPos.y, creatorPlayerPos.z);
-    }
-}
-
-function showCreatorPlayer() {
-    mp.events.call('characterInit.selectionAnchor.stop');
-    localPlayer.setAlpha(255);
-    if (typeof localPlayer.setVisible === "function") localPlayer.setVisible(true, false);
-    if (typeof localPlayer.setCollision === "function") localPlayer.setCollision(true, true);
-}
-
 function updateParents() {
     localPlayer.setHeadBlendData(
         // shape
@@ -198,8 +178,6 @@ mp.events.add("characterInit.create", (active, rawCharData, isChangeT) => {
         isChange = isChangeT;
         mp.gui.cursor.show(true, false);
         mp.utils.disablePlayerMoving(true);
-        showCreatorPlayer();
-        requestCreatorScene();
 
         localPlayer.position = creatorPlayerPos;
         localPlayer.setHeading(creatorPlayerHeading);
