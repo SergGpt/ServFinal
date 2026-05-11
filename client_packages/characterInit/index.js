@@ -7,7 +7,6 @@ let charNum;
 let charClothes = [];
 let charInfos = [];
 
-let peds = [];
 let selectMarkers = [];
 let currentCharacter = 0;
 
@@ -46,8 +45,7 @@ const selectionLookPos = new mp.Vector3(
 const selectionLoadRadius = 90.0;
 const selectionLoadTimeout = 3000;
 const selectionDebugEvent = "characterInit.selection.debug";
-const selectionModelLoadTimeout = 3000;
-const selectionPedHandleTimeout = 2500;
+const selectionPreviewZ = 13.95;
 
 function roundDebugNumber(value) {
     return Math.round(value * 100) / 100;
@@ -64,9 +62,7 @@ function debugVector(vector) {
 function getSelectionPedPosition(index) {
     const x = (camPos[0] + index * pedDist * sinPedRot) + camDist * sinCamRot;
     const y = (camPos[1] + index * pedDist * cosPedRot) + camDist * cosCamRot;
-    const z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
-
-    return new mp.Vector3(x, y, z);
+    return new mp.Vector3(x, y, selectionPreviewZ);
 }
 
 function getSelectionCameraFrame(index = currentCharacter) {
@@ -104,61 +100,6 @@ function sendCameraDebug(type, index = currentCharacter) {
         camera: debugVector(frame.position),
         lookAt: debugVector(frame.lookAt),
         fov: frame.fov
-    });
-}
-
-function safeEntityDebugValue(callback, fallback = null) {
-    try {
-        const value = callback();
-        return value == null ? fallback : value;
-    }
-    catch (e) {
-        return fallback;
-    }
-}
-
-function getEntityVisibilityDebug(entity) {
-    if (!entity) {
-        return { exists: false, collectionExists: false };
-    }
-
-    const handle = entity.handle;
-    const position = entity.position ? debugVector(entity.position) : null;
-    const entityApi = mp.game && mp.game.entity ? mp.game.entity : null;
-    const collectionExists = safeEntityDebugValue(() => mp.peds && typeof mp.peds.exists === "function"
-        ? mp.peds.exists(entity)
-        : true, true);
-    const nativeExists = handle ? safeEntityDebugValue(() => entityApi && typeof entityApi.doesEntityExist === "function"
-        ? entityApi.doesEntityExist(handle)
-        : true, true) : false;
-
-    return {
-        exists: collectionExists && nativeExists,
-        collectionExists,
-        nativeExists,
-        handle: handle || null,
-        position,
-        alpha: handle ? safeEntityDebugValue(() => entityApi && typeof entityApi.getEntityAlpha === "function"
-            ? entityApi.getEntityAlpha(handle)
-            : null) : null,
-        visible: handle ? safeEntityDebugValue(() => entityApi && typeof entityApi.isEntityVisible === "function"
-            ? entityApi.isEntityVisible(handle)
-            : null) : null,
-        onScreen: handle ? safeEntityDebugValue(() => entityApi && typeof entityApi.isEntityOnScreen === "function"
-            ? entityApi.isEntityOnScreen(handle)
-            : null) : null,
-        occluded: handle ? safeEntityDebugValue(() => entityApi && typeof entityApi.isEntityOccluded === "function"
-            ? entityApi.isEntityOccluded(handle)
-            : null) : null
-    };
-}
-
-function sendPreviewPedVisibilityDebug(ped, index, stage) {
-    sendSelectionDebug("ped.visibility", {
-        index,
-        stage,
-        name: charInfos[index] ? charInfos[index].name : null,
-        visibility: getEntityVisibilityDebug(ped)
     });
 }
 
@@ -219,10 +160,8 @@ mp.events.add('characterInit.init', async (characters, accountInfo) => {
     else {
         for (let i = 0; i < selectMarkers.length; i++) {
             selectMarkers[i].destroy();
-            destroyPreviewPed(peds[i]);
         }
         selectMarkers = [];
-        peds = [];
         mp.callCEFV(`characterInfo.characters = []`);
         mp.callCEFV(`characterInfo.i = 0`);
     }
@@ -277,10 +216,8 @@ mp.events.add("characterInit.done", () => {
 
     for (let i = 0; i < selectMarkers.length; i++) {
         selectMarkers[i].destroy();
-        destroyPreviewPed(peds[i]);
     }
     selectMarkers = [];
-    peds = [];
 
     // Отключение регенарции здоровья
     mp.game.player.setHealthRechargeMultiplier(0);
@@ -334,171 +271,21 @@ async function waitCharacterPreviewFrame() {
     }
 }
 
-function prepareSelectionPreviewArea(position) {
-    const streaming = mp.game && mp.game.streaming ? mp.game.streaming : null;
-    if (!streaming) return;
-
-    if (typeof streaming.setFocusPosAndVel === "function") {
-        streaming.setFocusPosAndVel(position.x, position.y, position.z, 0.0, 0.0, 0.0);
-    }
-    if (typeof streaming.setHdArea === "function") {
-        streaming.setHdArea(position.x, position.y, position.z, selectionLoadRadius);
-    }
-    if (typeof streaming.requestCollisionAtCoord === "function") {
-        streaming.requestCollisionAtCoord(position.x, position.y, position.z);
-    }
-    if (typeof streaming.loadScene === "function") {
-        streaming.loadScene(position.x, position.y, position.z);
-    }
-}
-
-async function waitForSelectionModel(model) {
-    const streaming = mp.game && mp.game.streaming ? mp.game.streaming : null;
-    if (!streaming || typeof streaming.requestModel !== "function" || typeof streaming.hasModelLoaded !== "function") return true;
-
-    if (typeof streaming.isModelValid === "function" && !streaming.isModelValid(model)) {
-        sendSelectionDebug("ped.model", { model, loaded: false, reason: "invalid" });
-        return false;
-    }
-
-    streaming.requestModel(model);
-    const startedAt = Date.now();
-
-    while (!streaming.hasModelLoaded(model) && Date.now() - startedAt < selectionModelLoadTimeout) {
-        await waitCharacterPreviewFrame();
-    }
-
-    const loaded = streaming.hasModelLoaded(model);
-    if (!loaded) sendSelectionDebug("ped.model", { model, loaded, reason: "timeout" });
-    return loaded;
-}
-
-async function waitForPreviewPedHandle(ped, index, mode = "default") {
-    const startedAt = Date.now();
-
-    while (ped && !ped.handle && Date.now() - startedAt < selectionPedHandleTimeout) {
-        await waitCharacterPreviewFrame();
-    }
-
-    const ready = !!(ped && ped.handle);
-    sendSelectionDebug("ped.handle", {
-        index,
-        mode,
-        name: charInfos[index] ? charInfos[index].name : null,
-        ready,
-        waitedMs: Date.now() - startedAt,
-        visibility: getEntityVisibilityDebug(ped)
-    });
-
-    return ready;
-}
-
-function destroyPreviewPed(ped) {
-    if (!ped) return;
-    if (typeof ped.destroy === "function") {
-        ped.destroy();
-    }
-}
-
-function createPreviewPedEntity(model, previewPos, index, mode) {
-    try {
-        if (mode === "options_dimension") {
-            return mp.peds.new(model, previewPos, pedRotation, { dimension: selectionDimension });
-        }
-
-        return mp.peds.new(model, previewPos, pedRotation, selectionDimension);
-    }
-    catch (e) {
-        sendSelectionDebug("ped.create.error", {
-            index,
-            mode,
-            name: charInfos[index] ? charInfos[index].name : null,
-            message: e.message
-        });
-        return null;
-    }
-}
-
-async function createPreviewPed(model, previewPos, index) {
-    let ped = createPreviewPedEntity(model, previewPos, index, "dimension_arg");
-    if (await waitForPreviewPedHandle(ped, index, "dimension_arg")) return ped;
-
-    destroyPreviewPed(ped);
-    sendSelectionDebug("ped.retry", {
-        index,
-        name: charInfos[index] ? charInfos[index].name : null,
-        reason: "dimension_arg_no_handle"
-    });
-
-    ped = createPreviewPedEntity(model, previewPos, index, "options_dimension");
-    await waitForPreviewPedHandle(ped, index, "options_dimension");
-    return ped;
-}
-
-function forcePreviewPedVisible(ped) {
-    if (!ped) return;
-    if (typeof ped.setAlpha === "function") ped.setAlpha(255, false);
-    if (typeof ped.setVisible === "function") ped.setVisible(true, false);
-    if (typeof ped.setCollision === "function") ped.setCollision(false, false);
-}
-
-function schedulePreviewPedVisible(ped, index) {
-    mp.timer.add(() => {
-        forcePreviewPedVisible(ped);
-        sendPreviewPedVisibilityDebug(ped, index, "visible.timer.250");
-    }, 250);
-    mp.timer.add(() => {
-        forcePreviewPedVisible(ped);
-        sendPreviewPedVisibilityDebug(ped, index, "visible.timer.1000");
-    }, 1000);
-}
-
 let createPeds = function() {
-    if (peds.length !== 0) return;
+    if (selectMarkers.length !== 0) return;
     creatorTimer = mp.timer.add(async () => {
         for (let i = 0; i < charNum; i++) {
-            const model = charInfos[i] ? freemodeCharacters[charInfos[i].gender] : mp.players.local.model;
-            await waitForSelectionModel(model);
-
-            setCharCustom(i);
-            await waitCharacterPreviewFrame();
-            setCharClothes(i);
-            setCharTattoos(i);
-
             let previewPos = getSelectionPedPosition(i);
             let x = previewPos.x;
             let y = previewPos.y;
             let z = previewPos.z;
 
-            sendSelectionDebug("ped.place", {
+            sendSelectionDebug("marker.place", {
                 index: i,
                 name: charInfos[i] ? charInfos[i].name : null,
                 position: debugVector(previewPos),
-                heading: pedRotation
+                marker: debugVector(new mp.Vector3(x, y, z + 1))
             });
-
-            mp.players.local.setAlpha(255);
-            if (typeof mp.players.local.setVisible === "function") mp.players.local.setVisible(true, false);
-            if (typeof mp.players.local.setCollision === "function") mp.players.local.setCollision(false, false);
-            mp.players.local.position = previewPos;
-            mp.players.local.setHeading(pedRotation);
-            prepareSelectionPreviewArea(previewPos);
-            await waitCharacterPreviewFrame();
-
-            let ped = await createPreviewPed(model, previewPos, i);
-            forcePreviewPedVisible(ped);
-            sendPreviewPedVisibilityDebug(ped, i, "created");
-
-            if (ped.handle) {
-                mp.players.local.cloneToTarget(ped.handle);
-                await waitCharacterPreviewFrame();
-                forcePreviewPedVisible(ped);
-                sendPreviewPedVisibilityDebug(ped, i, "cloned");
-            }
-            else {
-                sendPreviewPedVisibilityDebug(ped, i, "clone.skipped.no_handle");
-            }
-            schedulePreviewPedVisible(ped, i);
 
             selectMarkers.push(mp.markers.new(2, new mp.Vector3(x, y, z + 1), 0.2,
             {
@@ -508,11 +295,8 @@ let createPeds = function() {
                 visible: true,
                 dimension: selectionDimension
             }));
-            peds.push(ped);
+            await waitCharacterPreviewFrame();
         }
-        mp.players.local.setAlpha(255);
-        if (typeof mp.players.local.setVisible === "function") mp.players.local.setVisible(true, false);
-        mp.players.local.position = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 10);
         creatorTimer = null;
     }, 500);
 };
@@ -521,9 +305,10 @@ let updateMarkers = function() {
     for (let i = 0; i < selectMarkers.length; i++) {
         selectMarkers[i].destroy();
 
-        let x = (camPos[0] + i * pedDist * sinPedRot) + camDist * sinCamRot;
-        let y = (camPos[1] + i * pedDist * cosPedRot) + camDist * cosCamRot;
-        let z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
+        let previewPos = getSelectionPedPosition(i);
+        let x = previewPos.x;
+        let y = previewPos.y;
+        let z = previewPos.z;
 
         selectMarkers[i] = mp.markers.new(2, new mp.Vector3(x, y, z + 1),
             0.2, {
