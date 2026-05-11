@@ -46,6 +46,7 @@ const selectionLookPos = new mp.Vector3(
 );
 const selectionLoadRadius = 90.0;
 const selectionLoadTimeout = 3000;
+const selectionPreviewZ = camPos[2] - 1.0;
 
 async function preloadCharacterSelectionScene() {
     if (!mp.game.streaming) return;
@@ -110,9 +111,10 @@ function hideCharacterSelectionPlayer() {
 function getCharacterPreviewPosition(index) {
     const x = (camPos[0] + index * pedDist * sinPedRot) + camDist * sinCamRot;
     const y = (camPos[1] + index * pedDist * cosPedRot) + camDist * cosCamRot;
-    const z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
 
-    return new mp.Vector3(x, y, z);
+    // Не используем getGroundZFor3dCoord для preview: после auth-пролета коллизия
+    // может еще не дать корректную высоту и вернуть 0, из-за чего персонаж уходит под землю.
+    return new mp.Vector3(x, y, selectionPreviewZ);
 }
 
 function showLocalCharacterPreview(index) {
