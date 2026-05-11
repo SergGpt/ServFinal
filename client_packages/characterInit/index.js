@@ -36,6 +36,7 @@ let isBinding = false;
 
 let creatorTimer = null;
 let slotsNumber;
+let selectionPreviewEnabled = false;
 
 const selectionStreamPos = new mp.Vector3(camPos[0], camPos[1], camPos[2] - 1.0);
 const selectionLookPos = new mp.Vector3(
@@ -96,6 +97,11 @@ function restoreCharacterSelectionPlayer() {
 function hideCharacterSelectionPlayer() {
     const player = mp.players.local;
 
+    if (selectionPreviewEnabled) {
+        showLocalCharacterPreview(currentCharacter);
+        return;
+    }
+
     player.setAlpha(0);
     player.position = selectionStreamPos;
     player.freezePosition(true);
@@ -134,6 +140,7 @@ mp.events.add('characterInit.init', async (characters, accountInfo) => {
     charClothes = [];
     charInfos = [];
     charNum = characters ? characters.length : 0;
+    selectionPreviewEnabled = charNum > 0;
     if (characters != null) {
         for (let i = 0; i < characters.length; i++) {
             charInfos.push(characters[i].charInfo);
@@ -160,6 +167,7 @@ mp.events.add('characterInit.init', async (characters, accountInfo) => {
 
     if (characters != null) {
         mp.utils.cam.create(camPos[0], camPos[1], camPos[2], camPos[0] + camDist * sinCamRot, camPos[1] + camDist * cosCamRot, camPos[2] + camPosZDelta, 60);
+        showLocalCharacterPreview(currentCharacter);
         slotsNumber = accountInfo.slots;
         mp.callCEFV(`characterInfo.slots = ${accountInfo.slots}`);
         mp.callCEFV(`characterInfo.coins = ${accountInfo.coins}`);
@@ -196,6 +204,7 @@ mp.events.add("characterInit.done", () => {
     mp.game.ui.displayHud(true);
     mp.utils.disablePlayerMoving(false);
 
+    selectionPreviewEnabled = false;
     mp.utils.cam.destroy();
     if (mp.game.streaming && typeof mp.game.streaming.clearFocus === "function") mp.game.streaming.clearFocus();
     if (mp.game.streaming && typeof mp.game.streaming.clearHdArea === "function") mp.game.streaming.clearHdArea();
@@ -268,8 +277,8 @@ let createPeds = function() {
             const position = getCharacterPreviewPosition(i);
             let ped = mp.peds.new(mp.players.local.model, position, pedRotation, mp.players.local.dimension);
             mp.players.local.cloneToTarget(ped.handle);
-            if (typeof ped.setAlpha === "function") ped.setAlpha(255, false);
-            if (typeof ped.setVisible === "function") ped.setVisible(true, false);
+            if (typeof ped.setAlpha === "function") ped.setAlpha(i === currentCharacter ? 255 : 0, false);
+            if (typeof ped.setVisible === "function") ped.setVisible(i === currentCharacter, false);
 
             selectMarkers.push(mp.markers.new(2, new mp.Vector3(position.x, position.y, position.z + 1), 0.2,
             {
@@ -287,6 +296,11 @@ let createPeds = function() {
 };
 
 let updateMarkers = function() {
+    for (let i = 0; i < peds.length; i++) {
+        if (typeof peds[i].setAlpha === "function") peds[i].setAlpha(i === currentCharacter ? 255 : 0, false);
+        if (typeof peds[i].setVisible === "function") peds[i].setVisible(i === currentCharacter, false);
+    }
+
     for (let i = 0; i < selectMarkers.length; i++) {
         selectMarkers[i].destroy();
 
