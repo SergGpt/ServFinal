@@ -13,9 +13,9 @@ let currentCharacter = 0;
 
 /// ИЗМЕНЯТЬ ДАННЫЕ НАСТРОЙКИ ДЛЯ УСТАНОВКИ ПЕДОВ
 /// Начальная координата камеры
-// LSIA position (-1209.9, -2511.3, 14.5) can stream a large plane LOD after auth flyover.
-// Keep selection away from airport props, but keep local cloned preview peds exactly as before.
-const camPos = [1220.15, 195.36, 80.5];//[-1209.9, -2511.3, 14.5];//[-222.94, 6584.72, 8];//[-1828.8, -870.1, 3.1];
+// Исходная позиция выбора персонажа в аэропорту. Не переносим её: под неё рассчитаны
+// камера, маркеры и preview-клоны персонажей.
+const camPos = [-1209.9, -2511.3, 14.5];//[-222.94, 6584.72, 8];//[1220.15, 195.36, 80.5];//[-1828.8, -870.1, 3.1];
 /// На сколько ниже камера смотрит, чем находится
 const camPosZDelta = -0.4;
 /// Расстояние от камеры до текущего педа
@@ -46,14 +46,14 @@ function getSelectionAnchorPosition() {
     return new mp.Vector3(camPos[0], camPos[1], camPos[2] + selectionAnchorOffsetZ);
 }
 
-function setLocalPlayerSelectionAnchor() {
+function setLocalPlayerSelectionAnchor(hidden = true) {
     const player = mp.players.local;
     const anchor = getSelectionAnchorPosition();
 
     player.setCoords(anchor.x, anchor.y, anchor.z, false, false, false, false);
     player.freezePosition(true);
-    player.setAlpha(0);
-    if (typeof player.setVisible === "function") player.setVisible(false, false);
+    player.setAlpha(hidden ? 0 : 255);
+    if (typeof player.setVisible === "function") player.setVisible(!hidden, false);
     if (typeof player.setCollision === "function") player.setCollision(false, false);
 }
 
@@ -88,13 +88,17 @@ function stopSelectionStreamingAnchor() {
 }
 
 mp.events.add('render', updateSelectionStreamingAnchor);
+mp.events.add('characterInit.selectionAnchor.stop', stopSelectionStreamingAnchor);
 
 
 mp.events.add('characterInit.init', (characters, accountInfo) => {
     stopSelectionStreamingAnchor();
-    mp.players.local.position = getSelectionAnchorPosition();
-    mp.gui.cursor.show(true, true);
+    charClothes = [];
+    charInfos = [];
+    charNum = 0;
     currentCharacter = 0;
+    setLocalPlayerSelectionAnchor(false);
+    mp.gui.cursor.show(true, true);
     if (characters != null) {
         charNum = characters.length;
         for (let i = 0; i < characters.length; i++) {
@@ -221,13 +225,41 @@ async function waitCharacterPreviewFrame() {
     }
 }
 
+async function waitFreemodeModel(modelHash) {
+    if (!mp.game.streaming || typeof mp.game.streaming.requestModel !== "function") return;
+
+    if (typeof mp.game.streaming.hasModelLoaded === "function" && !mp.game.streaming.hasModelLoaded(modelHash)) {
+        mp.game.streaming.requestModel(modelHash);
+    }
+
+    for (let i = 0; i < 30; i++) {
+        if (typeof mp.game.streaming.hasModelLoaded !== "function" || mp.game.streaming.hasModelLoaded(modelHash)) return;
+        await waitCharacterPreviewFrame();
+    }
+}
+
+function prepareLocalPlayerForPreviewClone(previewPos) {
+    const player = mp.players.local;
+
+    player.setCoords(previewPos.x, previewPos.y, previewPos.z, false, false, false, false);
+    player.setHeading(pedRotation);
+    player.freezePosition(true);
+    player.setAlpha(255);
+    if (typeof player.setVisible === "function") player.setVisible(true, false);
+    if (typeof player.setCollision === "function") player.setCollision(false, false);
+}
+
+function hideLocalPlayerAfterPreviewClone() {
+    setLocalPlayerSelectionAnchor(true);
+}
+
 function getPreviewPedPosition(index) {
     let x = (camPos[0] + index * pedDist * sinPedRot) + camDist * sinCamRot;
     let y = (camPos[1] + index * pedDist * cosPedRot) + camDist * cosCamRot;
     let z = mp.game.gameplay.getGroundZFor3dCoord(x, y, camPos[2] + 1, 0.0, false) + 1;
 
-    // If collision is not loaded at the new non-airport selection scene, groundZ can return 0
-    // and cloned peds spawn underground. Fall back near the configured camera height.
+    // Если коллизия сцены выбора ещё не загружена, groundZ может вернуть 0,
+    // и cloned ped уйдёт под карту. В таком случае держим высоту около камеры.
     if (!z || z < camPos[2] - 20) z = camPos[2] - 1;
 
     return new mp.Vector3(x, y, z);
@@ -254,19 +286,24 @@ let createPeds = function() {
     if (peds.length !== 0) return;
     creatorTimer = mp.timer.add(async () => {
         for (let i = 0; i < charNum; i++) {
-            setCharCustom(i);
-            await waitCharacterPreviewFrame();
-            setCharClothes(i);
-            setCharTattoos(i);
-
             let previewPos = getPreviewPedPosition(i);
             requestPreviewScene(previewPos);
+            prepareLocalPlayerForPreviewClone(previewPos);
+
+            await setCharCustom(i);
+            setCharClothes(i);
+            setCharTattoos(i);
+            await waitCharacterPreviewFrame();
+
             let x = previewPos.x;
             let y = previewPos.y;
             let z = previewPos.z;
             let ped = mp.peds.new(mp.players.local.model, previewPos, pedRotation, mp.players.local.dimension);
             await waitCharacterPreviewFrame();
             mp.players.local.cloneToTarget(ped.handle);
+            await waitCharacterPreviewFrame();
+            if (typeof ped.setVisible === "function") ped.setVisible(true, false);
+            if (typeof ped.setAlpha === "function") ped.setAlpha(255, false);
 
             selectMarkers.push(mp.markers.new(2, new mp.Vector3(x, y, z + 1), 0.2,
             {
@@ -278,6 +315,7 @@ let createPeds = function() {
             }));
             peds.push(ped);
         }
+        hideLocalPlayerAfterPreviewClone();
         startSelectionStreamingAnchor();
         creatorTimer = null;
     }, 500);
@@ -380,15 +418,20 @@ let setCharClothes = function(indexPed) {
 
 let setCharTattoos = function(indexPed) {
     if (charInfos.length <= indexPed) return;
+    if (typeof mp.players.local.clearDecorations === "function") mp.players.local.clearDecorations();
+
     let tattoos = charInfos[indexPed].tattoos;
     tattoos.forEach((tattoo) => {
         mp.players.local.setDecoration(mp.game.joaat(tattoo.collection), mp.game.joaat(tattoo.hashName));
     });
 };
 
-let setCharCustom = function (indexPed) {
+let setCharCustom = async function (indexPed) {
     if (charInfos.length <= indexPed) return;
-    mp.players.local.model = freemodeCharacters[charInfos[indexPed].gender];
+    const modelHash = freemodeCharacters[charInfos[indexPed].gender];
+    await waitFreemodeModel(modelHash);
+    mp.players.local.model = modelHash;
+    await waitCharacterPreviewFrame();
     mp.players.local.setHeadBlendData(
         // shape
         charInfos[indexPed].mother,
