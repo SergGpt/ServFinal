@@ -7,8 +7,6 @@ let utils = call("utils");
 let inventory;
 let donate;
 
-const CHARACTER_SELECTION_SCENE_DELAY = 700;
-
 module.exports = {
     "init": () => {
         admin = call('admin');
@@ -29,22 +27,13 @@ module.exports = {
             player.account.slots = 2;
             await player.account.save();
         }
-        const accountInfo = {
+        player.call('characterInit.init', [charInfos, {
             slots: player.account.slots,
             coins: player.account.donate,
             costSecondSlot: characterInit.costSecondSlot,
             timeForSecondSlot: characterInit.timeForSecondSlot,
             costThirdSlot: characterInit.costThirdSlot,
-        };
-
-        // Разделяем auth-сцену и сцену выбора персонажа. Сначала принудительно
-        // выключаем auth camera/streaming state на клиенте, потом отдельным тиком
-        // создаем выбор персонажа по старой main-логике.
-        player.call('auth.destroy');
-        setTimeout(() => {
-            if (!mp.players.exists(player)) return;
-            player.call('characterInit.init', [charInfos, accountInfo]);
-        }, CHARACTER_SELECTION_SCENE_DELAY);
+        }]);
     },
     "characterInit.choose": (player, charnumber) => {
         if (charnumber == null || isNaN(charnumber)) return player.call('characterInit.choose.ans', [0]);
