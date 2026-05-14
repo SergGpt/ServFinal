@@ -152,48 +152,54 @@ class CraftingTable extends Component {
 
         return (
             <div className="crafting-recipe" key={recipe.id}>
-                <div className="crafting-recipe__left">
-                    <div className="crafting-zone-card">
-                        <span>GTA 5 RP</span>
-                        <strong>Black Zone RP</strong>
+                <div className="crafting-recipe__top">
+                    <div>
+                        <div className="crafting-recipe__meta">
+                            <span>BLACK ZONE RP</span>
+                            <em>GTA 5 RP кухня</em>
+                        </div>
+                        <h2>{recipe.title}</h2>
+                        <p>{recipe.description}</p>
                     </div>
                     {this.renderBurner(recipe)}
-                    <div className="crafting-readout">
-                        <span>прогресс</span>
-                        <strong>{this.state.crafting ? `${Math.round(progress)}%` : 'standby'}</strong>
-                    </div>
                 </div>
 
-                <div className="crafting-recipe__right">
-                    <div className="crafting-recipe__meta">
-                        <span>BLACK ZONE RP</span>
-                        <em>минималистичная GTA 5 RP кухня</em>
-                    </div>
-                    <h2>{recipe.title}</h2>
-                    <p>{recipe.description}</p>
-                    <div className="crafting-effect-row">
-                        <span>{recipe.consumableType === 'drink' ? 'Напиток' : 'Еда'}</span>
-                        <strong>{recipe.effect}</strong>
-                        {recipe.infectionStub && <em>Заражение пока без действия</em>}
+                <div className="crafting-effect-row">
+                    <span>{recipe.consumableType === 'drink' ? 'Напиток' : 'Еда'}</span>
+                    <strong>{recipe.effect}</strong>
+                    {recipe.infectionStub && <em>Заражение пока без действия</em>}
+                </div>
+
+                <div className="crafting-recipe__content">
+                    <div className="crafting-block">
+                        <div className="crafting-block__title">Ингредиенты</div>
+                        <div className="crafting-supplies">
+                            {recipe.ingredients.map((ingredient) => this.renderIngredient(ingredient))}
+                        </div>
                     </div>
 
-                    <div className="crafting-supplies">
-                        {recipe.ingredients.map((ingredient) => this.renderIngredient(ingredient))}
+                    <div className="crafting-summary">
+                        <div className="crafting-zone-card">
+                            <span>GTA 5 RP</span>
+                            <strong>Black Zone RP</strong>
+                        </div>
+                        <div className="crafting-readout">
+                            <span>Прогресс</span>
+                            <strong>{this.state.crafting ? `${Math.round(progress)}%` : 'standby'}</strong>
+                        </div>
+                        <div className="crafting-output">
+                            <span>получится</span>
+                            <strong>#{recipe.result.itemId} · {recipe.result.name} x{recipe.result.count}</strong>
+                        </div>
+                        <button
+                            type="button"
+                            className="crafting-button"
+                            disabled={this.state.crafting}
+                            onClick={() => this.handleCraft(recipe.id)}
+                        >
+                            {this.state.crafting ? 'Готовится...' : 'Приготовить'}
+                        </button>
                     </div>
-
-                    <div className="crafting-output">
-                        <span>получится</span>
-                        <strong>#{recipe.result.itemId} · {recipe.result.name} x{recipe.result.count}</strong>
-                    </div>
-
-                    <button
-                        type="button"
-                        className="crafting-button"
-                        disabled={this.state.crafting}
-                        onClick={() => this.handleCraft(recipe.id)}
-                    >
-                        {this.state.crafting ? 'Готовится...' : 'Приготовить'}
-                    </button>
                 </div>
             </div>
         );
@@ -211,19 +217,15 @@ class CraftingTable extends Component {
                 <div className="crafting-shell">
                     <button type="button" className="crafting-close" onClick={this.handleClose}>×</button>
 
-                    <aside className="crafting-side">
-                        <div className="crafting-side__brand">BZ</div>
-                        <div className="crafting-side__line" />
-                        <div className="crafting-side__text">GTA 5<br />RP</div>
-                        <div className={`crafting-side__pulse ${crafting ? 'crafting-side__pulse--active' : ''}`} />
-                    </aside>
-
                     <main className="crafting-terminal">
                         <header className="crafting-header">
-                            <div>
-                                <div className="crafting-eyebrow">BLACK ZONE RP / GTA 5 RP</div>
-                                <h1>{title}</h1>
-                                <p>{subtitle}</p>
+                            <div className="crafting-brand">
+                                <div className="crafting-side__brand">BZ</div>
+                                <div>
+                                    <div className="crafting-eyebrow">BLACK ZONE RP / GTA 5 RP</div>
+                                    <h1>{title}</h1>
+                                    <p>{subtitle}</p>
+                                </div>
                             </div>
                             <div className="crafting-chip">
                                 <span>{crafting ? 'COOKING' : 'READY'}</span>
@@ -232,16 +234,22 @@ class CraftingTable extends Component {
                         </header>
 
                         <div className="crafting-alert">
-                            <span>⚠</span>
+                            <span>!</span>
                             <p>Black Zone RP: ингредиенты списываются после завершения готовки.</p>
                         </div>
 
                         <section className="crafting-recipes">
                             {recipes.length ? (
                                 <div className="crafting-recipe-browser">
-                                    <div className="crafting-recipe-list">
-                                        {recipes.map((recipe) => this.renderRecipeNav(recipe))}
-                                    </div>
+                                    <aside className="crafting-recipe-sidebar">
+                                        <div className="crafting-recipe-sidebar__head">
+                                            <span>Рецепты</span>
+                                            <strong>{recipes.length}</strong>
+                                        </div>
+                                        <div className="crafting-recipe-list">
+                                            {recipes.map((recipe) => this.renderRecipeNav(recipe))}
+                                        </div>
+                                    </aside>
                                     {selectedRecipe && this.renderRecipe(selectedRecipe)}
                                 </div>
                             ) : (
