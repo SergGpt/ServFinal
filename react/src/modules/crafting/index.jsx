@@ -86,62 +86,82 @@ class CraftingTable extends Component {
         return Math.max(0, Math.min(100, (passed / progressDuration) * 100));
     }
 
-    renderSkewerIcon() {
+    renderBurner(recipe) {
         return (
-            <div className="crafting-skewer" aria-hidden="true">
-                <span className="crafting-skewer__stick" />
-                <span className="crafting-skewer__meat crafting-skewer__meat--one" />
-                <span className="crafting-skewer__pepper crafting-skewer__pepper--one" />
-                <span className="crafting-skewer__meat crafting-skewer__meat--two" />
-                <span className="crafting-skewer__pepper crafting-skewer__pepper--two" />
-                <span className="crafting-skewer__meat crafting-skewer__meat--three" />
-                <span className="crafting-skewer__ash crafting-skewer__ash--one" />
-                <span className="crafting-skewer__ash crafting-skewer__ash--two" />
+            <div className="crafting-burner" aria-hidden="true">
+                <div className="crafting-burner__ring crafting-burner__ring--outer" />
+                <div className="crafting-burner__ring crafting-burner__ring--inner" />
+                <div className="crafting-burner__embers">
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                </div>
+                <div className="crafting-burner__pan">
+                    <div className="crafting-burner__meat crafting-burner__meat--one" />
+                    <div className="crafting-burner__meat crafting-burner__meat--two" />
+                    <div className="crafting-burner__steam crafting-burner__steam--one" />
+                    <div className="crafting-burner__steam crafting-burner__steam--two" />
+                </div>
+                <div className="crafting-burner__stamp">#{recipe.result.itemId}</div>
             </div>
         );
     }
 
     renderIngredient(ingredient) {
         return (
-            <div className="crafting-ingredient" key={ingredient.itemId}>
-                <div className="crafting-ingredient__id">#{ingredient.itemId}</div>
-                <div>
-                    <div className="crafting-ingredient__name">{ingredient.name}</div>
-                    <div className="crafting-ingredient__count">Нужно x{ingredient.count}</div>
+            <div className="crafting-supply" key={ingredient.itemId}>
+                <div className="crafting-supply__code">#{ingredient.itemId}</div>
+                <div className="crafting-supply__body">
+                    <strong>{ingredient.name}</strong>
+                    <span>расход x{ingredient.count}</span>
                 </div>
+                <div className="crafting-supply__mark">REQ</div>
             </div>
         );
     }
 
     renderRecipe(recipe) {
+        const progress = this.getProgressPercent();
+
         return (
             <div className="crafting-recipe" key={recipe.id}>
-                <div className="crafting-recipe__visual">
-                    <div className="crafting-warning-strip">QUARANTINE FOOD PREP</div>
-                    {this.renderSkewerIcon()}
-                    <div className="crafting-ration-card">
-                        <span>RATION</span>
-                        <strong>#{recipe.result.itemId}</strong>
+                <div className="crafting-recipe__left">
+                    <div className="crafting-zone-card">
+                        <span>FOOD NODE</span>
+                        <strong>Карантинный рацион</strong>
+                    </div>
+                    {this.renderBurner(recipe)}
+                    <div className="crafting-readout">
+                        <span>thermal cycle</span>
+                        <strong>{this.state.crafting ? `${Math.round(progress)}%` : 'standby'}</strong>
                     </div>
                 </div>
-                <div className="crafting-recipe__content">
-                    <div className="crafting-recipe__kicker">Рецепт кухни выживших</div>
+
+                <div className="crafting-recipe__right">
+                    <div className="crafting-recipe__meta">
+                        <span>BLACK ZONE RECIPE</span>
+                        <em>ручная готовка / без стерильной линии</em>
+                    </div>
                     <h2>{recipe.title}</h2>
                     <p>{recipe.description}</p>
-                    <div className="crafting-ingredients">
+
+                    <div className="crafting-supplies">
                         {recipe.ingredients.map((ingredient) => this.renderIngredient(ingredient))}
                     </div>
-                    <div className="crafting-result">
-                        <span>Выход</span>
+
+                    <div className="crafting-output">
+                        <span>получится</span>
                         <strong>#{recipe.result.itemId} · {recipe.result.name} x{recipe.result.count}</strong>
                     </div>
+
                     <button
                         type="button"
                         className="crafting-button"
                         disabled={this.state.crafting}
                         onClick={() => this.handleCraft(recipe.id)}
                     >
-                        {this.state.crafting ? 'Идёт готовка...' : 'Готовить на горелке'}
+                        {this.state.crafting ? 'Термоцикл запущен...' : 'Запустить готовку'}
                     </button>
                 </div>
             </div>
@@ -156,42 +176,45 @@ class CraftingTable extends Component {
 
         return (
             <div className="crafting-overlay">
-                <div className="crafting-panel">
-                    <div className="crafting-noise" />
+                <div className="crafting-shell">
                     <button type="button" className="crafting-close" onClick={this.handleClose}>×</button>
 
-                    <div className="crafting-header">
-                        <div>
-                            <div className="crafting-eyebrow">BLACK ZONE RP · LOS SANTOS QUARANTINE</div>
-                            <h1>{title}</h1>
-                            <p>{subtitle}</p>
+                    <aside className="crafting-side">
+                        <div className="crafting-side__brand">BZ</div>
+                        <div className="crafting-side__line" />
+                        <div className="crafting-side__text">FOOD<br />CRAFT</div>
+                        <div className={`crafting-side__pulse ${crafting ? 'crafting-side__pulse--active' : ''}`} />
+                    </aside>
+
+                    <main className="crafting-terminal">
+                        <header className="crafting-header">
+                            <div>
+                                <div className="crafting-eyebrow">BLACK ZONE RP / SURVIVAL KITCHEN</div>
+                                <h1>{title}</h1>
+                                <p>{subtitle}</p>
+                            </div>
+                            <div className="crafting-chip">
+                                <span>{crafting ? 'COOKING' : 'READY'}</span>
+                                <strong>{Math.round(progress)}%</strong>
+                            </div>
+                        </header>
+
+                        <div className="crafting-alert">
+                            <span>⚠</span>
+                            <p>Пища готовится на аварийной горелке. Ингредиенты списываются после завершения цикла.</p>
                         </div>
-                        <div className="crafting-status">
-                            <span className="crafting-status__lamp" />
-                            <strong>GENERATOR</strong>
-                            <em>{crafting ? 'LOAD HIGH' : 'LOW POWER'}</em>
-                        </div>
-                    </div>
 
-                    <div className="crafting-worktop">
-                        <div className="crafting-worktop__tag">FIELD KITCHEN / CONTAMINATED ZONE</div>
-                        <div className="crafting-board"><span /><span /><span /></div>
-                        <div className="crafting-can crafting-can--one" />
-                        <div className="crafting-can crafting-can--two" />
-                        <div className="crafting-flame crafting-flame--one" />
-                        <div className="crafting-flame crafting-flame--two" />
-                    </div>
+                        <section className="crafting-recipes">
+                            {recipes.length ? recipes.map((recipe) => this.renderRecipe(recipe)) : (
+                                <div className="crafting-empty">Нет доступных рецептов для этой кухни.</div>
+                            )}
+                        </section>
 
-                    <div className="crafting-recipes">
-                        {recipes.length ? recipes.map((recipe) => this.renderRecipe(recipe)) : (
-                            <div className="crafting-empty">Нет доступных рецептов для этой кухни.</div>
-                        )}
-                    </div>
-
-                    <div className={`crafting-progress ${crafting ? 'crafting-progress--active' : ''}`}>
-                        <span>COOKING CYCLE</span>
-                        <div><i style={{ width: `${progress}%` }} /></div>
-                    </div>
+                        <footer className="crafting-footer">
+                            <span>COOKING PROGRESS</span>
+                            <div className="crafting-progress"><i style={{ width: `${progress}%` }} /></div>
+                        </footer>
+                    </main>
                 </div>
             </div>
         );
