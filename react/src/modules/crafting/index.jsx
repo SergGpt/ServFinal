@@ -148,8 +148,6 @@ class CraftingTable extends Component {
     }
 
     renderRecipe(recipe) {
-        const progress = this.getProgressPercent();
-
         return (
             <div className="crafting-recipe" key={recipe.id}>
                 <div className="crafting-recipe__top">
@@ -179,14 +177,6 @@ class CraftingTable extends Component {
                     </div>
 
                     <div className="crafting-summary">
-                        <div className="crafting-zone-card">
-                            <span>GTA 5 RP</span>
-                            <strong>Black Zone RP</strong>
-                        </div>
-                        <div className="crafting-readout">
-                            <span>Прогресс</span>
-                            <strong>{this.state.crafting ? `${Math.round(progress)}%` : 'standby'}</strong>
-                        </div>
                         <div className="crafting-output">
                             <span>получится</span>
                             <strong>#{recipe.result.itemId} · {recipe.result.name} x{recipe.result.count}</strong>
@@ -222,7 +212,7 @@ class CraftingTable extends Component {
                             <div className="crafting-brand">
                                 <div className="crafting-side__brand">BZ</div>
                                 <div>
-                                    <div className="crafting-eyebrow">BLACK ZONE RP / GTA 5 RP</div>
+                                    <div className="crafting-eyebrow">ПРИГОТОВЛЕНИЕ ПИЩИ</div>
                                     <h1>{title}</h1>
                                     <p>{subtitle}</p>
                                 </div>

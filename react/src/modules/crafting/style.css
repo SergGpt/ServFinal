@@ -12,8 +12,8 @@
 
 .crafting-shell {
     position: relative;
-    width: 1040px;
-    max-width: calc(100vw - 56px);
+    width: 1220px;
+    max-width: calc(100vw - 48px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
     background: rgba(17, 17, 17, 0.96);
@@ -67,7 +67,7 @@
 .crafting-terminal {
     position: relative;
     z-index: 1;
-    padding: 30px;
+    padding: 26px 30px 24px;
 }
 
 .crafting-header {
@@ -76,7 +76,7 @@
     justify-content: space-between;
     gap: 28px;
     padding-right: 56px;
-    margin-bottom: 18px;
+    margin-bottom: 14px;
 }
 
 .crafting-brand {
@@ -144,8 +144,8 @@
     display: flex;
     align-items: center;
     gap: 11px;
-    margin-bottom: 18px;
-    padding: 12px 14px;
+    margin-bottom: 14px;
+    padding: 10px 14px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-left: 3px solid #2fb45a;
     border-radius: 8px;
@@ -165,7 +165,7 @@
 
 .crafting-recipe-browser {
     display: grid;
-    grid-template-columns: 310px 1fr;
+    grid-template-columns: 300px 1fr;
     gap: 18px;
     align-items: stretch;
 }
@@ -180,7 +180,7 @@
 .crafting-recipe-sidebar {
     display: flex;
     flex-direction: column;
-    min-height: 430px;
+    min-height: 360px;
     overflow: hidden;
 }
 
@@ -207,7 +207,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-height: 520px;
+    max-height: 430px;
     padding: 12px;
     overflow-y: auto;
 }
@@ -284,7 +284,7 @@
 }
 
 .crafting-recipe {
-    min-height: 430px;
+    min-height: 360px;
     padding: 22px;
 }
 
@@ -343,7 +343,7 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 8px;
-    margin-bottom: 18px;
+    margin-bottom: 14px;
     padding: 11px 13px;
     border-radius: 8px;
     background: rgba(47, 180, 90, 0.11);
@@ -366,7 +366,7 @@
 
 .crafting-recipe__content {
     display: grid;
-    grid-template-columns: 1fr 245px;
+    grid-template-columns: 1fr 285px;
     gap: 18px;
     align-items: start;
 }
@@ -377,7 +377,7 @@
 
 .crafting-supplies {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
 }
 
@@ -428,11 +428,9 @@
 
 .crafting-summary {
     display: grid;
-    gap: 12px;
+    gap: 10px;
 }
 
-.crafting-zone-card,
-.crafting-readout,
 .crafting-output {
     display: grid;
     gap: 7px;
@@ -442,17 +440,11 @@
     background: rgba(255, 255, 255, 0.04);
 }
 
-.crafting-zone-card strong,
-.crafting-readout strong,
 .crafting-output strong {
     color: #fff;
     font-size: 14px;
 }
 
-.crafting-readout strong {
-    color: #2fb45a;
-    text-transform: uppercase;
-}
 
 .crafting-output {
     border-color: rgba(47, 180, 90, 0.28);
@@ -493,10 +485,10 @@
 
 .crafting-footer {
     display: grid;
-    grid-template-columns: 130px 1fr;
+    grid-template-columns: 120px 1fr;
     align-items: center;
     gap: 14px;
-    margin-top: 18px;
+    margin-top: 14px;
 }
 
 .crafting-progress {
