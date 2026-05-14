@@ -9,7 +9,7 @@ const DEFAULT_STATE = {
     progressStartedAt: 0,
     progressDuration: 4500,
     title: 'Полевая кухня выживших',
-    subtitle: 'Самодельная кухня Black Zone RP',
+    subtitle: 'Минималистичная кухня Black Zone RP для GTA 5 RP',
     type: 'food',
     recipes: [],
     selectedRecipeId: null,
@@ -154,20 +154,20 @@ class CraftingTable extends Component {
             <div className="crafting-recipe" key={recipe.id}>
                 <div className="crafting-recipe__left">
                     <div className="crafting-zone-card">
-                        <span>FOOD NODE</span>
-                        <strong>Карантинный рацион</strong>
+                        <span>GTA 5 RP</span>
+                        <strong>Black Zone RP</strong>
                     </div>
                     {this.renderBurner(recipe)}
                     <div className="crafting-readout">
-                        <span>thermal cycle</span>
+                        <span>прогресс</span>
                         <strong>{this.state.crafting ? `${Math.round(progress)}%` : 'standby'}</strong>
                     </div>
                 </div>
 
                 <div className="crafting-recipe__right">
                     <div className="crafting-recipe__meta">
-                        <span>BLACK ZONE RECIPE</span>
-                        <em>ручная готовка / без стерильной линии</em>
+                        <span>BLACK ZONE RP</span>
+                        <em>минималистичная GTA 5 RP кухня</em>
                     </div>
                     <h2>{recipe.title}</h2>
                     <p>{recipe.description}</p>
@@ -192,7 +192,7 @@ class CraftingTable extends Component {
                         disabled={this.state.crafting}
                         onClick={() => this.handleCraft(recipe.id)}
                     >
-                        {this.state.crafting ? 'Термоцикл запущен...' : 'Запустить готовку'}
+                        {this.state.crafting ? 'Готовится...' : 'Приготовить'}
                     </button>
                 </div>
             </div>
@@ -214,14 +214,14 @@ class CraftingTable extends Component {
                     <aside className="crafting-side">
                         <div className="crafting-side__brand">BZ</div>
                         <div className="crafting-side__line" />
-                        <div className="crafting-side__text">FOOD<br />CRAFT</div>
+                        <div className="crafting-side__text">GTA 5<br />RP</div>
                         <div className={`crafting-side__pulse ${crafting ? 'crafting-side__pulse--active' : ''}`} />
                     </aside>
 
                     <main className="crafting-terminal">
                         <header className="crafting-header">
                             <div>
-                                <div className="crafting-eyebrow">BLACK ZONE RP / SURVIVAL KITCHEN</div>
+                                <div className="crafting-eyebrow">BLACK ZONE RP / GTA 5 RP</div>
                                 <h1>{title}</h1>
                                 <p>{subtitle}</p>
                             </div>
@@ -233,7 +233,7 @@ class CraftingTable extends Component {
 
                         <div className="crafting-alert">
                             <span>⚠</span>
-                            <p>Пища готовится на аварийной горелке. Ингредиенты списываются после завершения цикла.</p>
+                            <p>Black Zone RP: ингредиенты списываются после завершения готовки.</p>
                         </div>
 
                         <section className="crafting-recipes">
@@ -250,7 +250,7 @@ class CraftingTable extends Component {
                         </section>
 
                         <footer className="crafting-footer">
-                            <span>COOKING PROGRESS</span>
+                            <span>ПРОГРЕСС</span>
                             <div className="crafting-progress"><i style={{ width: `${progress}%` }} /></div>
                         </footer>
                     </main>
