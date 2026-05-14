@@ -231,7 +231,7 @@
 
 .crafting-recipe {
     display: grid;
-    grid-template-columns: 340px 1fr;
+    grid-template-columns: 290px 1fr;
     min-height: 390px;
     border: 1px solid rgba(127, 109, 65, 0.34);
     background: rgba(7, 9, 8, 0.36);
@@ -275,8 +275,8 @@
 .crafting-burner {
     position: relative;
     z-index: 1;
-    width: 260px;
-    height: 260px;
+    width: 220px;
+    height: 220px;
     margin: 30px auto 20px;
 }
 
@@ -293,7 +293,7 @@
 }
 
 .crafting-burner__ring--inner {
-    inset: 42px;
+    inset: 36px;
     border-color: rgba(102, 119, 76, 0.42);
     background: radial-gradient(circle, rgba(188, 112, 44, 0.18), rgba(11, 13, 11, 0.72));
 }
@@ -314,8 +314,8 @@
 
 .crafting-burner__pan {
     position: absolute;
-    left: 54px;
-    top: 74px;
+    left: 42px;
+    top: 62px;
     width: 152px;
     height: 106px;
     border: 1px solid rgba(202, 155, 82, 0.28);
@@ -547,4 +547,101 @@
 @keyframes crafting-pulse {
     from { opacity: 0.55; transform: scale(0.9); }
     to { opacity: 1; transform: scale(1.08); }
+}
+
+.crafting-recipe-browser {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 14px;
+}
+
+.crafting-recipe-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 390px;
+    padding-right: 6px;
+    overflow-y: auto;
+}
+
+.crafting-recipe-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.crafting-recipe-list::-webkit-scrollbar-thumb {
+    background: rgba(196, 146, 63, 0.42);
+}
+
+.crafting-recipe-tab {
+    position: relative;
+    width: 100%;
+    padding: 12px 13px;
+    border: 1px solid rgba(126, 107, 64, 0.22);
+    color: #ded5bb;
+    text-align: left;
+    cursor: pointer;
+    background: linear-gradient(90deg, rgba(12, 15, 12, 0.92), rgba(34, 43, 31, 0.44));
+}
+
+.crafting-recipe-tab:hover:not(:disabled),
+.crafting-recipe-tab--active {
+    border-color: rgba(211, 154, 67, 0.62);
+    background: linear-gradient(90deg, rgba(82, 51, 25, 0.76), rgba(42, 54, 36, 0.62));
+}
+
+.crafting-recipe-tab:disabled {
+    cursor: default;
+    opacity: 0.7;
+}
+
+.crafting-recipe-tab__name,
+.crafting-recipe-tab__meta,
+.crafting-recipe-tab__risk {
+    display: block;
+}
+
+.crafting-recipe-tab__name {
+    color: #ecd08d;
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.crafting-recipe-tab__meta {
+    margin-top: 5px;
+    color: rgba(222, 213, 187, 0.48);
+    font-size: 11px;
+}
+
+.crafting-recipe-tab__risk {
+    margin-top: 6px;
+    color: #d08a4b;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.crafting-effect-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-left: 3px solid #8f6330;
+    background: rgba(16, 19, 15, 0.58);
+}
+
+.crafting-effect-row span,
+.crafting-effect-row em {
+    color: #72835c;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.crafting-effect-row strong {
+    color: #e0bf78;
+    font-size: 13px;
 }

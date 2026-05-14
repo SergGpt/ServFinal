@@ -12,6 +12,7 @@ const DEFAULT_STATE = {
     subtitle: 'Самодельная кухня Black Zone RP',
     type: 'food',
     recipes: [],
+    selectedRecipeId: null,
 };
 
 class CraftingTable extends Component {
@@ -44,6 +45,7 @@ class CraftingTable extends Component {
             subtitle: payload.subtitle || DEFAULT_STATE.subtitle,
             type: payload.type || DEFAULT_STATE.type,
             recipes: payload.recipes || [],
+            selectedRecipeId: payload.recipes && payload.recipes.length ? payload.recipes[0].id : null,
         });
     };
 
@@ -77,6 +79,11 @@ class CraftingTable extends Component {
     handleCraft = (recipeId) => {
         if (this.state.crafting) return;
         if (typeof mp !== 'undefined' && mp.trigger) mp.trigger('callRemote', 'crafting.craft', recipeId);
+    };
+
+    handleRecipeSelect = (recipeId) => {
+        if (this.state.crafting) return;
+        this.setState({ selectedRecipeId: recipeId });
     };
 
     getProgressPercent() {
@@ -121,6 +128,25 @@ class CraftingTable extends Component {
         );
     }
 
+    renderRecipeNav(recipe) {
+        const isActive = this.state.selectedRecipeId === recipe.id;
+        const timeSec = Math.ceil((recipe.craftTime || recipe.durationMs || 0) / 1000);
+
+        return (
+            <button
+                type="button"
+                key={recipe.id}
+                className={`crafting-recipe-tab ${isActive ? 'crafting-recipe-tab--active' : ''}`}
+                disabled={this.state.crafting}
+                onClick={() => this.handleRecipeSelect(recipe.id)}
+            >
+                <span className="crafting-recipe-tab__name">{recipe.title}</span>
+                <span className="crafting-recipe-tab__meta">#{recipe.result.itemId} · {timeSec} сек · {recipe.consumableType === 'drink' ? 'вода' : 'еда'}</span>
+                {recipe.infectionStub && <span className="crafting-recipe-tab__risk">заражение: заглушка</span>}
+            </button>
+        );
+    }
+
     renderRecipe(recipe) {
         const progress = this.getProgressPercent();
 
@@ -145,6 +171,11 @@ class CraftingTable extends Component {
                     </div>
                     <h2>{recipe.title}</h2>
                     <p>{recipe.description}</p>
+                    <div className="crafting-effect-row">
+                        <span>{recipe.consumableType === 'drink' ? 'Напиток' : 'Еда'}</span>
+                        <strong>{recipe.effect}</strong>
+                        {recipe.infectionStub && <em>Заражение пока без действия</em>}
+                    </div>
 
                     <div className="crafting-supplies">
                         {recipe.ingredients.map((ingredient) => this.renderIngredient(ingredient))}
@@ -169,10 +200,11 @@ class CraftingTable extends Component {
     }
 
     render() {
-        const { visible, title, subtitle, recipes, crafting } = this.state;
+        const { visible, title, subtitle, recipes, crafting, selectedRecipeId } = this.state;
         if (!visible) return null;
 
         const progress = this.getProgressPercent();
+        const selectedRecipe = recipes.find((recipe) => recipe.id === selectedRecipeId) || recipes[0];
 
         return (
             <div className="crafting-overlay">
@@ -205,7 +237,14 @@ class CraftingTable extends Component {
                         </div>
 
                         <section className="crafting-recipes">
-                            {recipes.length ? recipes.map((recipe) => this.renderRecipe(recipe)) : (
+                            {recipes.length ? (
+                                <div className="crafting-recipe-browser">
+                                    <div className="crafting-recipe-list">
+                                        {recipes.map((recipe) => this.renderRecipeNav(recipe))}
+                                    </div>
+                                    {selectedRecipe && this.renderRecipe(selectedRecipe)}
+                                </div>
+                            ) : (
                                 <div className="crafting-empty">Нет доступных рецептов для этой кухни.</div>
                             )}
                         </section>
