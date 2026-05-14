@@ -11,7 +11,6 @@ const DEFAULT_STATE = {
     title: 'Полевая кухня выживших',
     subtitle: 'Самодельная кухня Black Zone RP',
     type: 'food',
-    variant: 'survivor_camp',
     recipes: [],
 };
 
@@ -44,7 +43,6 @@ class CraftingTable extends Component {
             title: payload.title || DEFAULT_STATE.title,
             subtitle: payload.subtitle || DEFAULT_STATE.subtitle,
             type: payload.type || DEFAULT_STATE.type,
-            variant: payload.variant || DEFAULT_STATE.variant,
             recipes: payload.recipes || [],
         });
     };
@@ -151,13 +149,13 @@ class CraftingTable extends Component {
     }
 
     render() {
-        const { visible, title, subtitle, recipes, crafting, variant } = this.state;
+        const { visible, title, subtitle, recipes, crafting } = this.state;
         if (!visible) return null;
 
         const progress = this.getProgressPercent();
 
         return (
-            <div className={`crafting-overlay crafting-overlay--${variant}`}>
+            <div className="crafting-overlay">
                 <div className="crafting-panel">
                     <div className="crafting-noise" />
                     <button type="button" className="crafting-close" onClick={this.handleClose}>×</button>

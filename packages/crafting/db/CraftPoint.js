@@ -10,11 +10,6 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false,
             defaultValue: 'food'
         },
-        variant: {
-            type: DataTypes.STRING(32),
-            allowNull: false,
-            defaultValue: 'survivor_camp'
-        },
         x: {
             type: DataTypes.FLOAT,
             allowNull: false
@@ -26,11 +21,6 @@ module.exports = (sequelize, DataTypes) => {
         z: {
             type: DataTypes.FLOAT,
             allowNull: false
-        },
-        h: {
-            type: DataTypes.FLOAT,
-            allowNull: false,
-            defaultValue: 0
         },
         d: {
             type: DataTypes.INTEGER,
