@@ -1,0 +1,514 @@
+.crafting-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Roboto', 'Arial', sans-serif;
+    color: #f4f4f4;
+    background: rgba(0, 0, 0, 0.52);
+}
+
+.crafting-shell {
+    position: relative;
+    width: 1220px;
+    max-width: calc(100vw - 48px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: rgba(17, 17, 17, 0.96);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.68);
+    overflow: hidden;
+}
+
+.crafting-shell:before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(135deg, rgba(47, 180, 90, 0.12), transparent 30%, rgba(255, 255, 255, 0.03));
+}
+
+.crafting-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    z-index: 4;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 25px;
+    line-height: 30px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.crafting-close:hover {
+    color: #fff;
+    background: #2fb45a;
+}
+
+.crafting-side__brand {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    background: #2fb45a;
+    box-shadow: 0 12px 30px rgba(47, 180, 90, 0.22);
+}
+
+.crafting-terminal {
+    position: relative;
+    z-index: 1;
+    padding: 26px 30px 24px;
+}
+
+.crafting-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 28px;
+    padding-right: 56px;
+    margin-bottom: 14px;
+}
+
+.crafting-brand {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+}
+
+.crafting-eyebrow,
+.crafting-recipe__meta span,
+.crafting-footer span,
+.crafting-zone-card span,
+.crafting-recipe-sidebar__head span,
+.crafting-block__title {
+    color: #2fb45a;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.crafting-header h1 {
+    margin: 6px 0;
+    color: #fff;
+    font-size: 34px;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+}
+
+.crafting-header p,
+.crafting-recipe p,
+.crafting-alert p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.crafting-chip {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    width: 100px;
+    min-width: 100px;
+    height: 72px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.crafting-chip span {
+    color: rgba(255, 255, 255, 0.46);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+}
+
+.crafting-chip strong {
+    margin-top: 6px;
+    color: #2fb45a;
+    font-size: 22px;
+}
+
+.crafting-alert {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 3px solid #2fb45a;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.045);
+}
+
+.crafting-alert span {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    color: #fff;
+    font-weight: 900;
+    background: #2fb45a;
+}
+
+.crafting-recipe-browser {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 18px;
+    align-items: stretch;
+}
+
+.crafting-recipe-sidebar,
+.crafting-recipe {
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.045);
+}
+
+.crafting-recipe-sidebar {
+    display: flex;
+    flex-direction: column;
+    min-height: 360px;
+    overflow: hidden;
+}
+
+.crafting-recipe-sidebar__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.crafting-recipe-sidebar__head strong {
+    display: grid;
+    place-items: center;
+    min-width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    color: #fff;
+    font-size: 13px;
+    background: rgba(47, 180, 90, 0.22);
+}
+
+.crafting-recipe-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 430px;
+    padding: 12px;
+    overflow-y: auto;
+}
+
+.crafting-recipe-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.crafting-recipe-list::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.crafting-recipe-tab {
+    position: relative;
+    width: 100%;
+    padding: 12px 13px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.76);
+    text-align: left;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.crafting-recipe-tab:hover:not(:disabled),
+.crafting-recipe-tab--active {
+    border-color: rgba(47, 180, 90, 0.62);
+    color: #fff;
+    background: rgba(47, 180, 90, 0.14);
+}
+
+.crafting-recipe-tab--active:before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 12px;
+    bottom: 12px;
+    width: 3px;
+    border-radius: 0 999px 999px 0;
+    background: #2fb45a;
+}
+
+.crafting-recipe-tab:disabled {
+    cursor: default;
+    opacity: 0.65;
+}
+
+.crafting-recipe-tab__name,
+.crafting-recipe-tab__meta,
+.crafting-recipe-tab__risk {
+    display: block;
+}
+
+.crafting-recipe-tab__name {
+    color: inherit;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.crafting-recipe-tab__meta {
+    margin-top: 5px;
+    color: rgba(255, 255, 255, 0.42);
+    font-size: 11px;
+}
+
+.crafting-recipe-tab__risk {
+    margin-top: 6px;
+    color: #ffb84d;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.crafting-recipe {
+    min-height: 360px;
+    padding: 22px;
+}
+
+.crafting-recipe__top {
+    display: grid;
+    grid-template-columns: 1fr 104px;
+    gap: 22px;
+    align-items: start;
+    margin-bottom: 14px;
+}
+
+.crafting-recipe__meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 8px;
+}
+
+.crafting-recipe__meta em {
+    color: rgba(255, 255, 255, 0.42);
+    font-size: 12px;
+    font-style: normal;
+}
+
+.crafting-recipe h2 {
+    margin: 0 0 8px;
+    color: #fff;
+    font-size: 32px;
+    letter-spacing: -0.02em;
+}
+
+.crafting-burner {
+    display: grid;
+    place-items: center;
+    width: 96px;
+    height: 96px;
+    border: 1px solid rgba(47, 180, 90, 0.32);
+    border-radius: 50%;
+    background: rgba(47, 180, 90, 0.08);
+}
+
+.crafting-burner__ring,
+.crafting-burner__embers,
+.crafting-burner__pan {
+    display: none;
+}
+
+.crafting-burner__stamp {
+    color: #2fb45a;
+    font-size: 20px;
+    font-weight: 900;
+}
+
+.crafting-effect-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 11px 13px;
+    border-radius: 8px;
+    background: rgba(47, 180, 90, 0.11);
+}
+
+.crafting-effect-row span,
+.crafting-effect-row em {
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.crafting-effect-row strong {
+    color: #8eedaa;
+    font-size: 13px;
+}
+
+.crafting-recipe__content {
+    display: grid;
+    grid-template-columns: 1fr 285px;
+    gap: 18px;
+    align-items: start;
+}
+
+.crafting-block__title {
+    margin-bottom: 10px;
+}
+
+.crafting-supplies {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.crafting-supply {
+    display: grid;
+    grid-template-columns: 58px 1fr;
+    align-items: center;
+    min-height: 58px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+}
+
+.crafting-supply__code {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    color: #2fb45a;
+    font-weight: 900;
+    background: rgba(47, 180, 90, 0.09);
+}
+
+.crafting-supply__body {
+    min-width: 0;
+    padding: 0 12px;
+}
+
+.crafting-supply__body strong {
+    display: block;
+    overflow: hidden;
+    color: #fff;
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.crafting-supply__body span {
+    display: block;
+    margin-top: 3px;
+    color: rgba(255, 255, 255, 0.42);
+    font-size: 12px;
+}
+
+.crafting-supply__mark {
+    display: none;
+}
+
+.crafting-summary {
+    display: grid;
+    gap: 10px;
+}
+
+.crafting-output {
+    display: grid;
+    gap: 7px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.crafting-output strong {
+    color: #fff;
+    font-size: 14px;
+}
+
+
+.crafting-output {
+    border-color: rgba(47, 180, 90, 0.28);
+    background: rgba(47, 180, 90, 0.08);
+}
+
+.crafting-output span {
+    color: rgba(255, 255, 255, 0.54);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.crafting-button {
+    width: 100%;
+    height: 52px;
+    border: 0;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    background: #2fb45a;
+    box-shadow: 0 12px 26px rgba(47, 180, 90, 0.24);
+}
+
+.crafting-button:hover:not(:disabled) {
+    background: #37c966;
+}
+
+.crafting-button:disabled {
+    cursor: default;
+    opacity: 0.62;
+}
+
+.crafting-footer {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    align-items: center;
+    gap: 14px;
+    margin-top: 14px;
+}
+
+.crafting-progress {
+    height: 8px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.crafting-progress i {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: inherit;
+    background: #2fb45a;
+    transition: width 0.08s linear;
+}
+
+.crafting-empty {
+    padding: 80px 0;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.5);
+}
