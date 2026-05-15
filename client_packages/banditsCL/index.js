@@ -28,10 +28,232 @@ const deadReportAt = new Map(); // zid -> ts
 const deadConfirmedAt = new Map(); // zid -> ts
 const CTRL_HEARTBEAT_MS = 1000;
 const PLAYER_HIT_SHAKE_MS = 5000;
+const ZOMBIE_FEAR_SUPPRESS_MS = 650;
+const SET_PED_FLEE_ATTRIBUTES_NATIVE = '0x70A2D1137C8ED7C9';
 const playerHitFx = {
     shakeUntil: 0,
     shakeActive: false,
 };
+
+const ZOMBIE_ZONE_MAP_BLIP_NAME = 'точка вспышки';
+const ZOMBIE_ZONE_AREA_ALPHA = 65;
+const ZOMBIE_ZONE_CONTOUR_ALPHA = 170;
+const ZOMBIE_ZONE_AREA_COLOR = 1;
+const ZOMBIE_ZONE_MARKER_SPRITE = 84;
+const ADD_BLIP_FOR_AREA_NATIVE = '0xCE5D0E5E315DB238';
+const SET_BLIP_SPRITE_NATIVE = '0xDF735600A4696DAF';
+const SET_BLIP_ALPHA_NATIVE = '0x45FF974EEE1C8734';
+const SET_BLIP_ROTATION_NATIVE = '0xF87683CDF73C3F6E';
+const SET_BLIP_COLOUR_NATIVE = '0x03D7FB09E75D6B7E';
+const SET_BLIP_DISPLAY_NATIVE = '0x9029B2F3DA924928';
+const ZOMBIE_ZONE_MAIN_MAP_DISPLAY = 3;
+const zombieZoneMapBlips = [];
+
+function removeZombieZoneMapBlips() {
+    while (zombieZoneMapBlips.length) {
+        const entry = zombieZoneMapBlips.pop();
+        const areas = Array.isArray(entry.areas) ? entry.areas : (entry.area ? [entry.area] : []);
+        areas.forEach((area) => {
+            try { if (area) mp.game.ui.removeBlip(area); } catch {}
+        });
+        try { if (entry.marker && mp.blips.exists(entry.marker)) entry.marker.destroy(); } catch {}
+    }
+}
+
+function normalizeZombieZoneMapPoints(zone) {
+    const points = zone && Array.isArray(zone.points) ? zone.points : [];
+    return points
+        .map((point) => ({
+            x: Number(point && point.x),
+            y: Number(point && point.y),
+            z: Number(point && point.z),
+        }))
+        .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+}
+
+function getZombieZoneMapCenter(zone) {
+    const points = normalizeZombieZoneMapPoints(zone);
+    if (points.length >= 3) {
+        const sum = points.reduce((acc, point) => {
+            acc.x += point.x;
+            acc.y += point.y;
+            acc.z += Number.isFinite(point.z) ? point.z : 0;
+            return acc;
+        }, { x: 0, y: 0, z: 0 });
+
+        return {
+            x: sum.x / points.length,
+            y: sum.y / points.length,
+            z: sum.z / points.length,
+        };
+    }
+
+    return {
+        x: Number(zone && zone.x) || 0,
+        y: Number(zone && zone.y) || 0,
+        z: Number(zone && zone.z) || 0,
+    };
+}
+
+function getZombieZoneMapRadius(zone, center) {
+    const points = normalizeZombieZoneMapPoints(zone);
+    if (points.length >= 3) {
+        const radius = points.reduce((max, point) => {
+            const dx = point.x - center.x;
+            const dy = point.y - center.y;
+            return Math.max(max, Math.sqrt(dx * dx + dy * dy));
+        }, 0);
+        return Math.max(5, radius);
+    }
+
+    return Math.max(5, Number(zone && zone.radius) || 30);
+}
+
+function setZombieZoneBlipMainMapOnly(blip) {
+    if (!blip) return;
+    try {
+        if (typeof blip === 'object' && typeof blip.setDisplay === 'function') {
+            blip.setDisplay(ZOMBIE_ZONE_MAIN_MAP_DISPLAY);
+            return;
+        }
+    } catch {}
+
+    try { mp.game.invoke(SET_BLIP_DISPLAY_NATIVE, blip, ZOMBIE_ZONE_MAIN_MAP_DISPLAY); } catch {}
+}
+
+function createZombieZoneAreaBlip(x, y, z, width, height, alpha, rotation = 0) {
+    let blip = 0;
+    try {
+        if (mp.game.ui.addBlipForArea) blip = mp.game.ui.addBlipForArea(x, y, z, width, height);
+    } catch {}
+    if (!blip) {
+        try { blip = mp.game.invoke(ADD_BLIP_FOR_AREA_NATIVE, x, y, z, width, height); } catch {}
+    }
+    if (!blip) return null;
+
+    mp.game.invoke(SET_BLIP_SPRITE_NATIVE, blip, 5);
+    mp.game.invoke(SET_BLIP_ALPHA_NATIVE, blip, alpha);
+    mp.game.invoke(SET_BLIP_COLOUR_NATIVE, blip, ZOMBIE_ZONE_AREA_COLOR);
+    mp.game.invoke(SET_BLIP_ROTATION_NATIVE, blip, Math.round(rotation));
+    setZombieZoneBlipMainMapOnly(blip);
+    return blip;
+}
+
+function getZombieZoneMapBounds(points) {
+    return points.reduce((bounds, point) => ({
+        minX: Math.min(bounds.minX, point.x),
+        maxX: Math.max(bounds.maxX, point.x),
+        minY: Math.min(bounds.minY, point.y),
+        maxY: Math.max(bounds.maxY, point.y),
+    }), {
+        minX: points[0].x,
+        maxX: points[0].x,
+        minY: points[0].y,
+        maxY: points[0].y,
+    });
+}
+
+function createZombieZonePolygonFillBlips(points, z) {
+    if (!Array.isArray(points) || points.length < 3) return [];
+
+    const bounds = getZombieZoneMapBounds(points);
+    const height = Math.max(1, bounds.maxY - bounds.minY);
+    const width = Math.max(1, bounds.maxX - bounds.minX);
+    let step = Math.max(8, Math.min(30, Math.max(width, height) / 45));
+    if (height / step > 140) step = height / 140;
+
+    const blips = [];
+    for (let y = bounds.minY + step / 2; y < bounds.maxY; y += step) {
+        const intersections = [];
+        for (let i = 0; i < points.length; i++) {
+            const a = points[i];
+            const b = points[(i + 1) % points.length];
+            if (!a || !b || a.y === b.y) continue;
+            const crosses = (a.y <= y && b.y > y) || (b.y <= y && a.y > y);
+            if (!crosses) continue;
+            intersections.push(a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y));
+        }
+
+        intersections.sort((a, b) => a - b);
+        for (let i = 0; i + 1 < intersections.length; i += 2) {
+            const x1 = intersections[i];
+            const x2 = intersections[i + 1];
+            const stripWidth = x2 - x1;
+            if (stripWidth <= 1) continue;
+            const blip = createZombieZoneAreaBlip((x1 + x2) / 2, y, z, stripWidth, step, ZOMBIE_ZONE_AREA_ALPHA);
+            if (blip) blips.push(blip);
+        }
+    }
+
+    return blips;
+}
+
+function createZombieZonePolygonContourBlips(points, z) {
+    if (!Array.isArray(points) || points.length < 2) return [];
+
+    const blips = [];
+    for (let i = 0; i < points.length; i++) {
+        const a = points[i];
+        const b = points[(i + 1) % points.length];
+        if (!a || !b) continue;
+
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const length = Math.sqrt(dx * dx + dy * dy);
+        if (length <= 1) continue;
+
+        const rotation = (Math.atan2(dy, dx) * 180) / Math.PI;
+        const thickness = Math.max(8, Math.min(18, length * 0.08));
+        const blip = createZombieZoneAreaBlip(
+            (a.x + b.x) / 2,
+            (a.y + b.y) / 2,
+            z,
+            length,
+            thickness,
+            ZOMBIE_ZONE_CONTOUR_ALPHA,
+            rotation
+        );
+        if (blip) blips.push(blip);
+    }
+
+    return blips;
+}
+
+function createZombieZoneMapBlips(zones) {
+    removeZombieZoneMapBlips();
+    if (!Array.isArray(zones)) return;
+
+    zones.forEach((zone) => {
+        const center = getZombieZoneMapCenter(zone);
+        const points = normalizeZombieZoneMapPoints(zone);
+        const name = String((zone && zone.name) || ZOMBIE_ZONE_MAP_BLIP_NAME);
+        const areas = [];
+
+        if (points.length >= 3) {
+            areas.push(...createZombieZonePolygonFillBlips(points, center.z));
+            areas.push(...createZombieZonePolygonContourBlips(points, center.z));
+        } else {
+            const radius = getZombieZoneMapRadius(zone, center);
+            const area = mp.game.ui.addBlipForRadius(center.x, center.y, center.z, radius);
+            mp.game.invoke(SET_BLIP_SPRITE_NATIVE, area, 5);
+            mp.game.invoke(SET_BLIP_ALPHA_NATIVE, area, ZOMBIE_ZONE_AREA_ALPHA);
+            mp.game.invoke(SET_BLIP_COLOUR_NATIVE, area, ZOMBIE_ZONE_AREA_COLOR);
+            setZombieZoneBlipMainMapOnly(area);
+            areas.push(area);
+        }
+
+        const marker = mp.blips.new(ZOMBIE_ZONE_MARKER_SPRITE, new mp.Vector3(center.x, center.y, center.z), {
+            name,
+            color: ZOMBIE_ZONE_AREA_COLOR,
+            alpha: 255,
+            shortRange: false,
+            scale: 0.8,
+        });
+        setZombieZoneBlipMainMapOnly(marker);
+
+        zombieZoneMapBlips.push({ areas, marker });
+    });
+}
 
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
@@ -78,16 +300,29 @@ function forceAggroPedState(ped, clipset = null){
 
     applyZombieWalkStyle(ped, clipset);
 
-    try { ped.setCanRagdoll(true); } catch {}
+    try { ped.setCanRagdoll(false); } catch {}
     try { ped.setBlockingOfNonTemporaryEvents(true); } catch {}
     try { ped.setKeepTask(true); } catch {}
 
     try { mp.game.ped.setPedFleeAttributes(ped.handle, 0, false); } catch {}
-    try { mp.game.ped.setPedCombatAttributes(ped.handle, 17, true); } catch {} // always fight
-    try { mp.game.ped.setPedCombatAttributes(ped.handle, 46, true); } catch {} // BF_CanFightArmedPedsWhenNotArmed
+    try { mp.game.invoke(SET_PED_FLEE_ATTRIBUTES_NATIVE, ped.handle, 0, false); } catch {}
+    try { mp.game.ped.setPedCombatAttributes(ped.handle, 5, true); } catch {} // BF_CanFightArmedPedsWhenNotArmed
+    try { mp.game.ped.setPedCombatAttributes(ped.handle, 46, true); } catch {} // BF_AlwaysFight
     try { mp.game.ped.setPedCombatMovement(ped.handle, 2); } catch {}
     try { mp.game.ped.setPedCombatRange(ped.handle, 0); } catch {}
     try { mp.game.ped.setPedAlertness(ped.handle, 3); } catch {}
+}
+
+function reassertZombieAggroStates(force = false) {
+    const now = Date.now();
+    zombies.forEach((obj) => {
+        try {
+            if (!obj || !obj.ped || !mp.peds.exists(obj.ped)) return;
+            if (!force && obj.lastFearSuppressAt && (now - obj.lastFearSuppressAt) < ZOMBIE_FEAR_SUPPRESS_MS) return;
+            obj.lastFearSuppressAt = now;
+            forceAggroPedState(obj.ped, obj.style ? obj.style.clipset : null);
+        } catch {}
+    });
 }
 
 
@@ -172,7 +407,7 @@ function prepPed(ped, obj = null){
     try{ ped.setCollision(true,true); }catch{}
     try{ ped.setBlockingOfNonTemporaryEvents(true); }catch{}
     try{ ped.setKeepTask(true); }catch{}
-    try{ ped.setCanRagdoll(true); }catch{}
+    try{ ped.setCanRagdoll(false); }catch{}
     const clipset = obj && obj.style ? obj.style.clipset : null;
     applyZombieWalkStyle(ped, clipset);
     forceAggroPedState(ped, clipset);
@@ -256,6 +491,10 @@ mp.events.add('entityStreamIn', (ent) => {
 });
 mp.events.add('entityStreamOut', (ent) => {
     try { if (ent && ent.type === 'ped') detachIfZombie(ent); } catch {}
+});
+
+mp.events.add('playerWeaponShot', () => {
+    reassertZombieAggroStates(true);
 });
 
 // принудительный первый проход
@@ -510,6 +749,7 @@ mp.events.add('z:dead', (zid) => {
     deadConfirmedAt.set(zid, Date.now());
     try { ped.setInvincible(false); } catch {}
     try { mp.game.entity.setEntityProofs(ped.handle, false, false, false, false, false, false, false, false); }catch{}
+    try { ped.setCanRagdoll(true); } catch {}
     try { ped.clearTasksImmediately(); } catch {}
     try { ped.setHealth(0); } catch {}
     try { mp.game.ped.setPedToRagdoll(ped.handle, 5000, 5000, 0, false, false, false); } catch {}
@@ -1074,4 +1314,9 @@ mp.events.add('render', () => {
             255, 120, 0, 255
         );
     }
+});
+
+
+mp.events.add('zombies:zones:map', (zones) => {
+    try { createZombieZoneMapBlips(zones); } catch (e) { lootDebug(`zone map blips error=${e.message}`); }
 });

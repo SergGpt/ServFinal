@@ -229,6 +229,15 @@ module.exports = (sequelize, DataTypes) => {
                 this.setDataValue('thirst', val);
             },
         },
+        infection: {
+            type: DataTypes.FLOAT(11),
+            defaultValue: 0,
+            allowNull: false,
+            set(val) {
+                val = Math.clamp(val, 0, 100);
+                this.setDataValue('infection', val);
+            },
+        },
         // Наркозависимость
         narcotism: {
             type: DataTypes.INTEGER(11),

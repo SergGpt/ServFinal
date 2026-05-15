@@ -100,7 +100,19 @@
                             }"
                         />
                     </svg>
-            </div>
+                </div>
+                <div class="infection">
+                    <img src="img/hud/infection.svg"/>
+                    <svg>
+                        <circle />
+                        <circle
+                            class="scale"
+                            :style="{
+                                strokeDasharray: `calc(6.28*1.79vh*${infection/100}) calc(6.28*1.79vh)`
+                            }"
+                        />
+                    </svg>
+                </div>
             </div>
             <div v-show="show && keysShow && !selectMenu.show" class="keys">
                 <div class="block text-small" v-show="isKeyShow(key.name)" v-for="key in keys" v-bind:key="key.key">
