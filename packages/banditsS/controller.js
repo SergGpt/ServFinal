@@ -27,9 +27,17 @@ const zones = new Map();
 const zombies = new Map();
 let zombieZoneMapSignature = '';
 const zombieLootManager = createZombieLootManager();
+let infectionRef = null;
 let zombieZoneColumnSet = null;
 const ZONE_SPAWN_DELAY_MS = 45 * 1000;
 const ZONE_EMPTY_DESTROY_DELAY_MS = 30 * 1000;
+
+
+function getInfection() {
+    if (infectionRef) return infectionRef;
+    try { infectionRef = call('infection'); } catch {}
+    return infectionRef;
+}
 
 function getDbRef() {
     try {
@@ -1004,6 +1012,11 @@ function processZombieAttacks() {
 
         try {
             owner.call('z:playerDamagedByZombie', [st.zid]);
+        } catch {}
+
+        try {
+            const infection = getInfection();
+            if (infection && typeof infection.addBite === 'function') infection.addBite(owner);
         } catch {}
 
         setZombieState(st, ZOMBIE_STATE.ATTACK, zlog, `target=${owner.id}`);

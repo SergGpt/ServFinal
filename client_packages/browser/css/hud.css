@@ -191,6 +191,14 @@
     stroke: #67EDFF;
 }
 
+#hud .starvation>div.infection svg circle.scale {
+    stroke: #77D84C;
+}
+
+#hud .starvation>div.infection img {
+    filter: drop-shadow(0 0 .4vh rgba(119, 216, 76, .55));
+}
+
 #hud .starvation img {
     height: 2vh;
     margin: auto;
