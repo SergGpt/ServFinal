@@ -39,16 +39,6 @@ function getInfection() {
     return infectionRef;
 }
 
-function isPlayerInAnyZombieZone(player) {
-    if (!player || !mp.players.exists(player)) return false;
-    let result = false;
-    zones.forEach((zone) => {
-        if (result) return;
-        if (isPlayerInZone(player, zone)) result = true;
-    });
-    return result;
-}
-
 function getDbRef() {
     try {
         if (typeof global !== 'undefined' && global.db) return global.db;
@@ -1217,19 +1207,6 @@ function registerEvents() {
 
     mp.events.add('characterInit.done', (player) => {
         setTimeout(() => syncZombieZoneMapBlips(player), 1500);
-        try {
-            const infection = getInfection();
-            if (infection && typeof infection.startZoneExposure === 'function') {
-                infection.startZoneExposure(player, isPlayerInAnyZombieZone);
-            }
-        } catch {}
-    });
-
-    mp.events.add('playerQuit', (player) => {
-        try {
-            const infection = getInfection();
-            if (infection && typeof infection.stopZoneExposure === 'function') infection.stopZoneExposure(player);
-        } catch {}
     });
 
     mp.events.add('zombies:zone:add', async (player, radiusRaw, zombieCountRaw, respawnSecRaw, ...nameParts) => {
@@ -1410,6 +1387,24 @@ function registerEvents() {
     });
 }
 
+
+function processZoneInfectionExposure() {
+    const infection = getInfection();
+    if (!infection || typeof infection.applyZoneExposure !== 'function') return;
+
+    const exposedPlayerIds = new Set();
+    zones.forEach((zone) => {
+        try {
+            playersInZone(mp, zone).forEach((player) => {
+                if (!player || !player.character) return;
+                if (exposedPlayerIds.has(player.id)) return;
+                exposedPlayerIds.add(player.id);
+                infection.applyZoneExposure(player, zone.name || 'заражённая зона');
+            });
+        } catch {}
+    });
+}
+
 function registerLoops() {
     zombieLootManager.registerLoops();
     setInterval(() => {
@@ -1417,6 +1412,12 @@ function registerLoops() {
             updateZoneEntryState();
         } catch {}
     }, ZOMBIE_CONFIG.timers.zoneEntryScanMs);
+
+    setInterval(() => {
+        try {
+            processZoneInfectionExposure();
+        } catch {}
+    }, 5 * 1000);
 
     setInterval(async () => {
         try {

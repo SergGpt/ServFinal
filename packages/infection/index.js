@@ -11,7 +11,7 @@ const INFECTION_DAMAGE = 1;
 const INFECTION_DEATH_REDUCTION_PERCENT = 25;
 const INFECTION_ZONE_ADD = 1;
 const INFECTION_ZONE_INTERVAL_MS = 5 * 1000;
-const GAS_MASK_VARIATIONS = [166, 142, 130, 46, 38, 36];
+const GAS_MASK_IDS = [166, 142, 130, 46, 38, 36];
 
 module.exports = {
     timers: {},
@@ -78,9 +78,12 @@ module.exports = {
         if (!player || !player.character || player.godmode) return;
         const before = this.get(player);
         const expected = this.normalize(before + INFECTION_BITE_ADD);
-        this.add(player, INFECTION_BITE_ADD, {
+        const after = this.add(player, INFECTION_BITE_ADD, {
             notify: expected > before ? `Укус зомби: заражение ${Math.round(expected)}%` : null,
         });
+        if (after > before) {
+            try { player.call('infection.symptom', ['bite', after]); } catch {}
+        }
     },
 
     add(player, amount, options = {}) {
@@ -98,9 +101,11 @@ module.exports = {
         try {
             if (!player || !player.inventory || !Array.isArray(player.inventory.items)) return false;
             return player.inventory.items.some((item) => {
-                if (!item || item.parentId != null || item.itemId !== 14) return false;
+                if (!item || item.parentId != null) return false;
+                if (GAS_MASK_IDS.includes(Number(item.itemId))) return true;
+                if (item.itemId !== 14) return false;
                 const params = item.params ? this.getParamsValuesSafe(item) : {};
-                return GAS_MASK_VARIATIONS.includes(Number(params.variation));
+                return GAS_MASK_IDS.includes(Number(params.variation));
             });
         } catch {}
         return false;
@@ -119,7 +124,11 @@ module.exports = {
     applyZoneExposure(player, zoneName = 'заражённая зона') {
         if (!player || !player.character) return;
         if (this.hasGasMask(player)) return;
+        const before = this.get(player);
         const next = this.add(player, INFECTION_ZONE_ADD);
+        if (next > before) {
+            try { player.call('infection.symptom', ['zone', next]); } catch {}
+        }
         if (next > 0 && Math.round(next) % 10 === 0 && notifs && typeof notifs.warning === 'function') {
             notifs.warning(player, `Нет противогаза: заражение ${Math.round(next)}%`, 'Заражённая зона');
         }
