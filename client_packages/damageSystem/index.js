@@ -7,9 +7,10 @@ const ZOMBIE_IMPACT_RADIUS = 1.6;
 const ZOMBIE_HIT_DEDUP_MS = 5;
 const DEFAULT_ZOMBIE_DAMAGE = 12;
 const ZOMBIE_RAYCAST_DIST = 120.0;
-const ZOMBIE_STRICT_RAY_DIST_MAX = 1.05;
-const ZOMBIE_STRICT_IMPACT_DIST_MAX = 1.25;
-const ZOMBIE_STRICT_ANGLE_MAX_DEG = 8.5;
+const ZOMBIE_STRICT_RAY_DIST_MAX = 1.25;
+const ZOMBIE_STRICT_IMPACT_DIST_MAX = 1.45;
+const ZOMBIE_STRICT_ANGLE_MAX_DEG = 10.5;
+const ZOMBIE_RAYCAST_FLAGS = [1, 4, 8, 16];
 const ZOMBIE_MULTIPLIER_HEAD = 1.8;
 const ZOMBIE_MULTIPLIER_BODY = 1.0;
 const ZOMBIE_MULTIPLIER_LIMB = 0.65;
@@ -73,7 +74,8 @@ function findZombieNearPosition(pos, radius = ZOMBIE_IMPACT_RADIUS) {
             if (!ped || !mp.peds.exists(ped)) return;
             const zid = ped.getVariable('zid');
             if (typeof zid !== 'number') return;
-            const d = ped.position.distanceTo(pos);
+            const samples = getZombieAimSamplePoints(ped);
+            const d = samples.reduce((min, sample) => Math.min(min, distance3(sample, pos)), Infinity);
             if (d <= radius && d < bestDist) {
                 bestDist = d;
                 best = { zid, dist: d, ped };
@@ -88,6 +90,37 @@ function resolveZombieFromPed(ped) {
     const zid = ped.getVariable('zid');
     if (typeof zid !== 'number') return null;
     return { ped, zid };
+}
+
+function distance3(a, b) {
+    if (!a || !b) return Infinity;
+    const dx = (Number(a.x) || 0) - (Number(b.x) || 0);
+    const dy = (Number(a.y) || 0) - (Number(b.y) || 0);
+    const dz = (Number(a.z) || 0) - (Number(b.z) || 0);
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+function getZombieAimSamplePoints(ped) {
+    const samples = [];
+    try {
+        const base = ped && ped.position ? ped.position : null;
+        if (base) {
+            samples.push({ x: base.x, y: base.y, z: base.z + 0.25 });
+            samples.push({ x: base.x, y: base.y, z: base.z + 0.9 });
+            samples.push({ x: base.x, y: base.y, z: base.z + 1.45 });
+        }
+    } catch {}
+
+    [31086, 24816, 11816, 23553, 24817, 24818].forEach((boneId) => {
+        try {
+            const p = ped.getBoneCoords(boneId, 0.0, 0.0, 0.0);
+            if (p && Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)) {
+                samples.push({ x: p.x, y: p.y, z: p.z });
+            }
+        } catch {}
+    });
+
+    return samples;
 }
 
 function dot(a, b) {
@@ -112,23 +145,31 @@ function angleDeg(a, b) {
 
 function evaluateZombieCandidateByRay(ped, ray, impactPos = null) {
     if (!ped || !ray || !ray.from || !ray.to || !ray.dir) return null;
-    const pedPos = ped.position;
-    const vx = pedPos.x - ray.from.x;
-    const vy = pedPos.y - ray.from.y;
-    const vz = pedPos.z - ray.from.z;
+
+    const samples = getZombieAimSamplePoints(ped);
+    if (!samples.length) return null;
 
     const rayLen = length({ x: ray.to.x - ray.from.x, y: ray.to.y - ray.from.y, z: ray.to.z - ray.from.z }) || ZOMBIE_RAYCAST_DIST;
-    const t = Math.max(0, Math.min(rayLen, dot({ x: vx, y: vy, z: vz }, ray.dir)));
-    const closest = {
-        x: ray.from.x + ray.dir.x * t,
-        y: ray.from.y + ray.dir.y * t,
-        z: ray.from.z + ray.dir.z * t,
-    };
-    const distToRay = length({ x: pedPos.x - closest.x, y: pedPos.y - closest.y, z: pedPos.z - closest.z });
-    const distToImpact = impactPos ? pedPos.distanceTo(impactPos) : Infinity;
-    const ang = angleDeg(ray.dir, { x: vx, y: vy, z: vz });
+    let best = null;
 
-    return { distToRay, distToImpact, angle: ang, t };
+    samples.forEach((sample) => {
+        const vx = sample.x - ray.from.x;
+        const vy = sample.y - ray.from.y;
+        const vz = sample.z - ray.from.z;
+        const t = Math.max(0, Math.min(rayLen, dot({ x: vx, y: vy, z: vz }, ray.dir)));
+        const closest = {
+            x: ray.from.x + ray.dir.x * t,
+            y: ray.from.y + ray.dir.y * t,
+            z: ray.from.z + ray.dir.z * t,
+        };
+        const distToRay = length({ x: sample.x - closest.x, y: sample.y - closest.y, z: sample.z - closest.z });
+        const distToImpact = impactPos ? distance3(sample, impactPos) : Infinity;
+        const ang = angleDeg(ray.dir, { x: vx, y: vy, z: vz });
+        const score = distToRay * 2 + (impactPos ? distToImpact : 0) + (ang / 30);
+        if (!best || score < best.score) best = { distToRay, distToImpact, angle: ang, t, score };
+    });
+
+    return best;
 }
 
 function findStrictZombieCandidate(impactPos, ray) {
@@ -233,8 +274,12 @@ function getAimRay(dist = ZOMBIE_RAYCAST_DIST, aimedPoint = null) {
 function runAimRaycast(aimedPoint = null) {
     try {
         const ray = getAimRay(ZOMBIE_RAYCAST_DIST, aimedPoint);
-        const hit = mp.raycasting.testPointToPoint(ray.from, ray.to, [1, 16]);
-        zlog(`raycast success=${!!hit} originSource=${ray.originSource || 'n/a'} dirSource=${ray.dirSource || 'n/a'}`);
+        let hit = null;
+        try { hit = mp.raycasting.testPointToPoint(ray.from, ray.to, mp.players.local, ZOMBIE_RAYCAST_FLAGS); } catch {}
+        if (!hit) {
+            try { hit = mp.raycasting.testPointToPoint(ray.from, ray.to, null, ZOMBIE_RAYCAST_FLAGS); } catch {}
+        }
+        zlog(`raycast success=${!!hit} flags=${ZOMBIE_RAYCAST_FLAGS.join('|')} originSource=${ray.originSource || 'n/a'} dirSource=${ray.dirSource || 'n/a'}`);
         return { ray, hit };
     } catch (e) {
         zerr(`raycast fail reason=${e.message}`);
@@ -503,7 +548,7 @@ mp.events.add('playerWeaponShot', (targetPosition, targetEntity) => {
         return;
     }
 
-    const nearAlongRay = findZombieAlongRay(ray, 4.0, ZOMBIE_IMPACT_RADIUS);
+    const nearAlongRay = findZombieAlongRay(ray, 1.5, ZOMBIE_IMPACT_RADIUS);
     if (nearAlongRay) {
         const metrics = evaluateZombieCandidateByRay(nearAlongRay.ped, ray, rayImpactPos);
         logRayAlignmentDebug(ray, rayImpactPos, { zid: nearAlongRay.zid, ped: nearAlongRay.ped, metrics }, 'rayImpact-nearAlongRay');

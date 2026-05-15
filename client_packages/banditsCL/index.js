@@ -28,6 +28,8 @@ const deadReportAt = new Map(); // zid -> ts
 const deadConfirmedAt = new Map(); // zid -> ts
 const CTRL_HEARTBEAT_MS = 1000;
 const PLAYER_HIT_SHAKE_MS = 5000;
+const ZOMBIE_FEAR_SUPPRESS_MS = 650;
+const SET_PED_FLEE_ATTRIBUTES_NATIVE = '0x70A2D1137C8ED7C9';
 const playerHitFx = {
     shakeUntil: 0,
     shakeActive: false,
@@ -281,16 +283,29 @@ function forceAggroPedState(ped, clipset = null){
 
     applyZombieWalkStyle(ped, clipset);
 
-    try { ped.setCanRagdoll(true); } catch {}
+    try { ped.setCanRagdoll(false); } catch {}
     try { ped.setBlockingOfNonTemporaryEvents(true); } catch {}
     try { ped.setKeepTask(true); } catch {}
 
     try { mp.game.ped.setPedFleeAttributes(ped.handle, 0, false); } catch {}
-    try { mp.game.ped.setPedCombatAttributes(ped.handle, 17, true); } catch {} // always fight
-    try { mp.game.ped.setPedCombatAttributes(ped.handle, 46, true); } catch {} // BF_CanFightArmedPedsWhenNotArmed
+    try { mp.game.invoke(SET_PED_FLEE_ATTRIBUTES_NATIVE, ped.handle, 0, false); } catch {}
+    try { mp.game.ped.setPedCombatAttributes(ped.handle, 5, true); } catch {} // BF_CanFightArmedPedsWhenNotArmed
+    try { mp.game.ped.setPedCombatAttributes(ped.handle, 46, true); } catch {} // BF_AlwaysFight
     try { mp.game.ped.setPedCombatMovement(ped.handle, 2); } catch {}
     try { mp.game.ped.setPedCombatRange(ped.handle, 0); } catch {}
     try { mp.game.ped.setPedAlertness(ped.handle, 3); } catch {}
+}
+
+function reassertZombieAggroStates(force = false) {
+    const now = Date.now();
+    zombies.forEach((obj) => {
+        try {
+            if (!obj || !obj.ped || !mp.peds.exists(obj.ped)) return;
+            if (!force && obj.lastFearSuppressAt && (now - obj.lastFearSuppressAt) < ZOMBIE_FEAR_SUPPRESS_MS) return;
+            obj.lastFearSuppressAt = now;
+            forceAggroPedState(obj.ped, obj.style ? obj.style.clipset : null);
+        } catch {}
+    });
 }
 
 
@@ -375,7 +390,7 @@ function prepPed(ped, obj = null){
     try{ ped.setCollision(true,true); }catch{}
     try{ ped.setBlockingOfNonTemporaryEvents(true); }catch{}
     try{ ped.setKeepTask(true); }catch{}
-    try{ ped.setCanRagdoll(true); }catch{}
+    try{ ped.setCanRagdoll(false); }catch{}
     const clipset = obj && obj.style ? obj.style.clipset : null;
     applyZombieWalkStyle(ped, clipset);
     forceAggroPedState(ped, clipset);
@@ -459,6 +474,10 @@ mp.events.add('entityStreamIn', (ent) => {
 });
 mp.events.add('entityStreamOut', (ent) => {
     try { if (ent && ent.type === 'ped') detachIfZombie(ent); } catch {}
+});
+
+mp.events.add('playerWeaponShot', () => {
+    reassertZombieAggroStates(true);
 });
 
 // принудительный первый проход
@@ -713,6 +732,7 @@ mp.events.add('z:dead', (zid) => {
     deadConfirmedAt.set(zid, Date.now());
     try { ped.setInvincible(false); } catch {}
     try { mp.game.entity.setEntityProofs(ped.handle, false, false, false, false, false, false, false, false); }catch{}
+    try { ped.setCanRagdoll(true); } catch {}
     try { ped.clearTasksImmediately(); } catch {}
     try { ped.setHealth(0); } catch {}
     try { mp.game.ped.setPedToRagdoll(ped.handle, 5000, 5000, 0, false, false, false); } catch {}
