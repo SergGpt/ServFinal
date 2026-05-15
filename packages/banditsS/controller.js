@@ -39,6 +39,16 @@ function getInfection() {
     return infectionRef;
 }
 
+function isPlayerInAnyZombieZone(player) {
+    if (!player || !mp.players.exists(player)) return false;
+    let result = false;
+    zones.forEach((zone) => {
+        if (result) return;
+        if (isPlayerInZone(player, zone)) result = true;
+    });
+    return result;
+}
+
 function getDbRef() {
     try {
         if (typeof global !== 'undefined' && global.db) return global.db;
@@ -1207,6 +1217,19 @@ function registerEvents() {
 
     mp.events.add('characterInit.done', (player) => {
         setTimeout(() => syncZombieZoneMapBlips(player), 1500);
+        try {
+            const infection = getInfection();
+            if (infection && typeof infection.startZoneExposure === 'function') {
+                infection.startZoneExposure(player, isPlayerInAnyZombieZone);
+            }
+        } catch {}
+    });
+
+    mp.events.add('playerQuit', (player) => {
+        try {
+            const infection = getInfection();
+            if (infection && typeof infection.stopZoneExposure === 'function') infection.stopZoneExposure(player);
+        } catch {}
     });
 
     mp.events.add('zombies:zone:add', async (player, radiusRaw, zombieCountRaw, respawnSecRaw, ...nameParts) => {

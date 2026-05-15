@@ -9,9 +9,13 @@ const INFECTION_DAMAGE_THRESHOLD = 50;
 const INFECTION_DAMAGE_INTERVAL_MS = 60 * 1000;
 const INFECTION_DAMAGE = 1;
 const INFECTION_DEATH_REDUCTION_PERCENT = 25;
+const INFECTION_ZONE_ADD = 1;
+const INFECTION_ZONE_INTERVAL_MS = 5 * 1000;
+const GAS_MASK_VARIATIONS = [166, 142, 130, 46, 38, 36];
 
 module.exports = {
     timers: {},
+    zoneTimers: {},
     tableName: null,
 
     async init() {
@@ -73,10 +77,80 @@ module.exports = {
     addBite(player) {
         if (!player || !player.character || player.godmode) return;
         const before = this.get(player);
-        const after = this.normalize(before + INFECTION_BITE_ADD);
-        this.set(player, after, {
-            notify: after > before ? `Укус зомби: заражение ${Math.round(after)}%` : null,
+        const expected = this.normalize(before + INFECTION_BITE_ADD);
+        this.add(player, INFECTION_BITE_ADD, {
+            notify: expected > before ? `Укус зомби: заражение ${Math.round(expected)}%` : null,
         });
+    },
+
+    add(player, amount, options = {}) {
+        if (!player || !player.character || player.godmode) return 0;
+        const before = this.get(player);
+        const after = this.normalize(before + (Number(amount) || 0));
+        if (after <= before) return before;
+
+        const notify = options.notify || null;
+        this.set(player, after, { notify });
+        return after;
+    },
+
+    hasGasMask(player) {
+        try {
+            if (!player || !player.inventory || !Array.isArray(player.inventory.items)) return false;
+            return player.inventory.items.some((item) => {
+                if (!item || item.parentId != null || item.itemId !== 14) return false;
+                const params = item.params ? this.getParamsValuesSafe(item) : {};
+                return GAS_MASK_VARIATIONS.includes(Number(params.variation));
+            });
+        } catch {}
+        return false;
+    },
+
+    getParamsValuesSafe(item) {
+        const params = {};
+        if (!item || !Array.isArray(item.params)) return params;
+        item.params.forEach((param) => {
+            if (!param) return;
+            params[param.key] = param.value;
+        });
+        return params;
+    },
+
+    applyZoneExposure(player, zoneName = 'заражённая зона') {
+        if (!player || !player.character) return;
+        if (this.hasGasMask(player)) return;
+        const next = this.add(player, INFECTION_ZONE_ADD);
+        if (next > 0 && Math.round(next) % 10 === 0 && notifs && typeof notifs.warning === 'function') {
+            notifs.warning(player, `Нет противогаза: заражение ${Math.round(next)}%`, 'Заражённая зона');
+        }
+    },
+
+    startZoneExposure(player, isInZoneFn) {
+        if (!player || !player.character) return;
+        const playerId = player.id;
+        const characterId = player.character.id;
+        this.stopZoneExposure(player);
+
+        this.zoneTimers[playerId] = timer.addInterval(() => {
+            try {
+                const rec = mp.players.at(playerId);
+                if (!rec || !rec.character || rec.character.id !== characterId) {
+                    timer.remove(this.zoneTimers[playerId]);
+                    delete this.zoneTimers[playerId];
+                    return;
+                }
+                if (typeof isInZoneFn === 'function' && !isInZoneFn(rec)) return;
+                this.applyZoneExposure(rec);
+            } catch (error) {
+                console.error(`[INFECTION] zone exposure failed: ${error.message}`);
+            }
+        }, INFECTION_ZONE_INTERVAL_MS);
+    },
+
+    stopZoneExposure(player) {
+        if (!player) return;
+        timer.remove(this.zoneTimers[player.id]);
+        delete this.zoneTimers[player.id];
     },
 
     startTimer(player) {
@@ -104,6 +178,7 @@ module.exports = {
         if (!player) return;
         timer.remove(this.timers[player.id]);
         delete this.timers[player.id];
+        this.stopZoneExposure(player);
     },
 
     processDamage(player) {
