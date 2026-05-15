@@ -45,6 +45,8 @@ const SET_BLIP_SPRITE_NATIVE = '0xDF735600A4696DAF';
 const SET_BLIP_ALPHA_NATIVE = '0x45FF974EEE1C8734';
 const SET_BLIP_ROTATION_NATIVE = '0xF87683CDF73C3F6E';
 const SET_BLIP_COLOUR_NATIVE = '0x03D7FB09E75D6B7E';
+const SET_BLIP_DISPLAY_NATIVE = '0x9029B2F3DA924928';
+const ZOMBIE_ZONE_MAIN_MAP_DISPLAY = 3;
 const zombieZoneMapBlips = [];
 
 function removeZombieZoneMapBlips() {
@@ -107,6 +109,18 @@ function getZombieZoneMapRadius(zone, center) {
     return Math.max(5, Number(zone && zone.radius) || 30);
 }
 
+function setZombieZoneBlipMainMapOnly(blip) {
+    if (!blip) return;
+    try {
+        if (typeof blip === 'object' && typeof blip.setDisplay === 'function') {
+            blip.setDisplay(ZOMBIE_ZONE_MAIN_MAP_DISPLAY);
+            return;
+        }
+    } catch {}
+
+    try { mp.game.invoke(SET_BLIP_DISPLAY_NATIVE, blip, ZOMBIE_ZONE_MAIN_MAP_DISPLAY); } catch {}
+}
+
 function createZombieZoneAreaBlip(x, y, z, width, height, alpha, rotation = 0) {
     let blip = 0;
     try {
@@ -121,6 +135,7 @@ function createZombieZoneAreaBlip(x, y, z, width, height, alpha, rotation = 0) {
     mp.game.invoke(SET_BLIP_ALPHA_NATIVE, blip, alpha);
     mp.game.invoke(SET_BLIP_COLOUR_NATIVE, blip, ZOMBIE_ZONE_AREA_COLOR);
     mp.game.invoke(SET_BLIP_ROTATION_NATIVE, blip, Math.round(rotation));
+    setZombieZoneBlipMainMapOnly(blip);
     return blip;
 }
 
@@ -223,6 +238,7 @@ function createZombieZoneMapBlips(zones) {
             mp.game.invoke(SET_BLIP_SPRITE_NATIVE, area, 5);
             mp.game.invoke(SET_BLIP_ALPHA_NATIVE, area, ZOMBIE_ZONE_AREA_ALPHA);
             mp.game.invoke(SET_BLIP_COLOUR_NATIVE, area, ZOMBIE_ZONE_AREA_COLOR);
+            setZombieZoneBlipMainMapOnly(area);
             areas.push(area);
         }
 
@@ -233,6 +249,7 @@ function createZombieZoneMapBlips(zones) {
             shortRange: false,
             scale: 0.8,
         });
+        setZombieZoneBlipMainMapOnly(marker);
 
         zombieZoneMapBlips.push({ areas, marker });
     });
