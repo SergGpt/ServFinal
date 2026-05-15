@@ -18,6 +18,9 @@ let timer = call('timer');
 let vehicles = call('vehicles');
 let animations = call('animations');
 
+const INFECTION_CURE_DRINK_ITEM_ID = 34;
+const INFECTION_CURE_DRINK_AMOUNT = 25;
+
 const CONSUMABLE_DEFAULT_PARAMS = {
     34: { thirst: 100 },
     35: { satiety: 20, thirst: -5 },
@@ -35,6 +38,21 @@ function getConsumableParams(itemId, params = {}) {
     if (params.thirst == null && defaults.thirst == null) resolved.thirst = 0;
 
     return resolved;
+}
+
+function reduceInfectionByDrink(player, itemId) {
+    if (itemId !== INFECTION_CURE_DRINK_ITEM_ID) return;
+
+    try {
+        var infection = call('infection');
+        if (!infection || typeof infection.reduce !== 'function') return;
+
+        infection.reduce(player, INFECTION_CURE_DRINK_AMOUNT, {
+            notify: `Вода снизила заражение на ${INFECTION_CURE_DRINK_AMOUNT}%`,
+        });
+    } catch (error) {
+        console.error(`[INVENTORY] infection reduce failed: ${error.message}`);
+    }
 }
 
 module.exports = {
@@ -564,14 +582,16 @@ module.exports = {
             inventory.notifyOverhead(rec, `Выпил '${inventory.getName(itemId)}'`);
             if (params.alcohol) clubs.addDrunkenness(rec, params.alcohol);
             satiety.set(rec, character.satiety + (params.satiety || 0), character.thirst + (params.thirst || 0));
+            reduceInfectionByDrink(rec, itemId);
             notifs.success(rec, `Вы выпили ${inventory.getName(itemId)}`, header);
-            player.call(`inventory.setHandsBlock`, [false, true]);
+            rec.call(`inventory.setHandsBlock`, [false, true]);
         }, time);
     } else {
         inventory.deleteItem(player, drink);
         inventory.notifyOverhead(player, `Выпил '${inventory.getName(itemId)}'`);
         if (params.alcohol) clubs.addDrunkenness(player, params.alcohol);
         satiety.set(player, character.satiety + (params.satiety || 0), character.thirst + (params.thirst || 0));
+        reduceInfectionByDrink(player, itemId);
         notifs.success(player, `Вы выпили ${inventory.getName(itemId)}`, header);
         player.call(`inventory.setHandsBlock`, [false, true]);
     }

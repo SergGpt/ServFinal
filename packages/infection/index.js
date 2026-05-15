@@ -97,6 +97,19 @@ module.exports = {
         return after;
     },
 
+    reduce(player, amount, options = {}) {
+        if (!player || !player.character) return 0;
+        const before = this.get(player);
+        const after = this.normalize(before - Math.abs(Number(amount) || 0));
+        if (after >= before) return before;
+
+        this.set(player, after);
+        if (options.notify && notifs && typeof notifs.success === 'function') {
+            notifs.success(player, options.notify, 'Заражение');
+        }
+        return after;
+    },
+
     hasGasMask(player) {
         try {
             if (!player || !player.inventory || !Array.isArray(player.inventory.items)) return false;
