@@ -8,10 +8,15 @@ const INTERACT_DISTANCE = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.interactDista
 const CANCEL_DISTANCE = ZOMBIE_CONFIG.loot && ZOMBIE_CONFIG.loot.cancelDistance ? ZOMBIE_CONFIG.loot.cancelDistance : 3.5;
 const LOOT_DURATION_MS = 3000;
 const BAG_LIFETIME_MS = ZOMBIE_CONFIG.timers && ZOMBIE_CONFIG.timers.lootBagLifetimeMs ? ZOMBIE_CONFIG.timers.lootBagLifetimeMs : 5 * 60 * 1000;
-const BAG_GROUND_OFFSET_Z = -0.12;
+const BAG_GROUND_OFFSET_Z = -1.12;
 const ZOMBIE_LOOT_ITEM_IDS = (ZOMBIE_CONFIG.loot && Array.isArray(ZOMBIE_CONFIG.loot.itemIds) && ZOMBIE_CONFIG.loot.itemIds.length)
     ? ZOMBIE_CONFIG.loot.itemIds
-    : [234, 235, 237, 238, 239, 240, 241, 242, 243, 244];
+    : [
+        234, 235, 237, 238, 239, 240, 241, 242, 243, 244,
+        701, 702, 703, 704, 705, 706, 707, 708, 709, 710,
+        711, 712, 713, 714, 715, 716, 717, 718, 719, 720,
+        721, 722, 723, 724, 725,
+    ];
 
 const BAG_DROP_CHANCE_PERCENT = (() => {
     const raw = ZOMBIE_CONFIG.loot ? Number(ZOMBIE_CONFIG.loot.bagDropChancePercent) : NaN;

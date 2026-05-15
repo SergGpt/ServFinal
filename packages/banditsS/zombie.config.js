@@ -43,10 +43,15 @@ const ZOMBIE_CONFIG = {
 
     loot: {
         bagModel: 'prop_cs_heist_bag_01',
-        bagDropChancePercent: 25,
+        bagDropChancePercent: 40,
         interactDistance: 2.2,
         cancelDistance: 3.5,
-        itemIds: [234, 235, 237, 238, 239, 240, 241, 242, 243, 244],
+        itemIds: [
+            234, 235, 237, 238, 239, 240, 241, 242, 243, 244,
+            701, 702, 703, 704, 705, 706, 707, 708, 709, 710,
+            711, 712, 713, 714, 715, 716, 717, 718, 719, 720,
+            721, 722, 723, 724, 725,
+        ],
     },
 
     network: {

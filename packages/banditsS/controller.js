@@ -25,6 +25,7 @@ function infoLog(msg) {
 
 const zones = new Map();
 const zombies = new Map();
+let zombieZoneMapSignature = '';
 const zombieLootManager = createZombieLootManager();
 let zombieZoneColumnSet = null;
 const ZONE_SPAWN_DELAY_MS = 45 * 1000;
@@ -159,6 +160,41 @@ function upsertZone(raw) {
     }
     zones.set(runtimeZone.id, runtimeZone);
     return runtimeZone;
+}
+
+function getZombieZoneMapData() {
+    return Array.from(zones.values())
+        .filter((zone) => zone && zone.dimension === 0)
+        .sort((a, b) => a.id - b.id)
+        .map((zone) => ({
+            id: zone.id,
+            name: 'точка вспышки',
+            x: zone.x,
+            y: zone.y,
+            z: zone.z,
+            radius: zone.radius,
+            points: Array.isArray(zone.points) ? zone.points.map((point) => ({
+                x: point.x,
+                y: point.y,
+                z: point.z,
+            })) : [],
+        }));
+}
+
+function syncZombieZoneMapBlips(player) {
+    if (!player || !mp.players.exists(player)) return;
+    try { player.call('zombies:zones:map', [getZombieZoneMapData()]); } catch {}
+}
+
+function syncZombieZoneMapBlipsForAll(force = false) {
+    const data = getZombieZoneMapData();
+    const signature = JSON.stringify(data);
+    if (!force && signature === zombieZoneMapSignature) return;
+    zombieZoneMapSignature = signature;
+
+    mp.players.forEach((player) => {
+        try { player.call('zombies:zones:map', [data]); } catch {}
+    });
 }
 
 async function loadZonesFromDb(options = {}) {
@@ -1156,6 +1192,10 @@ function registerEvents() {
         }
     });
 
+    mp.events.add('characterInit.done', (player) => {
+        setTimeout(() => syncZombieZoneMapBlips(player), 1500);
+    });
+
     mp.events.add('zombies:zone:add', async (player, radiusRaw, zombieCountRaw, respawnSecRaw, ...nameParts) => {
         try {
             if (!player || !mp.players.exists(player)) return;
@@ -1225,6 +1265,7 @@ function registerEvents() {
 
             player.outputChatBox(`!{#66ff66}[Z] Добавлена зона #${zone.id}: ${zone.name} | dim=${zone.dimension} | R=${zone.radius} | spawn=${zone.zombieCount} | respawn=${(zone.respawnMs / 1000).toFixed(0)}s`);
             console.log(`[Z] zone added id=${zone.id} name=${zone.name} dim=${zone.dimension} pos=${zone.x.toFixed(2)},${zone.y.toFixed(2)},${zone.z.toFixed(2)} radius=${zone.radius} spawn=${zone.zombieCount} respawnMs=${zone.respawnMs}`);
+            syncZombieZoneMapBlipsForAll();
         } catch (e) {
             if (player && player.outputChatBox) {
                 player.outputChatBox(`!{#ff6666}[Z] Ошибка добавления зоны: ${e.message}`);
@@ -1319,6 +1360,7 @@ function registerEvents() {
             const zone = upsertZone(created);
             player.outputChatBox(`!{#66ff66}[Z] Полигональная зона #${zone.id} сохранена: ${zone.name} | точек=${zone.points.length} | dim=${zone.dimension}`);
             console.log(`[Z] polygon zone added id=${zone.id} name=${zone.name} points=${zone.points.length} dim=${zone.dimension}`);
+            syncZombieZoneMapBlipsForAll();
 
             if (isPlayerInZone(player, zone)) {
                 spawnZoneOnEnter(zone, player);
@@ -1343,6 +1385,7 @@ function registerLoops() {
     setInterval(async () => {
         try {
             await loadZonesFromDb({ fallbackToConfig: false });
+            syncZombieZoneMapBlipsForAll();
             spawnZonesByPresenceCheck();
         } catch {}
     }, 15000);

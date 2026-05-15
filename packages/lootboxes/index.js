@@ -86,6 +86,32 @@ module.exports = {
         { itemId: 243, min: 1, max: 1, weight: 5, params: { count: 1 } }, // пачка сигарет
         { itemId: 244, min: 1, max: 1, weight: 5, params: { count: 1 } }, // ржавые ключи
         { itemId: 245, min: 1, max: 1, weight: 5, params: { count: 1 } }, // игрушка
+
+        { itemId: 701, min: 1, max: 1, weight: 5, params: { count: 1 } }, // сырое мясо
+        { itemId: 702, min: 1, max: 1, weight: 5, params: { count: 1 } }, // соль
+        { itemId: 703, min: 1, max: 1, weight: 5, params: { count: 1 } }, // грязная вода
+        { itemId: 704, min: 1, max: 1, weight: 5, params: { count: 1 } }, // фильтр для воды
+        { itemId: 705, min: 1, max: 1, weight: 5, params: { count: 1 } }, // хлеб
+        { itemId: 706, min: 1, max: 1, weight: 5, params: { count: 1 } }, // сырая рыба
+        { itemId: 707, min: 1, max: 1, weight: 5, params: { count: 1 } }, // сырая курица
+        { itemId: 708, min: 1, max: 1, weight: 5, params: { count: 1 } }, // консервы
+        { itemId: 709, min: 1, max: 1, weight: 5, params: { count: 1 } }, // овощная смесь
+        { itemId: 710, min: 1, max: 1, weight: 5, params: { count: 1 } }, // острые специи
+        { itemId: 711, min: 1, max: 1, weight: 5, params: { count: 1 } }, // лапша быстрого приготовления
+        { itemId: 712, min: 1, max: 1, weight: 5, params: { count: 1 } }, // грибы
+        { itemId: 713, min: 1, max: 1, weight: 5, params: { count: 1 } }, // заражённые грибы
+        { itemId: 714, min: 1, max: 1, weight: 5, params: { count: 1 } }, // мутировавшее мясо
+        { itemId: 715, min: 1, max: 1, weight: 5, params: { count: 1 } }, // рис
+        { itemId: 716, min: 1, max: 1, weight: 5, params: { count: 1 } }, // чай
+        { itemId: 717, min: 1, max: 1, weight: 5, params: { count: 1 } }, // энергетическая смесь
+        { itemId: 718, min: 1, max: 1, weight: 5, params: { count: 1 } }, // коптильная соль
+        { itemId: 719, min: 1, max: 1, weight: 5, params: { count: 1 } }, // протеиновая смесь
+        { itemId: 720, min: 1, max: 1, weight: 5, params: { count: 1 } }, // сахар
+        { itemId: 721, min: 1, max: 1, weight: 5, params: { count: 1 } }, // кофе
+        { itemId: 722, min: 1, max: 1, weight: 5, params: { count: 1 } }, // масло
+        { itemId: 723, min: 1, max: 1, weight: 5, params: { count: 1 } }, // тесто
+        { itemId: 724, min: 1, max: 1, weight: 5, params: { count: 1 } }, // сухой паёк
+        { itemId: 725, min: 1, max: 1, weight: 5, params: { count: 1 } }, // упаковка
     ],
 
     init() {

@@ -33,6 +33,83 @@ const playerHitFx = {
     shakeActive: false,
 };
 
+const ZOMBIE_ZONE_MAP_BLIP_NAME = 'точка вспышки';
+const ZOMBIE_ZONE_AREA_ALPHA = 115;
+const ZOMBIE_ZONE_AREA_COLOR = 1;
+const ZOMBIE_ZONE_MARKER_SPRITE = 84;
+const zombieZoneMapBlips = [];
+
+function removeZombieZoneMapBlips() {
+    while (zombieZoneMapBlips.length) {
+        const entry = zombieZoneMapBlips.pop();
+        try { if (entry.area) mp.game.ui.removeBlip(entry.area); } catch {}
+        try { if (entry.marker && mp.blips.exists(entry.marker)) entry.marker.destroy(); } catch {}
+    }
+}
+
+function getZombieZoneMapCenter(zone) {
+    const points = zone && Array.isArray(zone.points) ? zone.points : [];
+    if (points.length >= 3) {
+        const sum = points.reduce((acc, point) => {
+            acc.x += Number(point.x) || 0;
+            acc.y += Number(point.y) || 0;
+            acc.z += Number(point.z) || 0;
+            return acc;
+        }, { x: 0, y: 0, z: 0 });
+
+        return {
+            x: sum.x / points.length,
+            y: sum.y / points.length,
+            z: sum.z / points.length,
+        };
+    }
+
+    return {
+        x: Number(zone && zone.x) || 0,
+        y: Number(zone && zone.y) || 0,
+        z: Number(zone && zone.z) || 0,
+    };
+}
+
+function getZombieZoneMapRadius(zone, center) {
+    const points = zone && Array.isArray(zone.points) ? zone.points : [];
+    if (points.length >= 3) {
+        const radius = points.reduce((max, point) => {
+            const dx = (Number(point.x) || 0) - center.x;
+            const dy = (Number(point.y) || 0) - center.y;
+            return Math.max(max, Math.sqrt(dx * dx + dy * dy));
+        }, 0);
+        return Math.max(5, radius);
+    }
+
+    return Math.max(5, Number(zone && zone.radius) || 30);
+}
+
+function createZombieZoneMapBlips(zones) {
+    removeZombieZoneMapBlips();
+    if (!Array.isArray(zones)) return;
+
+    zones.forEach((zone) => {
+        const center = getZombieZoneMapCenter(zone);
+        const radius = getZombieZoneMapRadius(zone, center);
+        const name = String((zone && zone.name) || ZOMBIE_ZONE_MAP_BLIP_NAME);
+        const area = mp.game.ui.addBlipForRadius(center.x, center.y, center.z, radius);
+        mp.game.invoke('0xDF735600A4696DAF', area, 5); // SET_BLIP_SPRITE
+        mp.game.invoke('0x45FF974EEE1C8734', area, ZOMBIE_ZONE_AREA_ALPHA); // SET_BLIP_ALPHA
+        mp.game.invoke('0x03D7FB09E75D6B7E', area, ZOMBIE_ZONE_AREA_COLOR); // SET_BLIP_COLOUR
+
+        const marker = mp.blips.new(ZOMBIE_ZONE_MARKER_SPRITE, new mp.Vector3(center.x, center.y, center.z), {
+            name,
+            color: ZOMBIE_ZONE_AREA_COLOR,
+            alpha: 255,
+            shortRange: false,
+            scale: 0.8,
+        });
+
+        zombieZoneMapBlips.push({ area, marker });
+    });
+}
+
 function chatRaw(str){ try{ mp.gui.chat.push(str); }catch{} }
 function chat(msg,color='#ffffff'){ chatRaw(`!{${color}}${msg}`); }
 function dlog(msg){ if(DEBUG && VERBOSE) chat(`[ZDBG] ${msg}`,'#99ccff'); }
@@ -1074,4 +1151,9 @@ mp.events.add('render', () => {
             255, 120, 0, 255
         );
     }
+});
+
+
+mp.events.add('zombies:zones:map', (zones) => {
+    try { createZombieZoneMapBlips(zones); } catch (e) { lootDebug(`zone map blips error=${e.message}`); }
 });
